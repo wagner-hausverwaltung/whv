@@ -42,6 +42,17 @@ class TicketShareScope(enum.StrEnum):
     PROPERTY = "PROPERTY"
 
 
+class TicketMessageSource(enum.StrEnum):
+    """Where a ticket message originated.
+
+    PORTAL — typed into the React portal or Jinja admin UI
+    EMAIL  — arrived via the SES → SNS → /webhooks/email/inbound path
+    """
+
+    PORTAL = "PORTAL"
+    EMAIL = "EMAIL"
+
+
 class Ticket(OrganizationScopedMixin, TimestampMixin, Base):
     __tablename__ = "tickets"
 
@@ -52,12 +63,16 @@ class Ticket(OrganizationScopedMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
-    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    # When set, this ticket was created via inbound email by a sender that
+    # does NOT have a WHV-Portal account. Notifications go to this address;
+    # registered-user replies via the portal still work normally.
+    external_sender_email: Mapped[str | None] = mapped_column(Text, nullable=True)
     assignee_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -123,17 +138,32 @@ class TicketMessage(Base):
         nullable=False,
         index=True,
     )
-    author_user_id: Mapped[uuid.UUID] = mapped_column(
+    # NULL when the message arrived via email from a non-registered sender.
+    # In that case external_sender_email captures the address.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    external_sender_email: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     is_internal_note: Mapped[bool] = mapped_column(
         nullable=False,
         default=False,
         server_default="false",
+    )
+    source: Mapped[TicketMessageSource] = mapped_column(
+        Enum(TicketMessageSource, name="ticket_message_source"),
+        nullable=False,
+        default=TicketMessageSource.PORTAL,
+        server_default=TicketMessageSource.PORTAL.value,
+    )
+    # RFC 5322 Message-ID of the inbound email (if source=EMAIL). Used for
+    # idempotency on retries + threading on outbound replies (In-Reply-To /
+    # References headers).
+    email_message_id: Mapped[str | None] = mapped_column(
+        Text, nullable=True, unique=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -42,8 +42,14 @@ class EmailClient:
         subject: str,
         html: str,
         text: str,
+        headers: dict[str, str] | None = None,
     ) -> str:
-        """Send a single transactional email. Returns Resend's message id."""
+        """Send a single transactional email. Returns Resend's message id.
+
+        `headers` lets callers add RFC 5322 threading headers (In-Reply-To,
+        References) so replies thread correctly in Gmail / Outlook. Resend's
+        REST API accepts a top-level `headers` object.
+        """
         if not self._settings.resend_api_key:
             raise EmailError("RESEND_API_KEY is not configured")
 
@@ -55,6 +61,8 @@ class EmailClient:
             "html": html,
             "text": text,
         }
+        if headers:
+            body["headers"] = headers
         response = await self._client.post("/emails", json=body)
         if response.status_code != 200:
             raise EmailError(f"Resend returned {response.status_code}: {response.text[:200]}")
