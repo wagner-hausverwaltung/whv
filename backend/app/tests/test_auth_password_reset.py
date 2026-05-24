@@ -21,7 +21,15 @@ class _StubEmailClient:
         self.sent: list[dict[str, str]] = []
         self.raise_error = raise_error
 
-    async def send(self, *, to: str, subject: str, html: str, text: str) -> str:
+    async def send(
+        self,
+        *,
+        to: str,
+        subject: str,
+        html: str,
+        text: str,
+        headers: dict[str, str] | None = None,
+    ) -> str:
         if self.raise_error:
             raise EmailError("simulated failure")
         msg_id = f"sim-{uuid.uuid4()}"

@@ -373,7 +373,15 @@ async def test_invite_create_still_works_with_picker_set_id(
         def __init__(self) -> None:
             self.sent: list[dict[str, str]] = []
 
-        async def send(self, *, to: str, subject: str, html: str, text: str) -> str:
+        async def send(
+            self,
+            *,
+            to: str,
+            subject: str,
+            html: str,
+            text: str,
+            headers: dict[str, str] | None = None,
+        ) -> str:
             msg_id = f"sim-{uuid.uuid4()}"
             self.sent.append({"to": to, "subject": subject, "id": msg_id})
             return msg_id

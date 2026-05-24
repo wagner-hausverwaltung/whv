@@ -4,6 +4,7 @@ email notifications, status transitions.
 
 import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest_asyncio
 from fastapi.testclient import TestClient
@@ -30,11 +31,22 @@ from app.tests._factories import (
 
 class _StubEmailClient:
     def __init__(self) -> None:
-        self.sent: list[dict[str, str]] = []
+        # `headers` value is a nested dict, so widen to Any for typing.
+        self.sent: list[dict[str, Any]] = []
 
-    async def send(self, *, to: str, subject: str, html: str, text: str) -> str:
+    async def send(
+        self,
+        *,
+        to: str,
+        subject: str,
+        html: str,
+        text: str,
+        headers: dict[str, str] | None = None,
+    ) -> str:
         msg_id = f"sim-{uuid.uuid4()}"
-        self.sent.append({"to": to, "subject": subject, "html": html, "text": text})
+        self.sent.append(
+            {"to": to, "subject": subject, "html": html, "text": text, "headers": headers or {}}
+        )
         return msg_id
 
 
@@ -297,7 +309,14 @@ async def test_create_succeeds_even_when_email_send_fails(
     """Email is best-effort. A Resend outage must not block ticket creation."""
     failing = _StubEmailClient()
 
-    async def _fail(*, to: str, subject: str, html: str, text: str) -> str:
+    async def _fail(
+        *,
+        to: str,
+        subject: str,
+        html: str,
+        text: str,
+        headers: dict[str, str] | None = None,
+    ) -> str:
         raise EmailError("simulated")
 
     failing.send = _fail  # type: ignore[method-assign]
