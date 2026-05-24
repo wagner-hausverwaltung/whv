@@ -14,6 +14,7 @@ from app.db import get_session
 from app.integrations.email.client import EmailClient, get_email_client
 from app.integrations.email.inbound import (
     InboundEmailParseError,
+    extract_s3_ref,
     parse_ses_sns_payload,
 )
 from app.integrations.email.tickets import render_ticket_notification_email
@@ -24,6 +25,15 @@ from app.integrations.impower.sync import (
     sync_documents,
     sync_properties,
     sync_units,
+)
+from app.integrations.s3.inbound import (
+    S3FetchError,
+)
+from app.integrations.s3.inbound import (
+    delete_object as s3_delete_object,
+)
+from app.integrations.s3.inbound import (
+    fetch_raw_mime as s3_fetch_raw_mime,
 )
 from app.integrations.sns.validator import SignatureError, verify
 from app.models import (
@@ -266,8 +276,31 @@ async def email_inbound(
         return {"status": "ignored", "type": msg_type}
 
     # --- Notification ---------------------------------------------------------
+    # When the SES rule uses the S3 action (preferred for emails > 150 KB,
+    # i.e. anything with an Outlook signature), the SNS payload references
+    # an S3 object instead of inlining the body. Fetch it before parsing.
+    inner_message = message.get("Message", "")
+    raw_content_override: str | None = None
+    s3_ref = None
     try:
-        parsed = parse_ses_sns_payload(message.get("Message", ""))
+        outer_inner = __import__("json").loads(inner_message)
+        s3_ref = extract_s3_ref(outer_inner)
+    except (ValueError, TypeError):
+        # Parse errors handled by parse_ses_sns_payload below.
+        pass
+    if s3_ref is not None:
+        try:
+            raw_content_override = await s3_fetch_raw_mime(settings, s3_ref.bucket, s3_ref.key)
+        except S3FetchError as exc:
+            logger.warning("email_inbound: S3 fetch failed: %s", exc)
+            # 500 so SNS retries — could be a transient S3 hiccup.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="S3 fetch failed",
+            ) from exc
+
+    try:
+        parsed = parse_ses_sns_payload(inner_message, raw_content_override)
     except InboundEmailParseError as exc:
         logger.warning("email_inbound: parse failed: %s", exc)
         # Return 200 so SNS doesn't retry — the payload is malformed and
@@ -414,7 +447,13 @@ async def email_inbound(
 
     await session.commit()
     await session.refresh(ticket)
-    _ = settings  # currently unused; reserved for future config (rate limits etc.)
+
+    # Best-effort: delete the raw email from S3 now that it's been ingested.
+    # Failure to delete is non-fatal — a bucket lifecycle rule should also
+    # be configured to purge stragglers within the retention window.
+    if s3_ref is not None:
+        await s3_delete_object(settings, s3_ref.bucket, s3_ref.key)
+
     return {
         "status": "created" if created_new else "appended",
         "ticket_id": str(ticket.id),

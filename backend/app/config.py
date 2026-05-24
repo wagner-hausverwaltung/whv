@@ -49,6 +49,16 @@ class Settings(BaseSettings):
     # allowed CORS origin for SPA requests.
     portal_base_url: str = "http://localhost:5173"
 
+    # AWS SES inbound email pipeline. The SES receipt rule saves the full MIME
+    # to s3://{s3_inbound_bucket}/{messageId} and publishes a notification to
+    # SNS; the webhook handler fetches the body from S3 (since "Publish to SNS"
+    # action caps at 150 KB — too small for any Outlook email with a signature).
+    # Credentials use a dedicated IAM user scoped to the inbound bucket only.
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    s3_inbound_bucket: str = ""
+    s3_inbound_region: str = "eu-central-1"
+
 
 @lru_cache
 def get_settings() -> Settings:

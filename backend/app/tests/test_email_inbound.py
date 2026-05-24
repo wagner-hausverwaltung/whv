@@ -634,5 +634,138 @@ async def test_invalid_signature_rejected_with_403(
     assert r.status_code == 403
 
 
+# --- 4. S3 path (SES "Save to S3 + notify SNS" action) -----------------------
+
+
+def _ses_payload_s3(
+    *,
+    sender: str,
+    subject: str,
+    message_id: str = "<s3-test@gmail.com>",
+    bucket: str = "whv-email-inbox",
+    object_key: str = "abc123",
+) -> str:
+    """Build a SES envelope as it arrives when the rule uses the S3 action.
+
+    Distinct from `_ses_payload` in that:
+      - `content` is absent (the body lives at s3://{bucket}/{object_key})
+      - `receipt.action.type == "S3"` with `bucketName` + `objectKey`
+    """
+    headers = [
+        {"name": "From", "value": sender},
+        {"name": "To", "value": "support@inbound.wagner-hausverwaltung.com"},
+        {"name": "Subject", "value": subject},
+        {"name": "Message-ID", "value": message_id},
+    ]
+    inner = {
+        "notificationType": "Received",
+        "mail": {
+            "messageId": "ses-msg-id",
+            "source": sender,
+            "destination": ["support@inbound.wagner-hausverwaltung.com"],
+            "commonHeaders": {
+                "from": [sender],
+                "to": ["support@inbound.wagner-hausverwaltung.com"],
+                "subject": subject,
+                "messageId": message_id,
+            },
+            "headers": headers,
+        },
+        "receipt": {
+            "spamVerdict": {"status": "PASS"},
+            "virusVerdict": {"status": "PASS"},
+            "action": {
+                "type": "S3",
+                "bucketName": bucket,
+                "objectKey": object_key,
+            },
+        },
+    }
+    return json.dumps(inner)
+
+
+async def test_email_inbound_fetches_from_s3_when_no_inline_content(
+    test_engine: AsyncEngine,
+    stub_email: _StubEmailClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SES S3-action mode: webhook fetches raw MIME from S3 (mocked) instead
+    of relying on inlined content. This is what makes large Outlook emails
+    work."""
+    _bypass_signature(monkeypatch)
+
+    from app.auth.passwords import hash_password
+    from app.models import Organization
+    from app.models import User as UserModel
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        org_stmt = select(Organization).where(Organization.id == WHV_ORGANIZATION_ID)
+        if await s.scalar(org_stmt) is None:
+            s.add(Organization(id=WHV_ORGANIZATION_ID, name="WHV"))
+            await s.commit()
+        s.add(
+            UserModel(
+                organization_id=WHV_ORGANIZATION_ID,
+                email=f"vw-s3-{uuid.uuid4().hex[:6]}@test.de",
+                password_hash=hash_password("x"),
+                role=UserRole.VERWALTER,
+            )
+        )
+        await s.commit()
+
+    # Mock the S3 fetch + delete — boto3 isn't called.
+    raw_mime_in_s3 = (
+        "From: sender@example.de\r\n"
+        "To: support@inbound.wagner-hausverwaltung.com\r\n"
+        "Subject: Großer Anhang dabei\r\n"
+        "Message-ID: <s3-test-large@gmail.com>\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n"
+        "\r\n"
+        "Das hier ist ein Body der in S3 liegt, nicht inline.\n"
+    )
+    fetched: list[tuple[str, str]] = []
+    deleted: list[tuple[str, str]] = []
+
+    async def _fake_fetch(_settings: Any, bucket: str, key: str) -> str:
+        fetched.append((bucket, key))
+        return raw_mime_in_s3
+
+    async def _fake_delete(_settings: Any, bucket: str, key: str) -> None:
+        deleted.append((bucket, key))
+
+    monkeypatch.setattr("app.api.v1.webhooks.s3_fetch_raw_mime", _fake_fetch)
+    monkeypatch.setattr("app.api.v1.webhooks.s3_delete_object", _fake_delete)
+
+    envelope = _sns_envelope(
+        _ses_payload_s3(
+            sender="sender@example.de",
+            subject="Großer Anhang dabei",
+            message_id="<s3-test-large@gmail.com>",
+            bucket="whv-email-inbox",
+            object_key="2026/05/24/abc-def-123",
+        )
+    )
+
+    with TestClient(app) as client:
+        r = client.post("/webhooks/email/inbound", json=envelope)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "created"
+
+    # S3 was consulted for the body + the object was cleaned up
+    assert fetched == [("whv-email-inbox", "2026/05/24/abc-def-123")]
+    assert deleted == [("whv-email-inbox", "2026/05/24/abc-def-123")]
+
+    # The ticket has the body that came from S3, not from `content`
+    async with sm() as s:
+        ticket = await s.scalar(select(Ticket).where(Ticket.id == uuid.UUID(r.json()["ticket_id"])))
+        assert ticket is not None
+        msgs = (
+            await s.scalars(select(TicketMessage).where(TicketMessage.ticket_id == ticket.id))
+        ).all()
+        assert len(msgs) == 1
+        assert "Das hier ist ein Body der in S3 liegt" in msgs[0].body
+
+
 # Keep make_org / make_user referenced so the imports aren't dropped by linter.
 _ = make_org, make_user

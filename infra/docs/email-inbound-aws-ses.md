@@ -107,6 +107,91 @@ Then in SES Console → Identities → Create identity → Domain →
 3. After creation, copy the ARN — looks like
    `arn:aws:sns:eu-central-1:<acct>:whv-email-inbound`
 
+## Step 3.5 — Create the S3 bucket for raw email storage
+
+**Why we need this**: the SES "Publish to SNS" action caps inlined email
+content at 150 KB. Any real Outlook email with an HTML signature exceeds
+that and SES drops it ("Message length exceeds limit set by recipient").
+The fix is to save the raw email to S3 first, then publish a small
+notification to SNS that just references the S3 object. Our webhook reads
+the body from S3 on demand.
+
+1. AWS Console → **S3** (eu-central-1) → **Create bucket**
+   - Bucket name: `whv-email-inbox` (or pick another; remember it for env vars)
+   - Region: **EU (Frankfurt) eu-central-1**
+   - Block all public access: **ON** (default; emails contain PII)
+   - Bucket versioning: off
+   - Default encryption: SSE-S3 (default)
+   - Create
+2. After creation, **Properties** → **Lifecycle rules** → **Create lifecycle rule**:
+   - Name: `expire-inbox-after-30d`
+   - Rule scope: applies to all objects
+   - Action: **Expire current versions of objects** after **30 days**
+   - This is belt-and-braces — the backend already deletes objects after
+     successful ingest, but the lifecycle rule cleans up anything that
+     failed to process.
+3. **Permissions** → **Bucket policy** → **Edit** and paste:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSESPuts",
+      "Effect": "Allow",
+      "Principal": { "Service": "ses.amazonaws.com" },
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::whv-email-inbox/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceAccount": "271791846925"
+        }
+      }
+    }
+  ]
+}
+```
+
+Replace the resource bucket name + AWS account if either differs.
+
+## Step 3.6 — Create the IAM user for the backend's S3 read access
+
+The backend needs to read from + delete in the bucket. Use a dedicated
+IAM user with a minimal policy.
+
+1. AWS Console → **IAM** → **Users** → **Create user**
+   - Username: `whv-backend-s3-inbound`
+   - **Attach policies directly** → **Create policy** with this JSON:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::whv-email-inbox/*"
+    }
+  ]
+}
+```
+
+Save the policy as `whv-email-inbox-rw` and attach it to the user.
+
+2. After creating the user → **Security credentials** tab → **Create access key**
+   - Use case: **Application running outside AWS**
+   - Copy the **Access key ID** and **Secret access key** — these go into
+     the backend's env (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`).
+   - Update on staging:
+     ```bash
+     ssh whv@46.225.185.151 'cd ~/whv && \
+       grep -q "AWS_ACCESS_KEY_ID" .env || echo "AWS_ACCESS_KEY_ID=AKIA..." >> .env; \
+       grep -q "AWS_SECRET_ACCESS_KEY" .env || echo "AWS_SECRET_ACCESS_KEY=..." >> .env; \
+       grep -q "S3_INBOUND_BUCKET" .env || echo "S3_INBOUND_BUCKET=whv-email-inbox" >> .env; \
+       docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml restart backend'
+     ```
+     (Edit the .env file to fill in the actual keys, then restart.)
+
 ## Step 4 — Create the SES receipt rule
 
 1. SES Console → **Email receiving → Rule sets**
@@ -115,14 +200,22 @@ Then in SES Console → Identities → Create identity → Domain →
 3. **Create rule** inside that rule set:
    - Recipient conditions: `support@inbound.wagner-hausverwaltung.com`
      (you can add more recipients later — e.g. `info@inbound.*`)
-   - Actions: **Publish to Amazon SNS topic**
-     - Topic ARN: pick `whv-email-inbound` from the dropdown
-     - Encoding: **UTF-8** (default)
+   - Actions: **Deliver to Amazon S3 bucket**
+     - S3 bucket: `whv-email-inbox` (the one from Step 3.5)
+     - Object key prefix: blank (or `inbox/` if you want to group)
+     - KMS encryption: none
+     - **SNS topic for notifications**: pick `whv-email-inbound`
    - Position: top
    - Enabled: yes
 
-SES will offer to add the necessary IAM permission so SES can publish to
-the topic — accept it.
+⚠️ If you already configured a "Publish to Amazon SNS topic" action on
+this rule from an earlier iteration, **remove it** — the S3 action publishes
+its own SNS notification when wired with a topic, and stacking them would
+fan out the same email twice. The S3 action also dodges the 150 KB cap
+that the bare SNS publish has.
+
+SES will offer to add the necessary IAM permission so SES can write to
+the bucket + publish to the topic — accept it.
 
 ## Step 5 — Subscribe our webhook to the SNS topic
 

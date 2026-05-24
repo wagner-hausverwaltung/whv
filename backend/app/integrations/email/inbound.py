@@ -34,12 +34,20 @@ _TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{16})\]", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
+class S3Ref:
+    """Pointer to the raw MIME body stored in S3 by the SES S3 action."""
+
+    bucket: str
+    key: str
+
+
+@dataclass(frozen=True)
 class ParsedInboundEmail:
     """Result of parsing one SES-published email payload."""
 
     sender_email: str  # bare address from "From:", lowercased
     subject: str  # full subject including any [#ref] prefix
-    ticket_ref: str | None  # 8-char hex extracted from subject if present
+    ticket_ref: str | None  # 16-char hex extracted from subject if present
     message_id: str | None  # RFC 5322 Message-ID (incl. angle brackets) if present
     in_reply_to: str | None  # In-Reply-To header
     references: str | None  # References header (full chain, space-separated)
@@ -143,13 +151,37 @@ def _html_to_text(html: str) -> str:
     return re.sub(r"\s+", " ", without_entities)
 
 
-def parse_ses_sns_payload(message_payload: str) -> ParsedInboundEmail:
+def extract_s3_ref(outer: dict[str, Any]) -> S3Ref | None:
+    """Pull (bucket, key) out of receipt.action when SES used the S3 action.
+
+    Returns None when the action isn't S3 (legacy SNS-publish path) or the
+    fields aren't present. Caller still needs to fall back to embedded
+    content in that case.
+    """
+    action = (outer.get("receipt") or {}).get("action") or {}
+    if action.get("type") != "S3":
+        return None
+    bucket = action.get("bucketName")
+    key = action.get("objectKey")
+    if not bucket or not key:
+        return None
+    return S3Ref(bucket=bucket, key=key)
+
+
+def parse_ses_sns_payload(
+    message_payload: str, raw_content_override: str | None = None
+) -> ParsedInboundEmail:
     """Parse the inner SES envelope (the `Message` field of the SNS payload).
 
     `message_payload` is the JSON-encoded string inside SNS `Message` — the
     caller has already json-decoded the outer SNS envelope and pulls out the
     `Message` field as text. Here we re-decode that string and extract the
     structured fields we care about.
+
+    `raw_content_override` lets the webhook caller inject the raw MIME when
+    SES used the S3 action (in which case `content` is not embedded in the
+    SNS payload). When None, we fall back to whatever `content` is in the
+    payload — which works for the legacy "Publish to SNS" action.
     """
     import json
 
@@ -199,7 +231,11 @@ def parse_ses_sns_payload(message_payload: str) -> ParsedInboundEmail:
 
     # `content` is the full raw RFC 5322 message; SES base64-encodes it when
     # the action type is "Lambda" but for "SNS" action it's plaintext UTF-8.
-    raw_content = outer.get("content", "")
+    # When SES uses the S3 action, `content` is absent — caller pre-fetched
+    # the body from S3 and passes it via `raw_content_override`.
+    raw_content = (
+        raw_content_override if raw_content_override is not None else outer.get("content", "")
+    )
     parsed_message = email.message_from_string(raw_content)
     body = _extract_body(parsed_message)
 
