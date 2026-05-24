@@ -19,6 +19,8 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.integrations.email.tickets import render_ticket_notification_email
 from app.models import (
     AuditLog,
+    Contact,
+    ContactKind,
     Property,
     Ticket,
     TicketCategory,
@@ -52,6 +54,97 @@ _verwalter_only = require_role(UserRole.VERWALTER)
 
 def _to_summary(t: Ticket) -> TicketResponse:
     return TicketResponse.model_validate(t)
+
+
+def _contact_label(c: Contact) -> str:
+    if c.kind == ContactKind.COMPANY and c.company_name:
+        return c.company_name
+    parts = [p for p in (c.first_name, c.last_name) if p]
+    if parts:
+        return " ".join(parts)
+    return c.company_name or c.email or f"Kontakt {c.impower_id or c.id}"
+
+
+def _format_address(p: Property | None) -> str | None:
+    if p is None:
+        return None
+    street = " ".join(part for part in (p.street, p.number) if part).strip()
+    zip_city = " ".join(part for part in (p.postal_code, p.city) if part).strip()
+    combined = " · ".join(part for part in (street, zip_city) if part)
+    return combined or None
+
+
+async def _enrich_summaries(session: AsyncSession, tickets: list[Ticket]) -> list[TicketResponse]:
+    """Batch-resolve property + creator details for a list of tickets.
+
+    The SPA queue tile wants property name + address and the creator's
+    name on every row; doing N joins per row would explode for any queue
+    of more than a handful of items. Three batch queries (properties,
+    users, contacts-by-impower-id) cover whatever set of tickets the
+    caller passes in.
+    """
+    if not tickets:
+        return []
+
+    property_ids = {t.property_id for t in tickets if t.property_id}
+    creator_ids = {t.created_by_user_id for t in tickets if t.created_by_user_id}
+
+    properties: dict[uuid.UUID, Property] = {}
+    if property_ids:
+        prop_rows = (
+            await session.scalars(select(Property).where(Property.id.in_(property_ids)))
+        ).all()
+        properties = {p.id: p for p in prop_rows}
+
+    users: dict[uuid.UUID, User] = {}
+    if creator_ids:
+        user_rows = (await session.scalars(select(User).where(User.id.in_(creator_ids)))).all()
+        users = {u.id: u for u in user_rows}
+
+    impower_ids = {u.contact_id_impower for u in users.values() if u.contact_id_impower}
+    contacts: dict[int, Contact] = {}
+    if impower_ids:
+        contact_rows = (
+            await session.scalars(
+                select(Contact).where(
+                    Contact.impower_id.in_(impower_ids),
+                    Contact.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        contacts = {c.impower_id: c for c in contact_rows if c.impower_id is not None}
+
+    out: list[TicketResponse] = []
+    for t in tickets:
+        prop = properties.get(t.property_id) if t.property_id else None
+        creator = users.get(t.created_by_user_id) if t.created_by_user_id else None
+        creator_contact = (
+            contacts.get(creator.contact_id_impower)
+            if creator and creator.contact_id_impower
+            else None
+        )
+        out.append(
+            TicketResponse(
+                id=t.id,
+                property_id=t.property_id,
+                created_by_user_id=t.created_by_user_id,
+                assignee_user_id=t.assignee_user_id,
+                category=t.category,
+                status=t.status,
+                share_scope=t.share_scope,
+                subject=t.subject,
+                last_message_at=t.last_message_at,
+                created_at=t.created_at,
+                closed_at=t.closed_at,
+                property_name=prop.name if prop else None,
+                property_address=_format_address(prop),
+                creator_email=creator.email if creator else None,
+                creator_contact_label=_contact_label(creator_contact) if creator_contact else None,
+                creator_contact_id_impower=creator_contact.impower_id if creator_contact else None,
+                external_sender_email=t.external_sender_email,
+            )
+        )
+    return out
 
 
 async def _load_participants(
@@ -284,8 +377,8 @@ async def list_my_tickets(
     if status_filter is not None:
         stmt = stmt.where(Ticket.status == status_filter)
     stmt = stmt.order_by(Ticket.last_message_at.desc())
-    rows = (await session.scalars(stmt)).all()
-    return [_to_summary(t) for t in rows]
+    rows = list((await session.scalars(stmt)).all())
+    return await _enrich_summaries(session, rows)
 
 
 @me_router.post(
@@ -521,15 +614,18 @@ async def list_all_tickets(
     session: Annotated[AsyncSession, Depends(get_session)],
     status_filter: Annotated[TicketStatus | None, Query(alias="status")] = None,
     category: TicketCategory | None = None,
+    property_id: uuid.UUID | None = None,
 ) -> list[TicketResponse]:
     stmt = select(Ticket).where(Ticket.organization_id == current_user.organization_id)
     if status_filter is not None:
         stmt = stmt.where(Ticket.status == status_filter)
     if category is not None:
         stmt = stmt.where(Ticket.category == category)
+    if property_id is not None:
+        stmt = stmt.where(Ticket.property_id == property_id)
     stmt = stmt.order_by(Ticket.last_message_at.desc()).limit(200)
-    rows = (await session.scalars(stmt)).all()
-    return [_to_summary(t) for t in rows]
+    rows = list((await session.scalars(stmt)).all())
+    return await _enrich_summaries(session, rows)
 
 
 @admin_router.get("/{ticket_id}", response_model=TicketDetailResponse)

@@ -1,17 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link as RouterLink, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
+  Card,
+  CardActionArea,
+  CardContent,
   Chip,
-  Paper,
+  Link,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -57,7 +54,162 @@ function StatusChip({ status }: { status: TicketStatus }) {
   );
 }
 
-export function AdminTicketsPage() {
+// 8-char short id matches the inline-email reference scheme (#xxxxxxxx).
+function shortId(id: string): string {
+  return id.replace(/-/g, "").slice(0, 8);
+}
+
+interface TileProps {
+  ticket: TicketResponse;
+}
+
+function TicketTile({ ticket }: TileProps) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  // Sub-link clicks navigate to contact/property pages instead of opening
+  // the ticket. The CardActionArea wraps the whole card, so we have to
+  // stopPropagation on the sub-link and route manually.
+  const goto = (e: MouseEvent, path: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(path);
+  };
+
+  const contactLabel =
+    ticket.creator_contact_label ??
+    ticket.creator_email ??
+    ticket.external_sender_email ??
+    "—";
+
+  return (
+    <Card variant="outlined">
+      <CardActionArea
+        component={RouterLink}
+        to={`/admin/tickets/${ticket.id}`}
+        sx={{ display: "block" }}
+      >
+        <CardContent>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              mb: 1,
+              gap: 1,
+              flexWrap: "wrap",
+            }}
+          >
+            <StatusChip status={ticket.status} />
+            <Typography variant="caption" color="text.secondary">
+              {new Date(ticket.last_message_at).toLocaleString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Typography>
+          </Stack>
+
+          <Typography
+            variant="h6"
+            sx={{
+              fontSize: "1.05rem",
+              fontWeight: 600,
+              color: "primary.main",
+              mb: 1.5,
+            }}
+          >
+            {ticket.subject}
+            <Typography
+              component="span"
+              variant="body2"
+              color="text.secondary"
+              sx={{ ml: 1, fontWeight: 400 }}
+            >
+              (#{shortId(ticket.id)})
+            </Typography>
+          </Typography>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr",
+              columnGap: 1.5,
+              rowGap: 0.5,
+              alignItems: "baseline",
+              fontSize: "0.875rem",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              {t("admin.ticketTile.contact")}
+            </Typography>
+            <Box>
+              {ticket.creator_contact_id_impower != null &&
+              ticket.creator_contact_label ? (
+                <Link
+                  href={`/admin/contacts`}
+                  onClick={(e: MouseEvent) =>
+                    goto(e, `/admin/contacts`)
+                  }
+                  underline="hover"
+                  color="primary"
+                >
+                  {ticket.creator_contact_label}
+                </Link>
+              ) : (
+                <Typography variant="body2">{contactLabel}</Typography>
+              )}
+            </Box>
+
+            <Typography variant="body2" color="text.secondary">
+              {t("admin.ticketTile.property")}
+            </Typography>
+            <Box>
+              {ticket.property_id && ticket.property_name ? (
+                <Link
+                  href={`/admin/properties/${ticket.property_id}`}
+                  onClick={(e: MouseEvent) =>
+                    goto(e, `/admin/properties/${ticket.property_id}`)
+                  }
+                  underline="hover"
+                  color="primary"
+                >
+                  {ticket.property_name}
+                  {ticket.property_address && `, ${ticket.property_address}`}
+                </Link>
+              ) : (
+                <Typography variant="body2">—</Typography>
+              )}
+            </Box>
+          </Box>
+
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              {TICKET_CATEGORY_LABELS[ticket.category]}
+            </Typography>
+          </Box>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  );
+}
+
+interface AdminTicketsPageProps {
+  // Pre-applied property filter for the property-detail Tickets tab. When
+  // provided, the page hides its own status/category strips? No — we
+  // still surface filters, the property filter is implicit.
+  filterPropertyId?: string;
+  // Whether to render the H1 + filter chips. The property-detail embed
+  // hides them; the standalone /admin/tickets page shows them.
+  showHeader?: boolean;
+}
+
+export function AdminTicketsPage({
+  filterPropertyId,
+  showHeader = true,
+}: AdminTicketsPageProps = {}) {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const statusFilter = (params.get("status") ?? "") as "" | TicketStatus;
@@ -71,6 +223,7 @@ export function AdminTicketsPage() {
     const qs = new URLSearchParams();
     if (statusFilter) qs.set("status", statusFilter);
     if (categoryFilter) qs.set("category", categoryFilter);
+    if (filterPropertyId) qs.set("property_id", filterPropertyId);
     const url =
       qs.toString().length > 0
         ? `/admin/tickets?${qs.toString()}`
@@ -81,7 +234,7 @@ export function AdminTicketsPage() {
     } catch {
       setError(t("admin.ticketsPage.loadFailed"));
     }
-  }, [statusFilter, categoryFilter, t]);
+  }, [statusFilter, categoryFilter, filterPropertyId, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -103,64 +256,68 @@ export function AdminTicketsPage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4" component="h1">
-        {t("admin.ticketsPage.title")}
-      </Typography>
+      {showHeader && (
+        <Typography variant="h4" component="h1">
+          {t("admin.ticketsPage.title")}
+        </Typography>
+      )}
 
-      <Stack spacing={1}>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ alignSelf: "center", mr: 1 }}
-          >
-            {t("admin.ticketsPage.status")}:
-          </Typography>
-          <Chip
-            label={t("admin.ticketsPage.filterAll")}
-            color={!statusFilter ? "primary" : "default"}
-            variant={!statusFilter ? "filled" : "outlined"}
-            onClick={() => setStatus("")}
-            clickable
-          />
-          {STATUSES.map((s) => (
+      {showHeader && (
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ alignSelf: "center", mr: 1 }}
+            >
+              {t("admin.ticketsPage.status")}:
+            </Typography>
             <Chip
-              key={s}
-              label={TICKET_STATUS_LABELS[s]}
-              color={statusFilter === s ? "primary" : "default"}
-              variant={statusFilter === s ? "filled" : "outlined"}
-              onClick={() => setStatus(s)}
+              label={t("admin.ticketsPage.filterAll")}
+              color={!statusFilter ? "primary" : "default"}
+              variant={!statusFilter ? "filled" : "outlined"}
+              onClick={() => setStatus("")}
               clickable
             />
-          ))}
-        </Stack>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ alignSelf: "center", mr: 1 }}
-          >
-            {t("admin.ticketsPage.category")}:
-          </Typography>
-          <Chip
-            label={t("admin.ticketsPage.filterAll")}
-            color={!categoryFilter ? "primary" : "default"}
-            variant={!categoryFilter ? "filled" : "outlined"}
-            onClick={() => setCategory("")}
-            clickable
-          />
-          {CATEGORIES.map((c) => (
+            {STATUSES.map((s) => (
+              <Chip
+                key={s}
+                label={TICKET_STATUS_LABELS[s]}
+                color={statusFilter === s ? "primary" : "default"}
+                variant={statusFilter === s ? "filled" : "outlined"}
+                onClick={() => setStatus(s)}
+                clickable
+              />
+            ))}
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ alignSelf: "center", mr: 1 }}
+            >
+              {t("admin.ticketsPage.category")}:
+            </Typography>
             <Chip
-              key={c}
-              label={TICKET_CATEGORY_LABELS[c]}
-              color={categoryFilter === c ? "primary" : "default"}
-              variant={categoryFilter === c ? "filled" : "outlined"}
-              onClick={() => setCategory(c)}
+              label={t("admin.ticketsPage.filterAll")}
+              color={!categoryFilter ? "primary" : "default"}
+              variant={!categoryFilter ? "filled" : "outlined"}
+              onClick={() => setCategory("")}
               clickable
             />
-          ))}
+            {CATEGORIES.map((c) => (
+              <Chip
+                key={c}
+                label={TICKET_CATEGORY_LABELS[c]}
+                color={categoryFilter === c ? "primary" : "default"}
+                variant={categoryFilter === c ? "filled" : "outlined"}
+                onClick={() => setCategory(c)}
+                clickable
+              />
+            ))}
+          </Stack>
         </Stack>
-      </Stack>
+      )}
 
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -173,65 +330,11 @@ export function AdminTicketsPage() {
           {t("admin.ticketsPage.empty")}
         </Typography>
       ) : (
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t("admin.ticketsPage.status")}</TableCell>
-                <TableCell>{t("admin.ticketsPage.category")}</TableCell>
-                <TableCell>{t("admin.ticketsPage.subject")}</TableCell>
-                <TableCell>{t("admin.ticketsPage.lastActivity")}</TableCell>
-                <TableCell>{t("admin.ticketsPage.created")}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow
-                  key={r.id}
-                  hover
-                  component={RouterLink}
-                  to={`/admin/tickets/${r.id}`}
-                  sx={{
-                    textDecoration: "none",
-                    cursor: "pointer",
-                    "& td": { color: "text.primary" },
-                  }}
-                >
-                  <TableCell>
-                    <StatusChip status={r.status} />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {TICKET_CATEGORY_LABELS[r.category]}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {r.subject}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(r.last_message_at).toLocaleString("de-DE")}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(r.created_at).toLocaleDateString("de-DE")}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-      {rows && rows.length === 200 && (
-        <Box>
-          <Typography variant="caption" color="text.secondary">
-            Anzeige der neuesten 200 Tickets nach letzter Aktivität.
-          </Typography>
-        </Box>
+        <Stack spacing={1.5}>
+          {rows.map((r) => (
+            <TicketTile key={r.id} ticket={r} />
+          ))}
+        </Stack>
       )}
     </Stack>
   );

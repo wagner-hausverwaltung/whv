@@ -18,6 +18,8 @@ from app.models import (
     ContactKind,
     Contract,
     ContractContact,
+    Document,
+    DocumentKind,
     InviteCode,
     Property,
     ResolutionStatus,
@@ -32,6 +34,8 @@ from app.schemas.admin import (
     AdminContactSearchResult,
     AdminDashboardStats,
     AdminInviteResponse,
+    AdminPropertyCompanyResponse,
+    AdminPropertyDetailResponse,
     AdminPropertySearchResult,
     CreateInviteRequest,
     InviteStatus,
@@ -445,3 +449,206 @@ async def list_audit_log(
         )
         for r in rows
     ]
+
+
+# --- Property detail + companies (admin property page) ----------------------
+
+
+def _format_property_label(c: Contact) -> str:
+    if c.kind == ContactKind.COMPANY and c.company_name:
+        return c.company_name
+    parts = [p for p in (c.first_name, c.last_name) if p]
+    if parts:
+        return " ".join(parts)
+    return c.company_name or c.email or f"Kontakt {c.impower_id or c.id}"
+
+
+@router.get("/properties/{property_id}", response_model=AdminPropertyDetailResponse)
+async def admin_property_detail(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminPropertyDetailResponse:
+    """Admin property detail — master data + per-tab counts.
+
+    Counts power the right-hand tab badges (e.g. "Tickets (3)") on the
+    SPA property page; the tab content itself comes from the existing
+    list endpoints filtered by ?property_id=.
+    """
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    org_id = current_user.organization_id
+    units_count = await _scalar_count(
+        session,
+        select(func.count())
+        .select_from(Unit)
+        .where(
+            Unit.organization_id == org_id,
+            Unit.property_id == property_id,
+            Unit.deleted_at.is_(None),
+        ),
+    )
+    contracts_count = await _scalar_count(
+        session,
+        select(func.count())
+        .select_from(Contract)
+        .where(
+            Contract.organization_id == org_id,
+            Contract.property_id == property_id,
+            Contract.deleted_at.is_(None),
+        ),
+    )
+    # Contacts linked to any contract on this property (distinct).
+    contacts_count = await _scalar_count(
+        session,
+        select(func.count(func.distinct(ContractContact.contact_id)))
+        .select_from(ContractContact)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            Contract.organization_id == org_id,
+            Contract.property_id == property_id,
+            Contract.deleted_at.is_(None),
+        ),
+    )
+    open_tickets_count = await _scalar_count(
+        session,
+        select(func.count())
+        .select_from(Ticket)
+        .where(
+            Ticket.organization_id == org_id,
+            Ticket.property_id == property_id,
+            Ticket.status != TicketStatus.GESCHLOSSEN,
+        ),
+    )
+    open_resolutions_count = await _scalar_count(
+        session,
+        select(func.count())
+        .select_from(CircularResolution)
+        .where(
+            CircularResolution.organization_id == org_id,
+            CircularResolution.property_id == property_id,
+            CircularResolution.status == ResolutionStatus.OFFEN,
+        ),
+    )
+    invoice_companies_count = await _scalar_count(
+        session,
+        select(func.count(func.distinct(Document.contact_id)))
+        .select_from(Document)
+        .where(
+            Document.organization_id == org_id,
+            Document.property_id == property_id,
+            Document.kind == DocumentKind.RECHNUNG,
+            Document.contact_id.is_not(None),
+            Document.deleted_at.is_(None),
+        ),
+    )
+
+    return AdminPropertyDetailResponse(
+        id=prop.id,
+        name=prop.name,
+        impower_id=prop.impower_id,
+        property_hr_id=prop.property_hr_id,
+        type=prop.type.value,
+        state=prop.state.value,
+        city=prop.city,
+        street=prop.street,
+        number=prop.number,
+        postal_code=prop.postal_code,
+        country=prop.country,
+        units_count=units_count,
+        contracts_count=contracts_count,
+        contacts_count=contacts_count,
+        open_tickets_count=open_tickets_count,
+        open_resolutions_count=open_resolutions_count,
+        invoice_companies_count=invoice_companies_count,
+    )
+
+
+@router.get(
+    "/properties/{property_id}/companies",
+    response_model=list[AdminPropertyCompanyResponse],
+)
+async def admin_property_companies(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AdminPropertyCompanyResponse]:
+    """Vendor companies billed against this property.
+
+    For each distinct Contact that appears as documents.contact_id on a
+    RECHNUNG-kind Document for the property, return aggregate stats:
+    invoice count, sum of amounts, most-recent invoice date. Sorted by
+    total spend descending so the bigger relationships float to the top.
+    """
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    stmt = (
+        select(
+            Document.contact_id,
+            func.count(Document.id).label("invoice_count"),
+            func.sum(Document.amount).label("total_amount"),
+            func.max(Document.issued_date).label("most_recent_date"),
+        )
+        .where(
+            Document.organization_id == current_user.organization_id,
+            Document.property_id == property_id,
+            Document.kind == DocumentKind.RECHNUNG,
+            Document.contact_id.is_not(None),
+            Document.deleted_at.is_(None),
+        )
+        .group_by(Document.contact_id)
+    )
+    agg_rows = (await session.execute(stmt)).all()
+    if not agg_rows:
+        return []
+
+    contact_ids = [r.contact_id for r in agg_rows]
+    contact_lookup_rows = (
+        await session.scalars(
+            select(Contact).where(
+                Contact.id.in_(contact_ids),
+                Contact.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    contacts = {c.id: c for c in contact_lookup_rows}
+
+    out: list[AdminPropertyCompanyResponse] = []
+    for row in agg_rows:
+        c = contacts.get(row.contact_id)
+        if c is None:
+            continue  # Contact soft-deleted since invoice synced — skip.
+        most_recent: datetime | None = None
+        if row.most_recent_date is not None:
+            # most_recent_date is a date — convert to datetime for the response.
+            most_recent = datetime.combine(row.most_recent_date, datetime.min.time(), tzinfo=UTC)
+        out.append(
+            AdminPropertyCompanyResponse(
+                contact_id=c.id,
+                impower_id=c.impower_id,
+                name=_format_property_label(c),
+                email=c.email,
+                phone=c.phone,
+                invoice_count=int(row.invoice_count),
+                total_amount=float(row.total_amount) if row.total_amount is not None else None,
+                most_recent_invoice_at=most_recent,
+            )
+        )
+    out.sort(key=lambda r: r.total_amount or 0, reverse=True)
+    return out

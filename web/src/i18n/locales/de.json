@@ -92,6 +92,37 @@
       "revokeFailed": "Einladung konnte nicht widerrufen werden.",
       "loadFailed": "Einladungen konnten nicht geladen werden."
     },
+    "ticketTile": {
+      "contact": "Kontakt",
+      "property": "Liegenschaft",
+      "externalSender": "Externer Absender"
+    },
+    "propertyDetail": {
+      "back": "← Objekte",
+      "tabOverview": "Übersicht",
+      "tabTickets": "Tickets",
+      "tabCompanies": "Firmen",
+      "type": "Typ",
+      "state": "Status",
+      "address": "Adresse",
+      "hrId": "HR-ID",
+      "impowerId": "Impower-ID",
+      "units": "Einheiten",
+      "contracts": "Verträge",
+      "contacts": "Kontakte",
+      "openTickets": "Offene Tickets",
+      "openResolutions": "Laufende Beschlüsse",
+      "invoiceCompanies": "Rechnungsfirmen",
+      "noTickets": "Keine Tickets für diese Liegenschaft.",
+      "noCompanies": "Keine Rechnungsfirmen für diese Liegenschaft.",
+      "companiesIntro": "Firmen mit mindestens einer Rechnung (kind=RECHNUNG) auf dieser Liegenschaft. Sortiert nach Gesamtsumme.",
+      "companyName": "Firma",
+      "invoices": "Rechnungen",
+      "totalAmount": "Gesamtsumme (€)",
+      "lastInvoice": "Letzte Rechnung",
+      "loadFailed": "Liegenschaft konnte nicht geladen werden.",
+      "notFound": "Liegenschaft nicht gefunden."
+    },
     "auditPage": {
       "title": "Audit-Log",
       "subtitle": "Letzte 200 Einträge, neueste zuerst. Aktor-E-Mail wird zum Lesezeitpunkt aufgelöst.",

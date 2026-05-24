@@ -82,6 +82,53 @@ class AdminContactSearchResult(BaseModel):
     email: str | None = None
 
 
+class AdminPropertyDetailResponse(BaseModel):
+    """Admin property detail with counts for the right-hand tabs.
+
+    Master-data fields come from the Property row; counts are computed at
+    read time and scoped to the caller's organisation. Drives the
+    /admin/properties/:id page in the SPA — Overview tab consumes the
+    base fields, Tickets/Companies tabs trigger their own queries.
+    """
+
+    id: uuid.UUID
+    name: str
+    impower_id: int | None = None
+    property_hr_id: str | None = None
+    type: str
+    state: str
+    city: str | None = None
+    street: str | None = None
+    number: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+    units_count: int
+    contracts_count: int
+    contacts_count: int
+    open_tickets_count: int
+    open_resolutions_count: int
+    invoice_companies_count: int
+
+
+class AdminPropertyCompanyResponse(BaseModel):
+    """A vendor company that's been billed against this property.
+
+    Distinct contact rows that appear as `documents.contact_id` on at
+    least one Document with `kind=RECHNUNG` for the property. Includes
+    aggregate stats (invoice count, sum of amounts, most-recent date)
+    so the operator sees who they spend money with at a glance.
+    """
+
+    contact_id: uuid.UUID
+    impower_id: int | None = None
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    invoice_count: int
+    total_amount: float | None = None
+    most_recent_invoice_at: datetime | None = None
+
+
 class AdminAuditLogResponse(BaseModel):
     """Row in the admin audit-log viewer.
 

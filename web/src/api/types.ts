@@ -104,6 +104,14 @@ export interface TicketResponse {
   last_message_at: string;
   created_at: string;
   closed_at: string | null;
+  // Denormalised join fields populated by list handlers. May be null in
+  // single-row responses (post-create) — render falls back to plain text.
+  property_name?: string | null;
+  property_address?: string | null;
+  creator_email?: string | null;
+  creator_contact_label?: string | null;
+  creator_contact_id_impower?: number | null;
+  external_sender_email?: string | null;
 }
 
 export interface TicketDetailResponse extends TicketResponse {
@@ -250,6 +258,37 @@ export const INVITE_STATUS_LABELS: Record<InviteStatus, string> = {
   consumed: "Eingelöst",
   expired: "Abgelaufen",
 };
+
+export interface AdminPropertyDetailResponse {
+  id: string;
+  name: string;
+  impower_id: number | null;
+  property_hr_id: string | null;
+  type: string;
+  state: string;
+  city: string | null;
+  street: string | null;
+  number: string | null;
+  postal_code: string | null;
+  country: string | null;
+  units_count: number;
+  contracts_count: number;
+  contacts_count: number;
+  open_tickets_count: number;
+  open_resolutions_count: number;
+  invoice_companies_count: number;
+}
+
+export interface AdminPropertyCompanyResponse {
+  contact_id: string;
+  impower_id: number | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  invoice_count: number;
+  total_amount: number | null;
+  most_recent_invoice_at: string | null;
+}
 
 export interface AdminAuditLogResponse {
   id: string;

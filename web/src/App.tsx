@@ -5,6 +5,7 @@ import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
 import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
+import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
 import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
 import { AdminResolutionNewPage } from "@/admin/pages/AdminResolutionNewPage";
 import { AdminResolutionsPage } from "@/admin/pages/AdminResolutionsPage";
@@ -233,6 +234,16 @@ function App() {
                     title="Objekte"
                     legacyPath="/admin-ui/properties"
                   />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/properties/:id"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPropertyDetailPage />
                 </AdminLayout>
               </AdminRoute>
             }

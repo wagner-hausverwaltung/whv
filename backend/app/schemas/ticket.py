@@ -56,7 +56,14 @@ class TicketMessageResponse(BaseModel):
 
 
 class TicketResponse(BaseModel):
-    """Summary row for queue + list views — no messages, no participants."""
+    """Summary row for queue + list views — no messages, no participants.
+
+    Denormalised join fields (property_name + address, creator_email +
+    contact label) are populated by the list handlers so the SPA tile can
+    render without N+1 follow-up requests. They are optional on the model
+    because the create-ticket handler returns a fresh row before joins are
+    resolved.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -71,6 +78,17 @@ class TicketResponse(BaseModel):
     last_message_at: datetime
     created_at: datetime
     closed_at: datetime | None
+
+    # Denormalised context for the queue tile. None when the join target
+    # doesn't exist (e.g. ticket has no property, or the creator was
+    # hard-deleted) or when the handler hasn't fetched them (single-row
+    # create response).
+    property_name: str | None = None
+    property_address: str | None = None
+    creator_email: str | None = None
+    creator_contact_label: str | None = None
+    creator_contact_id_impower: int | None = None
+    external_sender_email: str | None = None
 
 
 class TicketDetailResponse(TicketResponse):

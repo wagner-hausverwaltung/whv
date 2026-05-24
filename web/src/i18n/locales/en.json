@@ -92,6 +92,37 @@
       "revokeFailed": "Could not revoke invitation.",
       "loadFailed": "Could not load invitations."
     },
+    "ticketTile": {
+      "contact": "Contact",
+      "property": "Property",
+      "externalSender": "External sender"
+    },
+    "propertyDetail": {
+      "back": "← Properties",
+      "tabOverview": "Overview",
+      "tabTickets": "Tickets",
+      "tabCompanies": "Companies",
+      "type": "Type",
+      "state": "State",
+      "address": "Address",
+      "hrId": "HR-ID",
+      "impowerId": "Impower ID",
+      "units": "Units",
+      "contracts": "Contracts",
+      "contacts": "Contacts",
+      "openTickets": "Open tickets",
+      "openResolutions": "Active resolutions",
+      "invoiceCompanies": "Invoice companies",
+      "noTickets": "No tickets for this property.",
+      "noCompanies": "No invoice companies for this property.",
+      "companiesIntro": "Companies with at least one invoice (kind=RECHNUNG) for this property. Sorted by total spend.",
+      "companyName": "Company",
+      "invoices": "Invoices",
+      "totalAmount": "Total amount (€)",
+      "lastInvoice": "Last invoice",
+      "loadFailed": "Could not load property.",
+      "notFound": "Property not found."
+    },
     "auditPage": {
       "title": "Audit log",
       "subtitle": "Latest 200 entries, newest first. Actor email resolved at read time.",
