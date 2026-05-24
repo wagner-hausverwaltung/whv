@@ -22,6 +22,8 @@ _ENUM_TYPES = (
     "document_visibility",
     "property_state",
     "property_type",
+    "ticket_category",
+    "ticket_status",
     "unit_type",
     "user_role",
 )

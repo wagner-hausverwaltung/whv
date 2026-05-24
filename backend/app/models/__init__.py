@@ -14,6 +14,7 @@ from app.models.document import (
 )
 from app.models.organization import Organization
 from app.models.property import Building, Property, PropertyState, PropertyType
+from app.models.ticket import Ticket, TicketCategory, TicketMessage, TicketStatus
 from app.models.unit import Unit, UnitType
 from app.models.user import InviteCode, PasswordResetToken, Session, User, UserRole
 
@@ -38,6 +39,10 @@ __all__ = [
     "PropertyState",
     "PropertyType",
     "Session",
+    "Ticket",
+    "TicketCategory",
+    "TicketMessage",
+    "TicketStatus",
     "Unit",
     "UnitType",
     "User",

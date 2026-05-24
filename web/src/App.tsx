@@ -10,6 +10,9 @@ import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
 import { PropertyListPage } from "@/pages/PropertyListPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { TicketDetailPage } from "@/pages/TicketDetailPage";
+import { TicketListPage } from "@/pages/TicketListPage";
+import { TicketNewPage } from "@/pages/TicketNewPage";
 
 function App() {
   return (
@@ -59,6 +62,36 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <SettingsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <TicketListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/new"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <TicketNewPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <TicketDetailPage />
                 </Layout>
               </ProtectedRoute>
             }

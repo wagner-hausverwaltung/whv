@@ -26,6 +26,12 @@ export function Layout({ children }: { children: ReactNode }) {
           </Link>
           {user && (
             <div className="flex items-center gap-4">
+              <Link to="/" className="muted hover:text-whv-blue hidden sm:inline">
+                Objekte
+              </Link>
+              <Link to="/tickets" className="muted hover:text-whv-blue">
+                Tickets
+              </Link>
               <Link
                 to="/settings"
                 className="muted hover:text-whv-blue hidden sm:inline"

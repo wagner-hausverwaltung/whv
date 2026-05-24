@@ -31,6 +31,10 @@ from app.models import (
     ContractContact,
     InviteCode,
     Property,
+    Ticket,
+    TicketCategory,
+    TicketMessage,
+    TicketStatus,
     Unit,
     User,
     UserRole,
@@ -628,6 +632,161 @@ async def property_contacts_search(
         request,
         "admin/_picker_results.html",
         {"results": results, "q": q_stripped, "kind": "contact"},
+    )
+
+
+# --- Tickets (Verwalter queue + thread) ---------------------------------------
+
+
+@router.get("/tickets", response_class=HTMLResponse)
+async def tickets_list(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    status_filter: str | None = None,
+    category_filter: str | None = None,
+) -> HTMLResponse:
+    import contextlib
+
+    stmt = select(Ticket).where(Ticket.organization_id == current_user.organization_id)
+    if status_filter:
+        with contextlib.suppress(ValueError):
+            stmt = stmt.where(Ticket.status == TicketStatus(status_filter))
+    if category_filter:
+        with contextlib.suppress(ValueError):
+            stmt = stmt.where(Ticket.category == TicketCategory(category_filter))
+    stmt = stmt.order_by(Ticket.last_message_at.desc()).limit(200)
+    rows = (await session.scalars(stmt)).all()
+    return templates.TemplateResponse(
+        request,
+        "admin/tickets_list.html",
+        {
+            "current_user": current_user,
+            "tickets": rows,
+            "status_filter": status_filter,
+            "category_filter": category_filter,
+            "statuses": [s.value for s in TicketStatus],
+            "categories": [c.value for c in TicketCategory],
+        },
+    )
+
+
+@router.get("/tickets/{ticket_id}", response_class=HTMLResponse)
+async def ticket_detail(
+    request: Request,
+    ticket_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        return templates.TemplateResponse(
+            request,
+            "admin/tickets_detail.html",
+            {
+                "current_user": current_user,
+                "ticket": None,
+                "messages": [],
+                "error": "Ticket nicht gefunden.",
+            },
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    messages = list(
+        (
+            await session.scalars(
+                select(TicketMessage)
+                .where(TicketMessage.ticket_id == ticket.id)
+                .order_by(TicketMessage.created_at)
+            )
+        ).all()
+    )
+
+    # Resolve author emails for display
+    author_ids = {m.author_user_id for m in messages}
+    author_emails: dict[uuid.UUID, str] = {}
+    if author_ids:
+        author_rows = (
+            await session.scalars(select(User).where(User.id.in_(author_ids)))
+        ).all()
+        author_emails = {u.id: u.email for u in author_rows}
+
+    return templates.TemplateResponse(
+        request,
+        "admin/tickets_detail.html",
+        {
+            "current_user": current_user,
+            "ticket": ticket,
+            "messages": messages,
+            "author_emails": author_emails,
+            "statuses": [s.value for s in TicketStatus],
+            "error": None,
+        },
+    )
+
+
+@router.post("/tickets/{ticket_id}/reply")
+async def ticket_reply_submit(
+    request: Request,
+    ticket_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    body: Annotated[str, Form()],
+    is_internal_note: Annotated[str, Form()] = "",
+) -> Response:
+    from app.api.v1.tickets import post_admin_message
+    from app.schemas.ticket import TicketMessageCreateRequest
+
+    req = TicketMessageCreateRequest(
+        body=body,
+        is_internal_note=bool(is_internal_note),
+    )
+    await post_admin_message(
+        ticket_id=ticket_id,
+        req=req,
+        current_user=current_user,
+        session=session,
+        email_client=email_client,
+    )
+    return RedirectResponse(
+        f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/tickets/{ticket_id}/status")
+async def ticket_status_submit(
+    request: Request,
+    ticket_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    new_status: Annotated[str, Form()],
+) -> Response:
+    from app.api.v1.tickets import patch_ticket
+    from app.schemas.ticket import TicketStatusUpdateRequest
+
+    try:
+        status_enum = TicketStatus(new_status)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin-ui/tickets/{ticket_id}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    await patch_ticket(
+        ticket_id=ticket_id,
+        req=TicketStatusUpdateRequest(status=status_enum),
+        current_user=current_user,
+        session=session,
+    )
+    return RedirectResponse(
+        f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

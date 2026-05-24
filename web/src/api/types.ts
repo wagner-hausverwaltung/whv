@@ -60,3 +60,55 @@ export interface DocumentResponse {
   issued_date: string | null;
   amount: string | null;
 }
+
+export type TicketCategory =
+  | "SCHADEN"
+  | "VERWALTUNG"
+  | "HAUSGELD"
+  | "SONSTIGES";
+
+export type TicketStatus =
+  | "NEU"
+  | "OFFEN"
+  | "WARTET_AUF_KUNDE"
+  | "GESCHLOSSEN";
+
+export interface TicketMessageResponse {
+  id: string;
+  ticket_id: string;
+  author_user_id: string;
+  body: string;
+  is_internal_note: boolean;
+  created_at: string;
+}
+
+export interface TicketResponse {
+  id: string;
+  property_id: string | null;
+  created_by_user_id: string;
+  assignee_user_id: string | null;
+  category: TicketCategory;
+  status: TicketStatus;
+  subject: string;
+  last_message_at: string;
+  created_at: string;
+  closed_at: string | null;
+}
+
+export interface TicketDetailResponse extends TicketResponse {
+  messages: TicketMessageResponse[];
+}
+
+export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
+  SCHADEN: "Schaden",
+  VERWALTUNG: "Verwaltung",
+  HAUSGELD: "Hausgeld",
+  SONSTIGES: "Sonstiges",
+};
+
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  NEU: "Neu",
+  OFFEN: "Offen",
+  WARTET_AUF_KUNDE: "Wartet auf Antwort",
+  GESCHLOSSEN: "Geschlossen",
+};
