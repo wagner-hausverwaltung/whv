@@ -73,6 +73,22 @@ app.mount(
     name="admin-static",
 )
 
+# User-uploaded avatars. StaticFiles wants the directory to exist at mount
+# time; we attempt to create it but tolerate a permission failure (common
+# in dev when the default /var/lib path needs root). On failure the mount
+# is skipped — the upload endpoint still works as long as the writer can
+# eventually create the dir.
+_avatar_dir = Path(_cors_settings.avatar_dir)
+try:
+    _avatar_dir.mkdir(parents=True, exist_ok=True)
+    app.mount(
+        "/me/avatars",
+        StaticFiles(directory=str(_avatar_dir)),
+        name="avatars",
+    )
+except OSError:
+    pass
+
 
 @app.exception_handler(NeedsLoginRedirect)
 async def _needs_login_redirect(_: Request, __: NeedsLoginRedirect) -> RedirectResponse:

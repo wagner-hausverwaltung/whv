@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Paper,
@@ -9,11 +10,23 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { api } from "@/api/client";
+import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
+import { api, API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import type { UserResponse } from "@/api/types";
+
+function initialsOf(email: string): string {
+  const local = email.split("@")[0] ?? email;
+  const parts = local
+    .split(/[._\s-]+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  if (parts.length === 0) return "?";
+  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
 
 export function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshMe } = useAuth();
   const navigate = useNavigate();
 
   const [pwRequested, setPwRequested] = useState(false);
@@ -21,8 +34,52 @@ export function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!user) return null;
+
+  const onPickAvatar = () => fileInputRef.current?.click();
+
+  const onAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      // Drop the default Content-Type so axios derives the multipart
+      // boundary from the FormData payload — sending the bare
+      // "multipart/form-data" without a boundary breaks FastAPI parsing.
+      await api.put<UserResponse>("/me/avatar", form, {
+        headers: { "Content-Type": undefined },
+      });
+      await refreshMe();
+    } catch (err: unknown) {
+      const detail = (
+        err as { response?: { data?: { detail?: string } } }
+      ).response?.data?.detail;
+      setError(detail ?? "Bild konnte nicht hochgeladen werden.");
+    } finally {
+      setAvatarBusy(false);
+      // Reset the input so picking the same file again re-triggers onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const onAvatarRemove = async () => {
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      await api.delete("/me/avatar");
+      await refreshMe();
+    } catch {
+      setError("Bild konnte nicht entfernt werden.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const requestPwReset = async () => {
     setError(null);
@@ -76,6 +133,65 @@ export function SettingsPage() {
       </Typography>
 
       {error && <Alert severity="error">{error}</Alert>}
+
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Profilbild
+        </Typography>
+        <Stack direction="row" spacing={3} sx={{ alignItems: "center" }}>
+          <Avatar
+            src={
+              user.avatar_url ? `${API_BASE_URL}${user.avatar_url}` : undefined
+            }
+            sx={{
+              width: 80,
+              height: 80,
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              fontSize: "1.5rem",
+            }}
+          >
+            {initialsOf(user.email)}
+          </Avatar>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary">
+              JPEG, PNG oder WebP, max. 4 MB. Wir verkleinern automatisch auf
+              256×256.
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                startIcon={<PhotoCameraOutlinedIcon />}
+                onClick={onPickAvatar}
+                disabled={avatarBusy}
+              >
+                {avatarBusy
+                  ? "Wird verarbeitet…"
+                  : user.avatar_url
+                    ? "Bild ändern"
+                    : "Bild hochladen"}
+              </Button>
+              {user.avatar_url && (
+                <Button
+                  variant="text"
+                  color="inherit"
+                  onClick={onAvatarRemove}
+                  disabled={avatarBusy}
+                >
+                  Entfernen
+                </Button>
+              )}
+            </Stack>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
+              hidden
+              onChange={onAvatarChange}
+            />
+          </Stack>
+        </Stack>
+      </Paper>
 
       <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Typography variant="h6" gutterBottom>

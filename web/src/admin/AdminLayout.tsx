@@ -28,6 +28,7 @@ import {
 import LogoutIcon from "@mui/icons-material/Logout";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useTranslation } from "react-i18next";
+import { API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
@@ -151,6 +152,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 sx={{ ml: 0.5 }}
               >
                 <Avatar
+                  src={
+                    user.avatar_url
+                      ? `${API_BASE_URL}${user.avatar_url}`
+                      : undefined
+                  }
                   sx={{
                     width: 32,
                     height: 32,

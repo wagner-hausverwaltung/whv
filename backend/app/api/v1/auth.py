@@ -67,6 +67,7 @@ def _issue_tokens(settings: Settings, user: User, session: AsyncSession) -> Toke
             role=user.role.value,
             organization_id=user.organization_id,
             contact_id_impower=user.contact_id_impower,
+            avatar_url=user.avatar_url,
         ),
     )
 

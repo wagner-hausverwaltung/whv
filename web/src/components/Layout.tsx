@@ -26,7 +26,7 @@ import {
 import LogoutIcon from "@mui/icons-material/Logout";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, API_BASE_URL } from "@/api/client";
 import type { PropertyResponse } from "@/api/types";
 import { useAuth } from "@/auth/AuthContext";
 import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
@@ -202,6 +202,11 @@ export function Layout({ children }: { children: ReactNode }) {
                   sx={{ ml: 0.5 }}
                 >
                   <Avatar
+                    src={
+                      user.avatar_url
+                        ? `${API_BASE_URL}${user.avatar_url}`
+                        : undefined
+                    }
                     sx={{
                       width: 32,
                       height: 32,

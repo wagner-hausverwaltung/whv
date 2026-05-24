@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # on first write — no need to provision it ahead of time.
     resolution_pdf_dir: str = "/var/lib/whv/resolutions"
 
+    # User-uploaded avatar images. Stored as PNG (Pillow normalises every
+    # upload to keep the static-mount URL stable). Same Hetzner-OS migration
+    # path as resolution PDFs in §1.4d iter 2.
+    avatar_dir: str = "/var/lib/whv/avatars"
+    # Max size of an uploaded avatar in bytes. 4 MB is plenty for a face
+    # photo; we resize down to 256x256 anyway before saving.
+    avatar_max_bytes: int = 4 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:

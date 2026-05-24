@@ -2,14 +2,16 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.dependencies import get_current_user
+from app.config import Settings, get_settings
 from app.db import get_session
+from app.integrations.storage.avatars import AvatarError, delete_avatar, write_avatar
 from app.models import (
     AuditLog,
     Contact,
@@ -32,15 +34,87 @@ from app.schemas.unit import UnitResponse
 router = APIRouter(prefix="/me", tags=["me"])
 
 
+def _to_user_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        role=user.role.value,
+        organization_id=user.organization_id,
+        contact_id_impower=user.contact_id_impower,
+        avatar_url=user.avatar_url,
+    )
+
+
 @router.get("", response_model=UserResponse)
 async def get_me(current_user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        role=current_user.role.value,
-        organization_id=current_user.organization_id,
-        contact_id_impower=current_user.contact_id_impower,
+    return _to_user_response(current_user)
+
+
+@router.put("/avatar", response_model=UserResponse)
+async def upload_avatar(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+) -> UserResponse:
+    """Upload (or replace) the caller's avatar image.
+
+    Accepts JPEG/PNG/WebP/GIF/BMP up to `settings.avatar_max_bytes`; Pillow
+    normalises every upload to a 256x256 PNG. The stored URL carries a
+    cache-bust `?v={mtime}` query so SPA refreshes pick up changes.
+    """
+    raw = await file.read()
+    if len(raw) > settings.avatar_max_bytes:
+        max_mb = settings.avatar_max_bytes // 1024 // 1024
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Avatar darf höchstens {max_mb} MB groß sein.",
+        )
+    try:
+        url = write_avatar(current_user.id, raw)
+    except AvatarError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ungültige Bilddatei: {exc}",
+        ) from exc
+
+    current_user.avatar_url = url
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="avatar_updated",
+            target_type="users",
+            target_id=str(current_user.id),
+            payload_json={"size_bytes": len(raw)},
+        )
     )
+    await session.commit()
+    await session.refresh(current_user)
+    return _to_user_response(current_user)
+
+
+@router.delete("/avatar", response_model=UserResponse)
+async def remove_avatar(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> UserResponse:
+    """Remove the caller's avatar — Layout falls back to initials."""
+    delete_avatar(current_user.id)
+    current_user.avatar_url = None
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="avatar_deleted",
+            target_type="users",
+            target_id=str(current_user.id),
+            payload_json={},
+        )
+    )
+    await session.commit()
+    await session.refresh(current_user)
+    return _to_user_response(current_user)
 
 
 def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]

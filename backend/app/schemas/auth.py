@@ -37,6 +37,7 @@ class UserResponse(BaseModel):
     role: str
     organization_id: uuid.UUID
     contact_id_impower: int | None = None
+    avatar_url: str | None = None
 
 
 class TokenResponse(BaseModel):

@@ -14,6 +14,7 @@ export interface UserResponse {
   role: UserRole;
   organization_id: string;
   contact_id_impower: number | null;
+  avatar_url: string | null;
 }
 
 export interface TokenResponse {

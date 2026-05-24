@@ -39,6 +39,11 @@ class User(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     locale: Mapped[str] = mapped_column(nullable=False, server_default=text("'de'"))
     mfa_secret: Mapped[str | None] = mapped_column(nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Relative URL to the user-uploaded avatar PNG, served by the static
+    # mount at /me/avatars/. None when no avatar has been set — the SPA
+    # falls back to initials. We don't store the raw bytes; the file lives
+    # under settings.avatar_dir keyed by user id.
+    avatar_url: Mapped[str | None] = mapped_column(nullable=True)
 
     __table_args__ = (
         Index(
