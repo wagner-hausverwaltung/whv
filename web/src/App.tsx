@@ -2,15 +2,26 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
+import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
+import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
 import { PropertyListPage } from "@/pages/PropertyListPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Pre-auth */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/invite" element={<InviteRedeemPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+          {/* Authenticated */}
           <Route
             path="/"
             element={
@@ -21,6 +32,27 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/properties/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PropertyDetailPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:id/documents"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PropertyDocumentsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

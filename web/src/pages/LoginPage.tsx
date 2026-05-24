@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 
 interface LocationState {
@@ -10,7 +10,9 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
   const from = (location.state as LocationState | null)?.from ?? "/";
+  const justReset = params.get("reset") === "ok";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +40,12 @@ export function LoginPage() {
         <p className="muted mb-6">
           Für Eigentümer und Mieter der Wagner Hausverwaltung GmbH.
         </p>
+
+        {justReset && !error && (
+          <p className="flash-success mb-4">
+            ✓ Passwort wurde aktualisiert. Bitte melden Sie sich mit dem neuen Passwort an.
+          </p>
+        )}
 
         {error && (
           <p className="flash-error mb-4" role="alert">
