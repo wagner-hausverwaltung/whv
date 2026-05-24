@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # (localhost in dev, admin.wagner-hausverwaltung.com on staging/prod).
     admin_ui_base_url: str = "http://localhost:8000"
 
+    # Absolute origin of the public Eigentümer/Mieter web portal. Used as the
+    # allowed CORS origin for SPA requests.
+    portal_base_url: str = "http://localhost:5173"
+
 
 @lru_cache
 def get_settings() -> Settings:

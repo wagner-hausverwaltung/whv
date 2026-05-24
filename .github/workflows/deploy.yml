@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "web/**"
       - "docker-compose.yml"
       - "docker-compose.staging.yml"
       - "docker-compose.deploy.yml"
@@ -19,7 +20,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/whv-backend
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/whv-backend
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/whv-web
   STAGING_USER: whv
   STAGING_REPO_DIR: /home/whv/whv
   # Opt JS actions into Node 24 ahead of the 2026-06-02 default switch.
@@ -50,17 +52,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push (linux/arm64; staging runs Hetzner cax21)
+      - name: Build + push backend (linux/arm64; staging runs Hetzner cax21)
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.IMAGE }}:${{ steps.tag.outputs.short_sha }}
-            ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.short_sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build + push web (linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}:${{ steps.tag.outputs.short_sha }}
+            ${{ env.WEB_IMAGE }}:latest
+          build-args: |
+            VITE_API_BASE_URL=https://staging.api.wagner-hausverwaltung.com
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
 
   deploy:
     needs: build-and-push
@@ -86,15 +102,15 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             "${{ env.STAGING_USER }}@${{ secrets.STAGING_SSH_HOST }}:${{ env.STAGING_REPO_DIR }}/"
 
-      - name: Pull image + apply migrations + restart services
+      - name: Pull images + apply migrations + restart services
         env:
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
           ssh -i ~/.ssh/deploy_key "${{ env.STAGING_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
             "cd ${{ env.STAGING_REPO_DIR }} && \
-             IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml pull backend worker beat && \
+             IMAGE_TAG=${IMAGE_TAG} WEB_IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml pull backend worker beat web && \
              IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml run --rm backend alembic upgrade head && \
-             IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml up -d --no-deps backend worker beat"
+             IMAGE_TAG=${IMAGE_TAG} WEB_IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml up -d --no-deps backend worker beat web"
 
       - name: Reload Caddy to pick up Caddyfile changes
         # The Caddyfile is bind-mounted into the caddy container, but compose

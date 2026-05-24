@@ -13,3 +13,8 @@ services:
     image: ghcr.io/wagner-hausverwaltung/whv-backend:${IMAGE_TAG:-latest}
   beat:
     image: ghcr.io/wagner-hausverwaltung/whv-backend:${IMAGE_TAG:-latest}
+  web:
+    image: ghcr.io/wagner-hausverwaltung/whv-web:${WEB_IMAGE_TAG:-latest}
+    # `build` block in base compose is still present; deploy hosts pull
+    # the prebuilt image instead of rebuilding from source.
+    build: !reset null

@@ -43,3 +43,23 @@ admin.wagner-hausverwaltung.com {
         level INFO
     }
 }
+
+# Phase 3 (iter 1): React SPA for Eigentümer / Mieter / Beirat. Static bundle
+# served by the `web` nginx container. The SPA calls staging.api.* cross-origin
+# via the JWT in localStorage; backend's CORSMiddleware allow_origins this host.
+portal.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    reverse_proxy web:80
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}

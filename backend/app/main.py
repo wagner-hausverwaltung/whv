@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.api.v1 import admin as admin_router
@@ -32,6 +33,20 @@ app = FastAPI(
     description="Wagner Hausverwaltung GmbH internal API",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS: allow the SPA portal to call the API cross-origin. credentials=False —
+# the SPA carries the JWT in an Authorization header, not a cookie. Admin UI
+# is same-origin (Caddy reverse-proxies admin.* → /admin-ui/) so it doesn't
+# need an entry here.
+_cors_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[_cors_settings.portal_base_url],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
 )
 
 app.include_router(auth_router.router)

@@ -35,6 +35,11 @@ services:
       APP_ENV: staging
       LOG_LEVEL: INFO
       ADMIN_UI_BASE_URL: https://admin.wagner-hausverwaltung.com
+      PORTAL_BASE_URL: https://portal.wagner-hausverwaltung.com
+
+  web:
+    ports: !reset []
+    restart: unless-stopped
 
 volumes:
   caddy-data:
