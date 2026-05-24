@@ -653,11 +653,11 @@ Submission-time:
 | D5 | Single GmbH-app vs. multi-tenant SaaS | Single now, multi-tenant-ready schemas | ✅ resolved 2026-05-24 → ADR-0002 |
 | D6 | Web portal hosted on Bluehost (static) vs. Hetzner | Hetzner — simpler ops | Open — needed for Phase 3 |
 | D7 | RAG embedding model | `multilingual-e5-large` | Open — needed for Phase 5 |
-| D8 | **Object storage for documents** | Hetzner Object Storage (EU, in ecosystem, S3-compatible) | **Open — blocks Phase 1.4d** |
-| D9 | **Transactional email provider** | Postmark or Resend (both EU-friendly) | **Open — blocks Phase 1.3b forgot-pw + Phase 1.5 invite emails** |
-| D10 | **Admin UI framework** | Jinja2 server-rendered (simplest, least new tech) | **Open — blocks Phase 1.6** |
+| D8 | Object storage for documents | Hetzner Object Storage (EU, in ecosystem, S3-compatible) | ✅ resolved 2026-05-24 — Hetzner Object Storage. ADR to write on first use |
+| D9 | Transactional email provider | Postmark or Resend (both EU-friendly) | ✅ resolved 2026-05-24 — **Resend** (modern, Pythonic, EU region). ADR to write on first use |
+| D10 | Admin UI framework | Jinja2 server-rendered (simplest, least new tech) | ✅ resolved 2026-05-24 — **Jinja2** server-rendered (HTMX added if/when interactivity needs it). ADR to write on first use |
 | D11 | Impower client codegen approach | Hybrid: Pydantic DTOs generated, HTTP handwritten | ✅ resolved 2026-05-24 → ADR-0003 |
-| D12 | CI/CD deploy mechanism for staging | GitHub Actions → GHCR → SSH `docker compose pull` | Open — needed for Phase 1.7+ |
+| D12 | CI/CD deploy mechanism for staging | GitHub Actions → GHCR → SSH `docker compose pull` | ✅ resolved 2026-05-24 — **GHCR push + SSH pull** (Actions builds & pushes to private GHCR, then SSHes to staging and runs `docker compose pull && up -d`). ADR to write on first use |
 
 Document every decision as an ADR in `infra/docs/adr/NNNN-title.md` once made.
 
@@ -681,20 +681,20 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 
 | # | Work | Size | Blockers |
 |---|---|---|---|
-| 1 | **§6.7 health-check routine** — implement the scheduled Claude routine that probes `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none — staging is a real target |
-| 2 | **Phase 1.4d Documents sync** — iteration 1: metadata mirror with nullable `storage_url`. Iteration 2: file upload to chosen object storage | M | D8 (object storage) for iter 2; iter 1 has no blockers |
-| 3 | **Phase 1.3b `DELETE /me` + `GET /me/export`** — soft-delete with 30-day recovery; JSON dump per DSGVO Art. 20 | S | none — App Store + DSGVO compliance |
-| 4 | **Phase 1.5 admin invites + email** — `POST/GET/DELETE /admin/invites` + send via email provider | M | D9 (email provider) |
-| 5 | **Phase 1.7+ CI/CD auto-deploy** — replace rsync with GHCR push + SSH pull + `docker compose up -d` | M | D12 (mechanism) |
+| 1 | **§6.7 health-check routine** — scheduled Claude routine probing `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none |
+| 2 | **Phase 1.4d Documents sync** — iter 1: metadata mirror with nullable `storage_url`. iter 2: file upload to Hetzner Object Storage (D8 resolved) | M | none |
+| 3 | **Phase 1.3b `DELETE /me` + `GET /me/export`** — soft-delete with 30-day recovery; JSON dump per DSGVO Art. 20 | S | none |
+| 4 | **Phase 1.5 admin invites + Resend email** — `POST/GET/DELETE /admin/invites`, render template, send via Resend (D9 resolved) | M | none |
+| 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |
 | 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
-| 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw (D9) | M | DUNS for SIWA; D9 for password reset |
-| 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + signature verification + connection registration | S | none other than Impower-side registration |
+| 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw via Resend | M | DUNS for SIWA only |
+| 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + HMAC + Impower-side connection registration | S | none |
 | 9 | **Phase 1.4b Celery beat** — worker container + beat schedule for nightly full sync | M | none |
-| 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views | L | D10 (framework) |
+| 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views, Jinja2 server-rendered (D10 resolved) | L | none |
 | 11 | **Phase 1.7+ Postman/Bruno collection** — closes the last §7.7 DoD item | S | none |
 | 12 | **Phase 2 iOS scaffold** — Xcode project + first 2-3 screens hitting staging | L | DUNS before App Store submission; can scaffold without |
 
-Doing items 1–11 closes Phase 1 fully (~4–6 weeks of focused work). A "minimum to start Phase 2" cut is items 1–3 + 8 + 11 (~1–2 weeks).
+All Phase 1 work is now unblocked (D8/D9/D10/D12 resolved 2026-05-24). Items 1–11 close Phase 1 fully (~4–6 weeks of focused work). A "minimum to start Phase 2" cut is items 1, 2 (iter 1), 3, 8, 11 (~1–2 weeks).
 
 ---
 

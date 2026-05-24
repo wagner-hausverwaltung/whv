@@ -12,7 +12,7 @@ The §7 "Phase 1 status snapshot" and §15.1 "Next iteration priorities" tables 
 
 - **Staging**: https://staging.api.wagner-hausverwaltung.com — Hetzner cax21 in Nürnberg, Caddy + Let's Encrypt, full demo loop works (invite → redeem → login → `/me/properties/{id}` with units). Op runbook: [`infra/docs/staging.md`](infra/docs/staging.md).
 - **Local dev**: `docker compose up` brings up postgres + redis + backend. `.env` (gitignored) has the Impower test-instance token.
-- **Open decisions blocking next work**: D8 (object storage for documents), D9 (email provider), D10 (admin UI framework), D12 (CI/CD mechanism). See REQUIREMENTS.md §14 — surface these whenever the user asks "what next" so the right question gets answered before code is written.
+- **Resolved infrastructure picks** (D8/D9/D10/D12, all 2026-05-24): Hetzner Object Storage for documents · Resend for transactional email · Jinja2 server-rendered for admin UI · GHCR push + SSH pull for staging deploy. Write an ADR on first implementation of each. See REQUIREMENTS.md §14.
 
 ## Working agreement
 
