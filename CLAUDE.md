@@ -6,6 +6,14 @@ This is the Wagner Hausverwaltung GmbH (WHV) digital platform: backend, iOS app,
 
 **`REQUIREMENTS.md`** in the repo root is the authoritative spec. Read the relevant section before implementing anything. Do not proceed without context.
 
+The §7 "Phase 1 status snapshot" and §15.1 "Next iteration priorities" tables show what's shipped vs. what's next — start there to orient.
+
+## What's running (as of 2026-05-24)
+
+- **Staging**: https://staging.api.wagner-hausverwaltung.com — Hetzner cax21 in Nürnberg, Caddy + Let's Encrypt, full demo loop works (invite → redeem → login → `/me/properties/{id}` with units). Op runbook: [`infra/docs/staging.md`](infra/docs/staging.md).
+- **Local dev**: `docker compose up` brings up postgres + redis + backend. `.env` (gitignored) has the Impower test-instance token.
+- **Open decisions blocking next work**: D8 (object storage for documents), D9 (email provider), D10 (admin UI framework), D12 (CI/CD mechanism). See REQUIREMENTS.md §14 — surface these whenever the user asks "what next" so the right question gets answered before code is written.
+
 ## Working agreement
 
 1. **Plan before code.** Before any non-trivial change, propose a plan and wait for confirmation.

@@ -238,66 +238,104 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 
 **Goal:** Functioning backend with Impower sync, auth, invite codes, and a minimal admin UI. No iOS/web yet.
 
-### 7.1 Project bootstrap
-- [ ] FastAPI project skeleton with config via Pydantic Settings
-- [ ] Postgres + Redis via docker-compose
-- [ ] Alembic migrations setup
-- [ ] CI pipeline: lint (ruff), type-check (mypy), test (pytest), build Docker image
-- [ ] `/healthz` and `/readyz` endpoints
+### Phase 1 status snapshot (as of 2026-05-24)
 
-### 7.2 Database — core tables
-Initial migration creates:
+| Sub-phase | Status | Notes |
+|---|---|---|
+| 1.1 Project bootstrap | ✅ shipped | uv · FastAPI · CI · docker-compose |
+| 1.2 Database — core tables | ✅ shipped | 13 tables; enums match Impower; UUIDv7 PKs; see ADR-0002 |
+| 1.3a Auth core | ✅ shipped | invite/redeem, login, refresh, logout, `/me`, `/me/properties` (incl. property detail with units) |
+| 1.3b Auth finishers | ⏳ partial | `DELETE /me`, `GET /me/export`, Apple SIWA, forgot/reset-pw all pending |
+| 1.4a Impower client + sync | ✅ shipped | Hybrid codegen per ADR-0003; CLI sync verified: 24/129/361/179 rows |
+| 1.4b Scheduled sync (Celery beat) | ⏳ pending | not started |
+| 1.4c Webhooks | ⏳ pending | not started |
+| 1.4d Documents sync | ⏳ pending | last §7.2 entity; needs object-storage decision (D8) |
+| 1.5 Invite admin + email | ⏳ partial | code generation + bootstrap CLI done; `/admin/invites` + email not started |
+| 1.6 Admin UI | ⏳ pending | not started; framework decision needed (D10) |
+| 1.7 Staging deploy | ✅ shipped | https://staging.api.wagner-hausverwaltung.com live; runbook at `infra/docs/staging.md` |
+| 1.7+ Deploy hardening | ⏳ partial | CI/CD auto-deploy, Backblaze backups, Postman collection pending |
+| §6.7 Health-check routine | ⏳ requirement added (this session), not implemented |
+
+### 7.1 Project bootstrap — ✅
+- [x] FastAPI project skeleton with config via Pydantic Settings
+- [x] Postgres + Redis via docker-compose
+- [x] Alembic migrations setup
+- [x] CI pipeline: lint (ruff), type-check (mypy), test (pytest), build Docker image
+- [x] `/healthz` and `/readyz` endpoints
+
+### 7.2 Database — core tables — ✅
+Initial migration `0001_initial_schema` ships 13 tables. Final shapes (after refinement against the live Impower spec) diverge from the sketch below in three ways: contracts↔contacts is m:n via `contract_contacts`; contacts split person/company via explicit `kind` enum; `voting_share` (MEA) added to units for Phase 4 Umlaufbeschluss. See [`backend/app/models/`](backend/app/models/) and [`backend/alembic/versions/`](backend/alembic/versions/) for the authoritative shape; ADR-0002 for tenancy rationale.
 
 ```sql
--- Identity
-users (id, email, password_hash, sign_in_with_apple_sub, role, contact_id_impower,
-       created_at, updated_at, deleted_at, last_login_at, mfa_secret, locale)
-sessions (id, user_id, refresh_token_hash, expires_at, user_agent, ip_hash)
-invite_codes (code, email, contact_id_impower, role, scope_json, expires_at,
-              consumed_at, created_by, created_at)
-audit_log (id, actor_user_id, action, target_type, target_id, payload_json, created_at)
+-- Identity (no Impower mirror)
+organizations (id, name, ...)
+users (id, organization_id, email, password_hash, sign_in_with_apple_sub, role,
+       contact_id_impower, created_at, updated_at, deleted_at, last_login_at,
+       mfa_secret, locale)
+sessions (id, user_id, refresh_token_hash, expires_at, user_agent, ip_hash,
+          last_used_at, revoked_at)
+invite_codes (code, organization_id, email, contact_id_impower, role, scope_json,
+              expires_at, consumed_at, created_by, created_at)
+audit_log (id, organization_id, actor_user_id, action, target_type, target_id,
+           payload_json, created_at)
 
--- Mirror of Impower master data
-properties (id, impower_id, name, address, type, units_count, last_synced_at, raw_jsonb)
-units (id, impower_id, property_id, label, area_m2, owner_contact_id, tenant_contact_id, raw_jsonb)
-contracts (id, impower_id, type, unit_id, contact_id, start_date, end_date, raw_jsonb)
-contacts (id, impower_id, salutation, first_name, last_name, email, phone, address, raw_jsonb)
+-- Mirror of Impower master data (all rows: impower_id UNIQUE, raw_jsonb, last_synced_at)
+properties (id, organization_id, impower_id, property_hr_id, name, type, state,
+            city, street, number, postal_code, country, ...)
+buildings (id, organization_id, property_id, impower_id, name, address, ...)
+units (id, organization_id, impower_id, property_id, building_id, unit_hr_id, type,
+       floor, position, unit_rank, is_owned_by_weg, voting_share, area_m2, rooms)
+contracts (id, organization_id, impower_id, property_id, unit_id, type, contract_number,
+           name, start_date, end_date, is_vacant, ...)
+contract_contacts (contract_id, contact_id, role, created_at)  -- m:n junction
+contacts (id, organization_id, impower_id, kind, salutation, title, first_name,
+          last_name, company_name, vat_id, trade_register_number, email, phone,
+          additional_contacts, city, street, ..., preferred_channel, ...)
+contact_bank_accounts (id, contact_id, iban, bic, account_holder_name, ...)
 
 -- Documents (metadata mirror; files live in SharePoint or S3)
-documents (id, impower_id, sharepoint_id, property_id, unit_id, contact_id,
-           title, type, mime_type, size_bytes, storage_url, visibility, uploaded_at)
+documents (id, organization_id, impower_id, sharepoint_id, property_id, building_id,
+           unit_id, contract_id, contact_id, name, kind, impower_source_type,
+           mime_type, size_bytes, storage_url, amount, issued_date, visibility, state, ...)
 ```
 
-### 7.3 Auth module
-- [ ] `POST /auth/invite/redeem` — exchanges invite code + email for first password setup
-- [ ] `POST /auth/login` (email + password) → access + refresh
-- [ ] `POST /auth/refresh`
-- [ ] `POST /auth/logout`
-- [ ] `POST /auth/apple` (Sign in with Apple ID token verification)
-- [ ] `POST /auth/forgot-password` → email link
-- [ ] `POST /auth/reset-password`
-- [ ] `GET /me` (current user + scope)
-- [ ] `DELETE /me` (account deletion, soft-delete with 30-day recovery window)
-- [ ] `GET /me/export` (DSGVO data export as JSON)
+### 7.3 Auth module — ⏳ partial
+- [x] `POST /auth/invite/redeem` — exchanges invite code + email for first password setup
+- [x] `POST /auth/login` (email + password) → access + refresh
+- [x] `POST /auth/refresh`
+- [x] `POST /auth/logout`
+- [ ] `POST /auth/apple` (Sign in with Apple ID token verification) — depends on Apple Developer Program (DUNS in flight)
+- [ ] `POST /auth/forgot-password` → email link — **blocked on D9 (email provider)**
+- [ ] `POST /auth/reset-password` — paired with above
+- [x] `GET /me` (current user + scope)
+- [x] `GET /me/properties` (scoped: VERWALTER sees all; EIGENTUEMER scoped via contact_id_impower → contracts → properties)
+- [x] `GET /me/properties/{id}` (property detail with embedded units, scope-checked, 404 on out-of-scope)
+- [ ] `DELETE /me` (account deletion, soft-delete with 30-day recovery window) — App Store requirement
+- [ ] `GET /me/export` (DSGVO data export as JSON) — DSGVO Art. 20 (portability)
 
-### 7.4 Impower integration
-- [ ] OpenAPI client generated from Impower spec (commit generated code so it's reviewable)
-- [ ] `integrations/impower/client.py` — authenticated client with retry, rate-limit awareness
-- [ ] Background Celery beat jobs:
-  - Full sync nightly (properties, units, contracts, contacts)
-  - Delta sync every 15 min using `updated_since` filters where supported
-- [ ] Webhook endpoint `/webhooks/impower` — idempotent processing, signed payload verification
+### 7.4 Impower integration — ⏳ partial
+- [x] Pydantic DTOs generated from spec; client handwritten — see ADR-0003 (deviation from "full generated client")
+- [x] `integrations/impower/client.py` — async httpx, Bearer auth, retry on 5xx + ConnectError, 429 Retry-After
+- [x] Pagination iterators for properties, units, contracts, contacts
+- [x] Manual sync via CLI: `python -m app.integrations.impower sync [entity|all]` — upserts via `INSERT … ON CONFLICT (impower_id)`; populates `contract_contacts` junction
+- [ ] **1.4b** — Celery beat scheduled jobs:
+  - Full sync nightly (properties, units, contracts, contacts, documents)
+  - Delta sync every 15 min using `updated_since` filters where supported (note: Impower's v2 spec doesn't expose `updated_since` on most endpoints — fall back to periodic full sync until webhooks land)
+- [ ] **1.4c** — Webhook endpoint `/webhooks/impower` — register connection via Impower `POST /v2/connections` with `appId=8`; verify signature; idempotent processing keyed on `(entityType, entityId, eventType)`
+- [ ] **1.4d** — Documents sync — metadata mirror first; file body upload to object storage (**blocked on D8**)
 - [ ] Reconciliation job: detect drift between mirror and Impower, alert on Sentry
 
-### 7.5 Invite-code flow
-- [ ] Admin-only endpoint: `POST /admin/invites` { contact_id, role, scope?, email_override? }
+### 7.5 Invite-code flow — ⏳ partial
+- [x] Bootstrap CLI: `python -m app.auth.bootstrap create-invite <email> --role <...>` (chicken-and-egg solver for the first Verwalter, since `/admin/invites` would require auth)
+- [x] Code: 8 chars, alphanumeric (no `0`/`O`/`1`/`I`/`L`), single-use, 14-day TTL
+- [x] After redemption, user is bound to the Impower `contact_id_impower` and inherits read scope
+- [ ] Admin-only endpoint: `POST /admin/invites` { contact_id, role, scope?, email_override? } — protected by `require_role(VERWALTER)`
+- [ ] `GET /admin/invites` (list pending/consumed) and `DELETE /admin/invites/{code}` (revoke pending)
 - [ ] Bulk invite via CSV upload
-- [ ] Email via Postmark/Resend with deep link (`whv://invite/CODE`) + web fallback URL
-- [ ] Code: 8 chars, alphanumeric, single-use, 14-day TTL
-- [ ] After redemption, user is bound to the Impower `contact_id` and inherits read scope
+- [ ] Email via Postmark/Resend with deep link (`whv://invite/CODE`) + web fallback URL — **blocked on D9**
 
-### 7.6 Minimal admin UI
-A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/React island — pick whichever is faster) so Luis can:
+### 7.6 Minimal admin UI — ⏳ pending
+A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/React island — pick whichever is faster, **D10**) so Luis can:
 - [ ] Search contacts (from synced mirror)
 - [ ] Send invite to a contact
 - [ ] List pending/consumed invites
@@ -305,11 +343,11 @@ A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/Rea
 - [ ] View audit log
 
 ### 7.7 Definition of Done (Phase 1)
-- Backend deployed to staging on Hetzner Cloud
-- Postman/Bruno collection committed in `backend/api-tests/`
-- Luis can invite his own personal Impower contact, redeem the invite, log in, see his properties
-- All endpoints documented in OpenAPI / Swagger UI at `/docs`
-- Test coverage ≥ 70% on services and integrations
+- [x] Backend deployed to staging on Hetzner Cloud — https://staging.api.wagner-hausverwaltung.com
+- [ ] Postman/Bruno collection committed in `backend/api-tests/`
+- [x] Luis can invite his own personal Impower contact, redeem the invite, log in, see his properties
+- [x] All endpoints documented in OpenAPI / Swagger UI at `/docs`
+- [x] Test coverage ≥ 70% on services and integrations (34 tests covering models, sync, client, auth, /me — all green)
 
 ---
 
@@ -606,15 +644,20 @@ Submission-time:
 
 ## 14. Open Decisions
 
-| # | Decision | Default if undecided |
-|---|---|---|
-| D1 | Self-host vs. managed Postgres | Self-host on Hetzner |
-| D2 | pgvector vs. Qdrant | pgvector (one less service) |
-| D3 | Public vs. unlisted App Store | Public + invite-gating |
-| D4 | WhatsApp via 360dialog vs. Meta direct | 360dialog (faster onboarding) |
-| D5 | Single GmbH-app vs. multi-tenant SaaS | Single now, multi-tenant-ready schemas |
-| D6 | Web portal hosted on Bluehost (static) vs. Hetzner | Hetzner — simpler ops |
-| D7 | RAG embedding model | `multilingual-e5-large` |
+| # | Decision | Default if undecided | Status |
+|---|---|---|---|
+| D1 | Self-host vs. managed Postgres | Self-host on Hetzner | ✅ resolved 2026-05-24 — staging runs self-hosted postgres:16 on cax21 |
+| D2 | pgvector vs. Qdrant | pgvector (one less service) | Open — needed for Phase 5 |
+| D3 | Public vs. unlisted App Store | Public + invite-gating | Open — needed for Phase 2 submission |
+| D4 | WhatsApp via 360dialog vs. Meta direct | 360dialog (faster onboarding) | Open — needed for Phase 4 |
+| D5 | Single GmbH-app vs. multi-tenant SaaS | Single now, multi-tenant-ready schemas | ✅ resolved 2026-05-24 → ADR-0002 |
+| D6 | Web portal hosted on Bluehost (static) vs. Hetzner | Hetzner — simpler ops | Open — needed for Phase 3 |
+| D7 | RAG embedding model | `multilingual-e5-large` | Open — needed for Phase 5 |
+| D8 | **Object storage for documents** | Hetzner Object Storage (EU, in ecosystem, S3-compatible) | **Open — blocks Phase 1.4d** |
+| D9 | **Transactional email provider** | Postmark or Resend (both EU-friendly) | **Open — blocks Phase 1.3b forgot-pw + Phase 1.5 invite emails** |
+| D10 | **Admin UI framework** | Jinja2 server-rendered (simplest, least new tech) | **Open — blocks Phase 1.6** |
+| D11 | Impower client codegen approach | Hybrid: Pydantic DTOs generated, HTTP handwritten | ✅ resolved 2026-05-24 → ADR-0003 |
+| D12 | CI/CD deploy mechanism for staging | GitHub Actions → GHCR → SSH `docker compose pull` | Open — needed for Phase 1.7+ |
 
 Document every decision as an ADR in `infra/docs/adr/NNNN-title.md` once made.
 
@@ -631,6 +674,27 @@ Document every decision as an ADR in `infra/docs/adr/NNNN-title.md` once made.
 | 5 | 8–12 wks | RAG, anomaly detection, predictive maintenance |
 
 Phases 4 and 5 can run partially in parallel. Total to feature-complete: ~24–37 weeks of focused work, realistic for a side-project pace given Luis's PhD + WHV operations: budget 9–15 months.
+
+### 15.1 Next iteration priorities (2026-05-24)
+
+The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1 session), M (1–3 sessions), L (3+ sessions).
+
+| # | Work | Size | Blockers |
+|---|---|---|---|
+| 1 | **§6.7 health-check routine** — implement the scheduled Claude routine that probes `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none — staging is a real target |
+| 2 | **Phase 1.4d Documents sync** — iteration 1: metadata mirror with nullable `storage_url`. Iteration 2: file upload to chosen object storage | M | D8 (object storage) for iter 2; iter 1 has no blockers |
+| 3 | **Phase 1.3b `DELETE /me` + `GET /me/export`** — soft-delete with 30-day recovery; JSON dump per DSGVO Art. 20 | S | none — App Store + DSGVO compliance |
+| 4 | **Phase 1.5 admin invites + email** — `POST/GET/DELETE /admin/invites` + send via email provider | M | D9 (email provider) |
+| 5 | **Phase 1.7+ CI/CD auto-deploy** — replace rsync with GHCR push + SSH pull + `docker compose up -d` | M | D12 (mechanism) |
+| 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
+| 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw (D9) | M | DUNS for SIWA; D9 for password reset |
+| 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + signature verification + connection registration | S | none other than Impower-side registration |
+| 9 | **Phase 1.4b Celery beat** — worker container + beat schedule for nightly full sync | M | none |
+| 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views | L | D10 (framework) |
+| 11 | **Phase 1.7+ Postman/Bruno collection** — closes the last §7.7 DoD item | S | none |
+| 12 | **Phase 2 iOS scaffold** — Xcode project + first 2-3 screens hitting staging | L | DUNS before App Store submission; can scaffold without |
+
+Doing items 1–11 closes Phase 1 fully (~4–6 weeks of focused work). A "minimum to start Phase 2" cut is items 1–3 + 8 + 11 (~1–2 weeks).
 
 ---
 
