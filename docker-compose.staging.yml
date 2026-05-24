@@ -34,8 +34,8 @@ services:
     environment:
       APP_ENV: staging
       LOG_LEVEL: INFO
-      ADMIN_UI_BASE_URL: https://admin.wagner-hausverwaltung.com
-      PORTAL_BASE_URL: https://portal.wagner-hausverwaltung.com
+      PORTAL_BASE_URL: https://staging.portal.wagner-hausverwaltung.com
+      ADMIN_BASE_URL: https://staging.admin.wagner-hausverwaltung.com
 
   web:
     ports: !reset []

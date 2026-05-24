@@ -1,13 +1,15 @@
 # WHV staging reverse proxy. Caddy 2 auto-provisions Let's Encrypt certs.
-# Domain must already resolve to this server before first start.
+# Each host's DNS A record must already resolve to this server before
+# first start, otherwise the HTTP-01 challenge fails.
+#
+# Bare-domain hosts (api.*, admin.*, portal.*) are reserved for prod; the
+# staging.* prefixed records here keep the bookmarks distinct.
 
 staging.api.wagner-hausverwaltung.com {
     encode gzip zstd
 
-    # Forward all paths to the FastAPI backend container.
     reverse_proxy backend:8000
 
-    # Sensible defaults: HSTS, hide server banner.
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         -Server
@@ -22,9 +24,9 @@ staging.api.wagner-hausverwaltung.com {
 
 # Admin host. Serves the same SPA bundle as portal.* but rewrites `/` to
 # `/admin` so the Verwalter bookmark lands on the admin dashboard. The
-# Jinja admin UI was deprecated 2026-05-25; admin is now part of the same
-# React SPA mounted at /admin/*.
-admin.wagner-hausverwaltung.com {
+# Jinja admin UI was retired 2026-05-25; the admin SPA lives under
+# /admin/* in the same React + MUI bundle the customer portal uses.
+staging.admin.wagner-hausverwaltung.com {
     encode gzip zstd
 
     @root path /
@@ -44,10 +46,11 @@ admin.wagner-hausverwaltung.com {
     }
 }
 
-# Phase 3 (iter 1): React SPA for Eigentümer / Mieter / Beirat. Static bundle
-# served by the `web` nginx container. The SPA calls staging.api.* cross-origin
-# via the JWT in localStorage; backend's CORSMiddleware allow_origins this host.
-portal.wagner-hausverwaltung.com {
+# React SPA for Eigentümer / Mieter / Beirat. Static bundle served by the
+# `web` nginx container. The SPA calls staging.api.* cross-origin via JWT
+# in localStorage; backend's CORSMiddleware allow_origins this host via
+# PORTAL_BASE_URL (and admin.* via ADMIN_BASE_URL).
+staging.portal.wagner-hausverwaltung.com {
     encode gzip zstd
 
     reverse_proxy web:80

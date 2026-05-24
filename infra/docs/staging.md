@@ -97,50 +97,50 @@ Verify externally:
 curl -i https://staging.api.wagner-hausverwaltung.com/healthz
 ```
 
-## Admin UI host (`admin.wagner-hausverwaltung.com`)
+## Admin UI host (`staging.admin.wagner-hausverwaltung.com`)
 
 The admin SPA shares the **same React bundle as the portal** — Caddy on this host reverse-proxies to the `web` nginx container (not the backend) and rewrites the root `/` to `/admin` so the bookmark lands on the admin dashboard. Authentication uses the same JWT flow as the portal; Verwalter sign in at the portal's `/login` (or via this host's rewritten `/admin` which falls through to the SPA's login redirect).
 
-Two CORS origins are now allowed on the API: `PORTAL_BASE_URL` (portal.*) **and** `ADMIN_BASE_URL` (admin.*). The Jinja admin UI was removed on 2026-05-25 (commit history); the `whv_admin_session` cookie + `NeedsLoginRedirect` are gone with it.
+Two CORS origins are now allowed on the API: `PORTAL_BASE_URL` (staging.portal.*) **and** `ADMIN_BASE_URL` (staging.admin.*). The Jinja admin UI was removed on 2026-05-25 (commit history); the `whv_admin_session` cookie + `NeedsLoginRedirect` are gone with it.
+
+> Bare-domain hosts (`admin.*`, `portal.*`) are reserved for prod; staging uses the `staging.*` prefix on every public host.
 
 DNS prerequisite — add at the registrar (Bluehost) before the first hit:
 
-| Host                                 | Type | Value             |
-|--------------------------------------|------|-------------------|
-| `admin.wagner-hausverwaltung.com`    | A    | `46.225.185.151`  |
+| Host                                            | Type | Value             |
+|-------------------------------------------------|------|-------------------|
+| `staging.admin.wagner-hausverwaltung.com`       | A    | `46.225.185.151`  |
 
 Once the record propagates, Caddy obtains a Let's Encrypt cert on first request (the host is opened on 80/443 already, no firewall change needed).
-
-> **Today this host points at staging.** When prod ships, move the A record to the prod IP and add a `staging.admin.wagner-hausverwaltung.com` block to staging's Caddyfile pointing at the staging IP.
 
 Smoke after DNS + first deploy:
 
 ```bash
 # 1. SPA bundle loads (HTML shell with the Vite assets)
-curl -i https://admin.wagner-hausverwaltung.com/
+curl -i https://staging.admin.wagner-hausverwaltung.com/
 
 # 2. /admin/* paths resolve to the same SPA (nginx try_files → index.html)
-curl -i https://admin.wagner-hausverwaltung.com/admin/dashboard
+curl -i https://staging.admin.wagner-hausverwaltung.com/admin/dashboard
 ```
 
 Staging compose / deploy env needs:
 
 ```
-ADMIN_BASE_URL=https://admin.wagner-hausverwaltung.com
-PORTAL_BASE_URL=https://portal.wagner-hausverwaltung.com
+PORTAL_BASE_URL=https://staging.portal.wagner-hausverwaltung.com
+ADMIN_BASE_URL=https://staging.admin.wagner-hausverwaltung.com
 ```
 
 without `ADMIN_BASE_URL`, the admin host's SPA can still load but every API call from it will fail CORS.
 
-## Web portal host (`portal.wagner-hausverwaltung.com`)
+## Web portal host (`staging.portal.wagner-hausverwaltung.com`)
 
-The Eigentümer / Mieter / Beirat web portal (React 18 + Vite, served by an nginx static container behind Caddy). The SPA calls `staging.api.*` cross-origin via JWT in `Authorization` header; backend's `CORSMiddleware` allowlists this host via `PORTAL_BASE_URL`.
+The Eigentümer / Mieter / Beirat web portal (React 18 + Vite + Material UI, served by an nginx static container behind Caddy). The SPA calls `staging.api.*` cross-origin via JWT in `Authorization` header; backend's `CORSMiddleware` allowlists this host via `PORTAL_BASE_URL`.
 
 DNS prerequisite — add at the registrar (Bluehost) before the first hit:
 
-| Host                                  | Type | Value             |
-|---------------------------------------|------|-------------------|
-| `portal.wagner-hausverwaltung.com`    | A    | `46.225.185.151`  |
+| Host                                             | Type | Value             |
+|--------------------------------------------------|------|-------------------|
+| `staging.portal.wagner-hausverwaltung.com`       | A    | `46.225.185.151`  |
 
 Same provisioning behaviour as the admin host: once DNS resolves, Caddy obtains a Let's Encrypt cert on the first inbound request. If you hit the back-off issue from below (e.g. you set DNS after Caddy already tried + failed), `docker compose restart caddy` clears it.
 
@@ -148,7 +148,7 @@ Smoke after DNS:
 
 ```bash
 # Static landing renders (HTTP 200, contains "WHV-Portal")
-curl -i https://portal.wagner-hausverwaltung.com/
+curl -i https://staging.portal.wagner-hausverwaltung.com/
 
 # Auth flow: /login is the default unauth landing, /invite?code= the redemption flow
 ```
