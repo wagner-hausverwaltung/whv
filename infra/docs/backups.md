@@ -5,9 +5,8 @@
 - **Frequency**: daily at 03:00 UTC
 - **Mechanism**: systemd timer `whv-backup.timer` invokes `/usr/local/bin/backup-postgres.sh`, which runs `pg_dump` inside the running `postgres` container
 - **Format**: gzipped SQL (`pg_dump --no-owner --no-privileges` + `gzip -9`)
-- **Location**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz` on the staging server
-- **Retention**: 30 days local, auto-pruned by the script
-- **Off-site**: **NONE YET** — see "TODO: Backblaze B2" below
+- **Local copy**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz` on the staging server, 30-day retention, auto-pruned by the script
+- **Off-site copy** (DR): Backblaze B2 bucket `whv-staging-postgres-backups`, uploaded by `rclone` after each successful local write, same 30-day retention. Bucket is private, SSE-B2 encryption at rest, account key scoped read+write to this bucket only (no `listAllBucketNames`).
 
 ## Install (already done on staging)
 
@@ -42,6 +41,32 @@ sudo systemctl start whv-backup.service
 journalctl -u whv-backup.service -f
 ```
 
+## B2 off-site setup (already done, here for posterity)
+
+```bash
+# On the server, as root:
+sudo apt-get install -y rclone
+
+# Write /etc/rclone.conf (perms 600, root-owned)
+sudo tee /etc/rclone.conf > /dev/null <<'RC'
+[b2]
+type = b2
+account = <keyID from B2 application key>
+key = <applicationKey from B2 application key>
+hard_delete = true
+RC
+sudo chmod 600 /etc/rclone.conf
+```
+
+The B2 application key was generated at https://secure.backblaze.com → B2 Cloud Storage → Application Keys → Add New, scoped:
+
+- Allow access to: `whv-staging-postgres-backups` (this bucket only)
+- Type: Read and Write
+- `Allow List All Bucket Names` unchecked
+- No file prefix, no expiry
+
+To rotate: generate a new key in the B2 console, replace the `account`/`key` lines in `/etc/rclone.conf`, run `sudo systemctl start whv-backup.service` to verify, then delete the old key in the console.
+
 ## Restore drill (quarterly per REQUIREMENTS.md §12.3)
 
 ```bash
@@ -66,14 +91,17 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T postg
     psql -U whv -c "DROP DATABASE whv_restore_test;"
 ```
 
-## TODO: Backblaze B2 off-site
+## Restoring from B2 (if local disk is gone)
 
-Currently backups live only on the same disk as the database — useless if the disk dies. To finish DR per REQUIREMENTS.md §12.3:
+```bash
+# Pull the latest backup from B2 to wherever you're restoring from
+rclone --config=/etc/rclone.conf copy b2:whv-staging-postgres-backups/whv-YYYY-MM-DD.sql.gz .
 
-1. Create a Backblaze B2 account + bucket `whv-staging-postgres-backups`
-2. Generate an application key with write+list+delete on that bucket only
-3. Install `rclone` on the server, configure a `b2:` remote with the key
-4. Extend `backup-postgres.sh` to `rclone copy "$OUTPUT" b2:whv-staging-postgres-backups/`
-5. Set bucket lifecycle: keep daily for 30 days, weekly for 90 days, monthly for 1 year
+# Then follow the restore drill above, pointing $BACKUP at the downloaded file.
+```
 
-Estimated effort: 30 min once the B2 account exists. Track as a follow-up to this hardening pass.
+## Possible follow-ups (not yet wired)
+
+- **Tiered retention**: keep daily for 30 days, weekly for 90 days, monthly for 1 year. B2 bucket lifecycle rules can do this — saves storage cost but our daily backups are KBs-MBs, so not urgent.
+- **Backup verification**: monthly automated restore drill into a sacrificial database, with a tripwire alert if the restore fails. Right now the only verification is manual.
+- **Encryption-in-transit pre-upload**: rclone already uses TLS to B2 and the bucket has SSE-B2 at-rest encryption. Adding client-side encryption (GPG before upload, or rclone's `--crypt` overlay) means B2 can't read the dumps — defense in depth, but more keys to manage.

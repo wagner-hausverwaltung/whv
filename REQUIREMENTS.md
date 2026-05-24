@@ -253,7 +253,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.5 Invite admin + email | ✅ shipped | `/admin/invites` POST/GET/DELETE wired with `require_role(VERWALTER)`; emails sent via Resend (ADR-0004), best-effort with audit trail; verified live end-to-end. |
 | 1.6 Admin UI | ⏳ pending | not started; framework decision needed (D10) |
 | 1.7 Staging deploy | ✅ shipped | https://staging.api.wagner-hausverwaltung.com live; runbook at `infra/docs/staging.md` |
-| 1.7+ Deploy hardening | ⏳ partial | CI/CD auto-deploy, Backblaze backups, Postman collection pending |
+| 1.7+ Deploy hardening | ⏳ partial | Postgres backups (local + Backblaze B2 off-site) ✅. Postman collection ✅. CI/CD auto-deploy still pending. |
 | §6.7 Health-check routine | ⏳ requirement added (this session), not implemented |
 
 ### 7.1 Project bootstrap — ✅
@@ -685,7 +685,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 3 | ~~Phase 1.3b `DELETE /me` + `GET /me/export`~~ — ✅ shipped 2026-05-24 (54 tests green, live smoke OK) | S | done |
 | 4 | ~~Phase 1.5 admin invites + Resend email~~ — ✅ shipped 2026-05-24 (ADR-0004, 63 tests green, live email send verified) | M | done |
 | 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |
-| 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
+| 6 | ~~Phase 1.7+ Postgres backups to B2~~ — ✅ shipped 2026-05-24 (local + B2 off-site, 30-day retention both sides) | S | done |
 | 7 | **Phase 1.3b auth finishers** — forgot/reset-pw ✅ shipped 2026-05-24. SIWA still pending DUNS / Apple Developer enrollment. | M | DUNS for SIWA only |
 | 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + HMAC + Impower-side connection registration | S | none |
 | 9 | ~~Phase 1.4b Celery beat~~ — ✅ shipped 2026-05-24 (worker + beat live, nightly 02:00 UTC) | M | done |
