@@ -19,12 +19,17 @@ services:
       backend:
         condition: service_started
 
+  # Compose v2 merges sequences by concat — a plain `ports: []` override would
+  # be appended to the base, leaving the host port mappings in place. The
+  # `!reset []` tag explicitly clears the sequence so postgres/redis/backend
+  # are reachable only via the internal docker network on staging. Requires
+  # compose ≥ v2.20 (staging's Docker 29.5 ships v2.36+).
   postgres:
-    ports: []
+    ports: !reset []
   redis:
-    ports: []
+    ports: !reset []
   backend:
-    ports: []
+    ports: !reset []
     restart: unless-stopped
     environment:
       APP_ENV: staging

@@ -1,5 +1,10 @@
 name: backend
 
+# Opt JS actions into Node 24 ahead of the 2026-06-02 default switch.
+# Silences the runner-emitted deprecation warning until each action ships v5+.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   pull_request:
     paths:
