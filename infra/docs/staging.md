@@ -120,3 +120,16 @@ curl -i https://admin.wagner-hausverwaltung.com/admin-ui/login
 # 2. Bookmark redirect works (root → /admin-ui/, then 303 → /admin-ui/login because no cookie)
 curl -iL https://admin.wagner-hausverwaltung.com/
 ```
+
+### Gotcha: Caddy ACME back-off after late DNS
+
+If you added the host block to the Caddyfile *before* DNS propagated, Caddy's first ACME attempt will have failed and exponential back-off kicks in (10-60 min between retries). `caddy reload` does **not** reset that back-off state. The fix is a container restart:
+
+```bash
+ssh whv@46.225.185.151 \
+  'cd ~/whv && docker compose -f docker-compose.yml -f docker-compose.staging.yml restart caddy \
+     && sleep 2 \
+     && docker compose -f docker-compose.yml -f docker-compose.staging.yml logs --tail=30 caddy'
+```
+
+Watch for `tls-alpn-01 ... served key authentication certificate` lines from multiple Let's Encrypt validation IPs — that means the challenge succeeded. The cert is valid within ~10 s after that. Subsequent renewals (60-day cadence at 2/3 lifetime) require no manual action. Only the **first** acquisition for a brand-new host is sensitive to this back-off.
