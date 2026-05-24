@@ -12,7 +12,14 @@ def render_ticket_notification_email(
     sees real use we'll add a deep link directly to the ticket; for now we
     just nudge the reader to log in.
     """
-    subject = f"Neue Nachricht zu Ticket #{ticket_short_id} — {ticket_subject}"
+    # [#<short_id>] bracketed format MUST match the inbound parser's regex in
+    # app/integrations/email/inbound.py — that's how reply emails route back
+    # to this ticket via the support@ inbox. Renaming the bracket pattern
+    # without also updating the parser breaks email-thread continuity.
+    if f"[#{ticket_short_id}]" not in ticket_subject:
+        subject = f"[#{ticket_short_id}] {ticket_subject}"
+    else:
+        subject = ticket_subject
 
     # Escape minimal HTML special characters for the rich body. Keep simple
     # — no markdown, no auto-linking; this is a transactional notification.

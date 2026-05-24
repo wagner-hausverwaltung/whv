@@ -140,7 +140,9 @@ def _make_signed_payload(
         "SignatureVersion": "2",
     }
     if msg_type in ("SubscriptionConfirmation", "UnsubscribeConfirmation"):
-        base["SubscribeURL"] = "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=xyz"
+        base["SubscribeURL"] = (
+            "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=xyz"
+        )
         base["Token"] = "tok"
     base["Signature"] = _sign_canonical(base, private_key)
     return base
@@ -404,9 +406,7 @@ async def test_email_creates_new_ticket_for_unknown_sender(
         assert ticket.subject == "Heizung defekt"
 
         message_rows = (
-            await s.scalars(
-                select(TicketMessage).where(TicketMessage.ticket_id == ticket.id)
-            )
+            await s.scalars(select(TicketMessage).where(TicketMessage.ticket_id == ticket.id))
         ).all()
         assert len(message_rows) == 1
         assert message_rows[0].source == TicketMessageSource.EMAIL
@@ -514,6 +514,7 @@ async def test_email_idempotent_on_duplicate_message_id(
 
     sm = async_sessionmaker(test_engine, expire_on_commit=False)
     from app.models import Organization
+
     async with sm() as s:
         org_stmt = select(Organization).where(Organization.id == WHV_ORGANIZATION_ID)
         if await s.scalar(org_stmt) is None:
@@ -534,9 +535,7 @@ async def test_email_idempotent_on_duplicate_message_id(
     async with sm() as s:
         # Only one message inserted with that email_message_id
         msgs = (
-            await s.scalars(
-                select(TicketMessage).where(TicketMessage.email_message_id == msg_id)
-            )
+            await s.scalars(select(TicketMessage).where(TicketMessage.email_message_id == msg_id))
         ).all()
         assert len(msgs) == 1
 
@@ -548,6 +547,7 @@ async def test_email_rejected_when_spam(
 ) -> None:
     _bypass_signature(monkeypatch)
     from app.models import Organization
+
     sm = async_sessionmaker(test_engine, expire_on_commit=False)
     async with sm() as s:
         org_stmt = select(Organization).where(Organization.id == WHV_ORGANIZATION_ID)
@@ -579,8 +579,10 @@ async def test_subscription_confirmation_visits_subscribe_url(
     class _FakeClient:
         async def __aenter__(self) -> _FakeClient:
             return self
+
         async def __aexit__(self, *_: Any) -> None:
             pass
+
         async def get(self, url: str) -> MagicMock:
             visited.append(url)
             resp = MagicMock()
@@ -590,7 +592,9 @@ async def test_subscription_confirmation_visits_subscribe_url(
     monkeypatch.setattr("app.api.v1.webhooks.httpx.AsyncClient", lambda **_: _FakeClient())
 
     envelope = _sns_envelope("", msg_type="SubscriptionConfirmation")
-    envelope["SubscribeURL"] = "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=xyz"
+    envelope["SubscribeURL"] = (
+        "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=xyz"
+    )
 
     with TestClient(app) as client:
         r = client.post("/webhooks/email/inbound", json=envelope)

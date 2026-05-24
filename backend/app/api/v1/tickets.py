@@ -110,9 +110,7 @@ async def _load_messages(
     return list((await session.scalars(stmt)).all())
 
 
-async def _owner_can_access(
-    session: AsyncSession, user: User, ticket: Ticket
-) -> bool:
+async def _owner_can_access(session: AsyncSession, user: User, ticket: Ticket) -> bool:
     """True if the (non-Verwalter) user is allowed to see this ticket.
 
     Allow if any of:
@@ -191,6 +189,30 @@ def _dedupe(emails: list[str]) -> list[str]:
     return out
 
 
+async def _latest_email_thread_headers(
+    session: AsyncSession, ticket_id: uuid.UUID
+) -> dict[str, str]:
+    """Build In-Reply-To / References headers for outbound replies on tickets
+    that were started/continued by email. Empty dict if the ticket has no
+    email-sourced messages — outbound is then a fresh thread.
+    """
+    latest = await session.scalar(
+        select(TicketMessage)
+        .where(
+            TicketMessage.ticket_id == ticket_id,
+            TicketMessage.email_message_id.is_not(None),
+        )
+        .order_by(TicketMessage.created_at.desc())
+        .limit(1)
+    )
+    if latest is None or latest.email_message_id is None:
+        return {}
+    return {
+        "In-Reply-To": latest.email_message_id,
+        "References": latest.email_message_id,
+    }
+
+
 async def _send_message_notification(
     *,
     email_client: EmailClient,
@@ -198,6 +220,7 @@ async def _send_message_notification(
     message: TicketMessage,
     recipients: list[str],
     sender_email: str,
+    headers: dict[str, str] | None = None,
 ) -> tuple[str | None, str | None]:
     """Best-effort send — returns (message_id, error_string). Caller is
     responsible for capturing the outcome in audit if desired."""
@@ -215,6 +238,7 @@ async def _send_message_notification(
             subject=subject,
             html=html,
             text=text,
+            headers=headers,
         )
         return msg_id, None
     except EmailError as exc:
@@ -255,9 +279,7 @@ async def create_my_ticket(
     # Property-scope safety: if a property_id is supplied, verify the user
     # has access (Verwalter sees all; others restricted to their contracts).
     if req.property_id is not None:
-        prop_stmt = _visible_properties_stmt(current_user).where(
-            Property.id == req.property_id
-        )
+        prop_stmt = _visible_properties_stmt(current_user).where(Property.id == req.property_id)
         prop = await session.scalar(prop_stmt)
         if prop is None:
             raise HTTPException(
@@ -345,9 +367,7 @@ async def get_my_ticket(
     if current_user.role != UserRole.VERWALTER and not await _owner_can_access(
         session, current_user, ticket
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     # Owners never see internal notes; Verwalter using /me/* shouldn't be
     # surprised either (admin endpoint exposes them).
     messages = await _load_messages(session, ticket.id, include_internal=False)
@@ -387,9 +407,7 @@ async def post_my_message(
     if current_user.role != UserRole.VERWALTER and not await _owner_can_access(
         session, current_user, ticket
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
 
     now = datetime.now(UTC)
     message = TicketMessage(
@@ -404,14 +422,20 @@ async def post_my_message(
     if ticket.status in (TicketStatus.NEU, TicketStatus.WARTET_AUF_KUNDE):
         ticket.status = TicketStatus.OFFEN
 
-    # Owner reply → notify Verwalter + creator + all explicit participants
+    # Owner reply → notify Verwalter + creator + external sender (if the
+    # ticket originated by email from a non-user) + all explicit participants
     # (excluding the author of this reply, since they already know).
-    creator = await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+    creator = (
+        await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+        if ticket.created_by_user_id
+        else None
+    )
     recipients = _dedupe(
         [
             *(await _verwalter_recipients(session, current_user.organization_id)),
             *(await _participant_emails(session, ticket.id)),
             *([creator.email] if creator and creator.deleted_at is None else []),
+            *([ticket.external_sender_email] if ticket.external_sender_email else []),
         ]
     )
     recipients = [e for e in recipients if e != current_user.email]
@@ -421,6 +445,7 @@ async def post_my_message(
         message=message,
         recipients=recipients,
         sender_email=current_user.email,
+        headers=await _latest_email_thread_headers(session, ticket.id),
     )
 
     await session.commit()
@@ -540,17 +565,19 @@ async def post_admin_message(
     ):
         ticket.status = TicketStatus.WARTET_AUF_KUNDE
 
-    # Notify creator + explicit participants ONLY when this is a public message
-    # (internal notes never trigger email — Verwalter-only). Property-scope
-    # viewers are intentionally NOT fanned out to here; they see updates on
-    # next portal visit but a property-wide message email would spam too widely.
+    # Notify creator (or external sender if the ticket came in by email) +
+    # explicit participants. Internal notes stay Verwalter-only — no email.
+    # Property-scope viewers are intentionally NOT fanned out to here.
     if not req.is_internal_note:
-        owner = await session.scalar(
-            select(User).where(User.id == ticket.created_by_user_id)
+        owner = (
+            await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+            if ticket.created_by_user_id
+            else None
         )
         recipients = _dedupe(
             [
                 *([owner.email] if owner and owner.deleted_at is None else []),
+                *([ticket.external_sender_email] if ticket.external_sender_email else []),
                 *(await _participant_emails(session, ticket.id)),
             ]
         )
@@ -561,6 +588,7 @@ async def post_admin_message(
                 message=message,
                 recipients=recipients,
                 sender_email=current_user.email,
+                headers=await _latest_email_thread_headers(session, ticket.id),
             )
 
     await session.commit()
@@ -634,9 +662,7 @@ async def patch_ticket(
 # Only the ticket creator OR a Verwalter may add/remove participants.
 
 
-async def _can_manage_participants(
-    session: AsyncSession, user: User, ticket: Ticket
-) -> bool:
+async def _can_manage_participants(session: AsyncSession, user: User, ticket: Ticket) -> bool:
     if user.role == UserRole.VERWALTER:
         return True
     return ticket.created_by_user_id == user.id
@@ -814,9 +840,7 @@ async def remove_my_participant(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     if not await _can_manage_participants(session, current_user, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    await _remove_participant(
-        session=session, ticket=ticket, actor=current_user, user_id=user_id
-    )
+    await _remove_participant(session=session, ticket=ticket, actor=current_user, user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -891,9 +915,5 @@ async def remove_admin_participant(
     )
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    await _remove_participant(
-        session=session, ticket=ticket, actor=current_user, user_id=user_id
-    )
+    await _remove_participant(session=session, ticket=ticket, actor=current_user, user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-

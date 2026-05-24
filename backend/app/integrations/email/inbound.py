@@ -35,15 +35,15 @@ _TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{8})\]", re.IGNORECASE)
 class ParsedInboundEmail:
     """Result of parsing one SES-published email payload."""
 
-    sender_email: str                 # bare address from "From:", lowercased
-    subject: str                      # full subject including any [#ref] prefix
-    ticket_ref: str | None            # 8-char hex extracted from subject if present
-    message_id: str | None            # RFC 5322 Message-ID (incl. angle brackets) if present
-    in_reply_to: str | None           # In-Reply-To header
-    references: str | None            # References header (full chain, space-separated)
-    body: str                         # plaintext body, after multipart/HTML stripping
-    spam_pass: bool                   # SES spam verdict — false → drop
-    virus_pass: bool                  # SES virus verdict — false → drop
+    sender_email: str  # bare address from "From:", lowercased
+    subject: str  # full subject including any [#ref] prefix
+    ticket_ref: str | None  # 8-char hex extracted from subject if present
+    message_id: str | None  # RFC 5322 Message-ID (incl. angle brackets) if present
+    in_reply_to: str | None  # In-Reply-To header
+    references: str | None  # References header (full chain, space-separated)
+    body: str  # plaintext body, after multipart/HTML stripping
+    spam_pass: bool  # SES spam verdict — false → drop
+    virus_pass: bool  # SES virus verdict — false → drop
 
 
 class InboundEmailParseError(Exception):
@@ -136,9 +136,7 @@ def _html_to_text(html: str) -> str:
     matter for body readability. Good enough for ticket bodies; do not use
     for content where structure carries meaning."""
     without_tags = _HTML_TAG_RE.sub(" ", html)
-    without_entities = _HTML_ENTITY_RE.sub(
-        lambda m: _HTML_ENTITY_MAP[m.group(1)], without_tags
-    )
+    without_entities = _HTML_ENTITY_RE.sub(lambda m: _HTML_ENTITY_MAP[m.group(1)], without_tags)
     # Collapse runs of whitespace introduced by tag removal.
     return re.sub(r"\s+", " ", without_entities)
 
@@ -160,9 +158,7 @@ def parse_ses_sns_payload(message_payload: str) -> ParsedInboundEmail:
 
     notification_type = outer.get("notificationType")
     if notification_type != "Received":
-        raise InboundEmailParseError(
-            f"Unexpected notificationType: {notification_type!r}"
-        )
+        raise InboundEmailParseError(f"Unexpected notificationType: {notification_type!r}")
 
     mail = outer.get("mail", {})
     receipt = outer.get("receipt", {})

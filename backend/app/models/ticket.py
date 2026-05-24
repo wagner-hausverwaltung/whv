@@ -162,9 +162,7 @@ class TicketMessage(Base):
     # RFC 5322 Message-ID of the inbound email (if source=EMAIL). Used for
     # idempotency on retries + threading on outbound replies (In-Reply-To /
     # References headers).
-    email_message_id: Mapped[str | None] = mapped_column(
-        Text, nullable=True, unique=True
-    )
+    email_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

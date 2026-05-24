@@ -713,9 +713,7 @@ async def ticket_detail(
     author_ids = {m.author_user_id for m in messages}
     author_emails: dict[uuid.UUID, str] = {}
     if author_ids:
-        author_rows = (
-            await session.scalars(select(User).where(User.id.in_(author_ids)))
-        ).all()
+        author_rows = (await session.scalars(select(User).where(User.id.in_(author_ids)))).all()
         author_emails = {u.id: u.email for u in author_rows}
 
     # Participants (explicit named) — join to User for the email display.

@@ -294,9 +294,7 @@ async def email_inbound(
     # SNS is retrying — ack silently.
     if parsed.message_id:
         existing = await session.scalar(
-            select(TicketMessage).where(
-                TicketMessage.email_message_id == parsed.message_id
-            )
+            select(TicketMessage).where(TicketMessage.email_message_id == parsed.message_id)
         )
         if existing is not None:
             return {"status": "duplicate", "ticket_id": str(existing.ticket_id)}

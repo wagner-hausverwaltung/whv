@@ -42,6 +42,4 @@ def test_cors_preflight_for_portal_origin() -> None:
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == portal_origin
     assert "GET" in response.headers.get("access-control-allow-methods", "")
-    assert "authorization" in response.headers.get(
-        "access-control-allow-headers", ""
-    ).lower()
+    assert "authorization" in response.headers.get("access-control-allow-headers", "").lower()

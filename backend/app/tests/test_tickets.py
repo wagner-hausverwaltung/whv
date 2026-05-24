@@ -236,9 +236,7 @@ async def test_ticket_is_invisible_across_orgs(
     org_a = await make_org(test_engine)
     org_b = await make_org(test_engine)
     _, ea_email, ea_pw = await make_user(test_engine, org=org_a, role=UserRole.EIGENTUEMER)
-    _vw_b, vw_b_email, vw_b_pw = await make_user(
-        test_engine, org=org_b, role=UserRole.VERWALTER
-    )
+    _vw_b, vw_b_email, vw_b_pw = await make_user(test_engine, org=org_b, role=UserRole.VERWALTER)
     ea_token = _login(ea_email, ea_pw)
     b_token = _login(vw_b_email, vw_b_pw)
 
