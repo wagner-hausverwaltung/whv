@@ -80,3 +80,23 @@ class AdminContactSearchResult(BaseModel):
     impower_id: int
     label: str  # display name (company OR first + last)
     email: str | None = None
+
+
+class AdminAuditLogResponse(BaseModel):
+    """Row in the admin audit-log viewer.
+
+    `actor_email` is denormalised at read time so the SPA renders the
+    table without a follow-up user lookup. May be None if the actor user
+    was hard-deleted (FK is ON DELETE SET NULL).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    actor_user_id: uuid.UUID | None
+    actor_email: str | None = None
+    action: str
+    target_type: str | None
+    target_id: str | None
+    payload_json: dict[str, Any] | None
+    created_at: datetime

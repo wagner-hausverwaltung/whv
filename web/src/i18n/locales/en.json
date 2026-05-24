@@ -92,6 +92,17 @@
       "revokeFailed": "Could not revoke invitation.",
       "loadFailed": "Could not load invitations."
     },
+    "auditPage": {
+      "title": "Audit log",
+      "subtitle": "Latest 200 entries, newest first. Actor email resolved at read time.",
+      "empty": "No audit entries.",
+      "when": "When (UTC)",
+      "actor": "Actor",
+      "action": "Action",
+      "target": "Target",
+      "payload": "Payload",
+      "loadFailed": "Could not load audit log."
+    },
     "resolutionsPage": {
       "title": "Resolutions",
       "newButton": "New resolution",

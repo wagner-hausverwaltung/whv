@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
+import { AdminAuditPage } from "@/admin/pages/AdminAuditPage";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
@@ -218,10 +219,7 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Audit-Log"
-                    legacyPath="/admin-ui/audit"
-                  />
+                  <AdminAuditPage />
                 </AdminLayout>
               </AdminRoute>
             }

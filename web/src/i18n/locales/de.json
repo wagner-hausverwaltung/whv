@@ -92,6 +92,17 @@
       "revokeFailed": "Einladung konnte nicht widerrufen werden.",
       "loadFailed": "Einladungen konnten nicht geladen werden."
     },
+    "auditPage": {
+      "title": "Audit-Log",
+      "subtitle": "Letzte 200 Einträge, neueste zuerst. Aktor-E-Mail wird zum Lesezeitpunkt aufgelöst.",
+      "empty": "Keine Audit-Einträge vorhanden.",
+      "when": "Zeitpunkt (UTC)",
+      "actor": "Aktor",
+      "action": "Aktion",
+      "target": "Ziel",
+      "payload": "Payload",
+      "loadFailed": "Audit-Log konnte nicht geladen werden."
+    },
     "resolutionsPage": {
       "title": "Beschlüsse",
       "newButton": "Neuer Beschluss",

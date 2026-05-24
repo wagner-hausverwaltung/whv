@@ -28,6 +28,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.admin import (
+    AdminAuditLogResponse,
     AdminContactSearchResult,
     AdminDashboardStats,
     AdminInviteResponse,
@@ -397,4 +398,50 @@ async def property_contacts_search(
         )
         for c in rows
         if c.impower_id is not None
+    ]
+
+
+# --- Audit log (JSON) --------------------------------------------------------
+
+
+@router.get("/audit-log", response_model=list[AdminAuditLogResponse])
+async def list_audit_log(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 200,
+) -> list[AdminAuditLogResponse]:
+    """Most recent audit-log rows for the caller's org, newest first.
+
+    `actor_email` is resolved in one batch so the SPA renders the table
+    without an N+1 lookup. Hard limit of 500 — past that the operator
+    should query the database directly.
+    """
+    capped = max(1, min(limit, 500))
+    rows = (
+        await session.scalars(
+            select(AuditLog)
+            .where(AuditLog.organization_id == current_user.organization_id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(capped)
+        )
+    ).all()
+
+    actor_ids = {r.actor_user_id for r in rows if r.actor_user_id}
+    emails: dict[uuid.UUID, str] = {}
+    if actor_ids:
+        users = (await session.scalars(select(User).where(User.id.in_(actor_ids)))).all()
+        emails = {u.id: u.email for u in users}
+
+    return [
+        AdminAuditLogResponse(
+            id=r.id,
+            actor_user_id=r.actor_user_id,
+            actor_email=emails.get(r.actor_user_id) if r.actor_user_id else None,
+            action=r.action,
+            target_type=r.target_type,
+            target_id=r.target_id,
+            payload_json=r.payload_json,
+            created_at=r.created_at,
+        )
+        for r in rows
     ]

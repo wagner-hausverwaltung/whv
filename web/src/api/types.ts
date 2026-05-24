@@ -250,3 +250,14 @@ export const INVITE_STATUS_LABELS: Record<InviteStatus, string> = {
   consumed: "Eingelöst",
   expired: "Abgelaufen",
 };
+
+export interface AdminAuditLogResponse {
+  id: string;
+  actor_user_id: string | null;
+  actor_email: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  payload_json: Record<string, unknown> | null;
+  created_at: string;
+}
