@@ -92,6 +92,46 @@
       "revokeFailed": "Einladung konnte nicht widerrufen werden.",
       "loadFailed": "Einladungen konnten nicht geladen werden."
     },
+    "stammdaten": {
+      "limitNote": "Anzeige der ersten 200 Datensätze.",
+      "loadFailed": "Daten konnten nicht geladen werden.",
+      "empty": "Keine Datensätze vorhanden."
+    },
+    "propertiesPage": {
+      "title": "Objekte",
+      "name": "Name",
+      "type": "Typ",
+      "address": "Adresse",
+      "hrId": "HR-ID"
+    },
+    "unitsPage": {
+      "title": "Einheiten",
+      "property": "Objekt",
+      "unit": "Einheit",
+      "type": "Typ",
+      "floor": "Etage",
+      "position": "Lage",
+      "area": "Fläche (m²)"
+    },
+    "contractsPage": {
+      "title": "Verträge",
+      "property": "Objekt",
+      "type": "Typ",
+      "number": "Vertragsnr.",
+      "name": "Name",
+      "start": "Beginn",
+      "end": "Ende",
+      "vacant": "Leerstand"
+    },
+    "contactsPage": {
+      "title": "Kontakte",
+      "name": "Name",
+      "kind": "Typ",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "city": "Ort",
+      "impowerId": "Impower-ID"
+    },
     "ticketTile": {
       "contact": "Kontakt",
       "property": "Liegenschaft",

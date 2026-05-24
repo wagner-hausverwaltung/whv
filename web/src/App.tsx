@@ -1,16 +1,19 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
 import { AdminAuditPage } from "@/admin/pages/AdminAuditPage";
+import { AdminContactsPage } from "@/admin/pages/AdminContactsPage";
+import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
-import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
+import { AdminPropertiesPage } from "@/admin/pages/AdminPropertiesPage";
 import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
 import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
 import { AdminResolutionNewPage } from "@/admin/pages/AdminResolutionNewPage";
 import { AdminResolutionsPage } from "@/admin/pages/AdminResolutionsPage";
 import { AdminTicketDetailPage } from "@/admin/pages/AdminTicketDetailPage";
 import { AdminTicketsPage } from "@/admin/pages/AdminTicketsPage";
+import { AdminUnitsPage } from "@/admin/pages/AdminUnitsPage";
 import { AdminRoute } from "@/auth/AdminRoute";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
@@ -132,9 +135,9 @@ function App() {
             }
           />
 
-          {/* Admin SPA — Verwalter-only, mounted under /admin/*. Replaces the
-              Jinja /admin-ui/ pages as they get ported. Until each tab is
-              ported, AdminPlaceholderPage links back to the legacy URL. */}
+          {/* Admin SPA — Verwalter-only, mounted under /admin/*. All
+              admin functionality lives here; the legacy Jinja /admin-ui/
+              routes have been removed. */}
           <Route
             path="/admin"
             element={
@@ -230,10 +233,7 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Objekte"
-                    legacyPath="/admin-ui/properties"
-                  />
+                  <AdminPropertiesPage />
                 </AdminLayout>
               </AdminRoute>
             }
@@ -253,10 +253,7 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Einheiten"
-                    legacyPath="/admin-ui/units"
-                  />
+                  <AdminUnitsPage />
                 </AdminLayout>
               </AdminRoute>
             }
@@ -266,10 +263,7 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Verträge"
-                    legacyPath="/admin-ui/contracts"
-                  />
+                  <AdminContractsPage />
                 </AdminLayout>
               </AdminRoute>
             }
@@ -279,10 +273,7 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Kontakte"
-                    legacyPath="/admin-ui/contacts"
-                  />
+                  <AdminContactsPage />
                 </AdminLayout>
               </AdminRoute>
             }

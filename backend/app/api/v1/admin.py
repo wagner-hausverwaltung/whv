@@ -31,12 +31,16 @@ from app.models import (
 )
 from app.schemas.admin import (
     AdminAuditLogResponse,
+    AdminContactListItem,
     AdminContactSearchResult,
+    AdminContractListItem,
     AdminDashboardStats,
     AdminInviteResponse,
     AdminPropertyCompanyResponse,
     AdminPropertyDetailResponse,
+    AdminPropertyListItem,
     AdminPropertySearchResult,
+    AdminUnitListItem,
     CreateInviteRequest,
     InviteStatus,
 )
@@ -652,3 +656,143 @@ async def admin_property_companies(
         )
     out.sort(key=lambda r: r.total_amount or 0, reverse=True)
     return out
+
+
+# --- Stammdaten lists (drill-down from dashboard cards) ----------------------
+# Each returns the first `limit` rows (capped at 1000) sorted alphabetically.
+# They power the four SPA tabs Objekte / Einheiten / Verträge / Kontakte.
+
+
+@router.get("/properties", response_model=list[AdminPropertyListItem])
+async def list_properties(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 200,
+) -> list[AdminPropertyListItem]:
+    capped = max(1, min(limit, 1000))
+    rows = (
+        await session.scalars(
+            select(Property)
+            .where(
+                Property.organization_id == current_user.organization_id,
+                Property.deleted_at.is_(None),
+            )
+            .order_by(Property.name)
+            .limit(capped)
+        )
+    ).all()
+    return [
+        AdminPropertyListItem(
+            id=p.id,
+            name=p.name,
+            property_hr_id=p.property_hr_id,
+            type=p.type.value,
+            state=p.state.value,
+            city=p.city,
+            street=p.street,
+            number=p.number,
+            postal_code=p.postal_code,
+        )
+        for p in rows
+    ]
+
+
+@router.get("/units", response_model=list[AdminUnitListItem])
+async def list_units(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 200,
+) -> list[AdminUnitListItem]:
+    capped = max(1, min(limit, 1000))
+    rows = (
+        await session.execute(
+            select(Unit, Property.name)
+            .join(Property, Property.id == Unit.property_id)
+            .where(
+                Unit.organization_id == current_user.organization_id,
+                Unit.deleted_at.is_(None),
+            )
+            .order_by(Property.name, Unit.unit_hr_id)
+            .limit(capped)
+        )
+    ).all()
+    return [
+        AdminUnitListItem(
+            id=u.id,
+            unit_hr_id=u.unit_hr_id,
+            type=u.type.value,
+            floor=u.floor,
+            position=u.position,
+            area_m2=float(u.area_m2) if u.area_m2 is not None else None,
+            property_id=u.property_id,
+            property_name=pname,
+        )
+        for u, pname in rows
+    ]
+
+
+@router.get("/contracts", response_model=list[AdminContractListItem])
+async def list_contracts(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 200,
+) -> list[AdminContractListItem]:
+    capped = max(1, min(limit, 1000))
+    rows = (
+        await session.execute(
+            select(Contract, Property.name)
+            .join(Property, Property.id == Contract.property_id)
+            .where(
+                Contract.organization_id == current_user.organization_id,
+                Contract.deleted_at.is_(None),
+            )
+            .order_by(Property.name, Contract.type, Contract.contract_number)
+            .limit(capped)
+        )
+    ).all()
+    return [
+        AdminContractListItem(
+            id=c.id,
+            type=c.type.value,
+            contract_number=c.contract_number,
+            name=c.name,
+            start_date=c.start_date,
+            end_date=c.end_date,
+            is_vacant=c.is_vacant,
+            property_id=c.property_id,
+            property_name=pname,
+        )
+        for c, pname in rows
+    ]
+
+
+@router.get("/contacts", response_model=list[AdminContactListItem])
+async def list_contacts(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 200,
+) -> list[AdminContactListItem]:
+    capped = max(1, min(limit, 1000))
+    rows = (
+        await session.scalars(
+            select(Contact)
+            .where(
+                Contact.organization_id == current_user.organization_id,
+                Contact.deleted_at.is_(None),
+            )
+            .order_by(Contact.last_name, Contact.company_name)
+            .limit(capped)
+        )
+    ).all()
+    return [
+        AdminContactListItem(
+            id=c.id,
+            impower_id=c.impower_id,
+            kind=c.kind.value,
+            name=_format_property_label(c),
+            email=c.email,
+            phone=c.phone,
+            city=c.city,
+        )
+        for c in rows
+    ]

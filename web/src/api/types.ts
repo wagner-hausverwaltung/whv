@@ -291,6 +291,51 @@ export interface AdminPropertyCompanyResponse {
   most_recent_invoice_at: string | null;
 }
 
+export interface AdminPropertyListItem {
+  id: string;
+  name: string;
+  property_hr_id: string | null;
+  type: string;
+  state: string;
+  city: string | null;
+  street: string | null;
+  number: string | null;
+  postal_code: string | null;
+}
+
+export interface AdminUnitListItem {
+  id: string;
+  unit_hr_id: string | null;
+  type: string;
+  floor: string | null;
+  position: string | null;
+  area_m2: number | null;
+  property_id: string;
+  property_name: string;
+}
+
+export interface AdminContractListItem {
+  id: string;
+  type: string;
+  contract_number: string | null;
+  name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_vacant: boolean | null;
+  property_id: string;
+  property_name: string;
+}
+
+export interface AdminContactListItem {
+  id: string;
+  impower_id: number | null;
+  kind: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+}
+
 export interface AdminAuditLogResponse {
   id: string;
   actor_user_id: string | null;

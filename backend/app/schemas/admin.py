@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -127,6 +127,60 @@ class AdminPropertyCompanyResponse(BaseModel):
     invoice_count: int
     total_amount: float | None = None
     most_recent_invoice_at: datetime | None = None
+
+
+class AdminPropertyListItem(BaseModel):
+    """Slim property row for the SPA /admin/properties table."""
+
+    id: uuid.UUID
+    name: str
+    property_hr_id: str | None = None
+    type: str
+    state: str
+    city: str | None = None
+    street: str | None = None
+    number: str | None = None
+    postal_code: str | None = None
+
+
+class AdminUnitListItem(BaseModel):
+    """Unit row joined to its property name for the /admin/units table."""
+
+    id: uuid.UUID
+    unit_hr_id: str | None = None
+    type: str
+    floor: str | None = None
+    position: str | None = None
+    area_m2: float | None = None
+    property_id: uuid.UUID
+    property_name: str
+
+
+class AdminContractListItem(BaseModel):
+    """Contract row joined to its property for /admin/contracts."""
+
+    id: uuid.UUID
+    type: str
+    contract_number: str | None = None
+    name: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    is_vacant: bool | None = None
+    property_id: uuid.UUID
+    property_name: str
+
+
+class AdminContactListItem(BaseModel):
+    """Contact row for /admin/contacts. `name` is the precomputed display
+    label (company name for COMPANY contacts, otherwise first + last)."""
+
+    id: uuid.UUID
+    impower_id: int | None = None
+    kind: str
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    city: str | None = None
 
 
 class AdminAuditLogResponse(BaseModel):

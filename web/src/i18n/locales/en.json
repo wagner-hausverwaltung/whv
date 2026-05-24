@@ -92,6 +92,46 @@
       "revokeFailed": "Could not revoke invitation.",
       "loadFailed": "Could not load invitations."
     },
+    "stammdaten": {
+      "limitNote": "Showing the first 200 records.",
+      "loadFailed": "Could not load records.",
+      "empty": "No records."
+    },
+    "propertiesPage": {
+      "title": "Properties",
+      "name": "Name",
+      "type": "Type",
+      "address": "Address",
+      "hrId": "HR-ID"
+    },
+    "unitsPage": {
+      "title": "Units",
+      "property": "Property",
+      "unit": "Unit",
+      "type": "Type",
+      "floor": "Floor",
+      "position": "Position",
+      "area": "Area (m²)"
+    },
+    "contractsPage": {
+      "title": "Contracts",
+      "property": "Property",
+      "type": "Type",
+      "number": "Contract no.",
+      "name": "Name",
+      "start": "Start",
+      "end": "End",
+      "vacant": "Vacant"
+    },
+    "contactsPage": {
+      "title": "Contacts",
+      "name": "Name",
+      "kind": "Kind",
+      "email": "Email",
+      "phone": "Phone",
+      "city": "City",
+      "impowerId": "Impower ID"
+    },
     "ticketTile": {
       "contact": "Contact",
       "property": "Property",
