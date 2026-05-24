@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     s3_inbound_bucket: str = ""
     s3_inbound_region: str = "eu-central-1"
 
+    # Where the Celery result-PDF task writes Umlaufbeschluss protocols on
+    # disk. Phase 1 stores PDFs locally; §1.4d iter 2 will switch to Hetzner
+    # Object Storage and replace this with bucket config. The dir is created
+    # on first write — no need to provision it ahead of time.
+    resolution_pdf_dir: str = "/var/lib/whv/resolutions"
+
 
 @lru_cache
 def get_settings() -> Settings:

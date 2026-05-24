@@ -1,4 +1,11 @@
 from app.models.audit import AuditLog
+from app.models.circular import (
+    CircularResolution,
+    CircularVote,
+    ResolutionMode,
+    ResolutionStatus,
+    VoteChoice,
+)
 from app.models.contact import (
     Contact,
     ContactBankAccount,
@@ -29,6 +36,8 @@ from app.models.user import InviteCode, PasswordResetToken, Session, User, UserR
 __all__ = [
     "AuditLog",
     "Building",
+    "CircularResolution",
+    "CircularVote",
     "Contact",
     "ContactBankAccount",
     "ContactKind",
@@ -46,6 +55,8 @@ __all__ = [
     "Property",
     "PropertyState",
     "PropertyType",
+    "ResolutionMode",
+    "ResolutionStatus",
     "Session",
     "Ticket",
     "TicketCategory",
@@ -58,4 +69,5 @@ __all__ = [
     "UnitType",
     "User",
     "UserRole",
+    "VoteChoice",
 ]

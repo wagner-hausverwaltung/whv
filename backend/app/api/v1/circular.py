@@ -1,0 +1,651 @@
+"""Umlaufbeschluss API.
+
+Two routers in one file because they share the tally + eligibility helpers:
+  /me/resolutions/...     — Eigentümer: list visible resolutions, vote
+  /admin/resolutions/...  — Verwalter: create, close early, see live quorum
+
+Eligibility model: an owner is eligible to vote on a resolution iff they hold
+an OWNER contract on the resolution's property (joined via contact_contacts).
+This excludes Mieter — only Eigentümer vote on WEG matters.
+"""
+
+import hashlib
+import uuid
+from datetime import UTC, datetime
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.dependencies import get_current_user, require_role
+from app.db import get_session
+from app.integrations.email.client import EmailClient, EmailError, get_email_client
+from app.integrations.email.resolutions import render_invitation_email
+from app.models import (
+    AuditLog,
+    CircularResolution,
+    CircularVote,
+    Contact,
+    Contract,
+    ContractContact,
+    ContractType,
+    Property,
+    ResolutionMode,
+    ResolutionStatus,
+    User,
+    UserRole,
+    VoteChoice,
+)
+from app.schemas.circular import (
+    CreateResolutionRequest,
+    ResolutionDetailResponse,
+    ResolutionResponse,
+    ResolutionTally,
+    VoteRequest,
+    VoteResponse,
+)
+from app.services.circular import finalize_resolution, resolve_result_pdf_path
+
+me_router = APIRouter(prefix="/me/resolutions", tags=["resolutions"])
+admin_router = APIRouter(prefix="/admin/resolutions", tags=["resolutions"])
+
+_verwalter_only = require_role(UserRole.VERWALTER)
+
+
+# --- Eligibility helpers -----------------------------------------------------
+
+
+async def _eligible_owner_impower_ids(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> set[int]:
+    """Return Impower contact IDs of every owner eligible to vote on this property.
+
+    Eligible == active OWNER contract (not Mieter / not soft-deleted) →
+    contract_contacts junction → contact.impower_id. Distinct.
+    """
+    rows = (
+        await session.scalars(
+            select(Contact.impower_id)
+            .join(ContractContact, ContractContact.contact_id == Contact.id)
+            .join(Contract, Contract.id == ContractContact.contract_id)
+            .where(
+                Contract.organization_id == organization_id,
+                Contract.property_id == property_id,
+                Contract.type == ContractType.OWNER,
+                Contract.deleted_at.is_(None),
+                Contact.deleted_at.is_(None),
+                Contact.impower_id.is_not(None),
+            )
+            .distinct()
+        )
+    ).all()
+    return {int(r) for r in rows if r is not None}
+
+
+async def _eligible_owner_emails(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> list[str]:
+    """Return emails of registered WHV users that are eligible owners.
+
+    Used to fan out the resolution-invitation email. Owners without a
+    WHV-Portal account (no users.contact_id_impower match) are excluded —
+    Phase 4-iter2 will add ePost / WhatsApp paths for them.
+    """
+    eligible_impower_ids = await _eligible_owner_impower_ids(session, organization_id, property_id)
+    if not eligible_impower_ids:
+        return []
+    rows = (
+        await session.scalars(
+            select(User.email).where(
+                User.organization_id == organization_id,
+                User.contact_id_impower.in_(eligible_impower_ids),
+                User.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    return list(rows)
+
+
+async def _tally(
+    session: AsyncSession,
+    resolution: CircularResolution,
+) -> ResolutionTally:
+    eligible = await _eligible_owner_impower_ids(
+        session, resolution.organization_id, resolution.property_id
+    )
+    votes = (
+        await session.scalars(
+            select(CircularVote).where(CircularVote.resolution_id == resolution.id)
+        )
+    ).all()
+    ja = sum(1 for v in votes if v.choice == VoteChoice.JA)
+    nein = sum(1 for v in votes if v.choice == VoteChoice.NEIN)
+    enth = sum(1 for v in votes if v.choice == VoteChoice.ENTHALTUNG)
+    cast = ja + nein + enth
+    voted_ids = {v.owner_contact_id_impower for v in votes}
+    # KLASSISCH (Allstimmigkeit): every eligible owner has voted AND every
+    # vote is JA. Missing votes don't count as anything — they're failures.
+    unanimous = bool(eligible) and eligible.issubset(voted_ids) and nein == 0 and enth == 0
+    return ResolutionTally(
+        eligible_voters=len(eligible),
+        cast=cast,
+        ja=ja,
+        nein=nein,
+        enthaltung=enth,
+        quorum_met=cast >= resolution.required_quorum,
+        unanimous_yes=unanimous,
+    )
+
+
+def _decide_outcome(mode: ResolutionMode, tally: ResolutionTally) -> ResolutionStatus:
+    """Pure function — given mode + tally, return ANGENOMMEN or ABGELEHNT."""
+    if mode == ResolutionMode.KLASSISCH:
+        return ResolutionStatus.ANGENOMMEN if tally.unanimous_yes else ResolutionStatus.ABGELEHNT
+    # MEHRHEITS: quorum must be met AND strict majority of cast votes are JA
+    if not tally.quorum_met:
+        return ResolutionStatus.ABGELEHNT
+    return ResolutionStatus.ANGENOMMEN if tally.ja > tally.cast / 2 else ResolutionStatus.ABGELEHNT
+
+
+def _summarize_result(tally: ResolutionTally, status: ResolutionStatus) -> str:
+    return (
+        f"{tally.ja} JA · {tally.nein} NEIN · {tally.enthaltung} Enthaltung "
+        f"(von {tally.eligible_voters} stimmberechtigt) — {status.value}"
+    )
+
+
+# --- Conversion helpers ------------------------------------------------------
+
+
+def _to_summary(r: CircularResolution) -> ResolutionResponse:
+    return ResolutionResponse.model_validate(r)
+
+
+def _to_detail(
+    r: CircularResolution,
+    votes: list[CircularVote],
+    tally: ResolutionTally,
+    *,
+    my_impower_id: int | None,
+    am_eligible: bool,
+    include_all_votes: bool,
+) -> ResolutionDetailResponse:
+    visible_votes: list[CircularVote] = (
+        votes
+        if include_all_votes
+        else [v for v in votes if v.owner_contact_id_impower == my_impower_id]
+    )
+    my_vote_obj: CircularVote | None = next(
+        (v for v in votes if v.owner_contact_id_impower == my_impower_id), None
+    )
+    return ResolutionDetailResponse(
+        id=r.id,
+        property_id=r.property_id,
+        title=r.title,
+        mode=r.mode,
+        status=r.status,
+        opens_at=r.opens_at,
+        closes_at=r.closes_at,
+        required_quorum=r.required_quorum,
+        decided_at=r.decided_at,
+        created_at=r.created_at,
+        description=r.description,
+        pdf_url=r.pdf_url,
+        result_pdf_url=r.result_pdf_url,
+        result=r.result,
+        tally=tally,
+        votes=[VoteResponse.model_validate(v) for v in visible_votes],
+        my_vote=VoteResponse.model_validate(my_vote_obj) if my_vote_obj else None,
+        am_eligible=am_eligible,
+    )
+
+
+# --- Owner endpoints ---------------------------------------------------------
+
+
+@me_router.get("", response_model=list[ResolutionResponse])
+async def list_my_resolutions(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[ResolutionResponse]:
+    """Resolutions on properties where the caller has an OWNER contract.
+
+    Includes ENTWURF (Verwalter is still drafting → owner won't see those —
+    filtered below), OFFEN (votable), and decided states for history.
+    """
+    if current_user.contact_id_impower is None:
+        return []
+    # Properties where the user has an active OWNER contract.
+    visible_properties = (
+        await session.scalars(
+            select(Property.id)
+            .join(Contract, Contract.property_id == Property.id)
+            .join(ContractContact, ContractContact.contract_id == Contract.id)
+            .join(Contact, Contact.id == ContractContact.contact_id)
+            .where(
+                Property.organization_id == current_user.organization_id,
+                Property.deleted_at.is_(None),
+                Contract.type == ContractType.OWNER,
+                Contract.deleted_at.is_(None),
+                Contact.impower_id == current_user.contact_id_impower,
+                Contact.deleted_at.is_(None),
+            )
+            .distinct()
+        )
+    ).all()
+    if not visible_properties:
+        return []
+    rows = (
+        await session.scalars(
+            select(CircularResolution)
+            .where(
+                CircularResolution.organization_id == current_user.organization_id,
+                CircularResolution.property_id.in_(visible_properties),
+                CircularResolution.status != ResolutionStatus.ENTWURF,
+            )
+            .order_by(CircularResolution.closes_at.desc())
+        )
+    ).all()
+    return [_to_summary(r) for r in rows]
+
+
+async def _load_resolution_for_owner(
+    session: AsyncSession, user: User, resolution_id: uuid.UUID
+) -> CircularResolution:
+    if user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == user.organization_id,
+        )
+    )
+    if r is None or r.status == ResolutionStatus.ENTWURF:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    eligible = await _eligible_owner_impower_ids(session, user.organization_id, r.property_id)
+    if user.contact_id_impower not in eligible:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    return r
+
+
+@me_router.get("/{resolution_id}", response_model=ResolutionDetailResponse)
+async def get_my_resolution(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ResolutionDetailResponse:
+    r = await _load_resolution_for_owner(session, current_user, resolution_id)
+    votes = list(
+        (
+            await session.scalars(
+                select(CircularVote)
+                .where(CircularVote.resolution_id == r.id)
+                .order_by(CircularVote.voted_at)
+            )
+        ).all()
+    )
+    tally = await _tally(session, r)
+    return _to_detail(
+        r,
+        votes,
+        tally,
+        my_impower_id=current_user.contact_id_impower,
+        am_eligible=True,
+        include_all_votes=False,  # owners only see their own vote
+    )
+
+
+@me_router.post(
+    "/{resolution_id}/vote",
+    response_model=VoteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def cast_my_vote(
+    resolution_id: uuid.UUID,
+    req: VoteRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> VoteResponse:
+    r = await _load_resolution_for_owner(session, current_user, resolution_id)
+    now = datetime.now(UTC)
+    if r.status != ResolutionStatus.OFFEN or now >= r.closes_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Abstimmung ist nicht (mehr) offen.",
+        )
+
+    # IP hashing — keep audit-grade evidence without storing raw IP (DSGVO).
+    client_host = request.client.host if request.client else ""
+    ip_hash = hashlib.sha256((client_host + str(r.id)).encode("utf-8")).hexdigest()[:32]
+    evidence: dict[str, Any] = {
+        "ip_hash": ip_hash,
+        "user_agent": request.headers.get("user-agent", "")[:200],
+    }
+
+    # Upsert on (resolution_id, owner_contact_id_impower). One vote per owner.
+    # Owners can change their mind until close.
+    existing = await session.scalar(
+        select(CircularVote).where(
+            CircularVote.resolution_id == r.id,
+            CircularVote.owner_contact_id_impower == current_user.contact_id_impower,
+        )
+    )
+    if existing is not None:
+        existing.choice = req.choice
+        existing.voted_at = now
+        existing.voter_user_id = current_user.id
+        existing.evidence_jsonb = evidence
+        vote = existing
+    else:
+        vote = CircularVote(
+            resolution_id=r.id,
+            owner_contact_id_impower=current_user.contact_id_impower,
+            choice=req.choice,
+            voter_user_id=current_user.id,
+            signature_method="PORTAL_CLICK",
+            evidence_jsonb=evidence,
+        )
+        session.add(vote)
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="resolution_voted",
+            target_type="circular_resolutions",
+            target_id=str(r.id),
+            payload_json={
+                "choice": req.choice.value,
+                "owner_contact_id_impower": current_user.contact_id_impower,
+                "replaced": existing is not None,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(vote)
+    return VoteResponse.model_validate(vote)
+
+
+# --- Admin endpoints ---------------------------------------------------------
+
+
+@admin_router.post(
+    "",
+    response_model=ResolutionDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_resolution(
+    req: CreateResolutionRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> ResolutionDetailResponse:
+    # Validate property in org
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == req.property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    if req.closes_at <= req.opens_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="closes_at muss nach opens_at liegen.",
+        )
+
+    now = datetime.now(UTC)
+    initial_status = ResolutionStatus.OFFEN if req.opens_at <= now else ResolutionStatus.ENTWURF
+
+    resolution = CircularResolution(
+        organization_id=current_user.organization_id,
+        property_id=req.property_id,
+        title=req.title,
+        description=req.description,
+        mode=req.mode,
+        status=initial_status,
+        opens_at=req.opens_at,
+        closes_at=req.closes_at,
+        required_quorum=req.required_quorum,
+        created_by=current_user.id,
+        opens_on=req.opens_at.date(),
+        closes_on=req.closes_at.date(),
+    )
+    session.add(resolution)
+    await session.flush()
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="resolution_created",
+            target_type="circular_resolutions",
+            target_id=str(resolution.id),
+            payload_json={
+                "property_id": str(req.property_id),
+                "mode": req.mode.value,
+                "status": initial_status.value,
+            },
+        )
+    )
+
+    # Fan out invitation email to every eligible owner with a portal account.
+    # Best-effort — failed send is logged but doesn't roll back the resolution.
+    if initial_status == ResolutionStatus.OFFEN:
+        recipients = await _eligible_owner_emails(
+            session, current_user.organization_id, req.property_id
+        )
+        for recipient in recipients:
+            try:
+                subject, html, text = render_invitation_email(
+                    resolution_title=req.title,
+                    property_name=prop.name,
+                    closes_at=req.closes_at,
+                    description=req.description,
+                    resolution_id=str(resolution.id),
+                )
+                await email_client.send(to=recipient, subject=subject, html=html, text=text)
+            except EmailError:
+                pass
+
+    await session.commit()
+    await session.refresh(resolution)
+    tally = await _tally(session, resolution)
+    return _to_detail(
+        resolution,
+        votes=[],
+        tally=tally,
+        my_impower_id=None,
+        am_eligible=False,
+        include_all_votes=True,
+    )
+
+
+@admin_router.get("", response_model=list[ResolutionResponse])
+async def list_all_resolutions(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    status_filter: Annotated[ResolutionStatus | None, Query(alias="status")] = None,
+) -> list[ResolutionResponse]:
+    stmt = select(CircularResolution).where(
+        CircularResolution.organization_id == current_user.organization_id
+    )
+    if status_filter is not None:
+        stmt = stmt.where(CircularResolution.status == status_filter)
+    stmt = stmt.order_by(CircularResolution.closes_at.desc()).limit(200)
+    rows = (await session.scalars(stmt)).all()
+    return [_to_summary(r) for r in rows]
+
+
+@admin_router.get("/{resolution_id}", response_model=ResolutionDetailResponse)
+async def get_admin_resolution(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ResolutionDetailResponse:
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    votes = list(
+        (
+            await session.scalars(
+                select(CircularVote)
+                .where(CircularVote.resolution_id == r.id)
+                .order_by(CircularVote.voted_at)
+            )
+        ).all()
+    )
+    tally = await _tally(session, r)
+    return _to_detail(
+        r,
+        votes,
+        tally,
+        my_impower_id=None,
+        am_eligible=False,
+        include_all_votes=True,
+    )
+
+
+@admin_router.post(
+    "/{resolution_id}/close",
+    response_model=ResolutionDetailResponse,
+)
+async def close_resolution(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> ResolutionDetailResponse:
+    """Close a resolution early + tally + render PDF + send result emails.
+
+    Idempotent: if already decided (ANGENOMMEN/ABGELEHNT/GESCHLOSSEN), returns
+    the current detail without re-running finalize. The Celery beat task calls
+    the same `finalize_resolution` helper, so manual + scheduled close write
+    identical state.
+    """
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+
+    if r.status in (
+        ResolutionStatus.ANGENOMMEN,
+        ResolutionStatus.ABGELEHNT,
+        ResolutionStatus.GESCHLOSSEN,
+    ):
+        votes = list(
+            (
+                await session.scalars(
+                    select(CircularVote)
+                    .where(CircularVote.resolution_id == r.id)
+                    .order_by(CircularVote.voted_at)
+                )
+            ).all()
+        )
+        return _to_detail(
+            r,
+            votes,
+            await _tally(session, r),
+            my_impower_id=None,
+            am_eligible=False,
+            include_all_votes=True,
+        )
+
+    tally = await finalize_resolution(
+        session,
+        r,
+        email_client,
+        trigger="admin_manual",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    await session.refresh(r)
+
+    votes = list(
+        (
+            await session.scalars(
+                select(CircularVote)
+                .where(CircularVote.resolution_id == r.id)
+                .order_by(CircularVote.voted_at)
+            )
+        ).all()
+    )
+    return _to_detail(
+        r,
+        votes,
+        tally,
+        my_impower_id=None,
+        am_eligible=False,
+        include_all_votes=True,
+    )
+
+
+# --- PDF download endpoints --------------------------------------------------
+
+
+@me_router.get("/{resolution_id}/result.pdf")
+async def download_my_result_pdf(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Stream the protocol PDF to an eligible owner. 404 if not yet generated."""
+    r = await _load_resolution_for_owner(session, current_user, resolution_id)
+    if not r.result_pdf_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Protokoll noch nicht verfügbar."
+        )
+    path = resolve_result_pdf_path(r.id)
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Protokoll noch nicht verfügbar."
+        )
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"Beschluss-{r.id.hex[:8]}.pdf",
+    )
+
+
+@admin_router.get("/{resolution_id}/result.pdf")
+async def download_admin_result_pdf(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    path = resolve_result_pdf_path(r.id)
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Protokoll noch nicht verfügbar."
+        )
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"Beschluss-{r.id.hex[:8]}.pdf",
+    )

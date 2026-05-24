@@ -29,4 +29,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.sync_all_impower",
         "schedule": crontab(hour=2, minute=0),
     },
+    # Hourly: open ENTWURF resolutions whose opens_at has passed, and
+    # finalize OFFEN resolutions whose closes_at has passed (tally → PDF →
+    # email). Hourly granularity is fine for v1 — owners read the Frist as
+    # a calendar deadline, not a precise stopwatch.
+    "process-due-resolutions-hourly": {
+        "task": "app.workers.tasks.process_due_resolutions",
+        "schedule": crontab(minute=5),
+    },
 }

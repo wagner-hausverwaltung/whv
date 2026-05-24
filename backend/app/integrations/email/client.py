@@ -43,12 +43,18 @@ class EmailClient:
         html: str,
         text: str,
         headers: dict[str, str] | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> str:
         """Send a single transactional email. Returns Resend's message id.
 
         `headers` lets callers add RFC 5322 threading headers (In-Reply-To,
         References) so replies thread correctly in Gmail / Outlook. Resend's
         REST API accepts a top-level `headers` object.
+
+        `attachments` is the Resend attachments list — each item is
+        `{"filename": ..., "content": <base64>}`. Callers base64-encode bytes
+        before passing so the client doesn't need to know about specific
+        attachment types (PDF, CSV, etc.).
         """
         if not self._settings.resend_api_key:
             raise EmailError("RESEND_API_KEY is not configured")
@@ -63,6 +69,8 @@ class EmailClient:
         }
         if headers:
             body["headers"] = headers
+        if attachments:
+            body["attachments"] = attachments
         response = await self._client.post("/emails", json=body)
         if response.status_code != 200:
             raise EmailError(f"Resend returned {response.status_code}: {response.text[:200]}")

@@ -22,12 +22,15 @@ _ENUM_TYPES = (
     "document_visibility",
     "property_state",
     "property_type",
+    "resolution_mode",
+    "resolution_status",
     "ticket_category",
     "ticket_message_source",
     "ticket_share_scope",
     "ticket_status",
     "unit_type",
     "user_role",
+    "vote_choice",
 )
 
 
