@@ -14,13 +14,14 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-whv-border bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link
-            to="/"
-            className="font-display font-bold text-whv-text hover:text-whv-blue text-base tracking-tight"
-          >
-            Wagner Hausverwaltung
-            <span className="muted ml-2 font-sans font-normal">Portal</span>
+        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-3" aria-label="Wagner Hausverwaltung — Portal">
+            <img
+              src="/wagner-logo.png"
+              alt="Wagner Hausverwaltung GmbH"
+              className="h-10 w-auto"
+            />
+            <span className="muted hidden sm:inline">Portal</span>
           </Link>
           {user && (
             <div className="flex items-center gap-4">
