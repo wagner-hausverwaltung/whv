@@ -1,5 +1,6 @@
 import uuid
-from typing import Annotated
+from collections.abc import Callable, Coroutine
+from typing import Annotated, Any
 
 import jwt as jwt_lib
 from fastapi import Depends, HTTPException, status
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.jwt import decode_token
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import User
+from app.models import User, UserRole
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -59,3 +60,24 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def require_role(*allowed: UserRole) -> Callable[[User], Coroutine[Any, Any, User]]:
+    """Build a FastAPI dependency that 403s if the authenticated user's role isn't in `allowed`.
+
+    Usage:
+        verwalter_only = require_role(UserRole.VERWALTER)
+        @router.get(...)
+        async def endpoint(user: Annotated[User, Depends(verwalter_only)]) -> ...:
+            ...
+    """
+
+    async def _check(user: Annotated[User, Depends(get_current_user)]) -> User:
+        if user.role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden — role not allowed",
+            )
+        return user
+
+    return _check

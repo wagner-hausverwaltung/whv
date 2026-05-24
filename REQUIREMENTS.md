@@ -250,7 +250,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.4b Scheduled sync (Celery beat) | ✅ shipped | `worker` + `beat` containers; `sync_all_impower` task at 02:00 UTC daily. Verified end-to-end (30.87s for the full graph). |
 | 1.4c Webhooks | ⏳ pending | not started |
 | 1.4d Documents sync | ✅ shipped (iter 1: metadata) | 3,309 docs synced on staging; per-property iteration (Impower /v2/documents requires propertyId filter). File upload to Hetzner Object Storage stays as iter 2. |
-| 1.5 Invite admin + email | ⏳ partial | code generation + bootstrap CLI done; `/admin/invites` + email not started |
+| 1.5 Invite admin + email | ✅ shipped | `/admin/invites` POST/GET/DELETE wired with `require_role(VERWALTER)`; emails sent via Resend (ADR-0004), best-effort with audit trail; verified live end-to-end. |
 | 1.6 Admin UI | ⏳ pending | not started; framework decision needed (D10) |
 | 1.7 Staging deploy | ✅ shipped | https://staging.api.wagner-hausverwaltung.com live; runbook at `infra/docs/staging.md` |
 | 1.7+ Deploy hardening | ⏳ partial | CI/CD auto-deploy, Backblaze backups, Postman collection pending |
@@ -328,10 +328,10 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
 - [x] Bootstrap CLI: `python -m app.auth.bootstrap create-invite <email> --role <...>` (chicken-and-egg solver for the first Verwalter, since `/admin/invites` would require auth)
 - [x] Code: 8 chars, alphanumeric (no `0`/`O`/`1`/`I`/`L`), single-use, 14-day TTL
 - [x] After redemption, user is bound to the Impower `contact_id_impower` and inherits read scope
-- [ ] Admin-only endpoint: `POST /admin/invites` { contact_id, role, scope?, email_override? } — protected by `require_role(VERWALTER)`
-- [ ] `GET /admin/invites` (list pending/consumed) and `DELETE /admin/invites/{code}` (revoke pending)
-- [ ] Bulk invite via CSV upload
-- [ ] Email via Postmark/Resend with deep link (`whv://invite/CODE`) + web fallback URL — **blocked on D9**
+- [x] Admin-only endpoint: `POST /admin/invites { email, role, contact_id_impower?, scope_json?, ttl_days }` — protected by `require_role(VERWALTER)`; creates invite + sends Resend email + writes audit row in one commit
+- [x] `GET /admin/invites?status=pending|consumed|expired` and `DELETE /admin/invites/{code}` (revoke pending)
+- [ ] Bulk invite via CSV upload — not started, low priority
+- [x] Email via **Resend** (ADR-0004) — best-effort send: failure logs to audit + leaves invite redeemable; iOS deep link (`whv://invite/CODE`) + web fallback URL pending the actual web/iOS clients
 
 ### 7.6 Minimal admin UI — ⏳ pending
 A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/React island — pick whichever is faster, **D10**) so Luis can:
@@ -653,7 +653,7 @@ Submission-time:
 | D6 | Web portal hosted on Bluehost (static) vs. Hetzner | Hetzner — simpler ops | Open — needed for Phase 3 |
 | D7 | RAG embedding model | `multilingual-e5-large` | Open — needed for Phase 5 |
 | D8 | Object storage for documents | Hetzner Object Storage (EU, in ecosystem, S3-compatible) | ✅ resolved 2026-05-24 — Hetzner Object Storage. ADR to write on first use |
-| D9 | Transactional email provider | Postmark or Resend (both EU-friendly) | ✅ resolved 2026-05-24 — **Resend** (modern, Pythonic, EU region). ADR to write on first use |
+| D9 | Transactional email provider | Postmark or Resend (both EU-friendly) | ✅ resolved 2026-05-24 — **Resend** in eu-west-1 → ADR-0004; domain `wagner-hausverwaltung.com` verified |
 | D10 | Admin UI framework | Jinja2 server-rendered (simplest, least new tech) | ✅ resolved 2026-05-24 — **Jinja2** server-rendered (HTMX added if/when interactivity needs it). ADR to write on first use |
 | D11 | Impower client codegen approach | Hybrid: Pydantic DTOs generated, HTTP handwritten | ✅ resolved 2026-05-24 → ADR-0003 |
 | D12 | CI/CD deploy mechanism for staging | GitHub Actions → GHCR → SSH `docker compose pull` | ✅ resolved 2026-05-24 — **GHCR push + SSH pull** (Actions builds & pushes to private GHCR, then SSHes to staging and runs `docker compose pull && up -d`). ADR to write on first use |
@@ -683,7 +683,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 1 | **§6.7 health-check routine** — scheduled Claude routine probing `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none |
 | 2 | **Phase 1.4d iter 2: documents file upload** — fetch document body from Impower, store in Hetzner Object Storage, populate `storage_url` + `mime_type` + `size_bytes`. Iter 1 metadata is live (2026-05-24). | M | none |
 | 3 | ~~Phase 1.3b `DELETE /me` + `GET /me/export`~~ — ✅ shipped 2026-05-24 (54 tests green, live smoke OK) | S | done |
-| 4 | **Phase 1.5 admin invites + Resend email** — `POST/GET/DELETE /admin/invites`, render template, send via Resend (D9 resolved) | M | none |
+| 4 | ~~Phase 1.5 admin invites + Resend email~~ — ✅ shipped 2026-05-24 (ADR-0004, 63 tests green, live email send verified) | M | done |
 | 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |
 | 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
 | 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw via Resend | M | DUNS for SIWA only |

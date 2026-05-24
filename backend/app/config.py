@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     impower_api_base: str = "https://api.app.impower.de/v2/d"
     impower_api_token: str = ""
 
+    resend_api_key: str = ""
+    email_from_address: str = "noreply@wagner-hausverwaltung.com"
+    email_from_name: str = "Wagner Hausverwaltung"
+
     jwt_secret: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 15

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
+from app.api.v1 import admin as admin_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import me as me_router
 from app.api.v1 import webhooks as webhooks_router
@@ -33,6 +34,7 @@ app = FastAPI(
 
 app.include_router(auth_router.router)
 app.include_router(me_router.router)
+app.include_router(admin_router.router)
 app.include_router(webhooks_router.router)
 
 
