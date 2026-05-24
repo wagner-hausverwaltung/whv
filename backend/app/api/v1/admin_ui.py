@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
@@ -25,7 +26,9 @@ from app.integrations.email.invites import render_invite_email
 from app.models import (
     AuditLog,
     Contact,
+    ContactKind,
     Contract,
+    ContractContact,
     InviteCode,
     Property,
     Unit,
@@ -473,6 +476,157 @@ async def audit_log(
         request,
         "admin/audit.html",
         {"current_user": current_user, "rows": rows},
+    )
+
+
+# --- Pickers for the invite form (HTMX fragments) -----------------------------
+# These return small HTML fragments rather than full pages — the invite form
+# uses HTMX to fetch them as the user types, and a sprinkle of inline JS to
+# capture clicks and populate hidden inputs.
+
+
+def _contact_display_name(c: Contact) -> str:
+    """Single-line display label for a contact in the picker."""
+    if c.kind == ContactKind.COMPANY and c.company_name:
+        return c.company_name
+    parts = [p for p in (c.first_name, c.last_name) if p]
+    if parts:
+        return " ".join(parts)
+    return c.company_name or c.email or f"Kontakt {c.impower_id or c.id}"
+
+
+@router.get("/properties/search", response_class=HTMLResponse)
+async def properties_search(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    q: str = "",
+) -> HTMLResponse:
+    """HTMX fragment: matching properties for the invite form picker."""
+    q_stripped = q.strip()
+    if len(q_stripped) < 2:
+        # Avoid flooding the UI on a single keystroke
+        return templates.TemplateResponse(
+            request,
+            "admin/_picker_results.html",
+            {"results": [], "q": q_stripped, "kind": "property", "hint_min_chars": 2},
+        )
+
+    like = f"%{q_stripped}%"
+    rows = (
+        await session.scalars(
+            select(Property)
+            .where(
+                Property.organization_id == current_user.organization_id,
+                Property.deleted_at.is_(None),
+                (
+                    Property.name.ilike(like)
+                    | Property.property_hr_id.ilike(like)
+                    | Property.city.ilike(like)
+                    | Property.street.ilike(like)
+                ),
+            )
+            .order_by(Property.name)
+            .limit(20)
+        )
+    ).all()
+
+    results = [
+        {
+            "id": str(p.id),
+            "label": p.name,
+            "detail": " · ".join(
+                bit
+                for bit in (
+                    p.property_hr_id,
+                    p.city,
+                    p.street,
+                )
+                if bit
+            ),
+        }
+        for p in rows
+    ]
+    return templates.TemplateResponse(
+        request,
+        "admin/_picker_results.html",
+        {"results": results, "q": q_stripped, "kind": "property"},
+    )
+
+
+@router.get(
+    "/properties/{property_uuid}/contacts/search",
+    response_class=HTMLResponse,
+)
+async def property_contacts_search(
+    request: Request,
+    property_uuid: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    q: str = "",
+) -> HTMLResponse:
+    """HTMX fragment: contacts linked to `property_uuid` via contract_contacts."""
+    # Verify the property exists in this org first (silent fallback to empty
+    # results on mismatch — avoids leaking property existence across orgs).
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_uuid,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        return templates.TemplateResponse(
+            request,
+            "admin/_picker_results.html",
+            {"results": [], "q": q.strip(), "kind": "contact"},
+        )
+
+    q_stripped = q.strip()
+    base_stmt = (
+        select(Contact)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            Contact.organization_id == current_user.organization_id,
+            Contact.deleted_at.is_(None),
+            Contact.impower_id.is_not(None),  # picker only useful if we have an Impower ID
+            Contract.property_id == property_uuid,
+            Contract.deleted_at.is_(None),
+        )
+        .distinct()
+    )
+    if q_stripped:
+        like = f"%{q_stripped}%"
+        base_stmt = base_stmt.where(
+            Contact.first_name.ilike(like)
+            | Contact.last_name.ilike(like)
+            | Contact.company_name.ilike(like)
+            | Contact.email.ilike(like)
+        )
+
+    rows = (await session.scalars(base_stmt.order_by(Contact.last_name).limit(20))).all()
+
+    results = [
+        {
+            "id": str(c.impower_id),  # what the invite form actually wants
+            "label": _contact_display_name(c),
+            "detail": " · ".join(
+                bit
+                for bit in (
+                    c.kind.value,
+                    c.email,
+                    c.city,
+                )
+                if bit
+            ),
+        }
+        for c in rows
+    ]
+    return templates.TemplateResponse(
+        request,
+        "admin/_picker_results.html",
+        {"results": results, "q": q_stripped, "kind": "contact"},
     )
 
 

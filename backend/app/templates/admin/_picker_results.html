@@ -1,0 +1,22 @@
+{# Shared HTMX fragment for property + contact pickers.
+   Each <li> carries data-id (what gets stored in the hidden input) and
+   data-label (what's shown in the "selected" badge). The inline JS in
+   invites_new.html listens for clicks and updates the form. #}
+{% if results %}
+<ul class="picker-results" data-kind="{{ kind }}">
+  {% for r in results %}
+  <li data-id="{{ r.id }}" data-label="{{ r.label }}">
+    <strong>{{ r.label }}</strong>
+    {% if r.detail %}<span class="detail">{{ r.detail }}</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% elif hint_min_chars and q|length < hint_min_chars %}
+<p class="muted" style="margin: 0.25rem 0 0; font-size: 0.85rem;">
+  Mindestens {{ hint_min_chars }} Zeichen eingeben…
+</p>
+{% elif q %}
+<p class="muted" style="margin: 0.25rem 0 0; font-size: 0.85rem;">
+  Keine Treffer für „{{ q }}".
+</p>
+{% endif %}

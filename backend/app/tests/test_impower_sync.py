@@ -64,7 +64,15 @@ async def test_sync_properties_inserts_new_rows(session: AsyncSession) -> None:
     assert stats.upserted == 2
     assert stats.skipped == 0
 
-    rows = (await session.scalars(select(Property).order_by(Property.impower_id))).all()
+    # Filter to the synced rows by impower_id — other tests in the shared DB
+    # may have committed Property rows without an impower_id.
+    rows = (
+        await session.scalars(
+            select(Property)
+            .where(Property.impower_id.in_([1001, 1002]))
+            .order_by(Property.impower_id)
+        )
+    ).all()
     assert [r.impower_id for r in rows] == [1001, 1002]
     assert rows[0].type == PropertyType.STRATA
     assert rows[0].state == PropertyState.READY
