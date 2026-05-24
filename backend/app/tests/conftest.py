@@ -23,6 +23,7 @@ _ENUM_TYPES = (
     "property_state",
     "property_type",
     "ticket_category",
+    "ticket_share_scope",
     "ticket_status",
     "unit_type",
     "user_role",

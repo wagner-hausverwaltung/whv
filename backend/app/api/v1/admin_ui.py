@@ -34,6 +34,8 @@ from app.models import (
     Ticket,
     TicketCategory,
     TicketMessage,
+    TicketParticipant,
+    TicketShareScope,
     TicketStatus,
     Unit,
     User,
@@ -716,6 +718,20 @@ async def ticket_detail(
         ).all()
         author_emails = {u.id: u.email for u in author_rows}
 
+    # Participants (explicit named) — join to User for the email display.
+    participant_rows = (
+        await session.execute(
+            select(TicketParticipant, User.email)
+            .join(User, User.id == TicketParticipant.user_id)
+            .where(TicketParticipant.ticket_id == ticket.id)
+            .order_by(TicketParticipant.added_at)
+        )
+    ).all()
+    participants = [
+        {"user_id": p.user_id, "email": email, "added_at": p.added_at}
+        for p, email in participant_rows
+    ]
+
     return templates.TemplateResponse(
         request,
         "admin/tickets_detail.html",
@@ -724,7 +740,9 @@ async def ticket_detail(
             "ticket": ticket,
             "messages": messages,
             "author_emails": author_emails,
+            "participants": participants,
             "statuses": [s.value for s in TicketStatus],
+            "share_scopes": [s.value for s in TicketShareScope],
             "error": None,
         },
     )
@@ -781,6 +799,82 @@ async def ticket_status_submit(
     await patch_ticket(
         ticket_id=ticket_id,
         req=TicketStatusUpdateRequest(status=status_enum),
+        current_user=current_user,
+        session=session,
+    )
+    return RedirectResponse(
+        f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/tickets/{ticket_id}/share-scope")
+async def ticket_share_scope_submit(
+    request: Request,
+    ticket_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    share_scope: Annotated[str, Form()],
+) -> Response:
+    import contextlib
+
+    from app.api.v1.tickets import update_admin_share_scope
+    from app.schemas.ticket import TicketShareScopeUpdateRequest
+
+    with contextlib.suppress(ValueError, HTTPException):
+        await update_admin_share_scope(
+            ticket_id=ticket_id,
+            req=TicketShareScopeUpdateRequest(share_scope=TicketShareScope(share_scope)),
+            current_user=current_user,
+            session=session,
+        )
+    return RedirectResponse(
+        f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/tickets/{ticket_id}/participants/add")
+async def ticket_participant_add_submit(
+    request: Request,
+    ticket_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email: Annotated[str, Form()],
+) -> Response:
+    import contextlib
+
+    from app.api.v1.tickets import add_admin_participant
+    from app.schemas.ticket import TicketParticipantAddRequest
+
+    # Swallow 404 (unknown email) etc. — Jinja UI doesn't surface inline errors
+    # yet; user re-tries with a known email. Audit log captures the attempt.
+    with contextlib.suppress(HTTPException):
+        await add_admin_participant(
+            ticket_id=ticket_id,
+            req=TicketParticipantAddRequest(email=email),
+            current_user=current_user,
+            session=session,
+        )
+    return RedirectResponse(
+        f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/tickets/{ticket_id}/participants/{user_id}/remove")
+async def ticket_participant_remove_submit(
+    request: Request,
+    ticket_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    from app.api.v1.tickets import remove_admin_participant
+
+    await remove_admin_participant(
+        ticket_id=ticket_id,
+        user_id=user_id,
         current_user=current_user,
         session=session,
     )

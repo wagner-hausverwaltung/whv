@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models import TicketCategory, TicketStatus
+from app.models import TicketCategory, TicketShareScope, TicketStatus
 
 
 class TicketCreateRequest(BaseModel):
@@ -11,6 +11,9 @@ class TicketCreateRequest(BaseModel):
     body: str = Field(..., min_length=3, max_length=10_000)
     category: TicketCategory
     property_id: uuid.UUID | None = None
+    # Optional initial sharing — defaults to PRIVATE if omitted. PROPERTY
+    # requires property_id to also be set; the handler validates this.
+    share_scope: TicketShareScope = TicketShareScope.PRIVATE
 
 
 class TicketMessageCreateRequest(BaseModel):
@@ -21,6 +24,21 @@ class TicketMessageCreateRequest(BaseModel):
 class TicketStatusUpdateRequest(BaseModel):
     status: TicketStatus
     assignee_user_id: uuid.UUID | None = None
+
+
+class TicketShareScopeUpdateRequest(BaseModel):
+    share_scope: TicketShareScope
+
+
+class TicketParticipantAddRequest(BaseModel):
+    email: EmailStr
+
+
+class TicketParticipantResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    added_by_user_id: uuid.UUID
+    added_at: datetime
 
 
 class TicketMessageResponse(BaseModel):
@@ -35,7 +53,7 @@ class TicketMessageResponse(BaseModel):
 
 
 class TicketResponse(BaseModel):
-    """Summary row for queue + list views — no messages."""
+    """Summary row for queue + list views — no messages, no participants."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +63,7 @@ class TicketResponse(BaseModel):
     assignee_user_id: uuid.UUID | None
     category: TicketCategory
     status: TicketStatus
+    share_scope: TicketShareScope
     subject: str
     last_message_at: datetime
     created_at: datetime
@@ -52,8 +71,9 @@ class TicketResponse(BaseModel):
 
 
 class TicketDetailResponse(TicketResponse):
-    """Detail view with full thread. For non-Verwalter callers, the handler
-    filters `messages` to exclude `is_internal_note=True` rows before
-    serialization."""
+    """Detail view with full thread + participants. For non-Verwalter callers,
+    the handler filters `messages` to exclude `is_internal_note=True` rows
+    before serialization."""
 
     messages: list[TicketMessageResponse]
+    participants: list[TicketParticipantResponse]

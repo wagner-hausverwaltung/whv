@@ -73,6 +73,8 @@ export type TicketStatus =
   | "WARTET_AUF_KUNDE"
   | "GESCHLOSSEN";
 
+export type TicketShareScope = "PRIVATE" | "PARTICIPANTS" | "PROPERTY";
+
 export interface TicketMessageResponse {
   id: string;
   ticket_id: string;
@@ -82,6 +84,13 @@ export interface TicketMessageResponse {
   created_at: string;
 }
 
+export interface TicketParticipantResponse {
+  user_id: string;
+  email: string;
+  added_by_user_id: string;
+  added_at: string;
+}
+
 export interface TicketResponse {
   id: string;
   property_id: string | null;
@@ -89,6 +98,7 @@ export interface TicketResponse {
   assignee_user_id: string | null;
   category: TicketCategory;
   status: TicketStatus;
+  share_scope: TicketShareScope;
   subject: string;
   last_message_at: string;
   created_at: string;
@@ -97,7 +107,14 @@ export interface TicketResponse {
 
 export interface TicketDetailResponse extends TicketResponse {
   messages: TicketMessageResponse[];
+  participants: TicketParticipantResponse[];
 }
+
+export const TICKET_SHARE_SCOPE_LABELS: Record<TicketShareScope, string> = {
+  PRIVATE: "Privat",
+  PARTICIPANTS: "Nur Teilnehmer",
+  PROPERTY: "Alle Eigentümer dieses Objekts",
+};
 
 export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
   SCHADEN: "Schaden",

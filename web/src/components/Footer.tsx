@@ -17,7 +17,7 @@ const LEGAL_LINKS = [
 export function Footer() {
   return (
     <footer className="border-t border-whv-border bg-white">
-      <div className="max-w-5xl mx-auto px-6 py-5 muted text-xs space-y-3">
+      <div className="max-w-5xl mx-auto px-6 py-5 muted text-xs space-y-3 text-center">
         <p>
           Staufeneckstraße 17, 70469 Stuttgart, Baden-Württemberg, Deutschland
           {" · "}Mobil:{" "}
@@ -34,7 +34,7 @@ export function Footer() {
           {" · "}HRB 793472 Amtsgericht Stuttgart{" · "}St-Nr. 99032/25628
           Finanzamt Stuttgart{" · "}USt-ID: DE367079394
         </p>
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <span>© 2026 Wagner Hausverwaltung</span>
           {LEGAL_LINKS.map((link) => (
             <a

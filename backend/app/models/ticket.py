@@ -24,6 +24,24 @@ class TicketStatus(enum.StrEnum):
     GESCHLOSSEN = "GESCHLOSSEN"
 
 
+class TicketShareScope(enum.StrEnum):
+    """Who else (beyond creator + Verwalter) can see + comment on this ticket.
+
+    PRIVATE       — creator + Verwalter only (default; explicit opt-in required
+                    to widen access)
+    PARTICIPANTS  — also: every user in ticket_participants
+    PROPERTY      — also: every user with a contract on `tickets.property_id`
+                    (requires property_id set). Only the explicitly-named
+                    participants get email notifications; property-scope
+                    viewers see the ticket if they visit the portal but
+                    don't get fan-out emails.
+    """
+
+    PRIVATE = "PRIVATE"
+    PARTICIPANTS = "PARTICIPANTS"
+    PROPERTY = "PROPERTY"
+
+
 class Ticket(OrganizationScopedMixin, TimestampMixin, Base):
     __tablename__ = "tickets"
 
@@ -55,6 +73,12 @@ class Ticket(OrganizationScopedMixin, TimestampMixin, Base):
         nullable=False,
         default=TicketStatus.NEU,
         server_default=TicketStatus.NEU.value,
+    )
+    share_scope: Mapped[TicketShareScope] = mapped_column(
+        Enum(TicketShareScope, name="ticket_share_scope"),
+        nullable=False,
+        default=TicketShareScope.PRIVATE,
+        server_default=TicketShareScope.PRIVATE.value,
     )
     subject: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -120,4 +144,43 @@ class TicketMessage(Base):
     __table_args__ = (
         # Thread render: load messages of a ticket in chronological order.
         Index("ix_ticket_messages_thread", "ticket_id", "created_at"),
+    )
+
+
+class TicketParticipant(Base):
+    """Many-to-many: users explicitly added as participants on a ticket.
+
+    Verwalter access is implicit (no row needed). Creator access is implicit
+    (`tickets.created_by_user_id`). This table only tracks the *additional*
+    named viewers — they get email fan-out and can comment.
+    """
+
+    __tablename__ = "ticket_participants"
+
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tickets.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    added_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        # Lookup for "tickets I'm participating in" (future use; today only
+        # consulted as a membership-check inside ticket access rules).
+        Index("ix_ticket_participants_user", "user_id"),
     )

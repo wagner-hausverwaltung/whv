@@ -4,8 +4,10 @@ import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import {
   TICKET_CATEGORY_LABELS,
+  TICKET_SHARE_SCOPE_LABELS,
   TICKET_STATUS_LABELS,
   type TicketDetailResponse,
+  type TicketShareScope,
 } from "@/api/types";
 
 export function TicketDetailPage() {
@@ -17,6 +19,11 @@ export function TicketDetailPage() {
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  // Participants UI
+  const [newParticipantEmail, setNewParticipantEmail] = useState("");
+  const [participantError, setParticipantError] = useState<string | null>(null);
+  const [addingParticipant, setAddingParticipant] = useState(false);
 
   const refresh = async () => {
     if (!id) return;
@@ -51,7 +58,10 @@ export function TicketDetailPage() {
   if (!ticket) return <p className="muted">Wird geladen…</p>;
 
   const isClosed = ticket.status === "GESCHLOSSEN";
-  const canClose = !isClosed && user?.id === ticket.created_by_user_id;
+  const isCreator = user?.id === ticket.created_by_user_id;
+  const canManage = isCreator;
+  const canClose = !isClosed && isCreator;
+  const isPropertyEligible = ticket.property_id !== null;
 
   const onReply = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,6 +94,52 @@ export function TicketDetailPage() {
     }
   };
 
+  const onChangeScope = async (next: TicketShareScope) => {
+    if (next === ticket.share_scope) return;
+    setError(null);
+    try {
+      await api.patch(`/me/tickets/${ticket.id}/share-scope`, {
+        share_scope: next,
+      });
+      await refresh();
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail ?? "Sichtbarkeit konnte nicht geändert werden.";
+      setError(detail);
+    }
+  };
+
+  const onAddParticipant = async (e: FormEvent) => {
+    e.preventDefault();
+    setParticipantError(null);
+    setAddingParticipant(true);
+    try {
+      await api.post(`/me/tickets/${ticket.id}/participants`, {
+        email: newParticipantEmail.trim().toLowerCase(),
+      });
+      setNewParticipantEmail("");
+      await refresh();
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail ?? "Teilnehmer konnte nicht hinzugefügt werden.";
+      setParticipantError(detail);
+    } finally {
+      setAddingParticipant(false);
+    }
+  };
+
+  const onRemoveParticipant = async (userId: string) => {
+    if (!confirm("Teilnehmer entfernen?")) return;
+    try {
+      await api.delete(`/me/tickets/${ticket.id}/participants/${userId}`);
+      await refresh();
+    } catch {
+      setError("Teilnehmer konnte nicht entfernt werden.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Link to="/tickets" className="muted hover:underline inline-block">
@@ -107,6 +163,98 @@ export function TicketDetailPage() {
 
       {error && <p className="flash-error">{error}</p>}
 
+      {/* --- Participants + scope (creator-only controls) ------------------- */}
+      <section className="card space-y-3">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h2 className="font-display font-semibold text-sm uppercase tracking-wide text-whv-muted">
+            Sichtbarkeit & Teilnehmer
+          </h2>
+          {canManage ? (
+            <select
+              className="input max-w-xs"
+              value={ticket.share_scope}
+              onChange={(e) => onChangeScope(e.target.value as TicketShareScope)}
+            >
+              <option value="PRIVATE">
+                {TICKET_SHARE_SCOPE_LABELS.PRIVATE}
+              </option>
+              <option value="PARTICIPANTS">
+                {TICKET_SHARE_SCOPE_LABELS.PARTICIPANTS}
+              </option>
+              <option value="PROPERTY" disabled={!isPropertyEligible}>
+                {TICKET_SHARE_SCOPE_LABELS.PROPERTY}
+                {!isPropertyEligible ? " (kein Objekt verknüpft)" : ""}
+              </option>
+            </select>
+          ) : (
+            <span className="muted">
+              {TICKET_SHARE_SCOPE_LABELS[ticket.share_scope]}
+            </span>
+          )}
+        </div>
+
+        {ticket.participants.length > 0 ? (
+          <ul className="space-y-1">
+            {ticket.participants.map((p) => (
+              <li
+                key={p.user_id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span>
+                  {p.email}
+                  <span className="muted ml-2 text-xs">
+                    seit {new Date(p.added_at).toLocaleDateString("de-DE")}
+                  </span>
+                </span>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="muted hover:text-red-700 text-xs"
+                    onClick={() => onRemoveParticipant(p.user_id)}
+                  >
+                    Entfernen
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Keine namentlichen Teilnehmer.</p>
+        )}
+
+        {canManage && (
+          <form onSubmit={onAddParticipant} className="space-y-2">
+            {participantError && (
+              <p className="flash-error">{participantError}</p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                required
+                placeholder="E-Mail-Adresse eines WHV-Kontos"
+                className="input flex-1"
+                value={newParticipantEmail}
+                onChange={(e) => setNewParticipantEmail(e.target.value)}
+                disabled={addingParticipant}
+              />
+              <button
+                type="submit"
+                className="btn-secondary"
+                disabled={addingParticipant || !newParticipantEmail}
+              >
+                {addingParticipant ? "Wird hinzugefügt…" : "Hinzufügen"}
+              </button>
+            </div>
+            <p className="muted text-xs">
+              Die Person braucht ein WHV-Portal-Konto. Hinzugefügte Teilnehmer
+              erhalten E-Mail-Updates bei jeder neuen Nachricht und können
+              selbst antworten.
+            </p>
+          </form>
+        )}
+      </section>
+
+      {/* --- Thread ----------------------------------------------------------- */}
       <section className="space-y-3">
         {ticket.messages.map((m) => {
           const isMine = m.author_user_id === user?.id;
@@ -117,7 +265,13 @@ export function TicketDetailPage() {
             >
               <header className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">
-                  {isMine ? "Sie" : "Wagner Hausverwaltung"}
+                  {isMine
+                    ? "Sie"
+                    : m.author_user_id === ticket.created_by_user_id
+                      ? "Ersteller"
+                      : ticket.participants.find(
+                            (p) => p.user_id === m.author_user_id,
+                          )?.email ?? "Wagner Hausverwaltung"}
                 </span>
                 <span className="muted text-xs">
                   {new Date(m.created_at).toLocaleString("de-DE")}

@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,8 @@ from app.models import (
     Ticket,
     TicketCategory,
     TicketMessage,
+    TicketParticipant,
+    TicketShareScope,
     TicketStatus,
     User,
     UserRole,
@@ -32,7 +34,10 @@ from app.schemas.ticket import (
     TicketDetailResponse,
     TicketMessageCreateRequest,
     TicketMessageResponse,
+    TicketParticipantAddRequest,
+    TicketParticipantResponse,
     TicketResponse,
+    TicketShareScopeUpdateRequest,
     TicketStatusUpdateRequest,
 )
 
@@ -49,7 +54,32 @@ def _to_summary(t: Ticket) -> TicketResponse:
     return TicketResponse.model_validate(t)
 
 
-def _to_detail(t: Ticket, messages: list[TicketMessage]) -> TicketDetailResponse:
+async def _load_participants(
+    session: AsyncSession, ticket_id: uuid.UUID
+) -> list[TicketParticipantResponse]:
+    rows = (
+        await session.execute(
+            select(TicketParticipant, User.email)
+            .join(User, User.id == TicketParticipant.user_id)
+            .where(TicketParticipant.ticket_id == ticket_id)
+            .order_by(TicketParticipant.added_at)
+        )
+    ).all()
+    return [
+        TicketParticipantResponse(
+            user_id=p.user_id,
+            email=email,
+            added_by_user_id=p.added_by_user_id,
+            added_at=p.added_at,
+        )
+        for p, email in rows
+    ]
+
+
+async def _to_detail(
+    t: Ticket, messages: list[TicketMessage], session: AsyncSession
+) -> TicketDetailResponse:
+    participants = await _load_participants(session, t.id)
     return TicketDetailResponse(
         id=t.id,
         property_id=t.property_id,
@@ -57,11 +87,13 @@ def _to_detail(t: Ticket, messages: list[TicketMessage]) -> TicketDetailResponse
         assignee_user_id=t.assignee_user_id,
         category=t.category,
         status=t.status,
+        share_scope=t.share_scope,
         subject=t.subject,
         last_message_at=t.last_message_at,
         created_at=t.created_at,
         closed_at=t.closed_at,
         messages=[TicketMessageResponse.model_validate(m) for m in messages],
+        participants=participants,
     )
 
 
@@ -83,16 +115,30 @@ async def _owner_can_access(
 ) -> bool:
     """True if the (non-Verwalter) user is allowed to see this ticket.
 
-    Allow if: they created it, OR (ticket has a property AND they have a
-    contract on it via contact_id_impower → contracts).
+    Allow if any of:
+    - they created it
+    - they are an explicit named participant (ticket_participants row)
+    - share_scope=PROPERTY AND they have a contract on ticket.property_id
     """
     if ticket.created_by_user_id == user.id:
         return True
-    if ticket.property_id is None or user.contact_id_impower is None:
-        return False
-    visible_stmt = _visible_properties_stmt(user).where(Property.id == ticket.property_id)
-    prop = await session.scalar(visible_stmt)
-    return prop is not None
+    is_named_participant = await session.scalar(
+        select(TicketParticipant).where(
+            TicketParticipant.ticket_id == ticket.id,
+            TicketParticipant.user_id == user.id,
+        )
+    )
+    if is_named_participant is not None:
+        return True
+    if (
+        ticket.share_scope == TicketShareScope.PROPERTY
+        and ticket.property_id is not None
+        and user.contact_id_impower is not None
+    ):
+        visible_stmt = _visible_properties_stmt(user).where(Property.id == ticket.property_id)
+        prop = await session.scalar(visible_stmt)
+        return prop is not None
+    return False
 
 
 async def _verwalter_recipients(session: AsyncSession, organization_id: uuid.UUID) -> list[str]:
@@ -112,6 +158,37 @@ async def _verwalter_recipients(session: AsyncSession, organization_id: uuid.UUI
         )
     ).all()
     return [u.email for u in rows]
+
+
+async def _participant_emails(session: AsyncSession, ticket_id: uuid.UUID) -> list[str]:
+    """Email addresses of the explicit named participants on a ticket.
+
+    Property-scope viewers (share_scope=PROPERTY) are NOT included here — they
+    can see the ticket if they visit the portal, but a broad property-wide
+    email fan-out on every message would spam too widely. Only people who were
+    *explicitly* added (via ticket_participants) get the message email.
+    """
+    rows = (
+        await session.execute(
+            select(User.email)
+            .join(TicketParticipant, TicketParticipant.user_id == User.id)
+            .where(
+                TicketParticipant.ticket_id == ticket_id,
+                User.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    return [email for (email,) in rows]
+
+
+def _dedupe(emails: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for e in emails:
+        if e and e not in seen:
+            seen.add(e)
+            out.append(e)
+    return out
 
 
 async def _send_message_notification(
@@ -188,6 +265,15 @@ async def create_my_ticket(
                 detail="Property not found",
             )
 
+    # PROPERTY share-scope requires property_id; reject the inconsistent combo
+    # rather than silently demoting (a PROPERTY ticket without a property is
+    # always PRIVATE in practice, but the request was clearly mistaken).
+    if req.share_scope == TicketShareScope.PROPERTY and req.property_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="share_scope=PROPERTY benötigt eine property_id.",
+        )
+
     now = datetime.now(UTC)
     ticket = Ticket(
         organization_id=current_user.organization_id,
@@ -195,6 +281,7 @@ async def create_my_ticket(
         created_by_user_id=current_user.id,
         category=req.category,
         status=TicketStatus.NEU,
+        share_scope=req.share_scope,
         subject=req.subject,
         last_message_at=now,
     )
@@ -225,7 +312,8 @@ async def create_my_ticket(
     )
 
     # Notify Verwalter(s) of the new ticket. Best-effort — failure to send
-    # doesn't roll back the ticket creation.
+    # doesn't roll back the ticket creation. No participants yet on a brand-new
+    # ticket, so we only fan out to Verwalter here.
     recipients = await _verwalter_recipients(session, current_user.organization_id)
     await _send_message_notification(
         email_client=email_client,
@@ -237,7 +325,7 @@ async def create_my_ticket(
 
     await session.commit()
     await session.refresh(ticket)
-    return _to_detail(ticket, [first_message])
+    return await _to_detail(ticket, [first_message], session)
 
 
 @me_router.get("/{ticket_id}", response_model=TicketDetailResponse)
@@ -263,7 +351,7 @@ async def get_my_ticket(
     # Owners never see internal notes; Verwalter using /me/* shouldn't be
     # surprised either (admin endpoint exposes them).
     messages = await _load_messages(session, ticket.id, include_internal=False)
-    return _to_detail(ticket, messages)
+    return await _to_detail(ticket, messages, session)
 
 
 @me_router.post(
@@ -316,7 +404,17 @@ async def post_my_message(
     if ticket.status in (TicketStatus.NEU, TicketStatus.WARTET_AUF_KUNDE):
         ticket.status = TicketStatus.OFFEN
 
-    recipients = await _verwalter_recipients(session, current_user.organization_id)
+    # Owner reply → notify Verwalter + creator + all explicit participants
+    # (excluding the author of this reply, since they already know).
+    creator = await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+    recipients = _dedupe(
+        [
+            *(await _verwalter_recipients(session, current_user.organization_id)),
+            *(await _participant_emails(session, ticket.id)),
+            *([creator.email] if creator and creator.deleted_at is None else []),
+        ]
+    )
+    recipients = [e for e in recipients if e != current_user.email]
     await _send_message_notification(
         email_client=email_client,
         ticket=ticket,
@@ -401,7 +499,7 @@ async def get_ticket(
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     messages = await _load_messages(session, ticket.id, include_internal=True)
-    return _to_detail(ticket, messages)
+    return await _to_detail(ticket, messages, session)
 
 
 @admin_router.post(
@@ -442,17 +540,26 @@ async def post_admin_message(
     ):
         ticket.status = TicketStatus.WARTET_AUF_KUNDE
 
-    # Notify the owner ONLY when this is a public message (not an internal note).
+    # Notify creator + explicit participants ONLY when this is a public message
+    # (internal notes never trigger email — Verwalter-only). Property-scope
+    # viewers are intentionally NOT fanned out to here; they see updates on
+    # next portal visit but a property-wide message email would spam too widely.
     if not req.is_internal_note:
         owner = await session.scalar(
             select(User).where(User.id == ticket.created_by_user_id)
         )
-        if owner is not None and owner.deleted_at is None:
+        recipients = _dedupe(
+            [
+                *([owner.email] if owner and owner.deleted_at is None else []),
+                *(await _participant_emails(session, ticket.id)),
+            ]
+        )
+        if recipients:
             await _send_message_notification(
                 email_client=email_client,
                 ticket=ticket,
                 message=message,
-                recipients=[owner.email],
+                recipients=recipients,
                 sender_email=current_user.email,
             )
 
@@ -520,5 +627,273 @@ async def patch_ticket(
     await session.commit()
     await session.refresh(ticket)
     return _to_summary(ticket)
+
+
+# --- Participant management ---------------------------------------------------
+# Shared between the /me and /admin routers via small wrapper handlers below.
+# Only the ticket creator OR a Verwalter may add/remove participants.
+
+
+async def _can_manage_participants(
+    session: AsyncSession, user: User, ticket: Ticket
+) -> bool:
+    if user.role == UserRole.VERWALTER:
+        return True
+    return ticket.created_by_user_id == user.id
+
+
+async def _add_participant(
+    *,
+    session: AsyncSession,
+    ticket: Ticket,
+    actor: User,
+    email: str,
+) -> TicketParticipantResponse:
+    target = await session.scalar(
+        select(User).where(
+            User.email == email.strip().lower(),
+            User.organization_id == ticket.organization_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Kein Konto mit dieser E-Mail-Adresse in der Organisation gefunden. "
+                "Die Person muss erst eingeladen werden und das Konto aktivieren."
+            ),
+        )
+    if target.id == ticket.created_by_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ersteller ist bereits Teilnehmer.",
+        )
+    existing = await session.scalar(
+        select(TicketParticipant).where(
+            TicketParticipant.ticket_id == ticket.id,
+            TicketParticipant.user_id == target.id,
+        )
+    )
+    if existing is not None:
+        return TicketParticipantResponse(
+            user_id=target.id,
+            email=target.email,
+            added_by_user_id=existing.added_by_user_id,
+            added_at=existing.added_at,
+        )
+
+    row = TicketParticipant(
+        ticket_id=ticket.id,
+        user_id=target.id,
+        added_by_user_id=actor.id,
+    )
+    session.add(row)
+    session.add(
+        AuditLog(
+            organization_id=ticket.organization_id,
+            actor_user_id=actor.id,
+            action="ticket_participant_added",
+            target_type="tickets",
+            target_id=str(ticket.id),
+            payload_json={"user_id": str(target.id), "email": target.email},
+        )
+    )
+    await session.commit()
+    await session.refresh(row)
+    return TicketParticipantResponse(
+        user_id=target.id,
+        email=target.email,
+        added_by_user_id=row.added_by_user_id,
+        added_at=row.added_at,
+    )
+
+
+async def _remove_participant(
+    *,
+    session: AsyncSession,
+    ticket: Ticket,
+    actor: User,
+    user_id: uuid.UUID,
+) -> None:
+    row = await session.scalar(
+        select(TicketParticipant).where(
+            TicketParticipant.ticket_id == ticket.id,
+            TicketParticipant.user_id == user_id,
+        )
+    )
+    if row is None:
+        return  # idempotent
+    await session.delete(row)
+    session.add(
+        AuditLog(
+            organization_id=ticket.organization_id,
+            actor_user_id=actor.id,
+            action="ticket_participant_removed",
+            target_type="tickets",
+            target_id=str(ticket.id),
+            payload_json={"user_id": str(user_id)},
+        )
+    )
+    await session.commit()
+
+
+# --- Owner-facing share-scope + participants ---------------------------------
+
+
+@me_router.patch("/{ticket_id}/share-scope", response_model=TicketResponse)
+async def update_my_share_scope(
+    ticket_id: uuid.UUID,
+    req: TicketShareScopeUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TicketResponse:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+            Ticket.created_by_user_id == current_user.id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if req.share_scope == TicketShareScope.PROPERTY and ticket.property_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="share_scope=PROPERTY benötigt eine property_id.",
+        )
+    ticket.share_scope = req.share_scope
+    await session.commit()
+    await session.refresh(ticket)
+    return _to_summary(ticket)
+
+
+@me_router.post(
+    "/{ticket_id}/participants",
+    response_model=TicketParticipantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_my_participant(
+    ticket_id: uuid.UUID,
+    req: TicketParticipantAddRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TicketParticipantResponse:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if not await _can_manage_participants(session, current_user, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return await _add_participant(
+        session=session, ticket=ticket, actor=current_user, email=req.email
+    )
+
+
+@me_router.delete(
+    "/{ticket_id}/participants/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_my_participant(
+    ticket_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if not await _can_manage_participants(session, current_user, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    await _remove_participant(
+        session=session, ticket=ticket, actor=current_user, user_id=user_id
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Admin-facing share-scope + participants ---------------------------------
+
+
+@admin_router.patch("/{ticket_id}/share-scope", response_model=TicketResponse)
+async def update_admin_share_scope(
+    ticket_id: uuid.UUID,
+    req: TicketShareScopeUpdateRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TicketResponse:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if req.share_scope == TicketShareScope.PROPERTY and ticket.property_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="share_scope=PROPERTY benötigt eine property_id.",
+        )
+    ticket.share_scope = req.share_scope
+    await session.commit()
+    await session.refresh(ticket)
+    return _to_summary(ticket)
+
+
+@admin_router.post(
+    "/{ticket_id}/participants",
+    response_model=TicketParticipantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_admin_participant(
+    ticket_id: uuid.UUID,
+    req: TicketParticipantAddRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TicketParticipantResponse:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    return await _add_participant(
+        session=session, ticket=ticket, actor=current_user, email=req.email
+    )
+
+
+@admin_router.delete(
+    "/{ticket_id}/participants/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_admin_participant(
+    ticket_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    await _remove_participant(
+        session=session, ticket=ticket, actor=current_user, user_id=user_id
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

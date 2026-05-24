@@ -19,6 +19,10 @@ export function TicketNewPage() {
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState<TicketCategory>("SONSTIGES");
   const [body, setBody] = useState("");
+  // Sharing defaults to PRIVATE; creator can widen later from the detail page
+  // (PARTICIPANTS / PROPERTY). Skipping the property picker for v1 — owners
+  // can attach the ticket to a property later via the admin UI or extend here
+  // when the property picker becomes available on the portal too.
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

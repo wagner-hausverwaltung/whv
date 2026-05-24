@@ -443,6 +443,7 @@ async def test_eigentuemer_with_contract_sees_co_owner_ticket(
     token_b = _login(email_b, pw_b)
 
     with TestClient(app) as client:
+        # share_scope=PROPERTY needed now: default PRIVATE keeps co-owners out.
         create = client.post(
             "/me/tickets",
             headers=_auth(token_a),
@@ -451,6 +452,7 @@ async def test_eigentuemer_with_contract_sees_co_owner_ticket(
                 "body": "trommel is gone",
                 "category": "SCHADEN",
                 "property_id": str(prop.id),
+                "share_scope": "PROPERTY",
             },
         )
         assert create.status_code == 201
@@ -459,6 +461,279 @@ async def test_eigentuemer_with_contract_sees_co_owner_ticket(
         r = client.get(f"/me/tickets/{ticket_id}", headers=_auth(token_b))
     assert r.status_code == 200
     assert r.json()["subject"].startswith("Common laundry")
+
+
+# --- Participants + share scope ----------------------------------------------
+
+
+async def test_default_share_scope_is_private(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            "/me/tickets",
+            headers=_auth(token),
+            json={"subject": "Test", "body": "Body text", "category": "SONSTIGES"},
+        )
+    assert r.status_code == 201
+    assert r.json()["share_scope"] == "PRIVATE"
+    assert r.json()["participants"] == []
+
+
+async def test_creator_can_add_participant_who_then_sees_ticket(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _ea, ea_email, ea_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    _eb, eb_email, eb_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    ea_token = _login(ea_email, ea_pw)
+    eb_token = _login(eb_email, eb_pw)
+
+    with TestClient(app) as client:
+        # A creates a PRIVATE ticket
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={"subject": "Shared", "body": "Body text", "category": "SONSTIGES"},
+        )
+        tid = create.json()["id"]
+
+        # B can't see it yet (PRIVATE)
+        r = client.get(f"/me/tickets/{tid}", headers=_auth(eb_token))
+        assert r.status_code == 404
+
+        # A adds B as participant
+        add = client.post(
+            f"/me/tickets/{tid}/participants",
+            headers=_auth(ea_token),
+            json={"email": eb_email},
+        )
+        assert add.status_code == 201
+        assert add.json()["email"] == eb_email
+
+        # B can now see it + reply
+        r = client.get(f"/me/tickets/{tid}", headers=_auth(eb_token))
+        assert r.status_code == 200
+        assert len(r.json()["participants"]) == 1
+        reply = client.post(
+            f"/me/tickets/{tid}/messages",
+            headers=_auth(eb_token),
+            json={"body": "B speaking", "is_internal_note": False},
+        )
+        assert reply.status_code == 201
+
+
+async def test_remove_participant_revokes_access(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _ea, ea_email, ea_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    _eb, eb_email, eb_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    ea_token = _login(ea_email, ea_pw)
+    eb_token = _login(eb_email, eb_pw)
+
+    with TestClient(app) as client:
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES"},
+        )
+        tid = create.json()["id"]
+        add = client.post(
+            f"/me/tickets/{tid}/participants",
+            headers=_auth(ea_token),
+            json={"email": eb_email},
+        )
+        user_id_b = add.json()["user_id"]
+
+        # B has access
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 200
+
+        # A removes B
+        rm = client.delete(
+            f"/me/tickets/{tid}/participants/{user_id_b}",
+            headers=_auth(ea_token),
+        )
+        assert rm.status_code == 204
+
+        # B no longer has access
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 404
+
+
+async def test_non_creator_cannot_add_participants(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _ea, ea_email, ea_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    _eb, eb_email, eb_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    _ec, ec_email, ec_pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    ea_token = _login(ea_email, ea_pw)
+    eb_token = _login(eb_email, eb_pw)
+
+    with TestClient(app) as client:
+        # A creates ticket, adds B (so B has access).
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES"},
+        )
+        tid = create.json()["id"]
+        client.post(
+            f"/me/tickets/{tid}/participants",
+            headers=_auth(ea_token),
+            json={"email": eb_email},
+        )
+        # B (participant, but not creator) tries to add C — should be 403.
+        bad = client.post(
+            f"/me/tickets/{tid}/participants",
+            headers=_auth(eb_token),
+            json={"email": ec_email},
+        )
+        assert bad.status_code == 403
+        # Sanity: ec credentials are real
+        _ = ec_pw
+
+
+async def test_share_scope_property_lets_co_owner_see_without_explicit_add(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    impower_a, impower_b = 92001, 92002
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_a
+    )
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_b
+    )
+    _ea, ea_email, ea_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_a
+    )
+    _eb, eb_email, eb_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_b
+    )
+    ea_token = _login(ea_email, ea_pw)
+    eb_token = _login(eb_email, eb_pw)
+
+    with TestClient(app) as client:
+        # PRIVATE — B can't see
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={
+                "subject": "Roof leak",
+                "body": "Body text",
+                "category": "SCHADEN",
+                "property_id": str(prop.id),
+            },
+        )
+        tid = create.json()["id"]
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 404
+
+        # A widens to PROPERTY — B now sees it (implicit via contract)
+        patch = client.patch(
+            f"/me/tickets/{tid}/share-scope",
+            headers=_auth(ea_token),
+            json={"share_scope": "PROPERTY"},
+        )
+        assert patch.status_code == 200
+        assert patch.json()["share_scope"] == "PROPERTY"
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 200
+
+        # Switching back to PRIVATE removes B's implicit access again.
+        client.patch(
+            f"/me/tickets/{tid}/share-scope",
+            headers=_auth(ea_token),
+            json={"share_scope": "PRIVATE"},
+        )
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 404
+        _ = eb_pw  # quiet linter
+
+
+async def test_property_scope_does_not_auto_email_co_owners(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """Property-scope viewers SEE updates in the portal but do NOT get email
+    fan-out on every message (would spam too widely). Only explicit
+    participants + creator + Verwalter get notified."""
+    org = await make_org(test_engine)
+    _vw, vw_email, vw_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    impower_a, impower_b = 93001, 93002
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_a
+    )
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_b
+    )
+    _, ea_email, ea_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_a
+    )
+    _, eb_email, _eb_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_b
+    )
+    ea_token = _login(ea_email, ea_pw)
+    vw_token = _login(vw_email, vw_pw)
+
+    with TestClient(app) as client:
+        # A creates a PROPERTY-scope ticket
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={
+                "subject": "Foo",
+                "body": "Body text",
+                "category": "SCHADEN",
+                "property_id": str(prop.id),
+                "share_scope": "PROPERTY",
+            },
+        )
+        tid = create.json()["id"]
+        # First email (ticket create) → verwalter only
+        assert len(stub_email.sent) == 1
+        assert vw_email in stub_email.sent[0]["to"]
+        assert eb_email not in stub_email.sent[0]["to"]
+
+        # Verwalter replies public → email goes to creator only, NOT to B
+        # (B has property-scope access but isn't an explicit participant)
+        client.post(
+            f"/admin/tickets/{tid}/messages",
+            headers=_auth(vw_token),
+            json={"body": "Wir kümmern uns.", "is_internal_note": False},
+        )
+        assert len(stub_email.sent) == 2
+        assert ea_email in stub_email.sent[1]["to"]
+        assert eb_email not in stub_email.sent[1]["to"]
+
+
+async def test_create_with_property_scope_requires_property_id(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            "/me/tickets",
+            headers=_auth(token),
+            json={
+                "subject": "Test",
+                "body": "Body text",
+                "category": "SONSTIGES",
+                "share_scope": "PROPERTY",
+                # property_id missing — should 400
+            },
+        )
+    assert r.status_code == 400
 
 
 # --- Pure model sanity (no HTTP) ---------------------------------------------

@@ -17,15 +17,57 @@
   </p>
 </header>
 
+<section style="margin: 1.5rem 0; display: flex; gap: 2rem; flex-wrap: wrap;">
+  <div>
+    <h2 style="font-size: 1rem;">Status</h2>
+    <form method="POST" action="/admin-ui/tickets/{{ ticket.id }}/status" class="inline" style="display: flex; gap: 0.5rem; align-items: center;">
+      <select name="new_status">
+        {% for s in statuses %}
+        <option value="{{ s }}" {% if ticket.status.value == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="secondary outline">Übernehmen</button>
+    </form>
+  </div>
+  <div>
+    <h2 style="font-size: 1rem;">Sichtbarkeit</h2>
+    <form method="POST" action="/admin-ui/tickets/{{ ticket.id }}/share-scope" class="inline" style="display: flex; gap: 0.5rem; align-items: center;">
+      <select name="share_scope">
+        {% for s in share_scopes %}
+        <option value="{{ s }}" {% if ticket.share_scope.value == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="secondary outline">Übernehmen</button>
+    </form>
+    <p class="muted" style="font-size: 0.75rem; margin-top: 0.5rem;">
+      PRIVATE: nur Ersteller + Verwalter · PARTICIPANTS: + namentlich
+      hinzugefügte · PROPERTY: + alle Eigentümer/Mieter mit Vertrag auf
+      diesem Objekt (benötigt property_id)
+    </p>
+  </div>
+</section>
+
 <section style="margin: 1.5rem 0;">
-  <h2 style="font-size: 1rem;">Status ändern</h2>
-  <form method="POST" action="/admin-ui/tickets/{{ ticket.id }}/status" class="inline" style="display: flex; gap: 0.5rem; align-items: center;">
-    <select name="new_status">
-      {% for s in statuses %}
-      <option value="{{ s }}" {% if ticket.status.value == s %}selected{% endif %}>{{ s }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="secondary outline">Übernehmen</button>
+  <h2 style="font-size: 1rem;">Teilnehmer ({{ participants|length }})</h2>
+  {% if participants %}
+  <ul style="list-style: none; padding: 0; margin: 0 0 0.75rem;">
+    {% for p in participants %}
+    <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+      <span>{{ p.email }}</span>
+      <span class="muted" style="font-size: 0.75rem;">hinzugefügt {{ p.added_at.strftime('%Y-%m-%d') }}</span>
+      <form method="POST" action="/admin-ui/tickets/{{ ticket.id }}/participants/{{ p.user_id }}/remove" class="inline"
+            onsubmit="return confirm('Teilnehmer entfernen?');">
+        <button type="submit" class="secondary outline" style="font-size: 0.75rem; padding: 0.1rem 0.5rem;">Entfernen</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted" style="font-size: 0.85rem; margin: 0 0 0.5rem;">Keine namentlichen Teilnehmer.</p>
+  {% endif %}
+  <form method="POST" action="/admin-ui/tickets/{{ ticket.id }}/participants/add" style="display: flex; gap: 0.5rem; align-items: center;">
+    <input type="email" name="email" placeholder="E-Mail-Adresse eines WHV-Kontos" required style="flex: 1; max-width: 320px;">
+    <button type="submit" class="secondary outline">Teilnehmer hinzufügen</button>
   </form>
 </section>
 
