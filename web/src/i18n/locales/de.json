@@ -71,6 +71,46 @@
       "open_resolutions": "Laufende Beschlüsse"
     },
     "loadFailed": "Daten konnten nicht geladen werden.",
-    "notVerwalter": "Sie haben keinen Zugriff auf den Admin-Bereich."
+    "notVerwalter": "Sie haben keinen Zugriff auf den Admin-Bereich.",
+    "invitesPage": {
+      "title": "Einladungen",
+      "newButton": "Neue Einladung",
+      "filterAll": "Alle",
+      "filterPending": "Offen",
+      "filterConsumed": "Eingelöst",
+      "filterExpired": "Abgelaufen",
+      "empty": "Keine Einladungen für diesen Filter.",
+      "code": "Code",
+      "email": "E-Mail",
+      "role": "Rolle",
+      "impowerId": "Impower-Kontakt",
+      "expiresAt": "Gültig bis",
+      "status": "Status",
+      "actions": "Aktionen",
+      "revoke": "Widerrufen",
+      "revokeConfirm": "Diese Einladung wirklich widerrufen?",
+      "revokeFailed": "Einladung konnte nicht widerrufen werden.",
+      "loadFailed": "Einladungen konnten nicht geladen werden."
+    },
+    "inviteNew": {
+      "title": "Neue Einladung anlegen",
+      "subtitle": "Generiert einen Code, sendet eine E-Mail über Resend, legt einen Audit-Log-Eintrag an.",
+      "linkSection": "Impower-Kontakt verknüpfen (optional)",
+      "linkHint": "Mit Objekt + Kontakt sieht der eingeladene Eigentümer/Mieter später nur seine eigenen Daten. Leer lassen → Konto ohne Impower-Bindung.",
+      "property": "Objekt",
+      "propertyPlaceholder": "Objektname, HR-ID, Stadt oder Straße…",
+      "contact": "Kontakt",
+      "contactPlaceholder": "Name, Firma oder E-Mail…",
+      "contactRequiresProperty": "Bitte zuerst ein Objekt wählen.",
+      "email": "E-Mail-Adresse",
+      "emailHint": "Wohin der Einladungs-Link gesendet wird — wird das Login der eingeladenen Person.",
+      "emailFromImpower": "✓ Aus Impower übernommen. Überschreiben wenn der Link an eine andere Adresse soll.",
+      "emailNoImpower": "⚠ Impower-Kontakt hat keine E-Mail hinterlegt — bitte hier eintragen.",
+      "role": "Rolle",
+      "ttlDays": "Gültigkeit (Tage)",
+      "submit": "Einladung erstellen + E-Mail senden",
+      "createFailed": "Einladung konnte nicht angelegt werden.",
+      "success": "Einladung erstellt — Code {{code}}, E-Mail versandt."
+    }
   }
 }

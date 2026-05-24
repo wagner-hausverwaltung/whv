@@ -57,3 +57,26 @@ class AdminDashboardStats(BaseModel):
     contacts: int
     open_tickets: int
     open_resolutions: int
+
+
+class AdminPropertySearchResult(BaseModel):
+    """Slim property row for the SPA invite/resolution typeahead picker."""
+
+    id: uuid.UUID
+    name: str
+    property_hr_id: str | None = None
+    city: str | None = None
+    street: str | None = None
+
+
+class AdminContactSearchResult(BaseModel):
+    """Slim contact row for the contact typeahead, keyed by Impower ID.
+
+    The invite form needs the Impower ID (not the WHV UUID) to link the
+    new account to the right Eigentümer / Mieter on the next sync; the
+    UUID would be opaque after a re-sync.
+    """
+
+    impower_id: int
+    label: str  # display name (company OR first + last)
+    email: str | None = None

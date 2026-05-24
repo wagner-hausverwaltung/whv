@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -14,7 +15,9 @@ from app.models import (
     AuditLog,
     CircularResolution,
     Contact,
+    ContactKind,
     Contract,
+    ContractContact,
     InviteCode,
     Property,
     ResolutionStatus,
@@ -25,8 +28,10 @@ from app.models import (
     UserRole,
 )
 from app.schemas.admin import (
+    AdminContactSearchResult,
     AdminDashboardStats,
     AdminInviteResponse,
+    AdminPropertySearchResult,
     CreateInviteRequest,
     InviteStatus,
 )
@@ -281,3 +286,115 @@ async def dashboard_stats(
             ),
         ),
     )
+
+
+# --- Typeahead pickers (JSON) ------------------------------------------------
+# Same query logic as the HTMX /admin-ui/properties/search etc., but returns
+# JSON for the React Autocomplete components. Capped to keep dropdowns sane.
+
+
+def _contact_display_name(c: Contact) -> str:
+    if c.kind == ContactKind.COMPANY and c.company_name:
+        return c.company_name
+    parts = [p for p in (c.first_name, c.last_name) if p]
+    if parts:
+        return " ".join(parts)
+    return c.company_name or c.email or f"Kontakt {c.impower_id or c.id}"
+
+
+@router.get("/properties/search", response_model=list[AdminPropertySearchResult])
+async def properties_search(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    q: str = "",
+) -> list[AdminPropertySearchResult]:
+    q_stripped = q.strip()
+    stmt = (
+        select(Property)
+        .where(
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+        .order_by(Property.name)
+        .limit(25)
+    )
+    if q_stripped:
+        like = f"%{q_stripped}%"
+        stmt = stmt.where(
+            Property.name.ilike(like)
+            | Property.property_hr_id.ilike(like)
+            | Property.city.ilike(like)
+            | Property.street.ilike(like)
+        )
+    rows = (await session.scalars(stmt)).all()
+    return [
+        AdminPropertySearchResult(
+            id=p.id,
+            name=p.name,
+            property_hr_id=p.property_hr_id,
+            city=p.city,
+            street=p.street,
+        )
+        for p in rows
+    ]
+
+
+@router.get(
+    "/properties/{property_id}/contacts/search",
+    response_model=list[AdminContactSearchResult],
+)
+async def property_contacts_search(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    q: str = "",
+) -> list[AdminContactSearchResult]:
+    """Contacts that hold a contract on the given property.
+
+    Silent empty fallback on cross-org property IDs — avoids leaking
+    existence across orgs while keeping the picker UX simple.
+    """
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        return []
+
+    q_stripped = q.strip()
+    stmt = (
+        select(Contact)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            Contact.organization_id == current_user.organization_id,
+            Contact.deleted_at.is_(None),
+            Contact.impower_id.is_not(None),  # picker requires Impower ID
+            Contract.property_id == property_id,
+            Contract.deleted_at.is_(None),
+        )
+        .order_by(Contact.last_name, Contact.company_name)
+        .limit(25)
+        .distinct()
+    )
+    if q_stripped:
+        like = f"%{q_stripped}%"
+        stmt = stmt.where(
+            Contact.first_name.ilike(like)
+            | Contact.last_name.ilike(like)
+            | Contact.company_name.ilike(like)
+            | Contact.email.ilike(like)
+        )
+    rows = (await session.scalars(stmt)).all()
+    return [
+        AdminContactSearchResult(
+            impower_id=c.impower_id,
+            label=_contact_display_name(c),
+            email=c.email,
+        )
+        for c in rows
+        if c.impower_id is not None
+    ]

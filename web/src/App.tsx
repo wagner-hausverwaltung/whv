@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
+import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
+import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
 import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
 import { AdminRoute } from "@/auth/AdminRoute";
 import { AuthProvider } from "@/auth/AuthContext";
@@ -164,10 +166,17 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Einladungen"
-                    legacyPath="/admin-ui/invites"
-                  />
+                  <AdminInvitesPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/invites/new"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminInviteNewPage />
                 </AdminLayout>
               </AdminRoute>
             }

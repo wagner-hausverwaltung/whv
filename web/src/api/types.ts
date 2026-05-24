@@ -204,3 +204,48 @@ export const VOTE_CHOICE_LABELS: Record<VoteChoice, string> = {
   NEIN: "NEIN",
   ENTHALTUNG: "Enthaltung",
 };
+
+// --- Admin: invites + pickers ------------------------------------------------
+
+export type InviteStatus = "pending" | "consumed" | "expired";
+
+export interface AdminInviteResponse {
+  code: string;
+  email: string;
+  role: UserRole;
+  contact_id_impower: number | null;
+  scope_json: Record<string, unknown> | null;
+  expires_at: string;
+  consumed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  status: InviteStatus;
+  email_message_id: string | null;
+}
+
+export interface AdminPropertySearchResult {
+  id: string;
+  name: string;
+  property_hr_id: string | null;
+  city: string | null;
+  street: string | null;
+}
+
+export interface AdminContactSearchResult {
+  impower_id: number;
+  label: string;
+  email: string | null;
+}
+
+export interface CreateInviteRequest {
+  email: string;
+  role: UserRole;
+  contact_id_impower?: number | null;
+  ttl_days?: number;
+}
+
+export const INVITE_STATUS_LABELS: Record<InviteStatus, string> = {
+  pending: "Offen",
+  consumed: "Eingelöst",
+  expired: "Abgelaufen",
+};

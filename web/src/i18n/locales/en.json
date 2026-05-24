@@ -71,6 +71,46 @@
       "open_resolutions": "Active resolutions"
     },
     "loadFailed": "Failed to load dashboard data.",
-    "notVerwalter": "You do not have access to the admin area."
+    "notVerwalter": "You do not have access to the admin area.",
+    "invitesPage": {
+      "title": "Invitations",
+      "newButton": "New invitation",
+      "filterAll": "All",
+      "filterPending": "Pending",
+      "filterConsumed": "Redeemed",
+      "filterExpired": "Expired",
+      "empty": "No invitations for this filter.",
+      "code": "Code",
+      "email": "Email",
+      "role": "Role",
+      "impowerId": "Impower contact",
+      "expiresAt": "Valid until",
+      "status": "Status",
+      "actions": "Actions",
+      "revoke": "Revoke",
+      "revokeConfirm": "Really revoke this invitation?",
+      "revokeFailed": "Could not revoke invitation.",
+      "loadFailed": "Could not load invitations."
+    },
+    "inviteNew": {
+      "title": "New invitation",
+      "subtitle": "Generates a code, sends an email via Resend, writes an audit-log entry.",
+      "linkSection": "Link an Impower contact (optional)",
+      "linkHint": "With property + contact, the invited owner/tenant only sees their own data. Leave empty → account without Impower binding.",
+      "property": "Property",
+      "propertyPlaceholder": "Property name, HR-ID, city or street…",
+      "contact": "Contact",
+      "contactPlaceholder": "Name, company or email…",
+      "contactRequiresProperty": "Pick a property first.",
+      "email": "Email address",
+      "emailHint": "Where the invite link is sent — becomes the invited person's login.",
+      "emailFromImpower": "✓ Picked from Impower. Override if the link should go elsewhere.",
+      "emailNoImpower": "⚠ The Impower contact has no email on file — please enter one here.",
+      "role": "Role",
+      "ttlDays": "Validity (days)",
+      "submit": "Create invitation + send email",
+      "createFailed": "Could not create invitation.",
+      "success": "Invitation created — code {{code}}, email sent."
+    }
   }
 }
