@@ -1,0 +1,622 @@
+# Wagner Hausverwaltung — Portal & App
+## Requirements & Implementation Plan
+
+This is the authoritative project spec for the WHV digital platform: an iOS app, a web portal, and the backend that powers both. The system is the digital frontend for property management work that is otherwise done in **Impower** (master data) and **SharePoint** (documents), and replaces ad-hoc email/phone communication with structured tickets, multi-channel messaging (Portal, WhatsApp, ePost), and AI-assisted self-service.
+
+> **For Claude Code:** Treat this file as the source of truth. Each Phase is a self-contained milestone. Before implementing a module, read its full section, then propose a plan, then code. Prefer working software over abstract scaffolding — every phase must end in something deployable.
+
+---
+
+## 1. Project Overview
+
+**Customer:** Wagner Hausverwaltung GmbH (WHV), Stuttgart
+**Purpose:** Replace casavi-style portal functionality with an in-house platform optimized for WHV workflows, augmented with AI features that casavi/Impower do not offer.
+**Users:**
+- **Eigentümer** (WEG owners)
+- **Mieter** (tenants under Mietverwaltung)
+- **Beirat** (advisory board members, elevated owner role)
+- **Dienstleister** (service providers / handworkers)
+- **Verwalter** (WHV staff — currently just Luis, designed for team growth)
+
+**Primary domains served:** `wagner-hausverwaltung.com` (marketing, Bluehost), `portal.wagner-hausverwaltung.com` (web portal), `api.wagner-hausverwaltung.com` (backend), `ai.wagner-hausverwaltung.com` (RAG service).
+
+---
+
+## 2. Goals & Non-Goals
+
+### Goals
+- Single source of truth for tenant/owner-facing communication and self-service
+- Reduce phone/email volume to the Verwalter office by ≥60% within 12 months
+- Digitize Umlaufbeschluss, ETV preparation, and document distribution end-to-end
+- Provide AI-driven self-service that scales WHV without scaling headcount
+- Be DSGVO- and BFSG-compliant from day one
+
+### Non-Goals
+- Not replacing Impower (Impower remains the accounting/master-data system of record)
+- Not replacing SharePoint in v1 (SharePoint remains the document store; later: migration consideration)
+- No payment processing in v1 (Impower handles SEPA/EBICS)
+- No agentic actions on behalf of users without explicit confirmation
+
+---
+
+## 3. Architecture
+
+```
+┌──────────────┐    ┌──────────────────┐
+│  iOS (Swift) │    │  Web (React+TS)  │
+└──────┬───────┘    └────────┬─────────┘
+       └──────────┬──────────┘
+                  ▼
+   api.wagner-hausverwaltung.com
+     (FastAPI · Postgres · Redis · S3)
+                  │
+   ┌──────────────┼───────────────┬─────────────┬─────────────┐
+   ▼              ▼               ▼             ▼             ▼
+Impower API   E-POSTBUSINESS    WhatsApp     SharePoint    ai.wagner-
+(REST +       (Deutsche Post    Cloud API    (Graph API)   hausverwaltung
+ webhooks)     hybrid letters)  via 360dialog              .com (RAG)
+```
+
+**Principles:**
+- Backend is the **only** thing that talks to Impower (rate limit 100/60s makes direct-client access impossible)
+- Backend mirrors Impower master data in Postgres for read performance and offline-tolerance
+- All write operations on master data go *through* the backend → Impower (never both ways at once for the same field)
+- Clients (iOS, Web) talk only to `api.wagner-hausverwaltung.com`
+- RAG runs as a separate service; the main backend enforces ACLs before forwarding queries
+
+---
+
+## 4. Tech Stack
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| Backend | **Python 3.12 + FastAPI** | Luis's primary language; async-native; great OpenAPI generation |
+| ORM | **SQLAlchemy 2.0 + Alembic** | Mature, async support |
+| Database | **PostgreSQL 16** | JSONB for flexible schemas, pgvector for embeddings |
+| Cache/Queue | **Redis 7** | Rate-limit state, session, Celery broker |
+| Workers | **Celery + Redis** | Impower sync, webhook fan-out, ePost polling |
+| Object storage | **Hetzner Object Storage (S3-compatible)** or **Backblaze B2** | EU-hosted, DSGVO-friendly, cheap |
+| iOS | **SwiftUI · iOS 17+ · Swift 5.10** | Native, modern, async/await |
+| iOS storage | **SwiftData** | Modern Core Data successor for offline cache |
+| Web | **React 18 + TypeScript + Vite + Tailwind + shadcn/ui** | Fast dev, good component primitives |
+| Hosting | **Hetzner Cloud (Nürnberg)** for backend; Bluehost for static `portal.` | EU jurisdiction; cost-efficient |
+| Container | **Docker Compose** (v1), Kubernetes later only if multi-tenant |
+| CI/CD | **GitHub Actions** | Lint, test, build, deploy |
+| Monitoring | **Sentry** + **Grafana/Loki/Prometheus** | Errors, logs, metrics |
+| Auth | **JWT (access+refresh)** + **Sign in with Apple** + **WebAuthn/Passkeys** | Modern, mobile-friendly |
+| Email | **Postmark** or **Resend** | Transactional, EU servers if possible |
+
+---
+
+## 5. Repository Structure
+
+Monorepo, three top-level packages:
+
+```
+hausverwaltung/
+├── REQUIREMENTS.md             # this file
+├── CLAUDE.md                   # short pointer to REQUIREMENTS.md + conventions
+├── README.md
+├── docker-compose.yml
+├── docker-compose.dev.yml
+├── .env.example
+├── backend/                    # FastAPI service
+│   ├── pyproject.toml
+│   ├── alembic/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── auth/
+│   │   ├── api/v1/             # versioned REST endpoints
+│   │   ├── models/             # SQLAlchemy models
+│   │   ├── schemas/            # Pydantic schemas
+│   │   ├── services/           # business logic per domain
+│   │   ├── integrations/
+│   │   │   ├── impower/
+│   │   │   ├── epost/
+│   │   │   ├── whatsapp/
+│   │   │   ├── sharepoint/
+│   │   │   └── email/
+│   │   ├── workers/            # Celery tasks
+│   │   └── tests/
+│   └── Dockerfile
+├── ios/                        # Xcode project
+│   └── WagnerHausverwaltung/
+│       ├── App/
+│       ├── Features/
+│       │   ├── Auth/
+│       │   ├── Properties/
+│       │   ├── Documents/
+│       │   ├── Tickets/
+│       │   ├── Messages/
+│       │   └── Settings/
+│       ├── Core/
+│       │   ├── Networking/
+│       │   ├── Persistence/
+│       │   ├── Auth/
+│       │   └── DesignSystem/
+│       └── Tests/
+├── web/                        # React portal
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── routes/
+│       ├── features/
+│       ├── components/
+│       ├── lib/
+│       └── styles/
+├── rag/                        # RAG microservice
+│   ├── pyproject.toml
+│   └── app/
+└── infra/
+    ├── terraform/              # Hetzner provisioning (optional)
+    ├── ansible/                # server config (optional)
+    └── docs/                   # ADRs, runbooks
+```
+
+**Conventions:**
+- All names in English in code; German preserved only for domain terms (Eigentümer, WEG, Hausgeld, Sondereigentum)
+- API responses use snake_case JSON
+- All times stored as UTC, displayed in user's timezone (default Europe/Berlin)
+- Money stored as integer cents (`amount_cents` + `currency`)
+- Soft-deletes via `deleted_at` for everything user-facing; hard-delete only via DSGVO request
+
+---
+
+## 6. Cross-Cutting Concerns
+
+### 6.1 Authentication & Authorization
+- JWT access token (15min) + refresh token (30 days, rotating, stored httpOnly cookie for web, Keychain for iOS)
+- Sign in with Apple required when iOS app is published (Apple guideline)
+- Passkey/WebAuthn for web (optional but recommended)
+- Invite-code flow (see §7.3) is the **only** way to create accounts in v1 — no public signup
+- 2FA optional via TOTP, required for Verwalter and Beirat roles
+- Role model: `verwalter`, `beirat`, `eigentuemer`, `mieter`, `dienstleister`
+- Authorization: row-level, scoped by `contact_id` → properties/units the user is associated with in Impower
+
+### 6.2 DSGVO Compliance
+- Verarbeitungsverzeichnis maintained in `/infra/docs/dsgvo/vvt.md`
+- AVV templates for every sub-processor (Impower, Deutsche Post, 360dialog/Meta, Hetzner, Postmark)
+- User-facing: in-app data export (JSON download of all personal data), account deletion in-app (Apple requirement)
+- Audit log table: who accessed what when (all reads of Mieter/Eigentümer data by Verwalter logged)
+- Data minimization: never copy more from Impower than needed for the active feature
+
+### 6.3 Accessibility (BFSG, in force since June 2025)
+- iOS: Dynamic Type support, VoiceOver labels on all interactive elements, 4.5:1 contrast minimum, no color-only signaling
+- Web: WCAG 2.2 AA, semantic HTML, keyboard navigation, focus indicators, screen-reader testing in CI
+- All forms have labels, error messages are descriptive and announced
+
+### 6.4 Internationalization
+- v1 ships **DE** and **EN**
+- v1.1 adds **TR** and **RU** (high prevalence in urban Stuttgart rentals)
+- All user-facing strings via `i18n` library; no hardcoded German in code
+
+### 6.5 Observability
+- Structured logging (JSON, with `request_id`, `user_id`, `contact_id`)
+- Sentry for exceptions (frontend + backend)
+- Health endpoint `/healthz` + `/readyz`
+- Metrics: API latency p50/p95/p99, error rate, queue depth, Impower sync lag
+
+### 6.6 Security
+- All traffic HTTPS only (Let's Encrypt via Caddy/Traefik)
+- HSTS, CSP, secure cookies
+- Secrets in `.env` (dev) or sealed-secrets / Vault (prod), never in repo
+- Pen-test before public launch
+- Dependabot / Renovate for dependency updates
+- Rate limiting per IP and per user on all endpoints
+
+---
+
+## 7. Phase 1 — Backend Foundation (4–6 weeks)
+
+**Goal:** Functioning backend with Impower sync, auth, invite codes, and a minimal admin UI. No iOS/web yet.
+
+### 7.1 Project bootstrap
+- [ ] FastAPI project skeleton with config via Pydantic Settings
+- [ ] Postgres + Redis via docker-compose
+- [ ] Alembic migrations setup
+- [ ] CI pipeline: lint (ruff), type-check (mypy), test (pytest), build Docker image
+- [ ] `/healthz` and `/readyz` endpoints
+
+### 7.2 Database — core tables
+Initial migration creates:
+
+```sql
+-- Identity
+users (id, email, password_hash, sign_in_with_apple_sub, role, contact_id_impower,
+       created_at, updated_at, deleted_at, last_login_at, mfa_secret, locale)
+sessions (id, user_id, refresh_token_hash, expires_at, user_agent, ip_hash)
+invite_codes (code, email, contact_id_impower, role, scope_json, expires_at,
+              consumed_at, created_by, created_at)
+audit_log (id, actor_user_id, action, target_type, target_id, payload_json, created_at)
+
+-- Mirror of Impower master data
+properties (id, impower_id, name, address, type, units_count, last_synced_at, raw_jsonb)
+units (id, impower_id, property_id, label, area_m2, owner_contact_id, tenant_contact_id, raw_jsonb)
+contracts (id, impower_id, type, unit_id, contact_id, start_date, end_date, raw_jsonb)
+contacts (id, impower_id, salutation, first_name, last_name, email, phone, address, raw_jsonb)
+
+-- Documents (metadata mirror; files live in SharePoint or S3)
+documents (id, impower_id, sharepoint_id, property_id, unit_id, contact_id,
+           title, type, mime_type, size_bytes, storage_url, visibility, uploaded_at)
+```
+
+### 7.3 Auth module
+- [ ] `POST /auth/invite/redeem` — exchanges invite code + email for first password setup
+- [ ] `POST /auth/login` (email + password) → access + refresh
+- [ ] `POST /auth/refresh`
+- [ ] `POST /auth/logout`
+- [ ] `POST /auth/apple` (Sign in with Apple ID token verification)
+- [ ] `POST /auth/forgot-password` → email link
+- [ ] `POST /auth/reset-password`
+- [ ] `GET /me` (current user + scope)
+- [ ] `DELETE /me` (account deletion, soft-delete with 30-day recovery window)
+- [ ] `GET /me/export` (DSGVO data export as JSON)
+
+### 7.4 Impower integration
+- [ ] OpenAPI client generated from Impower spec (commit generated code so it's reviewable)
+- [ ] `integrations/impower/client.py` — authenticated client with retry, rate-limit awareness
+- [ ] Background Celery beat jobs:
+  - Full sync nightly (properties, units, contracts, contacts)
+  - Delta sync every 15 min using `updated_since` filters where supported
+- [ ] Webhook endpoint `/webhooks/impower` — idempotent processing, signed payload verification
+- [ ] Reconciliation job: detect drift between mirror and Impower, alert on Sentry
+
+### 7.5 Invite-code flow
+- [ ] Admin-only endpoint: `POST /admin/invites` { contact_id, role, scope?, email_override? }
+- [ ] Bulk invite via CSV upload
+- [ ] Email via Postmark/Resend with deep link (`whv://invite/CODE`) + web fallback URL
+- [ ] Code: 8 chars, alphanumeric, single-use, 14-day TTL
+- [ ] After redemption, user is bound to the Impower `contact_id` and inherits read scope
+
+### 7.6 Minimal admin UI
+A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/React island — pick whichever is faster) so Luis can:
+- [ ] Search contacts (from synced mirror)
+- [ ] Send invite to a contact
+- [ ] List pending/consumed invites
+- [ ] Resend / revoke invites
+- [ ] View audit log
+
+### 7.7 Definition of Done (Phase 1)
+- Backend deployed to staging on Hetzner Cloud
+- Postman/Bruno collection committed in `backend/api-tests/`
+- Luis can invite his own personal Impower contact, redeem the invite, log in, see his properties
+- All endpoints documented in OpenAPI / Swagger UI at `/docs`
+- Test coverage ≥ 70% on services and integrations
+
+---
+
+## 8. Phase 2 — iOS App MVP (4–6 weeks)
+
+**Goal:** Shippable iOS app with the core casavi-equivalent feature set.
+
+### 8.1 Xcode project setup
+- [ ] Xcode 15+, iOS 17+ deployment target
+- [ ] Bundle identifier: `de.wagner-hausverwaltung.app`
+- [ ] SwiftUI app lifecycle, SwiftData for persistence
+- [ ] Tuist or XcodeGen for reproducible project generation (optional but recommended)
+- [ ] App Store Connect entry created with placeholder metadata
+- [ ] D-U-N-S number obtained for Wagner Hausverwaltung GmbH (do this FIRST — 1-2 weeks lead time)
+
+### 8.2 Architecture
+- MVVM with a `Repository` layer abstracting "remote + local"
+- `APIClient` actor with async/await, automatic token refresh, exponential backoff
+- `AuthStore` ObservableObject as single source of auth truth
+- SwiftData models mirror backend schemas for offline cache
+
+### 8.3 Screens (v1)
+- [ ] **Onboarding/Invite**: enter email + invite code OR Sign in with Apple
+- [ ] **Login** (returning users)
+- [ ] **Property list** (if user has multiple properties/units)
+- [ ] **Property detail**: address, type, contact card for Verwalter, quick actions
+- [ ] **Documents**: list filtered by Jahresabrechnung / Protokoll / Vertrag / Sonstiges, with search and download
+- [ ] **Tickets list**: open / closed, with status badges
+- [ ] **Ticket detail**: thread of comments, photo attachments, status timeline
+- [ ] **New ticket**: photo (camera or library), title, category, description, optional location
+- [ ] **Messages**: inbox of announcements / notifications
+- [ ] **Settings**: profile, language, notification preferences, biometrics, **delete account** (Apple requirement), support contact, privacy policy link
+- [ ] **About**: version, legal notices, third-party licenses
+
+### 8.4 Cross-screen requirements
+- [ ] Pull-to-refresh on all lists
+- [ ] Empty states with helpful copy
+- [ ] Skeleton loaders, not spinners
+- [ ] Offline banner when not connected; cached data still readable
+- [ ] Push notifications via APNs (request permission only on contextual screen, never on first launch)
+- [ ] Deep links: `whv://invite/CODE`, `whv://ticket/123`, `whv://document/456`
+- [ ] Biometric lock (Face ID / Touch ID) on app foreground, configurable
+
+### 8.5 Design system
+- [ ] Color palette: WHV brand colors + semantic tokens (success, warning, danger, info)
+- [ ] SF Symbols throughout
+- [ ] Typography: SF Pro, scaled with Dynamic Type
+- [ ] Components: Card, ListRow, StatusBadge, EmptyState, ErrorState, FormField
+
+### 8.6 Pre-submission checklist
+- [ ] App icon (1024×1024 + all sizes)
+- [ ] Screenshots: 6.9", 6.5", 5.5" iPhone (iPad optional in v1)
+- [ ] App Store description (DE + EN)
+- [ ] Keywords (DE + EN)
+- [ ] Privacy policy URL (public, on `wagner-hausverwaltung.com/datenschutz-app`)
+- [ ] App Privacy nutrition labels filled in App Store Connect
+- [ ] Demo account for App Review with seeded data
+- [ ] Review notes explaining the invite-only model
+
+### 8.7 Definition of Done (Phase 2)
+- App submitted to TestFlight, 10–20 external beta testers (real WHV owners/tenants)
+- Crash-free sessions ≥ 99.5% in TestFlight
+- App approved by Apple and live on the App Store (unlisted or public — Luis's choice)
+
+---
+
+## 9. Phase 3 — Web Portal MVP (2–3 weeks)
+
+**Goal:** Browser-based equivalent of iOS app for users who prefer desktop or non-iOS devices.
+
+### 9.1 Setup
+- [ ] Vite + React + TS + Tailwind + shadcn/ui
+- [ ] React Router v6+
+- [ ] TanStack Query for data fetching
+- [ ] Zustand for client state
+- [ ] Static build deployable to Bluehost (`portal.wagner-hausverwaltung.com`) **or** served from the same Hetzner box behind Caddy
+
+### 9.2 Pages
+Mirror iOS feature set:
+- [ ] Login / invite redemption
+- [ ] Dashboard
+- [ ] Property list & detail
+- [ ] Documents
+- [ ] Tickets
+- [ ] Messages
+- [ ] Settings (incl. account deletion, data export)
+
+### 9.3 Responsive
+- Mobile-first, but desktop-optimized layouts at md+ breakpoints
+- Print-friendly stylesheet for documents
+
+### 9.4 Definition of Done (Phase 3)
+- Deployed at `portal.wagner-hausverwaltung.com`
+- Lighthouse: Performance ≥ 90, Accessibility ≥ 95, Best Practices ≥ 95
+- Works in Safari, Chrome, Firefox, Edge (last 2 versions)
+
+---
+
+## 10. Phase 4 — Communication & Workflow (6–10 weeks)
+
+### 10.1 E-POSTBUSINESS API integration
+**Module:** `backend/app/integrations/epost/`
+
+WHV already has the API contract. Build:
+- [ ] `client.py` — auth (login → token), token caching in Redis, retry, rate-limit
+- [ ] `service.py` — `send_letter()`, `get_status()`, `bulk_send()`, `cancel()`
+- [ ] `models.py` — LetterRequest, LetterOptions (color, duplex, einschreiben, gogreen)
+- [ ] PDF rendering pipeline: Jinja2 HTML template → WeasyPrint → PDF
+- [ ] DIN-conform address position (Fensterumschlag, ~25mm from top-left)
+- [ ] Status polling worker: every 4 hours
+- [ ] Auto-archive sent letter as Impower document on the contact
+- [ ] Templates:
+  - Mahnung Hausgeld
+  - ETV-Einladung
+  - Umlaufbeschluss-Versand
+  - Jahresabrechnung-Versand (Einschreiben option)
+  - Mieterhöhung §558 BGB
+  - Generic custom-text letter
+
+**`letters` table:**
+```sql
+letters (id, contact_id, property_id, template_id, rendered_pdf_url,
+         epost_shipment_id, status, status_history jsonb,
+         options jsonb, cost_cents, page_count,
+         created_by, created_at, sent_at, delivered_at)
+```
+
+⚠️ **Single-software lock:** E-POSTBUSINESS API may only be active in one software. If currently active in Impower, must be deactivated there before WHV backend goes live.
+
+### 10.2 WhatsApp Business Cloud API integration
+**Module:** `backend/app/integrations/whatsapp/`
+
+Via 360dialog (Berlin BSP, DSGVO-friendly) — the official WhatsApp Business app on the phone must be deregistered first or a separate number used.
+
+- [ ] Webhook receiver `/webhooks/whatsapp` — verify signature, route by phone number → contact
+- [ ] Inbound message → comment on existing ticket OR new ticket
+- [ ] Outbound: free text within 24h service window; pre-approved templates outside
+- [ ] Pre-approve templates with Meta in DE:
+  - `ticket_status_update`
+  - `mahnung_hinweis`
+  - `etv_einladung_hinweis`
+  - `beschluss_hinweis`
+- [ ] Media handling: photos in WA → attached to ticket
+- [ ] DSGVO: AVV with 360dialog + Meta, processing record updated
+
+### 10.3 Multi-channel notification orchestration
+Add `preferred_channel` enum to users: `portal | email | whatsapp | epost`, with fallback chain.
+
+Notification dispatcher service:
+```python
+def notify(user, event):
+    if user.has_portal_account and channel_supports(event, "portal"):
+        send_push_and_inbox(user, event)
+    elif user.whatsapp_opt_in and within_window:
+        send_whatsapp(user, event)
+    elif user.email:
+        send_email(user, event)
+    else:
+        queue_epost(user, event)
+```
+
+### 10.4 Tickets v2 (unified inbox)
+- [ ] Verwalter sees one thread per ticket combining portal messages + email replies + WhatsApp + phone-note (manual entry)
+- [ ] Internal notes (visible only to Verwalter)
+- [ ] Assign-to (when WHV grows beyond Luis)
+- [ ] SLA timers with auto-escalation
+- [ ] Category taxonomy: Schaden, Verwaltung, Hausgeld, Sonstiges, with sub-categories
+
+### 10.5 Umlaufbeschluss module
+Per WEMoG (§23 Abs. 3 WEG), support both modes:
+- Classic (Allstimmigkeit in Textform)
+- Mehrheits-Umlaufbeschluss (requires prior ETV majority enabling it)
+
+```sql
+circular_resolutions (id, property_id, title, description, mode, status,
+                      pdf_url, opens_at, closes_at, required_quorum,
+                      created_by, created_at, decided_at, result, result_pdf_url)
+circular_votes (id, resolution_id, owner_contact_id, choice,
+                voted_at, ip_hash, signature_method, evidence_jsonb)
+```
+
+- [ ] Verwalter creates resolution (rich text editor + optional PDF attachment)
+- [ ] Dispatcher routes invitation per `preferred_channel` (incl. ePost for offline owners)
+- [ ] Owner votes in portal/app: clickable Ja/Nein/Enthaltung + confirmation email
+- [ ] Live quorum view for Verwalter
+- [ ] At `closes_at`, auto-tally, generate final PDF with vote log, upload to Impower
+
+### 10.6 ETV digital (hybrid sessions, post-WEMoG)
+- [ ] Agenda builder with TOPs
+- [ ] Digital invitations with calendar `.ics` attachment
+- [ ] Vollmacht (proxy) digital
+- [ ] During session: live voting via app, Verwalter dashboard with results
+- [ ] Auto-generated minutes draft from votes
+
+### 10.7 Belegeinsicht
+- [ ] Pre-ETV: owners can browse all invoices of the Jahresabrechnung in the portal (huge time-saver vs. in-person inspection)
+- [ ] Documents pulled from Impower or SharePoint, ACL-checked, watermarked with viewer name + timestamp
+
+### 10.8 Definition of Done (Phase 4)
+- All four channels (portal, email, WhatsApp, ePost) live and routed via dispatcher
+- At least one Umlaufbeschluss successfully run end-to-end with a real WEG
+- One ETV held in hybrid mode
+
+---
+
+## 11. Phase 5 — AI Layer (8–12 weeks, parallelizable with Phase 4)
+
+**Goal:** Make WHV the only Hausverwaltung in the segment with first-class AI features.
+
+### 11.1 RAG service
+**Separate service:** `rag/` → deployed as `ai.wagner-hausverwaltung.com`
+- [ ] Document ingestion from SharePoint via Microsoft Graph API (webhooks on Drive)
+- [ ] Parsing pipeline: Apache Tika / Unstructured.io / Docling (Luis to evaluate)
+- [ ] Structured chunking (TOP-wise for protocols, position-wise for Jahresabrechnungen)
+- [ ] Embeddings: `multilingual-e5-large` (Luis already familiar)
+- [ ] Vector store: pgvector (same Postgres) or Qdrant (separate)
+- [ ] **ACL-aware retrieval:** every chunk tagged with `tenant_id` (property), `unit_id`, `sensitivity`. Hard filter BEFORE vector search.
+- [ ] Role-differentiated answers:
+  - Verwalter → all
+  - Eigentümer → their WEG + personal docs
+  - Mieter → their contract + Hausordnung
+- [ ] Query API: `POST /ai/ask` { question, conversation_id? } → streaming response with citations
+- [ ] Evaluation harness: synthetic QA sets per property, regression tracking — Luis's PhD research applies directly
+
+### 11.2 Verbrauchs-Anomaly-Detection
+- [ ] Pull consumption data (Heizung, Wasser, Strom) from Impower / HKVO data
+- [ ] Per-unit baseline + comparison to similar units (same property, similar Wohnfläche, similar Personenzahl)
+- [ ] Statistical outlier detection (z-score or isolation forest)
+- [ ] Proactive push: "Deine Heizkosten Q1 lagen 38% über Vergleichswohnungen — möglicher Hydraulikabgleich, Termin vereinbaren?"
+
+### 11.3 Predictive maintenance
+- [ ] Inventory of building systems (Heizung, Aufzug, Feuerlöscher, Trinkwasser, Rauchmelder) per property
+- [ ] Wartungshistorie + Anlagenalter
+- [ ] Failure-pattern model (Luis's PhD spare-parts work transfers structurally)
+- [ ] Beirats-Cockpit: budget forecasts, IHR-Entnahmerate projections
+
+### 11.4 Voice-Schadenmeldung
+- [ ] On-device Whisper or server-side
+- [ ] LLM classifies category, extracts location/details
+- [ ] Auto-creates ticket draft, asks for photo confirmation
+
+### 11.5 AR-Schadensaufnahme (iOS-only, optional)
+- [ ] RoomPlan API (iPhone Pro)
+- [ ] 3D room model + damage marker
+- [ ] Handworker sees position in 3D when opening the ticket
+
+### 11.6 Definition of Done (Phase 5)
+- RAG answering ≥ 80% of common questions correctly (eval set required)
+- Verbrauchs-Anomalien produce ≥ 1 actionable insight per property per year on average
+- At least one predictive maintenance alert validated as accurate
+
+---
+
+## 12. Deployment
+
+### 12.1 Environments
+- **dev** — local via docker-compose
+- **staging** — `staging.api.wagner-hausverwaltung.com` on Hetzner CX22 in Nürnberg
+- **prod** — `api.wagner-hausverwaltung.com` on Hetzner CX32 (upgradeable)
+
+### 12.2 Deployment process
+- GitHub Actions on push to `main` → build Docker images → push to registry → SSH deploy
+- Migrations run automatically before app start (with backup snapshot first)
+- Blue-green or rolling restart via Docker Compose
+- Manual approval gate for prod
+
+### 12.3 Backups
+- Postgres: daily full + WAL streaming to off-site (Backblaze B2)
+- 30-day retention
+- Quarterly restore drill
+
+---
+
+## 13. App Store Submission Checklist
+
+Pre-requisites (do these first, in parallel with development):
+- [ ] D-U-N-S number for WHV GmbH (1–2 weeks)
+- [ ] Apple Developer Program enrollment as **Organization** (1–4 weeks Apple verification)
+- [ ] Apple Developer agreements signed, banking + tax info filled in App Store Connect
+- [ ] Privacy policy live on a public URL
+- [ ] Terms of service / AGB live on a public URL
+- [ ] Bundle ID registered, App Store Connect app entry created
+
+Submission-time:
+- [ ] App Privacy nutrition labels accurately filled
+- [ ] Screenshots in all required sizes
+- [ ] Description, keywords, support URL, marketing URL
+- [ ] Demo account credentials in review notes
+- [ ] Account deletion functional in-app
+- [ ] Sign in with Apple if any other social login is offered
+- [ ] No private API usage, no Enterprise distribution
+
+---
+
+## 14. Open Decisions
+
+| # | Decision | Default if undecided |
+|---|---|---|
+| D1 | Self-host vs. managed Postgres | Self-host on Hetzner |
+| D2 | pgvector vs. Qdrant | pgvector (one less service) |
+| D3 | Public vs. unlisted App Store | Public + invite-gating |
+| D4 | WhatsApp via 360dialog vs. Meta direct | 360dialog (faster onboarding) |
+| D5 | Single GmbH-app vs. multi-tenant SaaS | Single now, multi-tenant-ready schemas |
+| D6 | Web portal hosted on Bluehost (static) vs. Hetzner | Hetzner — simpler ops |
+| D7 | RAG embedding model | `multilingual-e5-large` |
+
+Document every decision as an ADR in `infra/docs/adr/NNNN-title.md` once made.
+
+---
+
+## 15. Phasing Summary
+
+| Phase | Duration | Output |
+|---|---|---|
+| 1 | 4–6 wks | Backend live on staging, invite flow works |
+| 2 | 4–6 wks | iOS app on TestFlight, then App Store |
+| 3 | 2–3 wks | Web portal live |
+| 4 | 6–10 wks | Multi-channel + Umlaufbeschluss + ETV digital |
+| 5 | 8–12 wks | RAG, anomaly detection, predictive maintenance |
+
+Phases 4 and 5 can run partially in parallel. Total to feature-complete: ~24–37 weeks of focused work, realistic for a side-project pace given Luis's PhD + WHV operations: budget 9–15 months.
+
+---
+
+## 16. Conventions for Claude Code
+
+When working on this repo:
+1. **Read this file first**, then the relevant phase section, before writing any code.
+2. **Propose a plan before implementing** anything non-trivial. Wait for confirmation.
+3. **Write tests** alongside features. No untested business logic.
+4. **Keep secrets out of the repo.** Use `.env.example` to document required env vars.
+5. **Prefer composition over inheritance**, **explicit over implicit**, **boring tech over novel**.
+6. **Always create a migration** when changing the schema. Never edit applied migrations.
+7. **Document any deviation from this spec** in `infra/docs/adr/`.
+8. **German legal terms stay German.** Never translate Eigentümer, WEG, Sondereigentum, Hausgeld, Umlaufbeschluss, etc.
+9. **When in doubt about a feature scope, ask.** This document is the spec; surprises in scope creep are not welcome.
