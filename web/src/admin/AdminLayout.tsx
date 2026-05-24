@@ -1,14 +1,10 @@
 import { useState, type MouseEvent, type ReactNode } from "react";
-import {
-  Link as RouterLink,
-  matchPath,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   AppBar,
   Avatar,
   Box,
+  Button,
   Chip,
   Container,
   Divider,
@@ -18,8 +14,6 @@ import {
   Menu,
   MenuItem,
   Stack,
-  Tab,
-  Tabs,
   Toolbar,
   Typography,
   useMediaQuery,
@@ -45,11 +39,11 @@ function initialsOf(email: string): string {
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-// Mirrors the portal Layout but for Verwalter use. The nav is a horizontal
-// tab strip (dashboard / tickets / resolutions / invites / audit), and the
-// header shows the "Admin" chip so the operator always knows which surface
-// they're on. Auth, theme + locale come from the same providers as the
-// portal — admin SPA is a sibling routed surface, not a separate app.
+// Admin shell — mirrors the portal Layout 1:1 so the two surfaces feel like
+// the same product. The only differences are the "Admin" pill next to the
+// logo, admin-specific nav targets, and a "Portal" shortcut in the avatar
+// menu instead of "Settings" (the portal is where the Verwalter goes to act
+// as a regular user when needed).
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
@@ -65,6 +59,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     navigate("/login", { replace: true });
   };
 
+  const openMenu = (e: MouseEvent<HTMLElement>) => setMenuAnchor(e.currentTarget);
+  const closeMenu = () => setMenuAnchor(null);
+
+  // Active nav entry by longest-prefix path match. /admin/tickets/{id} keeps
+  // the Tickets button visually selected via the `current-page` data attr —
+  // MUI doesn't have a built-in active state on Button, so we just bump
+  // fontWeight + add a subtle background.
   const NAV: { to: string; label: string }[] = [
     { to: "/admin", label: t("admin.dashboard") },
     { to: "/admin/tickets", label: t("admin.tickets") },
@@ -72,12 +73,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { to: "/admin/invites", label: t("admin.invites") },
     { to: "/admin/audit", label: t("admin.audit") },
   ];
-
-  // Active tab: longest matching prefix. /admin/tickets/{id} stays on Tickets.
-  const activeTab = (() => {
+  const activePath = (() => {
     const sorted = [...NAV].sort((a, b) => b.to.length - a.to.length);
     for (const item of sorted) {
-      if (matchPath({ path: item.to, end: false }, location.pathname)) {
+      if (
+        location.pathname === item.to ||
+        location.pathname.startsWith(item.to + "/")
+      ) {
         return item.to;
       }
     }
@@ -140,92 +142,98 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
             <Box sx={{ flex: 1 }} />
 
-            <LanguageSwitcher />
-            <ColorSchemeToggle />
             {user && (
-              <IconButton
-                onClick={(e: MouseEvent<HTMLElement>) =>
-                  setMenuAnchor(e.currentTarget)
-                }
-                size="small"
-                aria-label={user.email}
-                sx={{ ml: 0.5 }}
-              >
-                <Avatar
-                  src={
-                    user.avatar_url
-                      ? `${API_BASE_URL}${user.avatar_url}`
-                      : undefined
-                  }
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    bgcolor: "primary.main",
-                    color: "primary.contrastText",
-                    fontSize: "0.85rem",
+              <>
+                {isWide && (
+                  <Stack direction="row" spacing={0.5} sx={{ mr: 1 }}>
+                    {NAV.map((item) => (
+                      <Button
+                        key={item.to}
+                        component={RouterLink}
+                        to={item.to}
+                        color="inherit"
+                        size="small"
+                        sx={{
+                          fontWeight: activePath === item.to ? 700 : 500,
+                          bgcolor:
+                            activePath === item.to
+                              ? "action.selected"
+                              : "transparent",
+                        }}
+                      >
+                        {item.label}
+                      </Button>
+                    ))}
+                  </Stack>
+                )}
+                <LanguageSwitcher />
+                <ColorSchemeToggle />
+                <IconButton
+                  onClick={openMenu}
+                  size="small"
+                  aria-label={user.email}
+                  sx={{ ml: 0.5 }}
+                >
+                  <Avatar
+                    src={
+                      user.avatar_url
+                        ? `${API_BASE_URL}${user.avatar_url}`
+                        : undefined
+                    }
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      bgcolor: "primary.main",
+                      color: "primary.contrastText",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {initialsOf(user.email)}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  anchorEl={menuAnchor}
+                  open={Boolean(menuAnchor)}
+                  onClose={closeMenu}
+                  slotProps={{
+                    paper: { sx: { minWidth: 240 } },
                   }}
                 >
-                  {initialsOf(user.email)}
-                </Avatar>
-              </IconButton>
+                  <MenuItem disabled sx={{ opacity: "1 !important" }}>
+                    <Stack spacing={0} sx={{ overflow: "hidden" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600 }}
+                        noWrap
+                      >
+                        {user.email}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {user.role}
+                      </Typography>
+                    </Stack>
+                  </MenuItem>
+                  <Divider />
+                  <MenuItem
+                    component={RouterLink}
+                    to="/"
+                    onClick={closeMenu}
+                  >
+                    <ListItemIcon>
+                      <OpenInNewIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t("common.portal")}</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={onLogout}>
+                    <ListItemIcon>
+                      <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t("common.logout")}</ListItemText>
+                  </MenuItem>
+                </Menu>
+              </>
             )}
-            <Menu
-              anchorEl={menuAnchor}
-              open={Boolean(menuAnchor)}
-              onClose={() => setMenuAnchor(null)}
-              slotProps={{ paper: { sx: { minWidth: 240 } } }}
-            >
-              {user && (
-                <MenuItem disabled sx={{ opacity: "1 !important" }}>
-                  <Stack spacing={0} sx={{ overflow: "hidden" }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-                      {user.email}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {user.role}
-                    </Typography>
-                  </Stack>
-                </MenuItem>
-              )}
-              <Divider />
-              <MenuItem
-                component={RouterLink}
-                to="/"
-                onClick={() => setMenuAnchor(null)}
-              >
-                <ListItemIcon>
-                  <OpenInNewIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Portal</ListItemText>
-              </MenuItem>
-              <MenuItem onClick={onLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>{t("common.logout")}</ListItemText>
-              </MenuItem>
-            </Menu>
           </Toolbar>
-
-          <Tabs
-            value={activeTab}
-            variant={isWide ? "standard" : "scrollable"}
-            scrollButtons={isWide ? false : "auto"}
-            sx={{
-              minHeight: 40,
-              "& .MuiTab-root": { minHeight: 40, py: 0.75 },
-            }}
-          >
-            {NAV.map((item) => (
-              <Tab
-                key={item.to}
-                value={item.to}
-                label={item.label}
-                component={RouterLink}
-                to={item.to}
-              />
-            ))}
-          </Tabs>
         </Container>
       </AppBar>
 
