@@ -1,0 +1,153 @@
+"""Test helpers that create DB rows committed against the test engine.
+
+Each helper picks unique strings (UUID-suffixed) so tests can run serially
+without colliding, even though they share the same database.
+"""
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+
+from app.auth.passwords import hash_password
+from app.models import (
+    Contact,
+    ContactKind,
+    Contract,
+    ContractContact,
+    ContractType,
+    InviteCode,
+    Organization,
+    Property,
+    PropertyState,
+    PropertyType,
+    User,
+    UserRole,
+)
+
+
+def _short_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+async def make_org(engine: AsyncEngine) -> Organization:
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        org = Organization(name=f"Test Org {_short_id()}")
+        s.add(org)
+        await s.commit()
+        await s.refresh(org)
+    return org
+
+
+async def make_invite(
+    engine: AsyncEngine,
+    *,
+    org: Organization | None = None,
+    role: UserRole = UserRole.VERWALTER,
+    contact_id_impower: int | None = None,
+    expires_in_days: int = 14,
+    consumed: bool = False,
+) -> tuple[InviteCode, Organization]:
+    if org is None:
+        org = await make_org(engine)
+    code = _short_id().upper()
+    email = f"user-{_short_id()}@test.de"
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        invite = InviteCode(
+            organization_id=org.id,
+            code=code,
+            email=email,
+            role=role,
+            contact_id_impower=contact_id_impower,
+            expires_at=datetime.now(UTC) + timedelta(days=expires_in_days),
+            consumed_at=datetime.now(UTC) if consumed else None,
+        )
+        s.add(invite)
+        await s.commit()
+    return invite, org
+
+
+async def make_user(
+    engine: AsyncEngine,
+    *,
+    org: Organization | None = None,
+    role: UserRole = UserRole.VERWALTER,
+    contact_id_impower: int | None = None,
+    password: str = "testing-pw-1234",
+) -> tuple[User, str, str]:
+    """Returns (user, email, password)."""
+    if org is None:
+        org = await make_org(engine)
+    email = f"user-{_short_id()}@test.de"
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        user = User(
+            organization_id=org.id,
+            email=email,
+            password_hash=hash_password(password),
+            role=role,
+            contact_id_impower=contact_id_impower,
+        )
+        s.add(user)
+        await s.commit()
+        await s.refresh(user)
+    return user, email, password
+
+
+async def make_property(
+    engine: AsyncEngine,
+    *,
+    org: Organization,
+    name: str | None = None,
+) -> Property:
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        prop = Property(
+            organization_id=org.id,
+            name=name or f"Test Property {_short_id()}",
+            type=PropertyType.STRATA,
+            state=PropertyState.READY,
+            city="Stuttgart",
+        )
+        s.add(prop)
+        await s.commit()
+        await s.refresh(prop)
+    return prop
+
+
+async def make_contact_with_contract_link(
+    engine: AsyncEngine,
+    *,
+    org: Organization,
+    prop: Property,
+    contact_impower_id: int,
+) -> tuple[Contact, Contract]:
+    """Wires up a Contact (with impower_id) → Contract → Property via the junction table.
+
+    Used to test EIGENTUEMER scope on /me/properties.
+    """
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        contact = Contact(
+            organization_id=org.id,
+            impower_id=contact_impower_id,
+            kind=ContactKind.PERSON,
+            first_name="Test",
+            last_name=f"Eigentuemer-{_short_id()}",
+        )
+        s.add(contact)
+        await s.flush()
+        contract = Contract(
+            organization_id=org.id,
+            property_id=prop.id,
+            type=ContractType.OWNER,
+        )
+        s.add(contract)
+        await s.flush()
+        s.add(ContractContact(contract_id=contract.id, contact_id=contact.id))
+        await s.commit()
+        await s.refresh(contact)
+        await s.refresh(contract)
+    return contact, contract
