@@ -28,7 +28,7 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_KEY);
 }
 
-const API_BASE_URL =
+export const API_BASE_URL =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (import.meta as any).env?.VITE_API_BASE_URL ?? "/api";
 

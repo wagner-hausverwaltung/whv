@@ -1,0 +1,117 @@
+{% extends "admin/base.html" %}
+{% block title %}Umlaufbeschluss — WHV Admin{% endblock %}
+{% block content %}
+<p><a href="/admin-ui/resolutions" class="muted">← Umlaufbeschlüsse</a></p>
+
+{% if error %}
+<p style="color: #dc2626;">{{ error }}</p>
+{% elif resolution %}
+
+<header style="margin-bottom: 1rem;">
+  <h1 style="margin-bottom: 0.25rem;">{{ resolution.title }}</h1>
+  <p class="muted">
+    <span class="status-{% if resolution.status.value == 'ANGENOMMEN' %}pending{% elif resolution.status.value == 'ABGELEHNT' %}expired{% elif resolution.status.value == 'OFFEN' %}pending{% else %}consumed{% endif %}">
+      {{ resolution.status.value }}
+    </span>
+    · {{ resolution.mode.value }}
+    · öffnet {{ resolution.opens_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    · schließt {{ resolution.closes_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {% if resolution.decided_at %}· beschlossen {{ resolution.decided_at.strftime('%Y-%m-%d %H:%M') }} UTC{% endif %}
+  </p>
+  <p class="muted">Liegenschaft: <strong>{{ property_name }}</strong></p>
+</header>
+
+<section class="stats" style="margin-bottom: 1.5rem;">
+  <div class="stat">
+    <div class="n">{{ tally.eligible_voters }}</div>
+    <div class="label">Stimmberechtigt</div>
+  </div>
+  <div class="stat">
+    <div class="n">{{ tally.cast }}</div>
+    <div class="label">Abgegeben</div>
+  </div>
+  <div class="stat">
+    <div class="n" style="color: #16a34a;">{{ tally.ja }}</div>
+    <div class="label">JA</div>
+  </div>
+  <div class="stat">
+    <div class="n" style="color: #dc2626;">{{ tally.nein }}</div>
+    <div class="label">NEIN</div>
+  </div>
+  <div class="stat">
+    <div class="n">{{ tally.enthaltung }}</div>
+    <div class="label">Enthaltung</div>
+  </div>
+  <div class="stat">
+    <div class="n">
+      {% if resolution.mode.value == 'KLASSISCH' %}
+        {% if tally.unanimous_yes %}✓{% else %}✗{% endif %}
+      {% else %}
+        {{ resolution.required_quorum }}
+      {% endif %}
+    </div>
+    <div class="label">
+      {% if resolution.mode.value == 'KLASSISCH' %}Einstimmig?{% else %}Quorum{% endif %}
+    </div>
+  </div>
+</section>
+
+{% if resolution.status.value == 'OFFEN' %}
+<form method="POST" action="/admin-ui/resolutions/{{ resolution.id }}/close"
+      onsubmit="return confirm('Beschluss jetzt schließen und auswerten? Diese Aktion ist nicht reversibel — die Frist {{ resolution.closes_at.strftime('%Y-%m-%d %H:%M') }} UTC wird damit übergangen.');"
+      style="margin-bottom: 1.5rem;">
+  <button type="submit" class="secondary">Jetzt schließen + auswerten</button>
+  <small class="muted" style="margin-left: 0.75rem;">
+    Der nächtliche Beat-Task schließt offene Beschlüsse automatisch zum Fristende.
+  </small>
+</form>
+{% endif %}
+
+{% if resolution.result %}
+<div class="flash-success" style="background: #f4f4f4; border-color: var(--pico-primary);">
+  <strong>Ergebnis:</strong> {{ resolution.result }}
+  {% if resolution.result_pdf_url %}
+  · <a href="/admin/resolutions/{{ resolution.id }}/result.pdf">Protokoll-PDF herunterladen</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<section style="margin: 1.5rem 0;">
+  <h2 style="font-size: 1rem;">Beschlusstext</h2>
+  <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; white-space: pre-wrap;">{{ resolution.description }}</div>
+</section>
+
+<section style="margin: 1.5rem 0;">
+  <h2 style="font-size: 1rem;">Stimmenprotokoll ({{ votes|length }})</h2>
+  {% if votes %}
+  <table>
+    <thead>
+      <tr>
+        <th>Eigentümer (Impower-ID)</th>
+        <th>Stimme</th>
+        <th>Abgegeben (UTC)</th>
+        <th>Methode</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in votes %}
+      <tr>
+        <td class="code">{{ v.owner_contact_id_impower }}</td>
+        <td>
+          {% if v.choice.value == 'JA' %}<span style="color: #16a34a; font-weight: 600;">JA</span>
+          {% elif v.choice.value == 'NEIN' %}<span style="color: #dc2626; font-weight: 600;">NEIN</span>
+          {% else %}<span class="muted">ENTHALTUNG</span>{% endif %}
+        </td>
+        <td class="muted">{{ v.voted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="muted">{{ v.signature_method }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Stimmen abgegeben.</p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

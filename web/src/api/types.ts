@@ -129,3 +129,78 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   WARTET_AUF_KUNDE: "Wartet auf Antwort",
   GESCHLOSSEN: "Geschlossen",
 };
+
+// --- Umlaufbeschluss (circular resolution) ----------------------------------
+
+export type ResolutionMode = "KLASSISCH" | "MEHRHEITS";
+
+export type ResolutionStatus =
+  | "ENTWURF"
+  | "OFFEN"
+  | "GESCHLOSSEN"
+  | "ANGENOMMEN"
+  | "ABGELEHNT";
+
+export type VoteChoice = "JA" | "NEIN" | "ENTHALTUNG";
+
+export interface ResolutionTally {
+  eligible_voters: number;
+  cast: number;
+  ja: number;
+  nein: number;
+  enthaltung: number;
+  quorum_met: boolean;
+  unanimous_yes: boolean;
+}
+
+export interface VoteResponse {
+  id: string;
+  resolution_id: string;
+  owner_contact_id_impower: number;
+  choice: VoteChoice;
+  voted_at: string;
+  signature_method: string;
+}
+
+export interface ResolutionResponse {
+  id: string;
+  property_id: string;
+  title: string;
+  mode: ResolutionMode;
+  status: ResolutionStatus;
+  opens_at: string;
+  closes_at: string;
+  required_quorum: number;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface ResolutionDetailResponse extends ResolutionResponse {
+  description: string;
+  pdf_url: string | null;
+  result_pdf_url: string | null;
+  result: string | null;
+  tally: ResolutionTally;
+  votes: VoteResponse[];
+  my_vote: VoteResponse | null;
+  am_eligible: boolean;
+}
+
+export const RESOLUTION_STATUS_LABELS: Record<ResolutionStatus, string> = {
+  ENTWURF: "Entwurf",
+  OFFEN: "Abstimmung läuft",
+  GESCHLOSSEN: "Geschlossen",
+  ANGENOMMEN: "Angenommen",
+  ABGELEHNT: "Abgelehnt",
+};
+
+export const RESOLUTION_MODE_LABELS: Record<ResolutionMode, string> = {
+  KLASSISCH: "Allstimmigkeit (§23 Abs. 3)",
+  MEHRHEITS: "Mehrheits-Umlaufbeschluss",
+};
+
+export const VOTE_CHOICE_LABELS: Record<VoteChoice, string> = {
+  JA: "JA",
+  NEIN: "NEIN",
+  ENTHALTUNG: "Enthaltung",
+};

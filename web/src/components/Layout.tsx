@@ -32,6 +32,9 @@ export function Layout({ children }: { children: ReactNode }) {
               <Link to="/tickets" className="muted hover:text-whv-blue">
                 Tickets
               </Link>
+              <Link to="/resolutions" className="muted hover:text-whv-blue">
+                Beschlüsse
+              </Link>
               <Link
                 to="/settings"
                 className="muted hover:text-whv-blue hidden sm:inline"

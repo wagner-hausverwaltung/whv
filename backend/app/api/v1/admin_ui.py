@@ -25,12 +25,16 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.integrations.email.invites import render_invite_email
 from app.models import (
     AuditLog,
+    CircularResolution,
+    CircularVote,
     Contact,
     ContactKind,
     Contract,
     ContractContact,
     InviteCode,
     Property,
+    ResolutionMode,
+    ResolutionStatus,
     Ticket,
     TicketCategory,
     TicketMessage,
@@ -878,6 +882,207 @@ async def ticket_participant_remove_submit(
     )
     return RedirectResponse(
         f"/admin-ui/tickets/{ticket_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+# --- Umlaufbeschlüsse ---------------------------------------------------------
+
+
+@router.get("/resolutions", response_class=HTMLResponse)
+async def resolutions_list(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    status_filter: str | None = None,
+) -> HTMLResponse:
+    import contextlib
+
+    stmt = select(CircularResolution).where(
+        CircularResolution.organization_id == current_user.organization_id
+    )
+    if status_filter:
+        with contextlib.suppress(ValueError):
+            stmt = stmt.where(CircularResolution.status == ResolutionStatus(status_filter))
+    stmt = stmt.order_by(CircularResolution.closes_at.desc()).limit(200)
+    rows = (await session.scalars(stmt)).all()
+    return templates.TemplateResponse(
+        request,
+        "admin/resolutions_list.html",
+        {
+            "current_user": current_user,
+            "resolutions": rows,
+            "status_filter": status_filter,
+            "statuses": [s.value for s in ResolutionStatus],
+        },
+    )
+
+
+@router.get("/resolutions/new", response_class=HTMLResponse)
+async def resolutions_new_form(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+) -> HTMLResponse:
+    now = datetime.now(UTC)
+    # `datetime-local` input expects naive ISO without timezone — the POST
+    # handler interprets it as UTC. Default closes_at = +7 days, a common
+    # WEG voting window.
+    default_opens = now.strftime("%Y-%m-%dT%H:%M")
+    default_closes = (now + timedelta(days=7)).strftime("%Y-%m-%dT23:59")
+    return templates.TemplateResponse(
+        request,
+        "admin/resolutions_new.html",
+        {
+            "current_user": current_user,
+            "error": None,
+            "default_opens": default_opens,
+            "default_closes": default_closes,
+        },
+    )
+
+
+@router.post("/resolutions/new")
+async def resolutions_new_submit(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    property_id: Annotated[str, Form()],
+    title: Annotated[str, Form()],
+    description: Annotated[str, Form()],
+    mode: Annotated[str, Form()],
+    opens_at: Annotated[str, Form()],
+    closes_at: Annotated[str, Form()],
+    required_quorum: Annotated[int, Form()] = 0,
+) -> Response:
+    from app.api.v1.circular import create_resolution
+    from app.schemas.circular import CreateResolutionRequest
+
+    # `datetime-local` posts ISO without timezone; treat as UTC.
+    def _parse_local(value: str) -> datetime:
+        return datetime.fromisoformat(value).replace(tzinfo=UTC)
+
+    try:
+        req = CreateResolutionRequest(
+            property_id=uuid.UUID(property_id),
+            title=title.strip(),
+            description=description.strip(),
+            mode=ResolutionMode(mode),
+            opens_at=_parse_local(opens_at),
+            closes_at=_parse_local(closes_at),
+            required_quorum=required_quorum,
+        )
+    except (ValueError, KeyError) as exc:
+        now = datetime.now(UTC)
+        return templates.TemplateResponse(
+            request,
+            "admin/resolutions_new.html",
+            {
+                "current_user": current_user,
+                "error": f"Ungültige Eingabe: {exc}",
+                "default_opens": now.strftime("%Y-%m-%dT%H:%M"),
+                "default_closes": (now + timedelta(days=7)).strftime("%Y-%m-%dT23:59"),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        result = await create_resolution(
+            req=req,
+            current_user=current_user,
+            session=session,
+            email_client=email_client,
+        )
+    except HTTPException as exc:
+        now = datetime.now(UTC)
+        return templates.TemplateResponse(
+            request,
+            "admin/resolutions_new.html",
+            {
+                "current_user": current_user,
+                "error": exc.detail,
+                "default_opens": now.strftime("%Y-%m-%dT%H:%M"),
+                "default_closes": (now + timedelta(days=7)).strftime("%Y-%m-%dT23:59"),
+            },
+            status_code=exc.status_code,
+        )
+
+    return RedirectResponse(
+        f"/admin-ui/resolutions/{result.id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.get("/resolutions/{resolution_id}", response_class=HTMLResponse)
+async def resolutions_detail(
+    request: Request,
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    from app.services.circular import tally as compute_tally
+
+    resolution = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if resolution is None:
+        return templates.TemplateResponse(
+            request,
+            "admin/resolutions_detail.html",
+            {
+                "current_user": current_user,
+                "resolution": None,
+                "error": "Beschluss nicht gefunden.",
+            },
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    votes = list(
+        (
+            await session.scalars(
+                select(CircularVote)
+                .where(CircularVote.resolution_id == resolution.id)
+                .order_by(CircularVote.voted_at)
+            )
+        ).all()
+    )
+    tally = await compute_tally(session, resolution)
+    prop = await session.scalar(select(Property).where(Property.id == resolution.property_id))
+    return templates.TemplateResponse(
+        request,
+        "admin/resolutions_detail.html",
+        {
+            "current_user": current_user,
+            "resolution": resolution,
+            "votes": votes,
+            "tally": tally,
+            "property_name": prop.name if prop else "—",
+            "error": None,
+        },
+    )
+
+
+@router.post("/resolutions/{resolution_id}/close")
+async def resolutions_close_submit(
+    request: Request,
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> Response:
+    from app.api.v1.circular import close_resolution
+
+    await close_resolution(
+        resolution_id=resolution_id,
+        current_user=current_user,
+        session=session,
+        email_client=email_client,
+    )
+    return RedirectResponse(
+        f"/admin-ui/resolutions/{resolution_id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

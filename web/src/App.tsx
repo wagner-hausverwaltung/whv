@@ -9,6 +9,8 @@ import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
 import { PropertyListPage } from "@/pages/PropertyListPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { ResolutionDetailPage } from "@/pages/ResolutionDetailPage";
+import { ResolutionListPage } from "@/pages/ResolutionListPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { TicketDetailPage } from "@/pages/TicketDetailPage";
 import { TicketListPage } from "@/pages/TicketListPage";
@@ -92,6 +94,26 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <TicketDetailPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/resolutions"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ResolutionListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/resolutions/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ResolutionDetailPage />
                 </Layout>
               </ProtectedRoute>
             }
