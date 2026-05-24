@@ -1,0 +1,55 @@
+{
+  "common": {
+    "appName": "Wagner Hausverwaltung",
+    "portal": "Portal",
+    "loading": "Wird geladen…",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "back": "Zurück",
+    "logout": "Abmelden",
+    "settings": "Einstellungen",
+    "language": "Sprache",
+    "appearance": "Erscheinungsbild",
+    "appearanceLight": "Hell",
+    "appearanceDark": "Dunkel",
+    "appearanceSystem": "System",
+    "error": "Ein Fehler ist aufgetreten."
+  },
+  "nav": {
+    "properties": "Objekte",
+    "tickets": "Tickets",
+    "resolutions": "Beschlüsse"
+  },
+  "login": {
+    "title": "Anmelden",
+    "subtitle": "Mit Ihrer E-Mail-Adresse und Ihrem Passwort anmelden.",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "forgot": "Passwort vergessen?",
+    "noAccount": "Kein Konto?",
+    "redeemInvite": "Einladungscode einlösen",
+    "failed": "Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen."
+  },
+  "properties": {
+    "title": "Meine Objekte",
+    "verwalterNote": "Sie sind als Verwalter angemeldet und sehen alle Objekte der Organisation.",
+    "adminLink": "Verwaltungsfunktionen →",
+    "empty": "Keine Objekte gefunden.",
+    "unbound": "Ihr Konto ist noch nicht mit einem Impower-Kontakt verknüpft. Bitte wenden Sie sich an die Hausverwaltung.",
+    "loadFailed": "Objekte konnten nicht geladen werden."
+  },
+  "tickets": {
+    "title": "Meine Tickets",
+    "newButton": "Neues Ticket",
+    "empty": "Sie haben noch keine Tickets eröffnet. Verwenden Sie diesen Kanal für Anfragen, Schadensmeldungen oder Hinweise an die Hausverwaltung.",
+    "loadFailed": "Tickets konnten nicht geladen werden.",
+    "lastActivity": "letzte Aktivität"
+  },
+  "resolutions": {
+    "title": "Umlaufbeschlüsse",
+    "subtitle": "Hier sehen Sie alle Umlaufbeschlüsse zu Ihren Liegenschaften und können während der Frist Ihre Stimme abgeben.",
+    "empty": "Keine Beschlüsse vorhanden.",
+    "deadline": "Frist"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "common": {
+    "appName": "Wagner Hausverwaltung",
+    "portal": "Portal",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "logout": "Sign out",
+    "settings": "Settings",
+    "language": "Language",
+    "appearance": "Appearance",
+    "appearanceLight": "Light",
+    "appearanceDark": "Dark",
+    "appearanceSystem": "System",
+    "error": "Something went wrong."
+  },
+  "nav": {
+    "properties": "Properties",
+    "tickets": "Tickets",
+    "resolutions": "Resolutions"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Sign in with your email address and password.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "forgot": "Forgot password?",
+    "noAccount": "No account?",
+    "redeemInvite": "Redeem invite code",
+    "failed": "Sign-in failed. Check email or password."
+  },
+  "properties": {
+    "title": "My properties",
+    "verwalterNote": "You are signed in as a Verwalter and see all properties in the organisation.",
+    "adminLink": "Admin functions →",
+    "empty": "No properties found.",
+    "unbound": "Your account is not yet linked to an Impower contact. Please contact the property manager.",
+    "loadFailed": "Properties could not be loaded."
+  },
+  "tickets": {
+    "title": "My tickets",
+    "newButton": "New ticket",
+    "empty": "You have not opened any tickets yet. Use this channel for enquiries, damage reports, or notes to the property manager.",
+    "loadFailed": "Tickets could not be loaded.",
+    "lastActivity": "last activity"
+  },
+  "resolutions": {
+    "title": "Circular resolutions",
+    "subtitle": "All circular resolutions for your properties. Cast your vote here while the deadline is open.",
+    "empty": "No resolutions.",
+    "deadline": "Deadline"
+  }
+}

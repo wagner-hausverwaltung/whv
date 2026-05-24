@@ -1,10 +1,23 @@
 import type { ReactNode } from "react";
+import {
+  AppBar,
+  Box,
+  Card,
+  CardContent,
+  Stack,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { LibraryBackdrop } from "@/components/LibraryBackdrop";
 
 // Shared chrome for pre-auth pages (login, invite redeem, forgot/reset).
-// Library background (Stadtbibliothek Stuttgart) sits behind a near-opaque
-// white overlay so the form card remains readable, with just enough of the
-// image bleeding through to give the page a sense of place.
+// Library background (Stadtbibliothek Stuttgart) with a near-opaque overlay
+// keeps the form card readable while signalling the brand. The minimal top
+// bar carries the language switcher + dark-mode toggle so visitors can pick
+// before they sign in.
 export function AuthShell({
   title,
   subtitle,
@@ -15,39 +28,70 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-whv-bg relative">
-      {/* Background image — fixed so it doesn't scroll with the form. */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 -z-10 bg-cover bg-center"
-        style={{ backgroundImage: "url('/library.webp')" }}
-      />
-      {/* Semi-transparent overlay tones the image down (form stays readable). */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 -z-10 bg-white/70 backdrop-blur-[2px]"
-      />
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: "transparent",
+      }}
+    >
+      <LibraryBackdrop />
 
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="flex justify-center">
-            <img
+      <AppBar
+        position="static"
+        color="transparent"
+        elevation={0}
+        sx={{ bgcolor: "transparent" }}
+      >
+        <Toolbar sx={{ minHeight: 56 }}>
+          <Box sx={{ flex: 1 }} />
+          <LanguageSwitcher />
+          <ColorSchemeToggle />
+        </Toolbar>
+      </AppBar>
+
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          px: 2,
+          py: 6,
+        }}
+      >
+        <Stack spacing={3} sx={{ width: "100%", maxWidth: 380 }}>
+          <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Box
+              component="img"
               src="/wagner-logo.png"
               alt="Wagner Hausverwaltung GmbH"
-              className="h-20 w-auto"
+              sx={{ height: 80, width: "auto" }}
             />
-          </div>
-          <div className="card space-y-5 shadow-sm">
-            <div className="space-y-1.5">
-              <h1 className="text-xl font-bold">{title}</h1>
-              {subtitle && <p className="muted">{subtitle}</p>}
-            </div>
-            {children}
-          </div>
-        </div>
-      </main>
+          </Box>
+          <Card variant="outlined">
+            <CardContent>
+              <Stack spacing={2.5}>
+                <Stack spacing={0.75}>
+                  <Typography variant="h5" component="h1">
+                    {title}
+                  </Typography>
+                  {subtitle && (
+                    <Typography variant="body2" color="text.secondary">
+                      {subtitle}
+                    </Typography>
+                  )}
+                </Stack>
+                {children}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Stack>
+      </Box>
 
       <Footer />
-    </div>
+    </Box>
   );
 }

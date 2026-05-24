@@ -1,6 +1,9 @@
+import { Box, Container, Link, Stack, Typography } from "@mui/material";
+
 // Legal footer — required by §5 TMG (Impressum) + Art. 13 DSGVO
-// (Datenschutzerklärung). Same content on both authenticated and
-// pre-auth pages so the links are always reachable.
+// (Datenschutzerklärung). Same content on both authenticated and pre-auth
+// pages so the links are always reachable. Stays German-only; the contact
+// data is identical regardless of UI language.
 
 const LEGAL_LINKS = [
   { label: "Impressum", href: "https://wagner-hausverwaltung.com/impressum" },
@@ -16,39 +19,58 @@ const LEGAL_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-whv-border bg-white">
-      <div className="max-w-5xl mx-auto px-6 py-5 muted text-xs space-y-3 text-center">
-        <p>
-          Staufeneckstraße 17, 70469 Stuttgart, Baden-Württemberg, Deutschland
-          {" · "}Mobil:{" "}
-          <a href="tel:+4915679127579" className="hover:underline">
-            +49 15679 127579
-          </a>
-          {" · "}E-Mail:{" "}
-          <a
-            href="mailto:info@wagner-hausverwaltung.com"
-            className="hover:underline"
-          >
-            info@wagner-hausverwaltung.com
-          </a>
-          {" · "}HRB 793472 Amtsgericht Stuttgart{" · "}St-Nr. 99032/25628
-          Finanzamt Stuttgart{" · "}USt-ID: DE367079394
-        </p>
-        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-          <span>© 2026 Wagner Hausverwaltung</span>
-          {LEGAL_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
+    <Box
+      component="footer"
+      sx={{
+        borderTop: 1,
+        borderColor: "divider",
+        bgcolor: "background.paper",
+      }}
+    >
+      <Container maxWidth="lg" sx={{ py: 2.5 }}>
+        <Stack spacing={1.25} sx={{ alignItems: "center", textAlign: "center" }}>
+          <Typography variant="caption" color="text.secondary">
+            Staufeneckstraße 17, 70469 Stuttgart, Baden-Württemberg, Deutschland
+            {" · "}Mobil:{" "}
+            <Link href="tel:+4915679127579" color="inherit" underline="hover">
+              +49 15679 127579
+            </Link>
+            {" · "}E-Mail:{" "}
+            <Link
+              href="mailto:info@wagner-hausverwaltung.com"
+              color="inherit"
+              underline="hover"
             >
-              {link.label}
-            </a>
-          ))}
-        </p>
-      </div>
-    </footer>
+              info@wagner-hausverwaltung.com
+            </Link>
+            {" · "}HRB 793472 Amtsgericht Stuttgart{" · "}St-Nr. 99032/25628
+            Finanzamt Stuttgart{" · "}USt-ID: DE367079394
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={2}
+            useFlexGap
+            sx={{ flexWrap: "wrap", justifyContent: "center", rowGap: 0.5 }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              © 2026 Wagner Hausverwaltung
+            </Typography>
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="caption"
+                color="text.secondary"
+                underline="hover"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </Stack>
+        </Stack>
+      </Container>
+    </Box>
   );
 }

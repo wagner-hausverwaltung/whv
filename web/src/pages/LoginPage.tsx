@@ -1,10 +1,19 @@
 import { useState, type FormEvent } from "react";
 import {
-  Link,
+  Link as RouterLink,
   useLocation,
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Link,
+  Stack,
+  TextField,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 import { AuthShell } from "@/components/AuthShell";
 
@@ -13,6 +22,7 @@ interface LocationState {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,71 +43,73 @@ export function LoginPage() {
       await login(email.trim().toLowerCase(), password);
       navigate(from, { replace: true });
     } catch {
-      setError("Ungültige E-Mail-Adresse oder Passwort.");
+      setError(t("login.failed"));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <AuthShell title="Anmelden" subtitle="Für Eigentümer und Mieter.">
+    <AuthShell title={t("login.title")} subtitle={t("login.subtitle")}>
       {justReset && !error && (
-        <p className="flash-success">
+        <Alert severity="success">
           ✓ Passwort wurde aktualisiert. Bitte melden Sie sich mit dem neuen
           Passwort an.
-        </p>
+        </Alert>
       )}
 
       {error && (
-        <p className="flash-error" role="alert">
+        <Alert severity="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="label">
-            E-Mail-Adresse
-          </label>
-          <input
+      <Box component="form" onSubmit={onSubmit}>
+        <Stack spacing={2}>
+          <TextField
             id="email"
             type="email"
+            label={t("login.email")}
             required
             autoFocus
             autoComplete="email"
-            className="input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            fullWidth
           />
-        </div>
-        <div>
-          <label htmlFor="password" className="label">
-            Passwort
-          </label>
-          <input
+          <TextField
             id="password"
             type="password"
+            label={t("login.password")}
             required
             autoComplete="current-password"
-            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            fullWidth
           />
-        </div>
-        <button
-          type="submit"
-          className="btn-primary w-full"
-          disabled={submitting}
-        >
-          {submitting ? "Wird angemeldet…" : "Anmelden"}
-        </button>
-      </form>
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={submitting}
+            fullWidth
+          >
+            {submitting ? t("common.loading") : t("login.submit")}
+          </Button>
+        </Stack>
+      </Box>
 
-      <p className="text-center">
-        <Link to="/forgot-password" className="muted hover:underline">
-          Passwort vergessen?
+      <Box sx={{ textAlign: "center" }}>
+        <Link
+          component={RouterLink}
+          to="/forgot-password"
+          color="text.secondary"
+          underline="hover"
+          variant="body2"
+        >
+          {t("login.forgot")}
         </Link>
-      </p>
+      </Box>
     </AuthShell>
   );
 }
