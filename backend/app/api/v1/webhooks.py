@@ -5,7 +5,7 @@ from typing import Annotated, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import String, cast, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
@@ -178,7 +178,7 @@ async def _resolve_ticket_by_ref(
         await session.scalars(
             select(Ticket).where(
                 Ticket.organization_id == organization_id,
-                Ticket.id.cast(__import__("sqlalchemy").String).ilike(f"{ticket_ref}%"),
+                cast(Ticket.id, String).ilike(f"{ticket_ref}%"),
             )
         )
     ).all()
