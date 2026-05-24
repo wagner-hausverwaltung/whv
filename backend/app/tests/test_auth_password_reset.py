@@ -11,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.api.v1.auth import _hash_reset_token
 from app.integrations.email.client import EmailError, get_email_client
 from app.main import app
-from app.models import AuditLog, PasswordResetToken
+from app.models import AuditLog, PasswordResetToken, UserRole
 from app.models import Session as DbSession
-from app.models import User, UserRole
 from app.tests._factories import make_user
 
 
@@ -121,9 +120,7 @@ async def test_reset_password_happy_path_updates_pw_and_revokes_sessions(
         assert consumed is not None
         assert consumed.consumed_at is not None
         # Sessions revoked
-        sessions = (
-            await s.scalars(select(DbSession).where(DbSession.user_id == user.id))
-        ).all()
+        sessions = (await s.scalars(select(DbSession).where(DbSession.user_id == user.id))).all()
         assert all(sess.revoked_at is not None for sess in sessions)
         # Audit row written
         audit = await s.scalar(
