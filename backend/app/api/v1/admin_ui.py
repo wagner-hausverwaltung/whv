@@ -2,12 +2,14 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.auth import forgot_password as forgot_password_json
+from app.api.v1.auth import reset_password as reset_password_json
 from app.auth.bootstrap import generate_invite_code
 from app.auth.dependencies import (
     ADMIN_COOKIE_NAME,
@@ -30,6 +32,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 
 router = APIRouter(prefix="/admin-ui", tags=["admin-ui"])
 
@@ -98,6 +101,97 @@ async def logout(request: Request) -> Response:
     response = RedirectResponse("/admin-ui/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(ADMIN_COOKIE_NAME, path="/")
     return response
+
+
+# --- Forgot + reset password --------------------------------------------------
+# These are pre-auth UI wrappers around the JSON /auth/forgot-password and
+# /auth/reset-password handlers. We call those handlers directly (FastAPI route
+# functions are just async callables) so the business logic stays in one place.
+
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_form(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/forgot_password.html",
+        {"current_user": None, "error": None, "submitted": False},
+    )
+
+
+@router.post("/forgot-password")
+async def forgot_password_submit(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    email: Annotated[str, Form()],
+) -> Response:
+    # Call the JSON handler directly — same no-enumeration behaviour, same
+    # token issuance, same email send. We always render the "submitted" page
+    # regardless of whether the email matched a user.
+    await forgot_password_json(
+        req=ForgotPasswordRequest(email=email),
+        session=session,
+        settings=settings,
+        email_client=email_client,
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/forgot_password.html",
+        {"current_user": None, "error": None, "submitted": True},
+    )
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_form(request: Request, token: str = "") -> HTMLResponse:
+    if not token:
+        return templates.TemplateResponse(
+            request,
+            "admin/reset_password.html",
+            {"current_user": None, "error": "Kein Token in der URL.", "token": ""},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return templates.TemplateResponse(
+        request,
+        "admin/reset_password.html",
+        {"current_user": None, "error": None, "token": token},
+    )
+
+
+@router.post("/reset-password")
+async def reset_password_submit(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    token: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+) -> Response:
+    try:
+        await reset_password_json(
+            req=ResetPasswordRequest(token=token, new_password=password),
+            session=session,
+        )
+    except HTTPException as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/reset_password.html",
+            {
+                "current_user": None,
+                "error": (
+                    "Token ungültig, abgelaufen oder bereits eingelöst. "
+                    "Bitte fordern Sie einen neuen an."
+                    if exc.status_code == status.HTTP_400_BAD_REQUEST
+                    else f"Unerwarteter Fehler: {exc.detail}"
+                ),
+                "token": token,
+            },
+            status_code=exc.status_code,
+        )
+
+    # Success — redirect to login with a flash query param.
+    return RedirectResponse(
+        "/admin-ui/login?reset=ok",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 # --- Dashboard ----------------------------------------------------------------

@@ -5,6 +5,12 @@
   <h1>Admin Login</h1>
   <p class="muted">Nur für Verwalter-Konten.</p>
 
+  {% if request.query_params.get('reset') == 'ok' %}
+  <p class="flash-success">
+    ✓ Passwort wurde aktualisiert. Bitte melden Sie sich mit dem neuen Passwort an.
+  </p>
+  {% endif %}
+
   {% if error %}
   <p style="color: #dc2626;">{{ error }}</p>
   {% endif %}
@@ -20,5 +26,9 @@
     </label>
     <button type="submit">Anmelden</button>
   </form>
+
+  <p style="margin-top: 1.5rem; text-align: center;">
+    <a href="/admin-ui/forgot-password" class="muted">Passwort vergessen?</a>
+  </p>
 </article>
 {% endblock %}

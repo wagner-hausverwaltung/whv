@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     password_reset_ttl_minutes: int = 30
 
+    # Absolute origin (scheme + host) of the admin UI. Used to build clickable
+    # reset links in password-reset emails — needs to differ per environment
+    # (localhost in dev, admin.wagner-hausverwaltung.com on staging/prod).
+    admin_ui_base_url: str = "http://localhost:8000"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,8 +1,15 @@
-def render_password_reset_email(email: str, token: str, ttl_minutes: int) -> tuple[str, str, str]:
+def render_password_reset_email(
+    email: str,
+    token: str,
+    ttl_minutes: int,
+    reset_url: str,
+) -> tuple[str, str, str]:
     """Returns (subject, html, text) for a password-reset email.
 
-    German primary. Token is included verbatim in both bodies — once we have a
-    web portal (Phase 3) or iOS app (Phase 2) we can switch to a deep link.
+    German primary. The clickable `reset_url` is the per-environment admin-UI
+    deep link (e.g. https://admin.wagner-hausverwaltung.com/admin-ui/reset-password?token=...).
+    The raw token is also shown as a fallback for users who can't follow the link
+    (curl, suspicious mail clients).
     """
     subject = "Passwort zurücksetzen — WHV-Portal"
 
@@ -12,14 +19,19 @@ Hallo,
 Sie haben das Zurücksetzen des Passworts für Ihr WHV-Portal-Konto angefordert.
 
 E-Mail-Adresse:  {email}
-Token:           {token}
 Gültigkeit:      {ttl_minutes} Minuten
+
+Klicken Sie auf den folgenden Link, um ein neues Passwort zu setzen:
+
+  {reset_url}
+
+Falls der Link nicht funktioniert, lösen Sie den Token manuell über einen
+HTTP-Aufruf an /auth/reset-password ein:
+
+  Token:  {token}
 
 Falls Sie diesen Vorgang nicht angefordert haben, ignorieren Sie diese E-Mail
 einfach. Ihr Passwort bleibt unverändert.
-
-Solange das Web-Portal noch nicht verfügbar ist, lösen Sie den Token mit
-einem HTTP-Aufruf an /auth/reset-password ein (siehe API-Dokumentation).
 
 Bei Fragen: support@wagner-hausverwaltung.com
 
@@ -39,21 +51,33 @@ max-width: 560px; margin: 0 auto; padding: 24px; color: #1a1a1a;">
   Sie haben das Zurücksetzen des Passworts für Ihr
   <strong>WHV-Portal-Konto</strong> angefordert.
 </p>
-<div style="background: #f5f5f5; border-left: 4px solid #1a1a1a; padding: 16px; margin: 24px 0;">
-  <p style="margin: 0; font-size: 13px; color: #666;">Reset-Token (gültig {ttl_minutes} Minuten)</p>
-  <p style="margin: 8px 0 0; font-size: 15px; font-family: ui-monospace, Menlo, monospace; \
-word-break: break-all;">{token}</p>
-</div>
+<p style="margin: 24px 0;">
+  <a href="{reset_url}" style="display: inline-block; padding: 12px 24px; \
+background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 6px; \
+font-weight: 600;">Neues Passwort setzen</a>
+</p>
+<p style="color: #666; font-size: 14px;">
+  Link gültig {ttl_minutes} Minuten. Funktioniert der Button nicht?
+  Kopieren Sie diese URL in Ihren Browser:
+  <br>
+  <span style="font-family: ui-monospace, Menlo, monospace; word-break: break-all; \
+font-size: 13px; color: #1a1a1a;">{reset_url}</span>
+</p>
 <p>
   <strong>E-Mail-Adresse:</strong> {email}
 </p>
+<details style="margin: 16px 0; color: #666; font-size: 13px;">
+  <summary>Token manuell einlösen (API)</summary>
+  <p style="margin-top: 8px;">
+    Falls der Link nicht funktioniert, lösen Sie den Token über einen
+    HTTP-Aufruf an <code>/auth/reset-password</code> ein:
+  </p>
+  <pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 12px; \
+overflow-x: auto;">{token}</pre>
+</details>
 <p style="color: #666; font-size: 14px;">
   Falls Sie diesen Vorgang nicht angefordert haben, ignorieren Sie diese
   E-Mail einfach. Ihr Passwort bleibt unverändert.
-</p>
-<p style="color: #666; font-size: 14px;">
-  Solange das Web-Portal noch nicht verfügbar ist, lösen Sie den Token mit
-  einem HTTP-Aufruf an <code>/auth/reset-password</code> ein.
 </p>
 <p style="color: #666; font-size: 14px;">
   Bei Fragen:

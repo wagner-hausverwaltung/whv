@@ -34,6 +34,7 @@ services:
     environment:
       APP_ENV: staging
       LOG_LEVEL: INFO
+      ADMIN_UI_BASE_URL: https://admin.wagner-hausverwaltung.com
 
 volumes:
   caddy-data:

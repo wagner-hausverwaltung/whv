@@ -221,10 +221,15 @@ async def forgot_password(
         await session.commit()
 
         try:
+            reset_url = (
+                f"{settings.admin_ui_base_url.rstrip('/')}"
+                f"/admin-ui/reset-password?token={raw_token}"
+            )
             subject, html, text = render_password_reset_email(
                 email=user.email,
                 token=raw_token,
                 ttl_minutes=settings.password_reset_ttl_minutes,
+                reset_url=reset_url,
             )
             await email_client.send(to=user.email, subject=subject, html=html, text=text)
         except EmailError:
