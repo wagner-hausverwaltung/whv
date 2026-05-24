@@ -1,0 +1,15 @@
+# Deploy override: pulls the pre-built backend image from GHCR instead of
+# building locally. Used by .github/workflows/deploy.yml + by anyone doing
+# `docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml pull/up`
+# on the staging host.
+#
+# IMAGE_TAG defaults to "latest"; CI passes the short commit sha (e.g. abc1234)
+# for atomic, traceable deploys.
+
+services:
+  backend:
+    image: ghcr.io/wagner-hausverwaltung/whv-backend:${IMAGE_TAG:-latest}
+  worker:
+    image: ghcr.io/wagner-hausverwaltung/whv-backend:${IMAGE_TAG:-latest}
+  beat:
+    image: ghcr.io/wagner-hausverwaltung/whv-backend:${IMAGE_TAG:-latest}
