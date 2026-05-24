@@ -215,8 +215,8 @@ async def dashboard_stats(
 ) -> AdminDashboardStats:
     """Aggregate counts for the admin SPA dashboard.
 
-    Same data as the Jinja /admin-ui/ dashboard, exposed as JSON so the
-    React admin can render the same stats without server-side templating.
+    Eight tiles powering the admin SPA dashboard at /admin: pending +
+    consumed invites, master-data counts, open tickets + resolutions.
     """
     org_id = current_user.organization_id
     now = datetime.now(UTC)
@@ -298,8 +298,8 @@ async def dashboard_stats(
 
 
 # --- Typeahead pickers (JSON) ------------------------------------------------
-# Same query logic as the HTMX /admin-ui/properties/search etc., but returns
-# JSON for the React Autocomplete components. Capped to keep dropdowns sane.
+# JSON search endpoints for the admin SPA's MUI Autocomplete components.
+# Capped to keep dropdowns sane.
 
 
 def _contact_display_name(c: Contact) -> str:

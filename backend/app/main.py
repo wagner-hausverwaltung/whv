@@ -2,19 +2,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import admin as admin_router
-from app.api.v1 import admin_ui as admin_ui_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import circular as circular_router
 from app.api.v1 import me as me_router
 from app.api.v1 import tickets as tickets_router
 from app.api.v1 import webhooks as webhooks_router
-from app.auth.dependencies import NeedsLoginRedirect
 from app.config import get_settings
 from app.db import close_engine, init_engine, ping_db
 from app.redis_client import close_redis, init_redis, ping_redis
@@ -39,14 +37,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: allow the SPA portal to call the API cross-origin. credentials=False —
-# the SPA carries the JWT in an Authorization header, not a cookie. Admin UI
-# is same-origin (Caddy reverse-proxies admin.* → /admin-ui/) so it doesn't
-# need an entry here.
+# CORS: allow the SPA to call the API cross-origin. credentials=False —
+# the SPA carries the JWT in an Authorization header, not a cookie. The
+# same SPA bundle is served from two hosts (portal.* + admin.*), so both
+# origins need to be in the allow-list. admin_base_url is empty in dev
+# (single Vite origin); on staging/prod it points at admin.*.
 _cors_settings = get_settings()
+_cors_allowed = [_cors_settings.portal_base_url]
+if _cors_settings.admin_base_url:
+    _cors_allowed.append(_cors_settings.admin_base_url)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[_cors_settings.portal_base_url],
+    allow_origins=_cors_allowed,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -57,21 +59,10 @@ app.include_router(auth_router.router)
 app.include_router(me_router.router)
 app.include_router(admin_router.router)
 app.include_router(webhooks_router.router)
-app.include_router(admin_ui_router.router)
 app.include_router(tickets_router.me_router)
 app.include_router(tickets_router.admin_router)
 app.include_router(circular_router.me_router)
 app.include_router(circular_router.admin_router)
-
-# Static assets for the admin Jinja UI (logo, favicon). Lives next to the
-# templates so the Docker image picks it up automatically. The portal SPA
-# serves its own copies under its nginx, so this mount is admin-only.
-_STATIC_DIR = Path(__file__).resolve().parent / "static"
-app.mount(
-    "/admin-ui/static",
-    StaticFiles(directory=str(_STATIC_DIR)),
-    name="admin-static",
-)
 
 # User-uploaded avatars. StaticFiles wants the directory to exist at mount
 # time; we attempt to create it but tolerate a permission failure (common
@@ -88,11 +79,6 @@ try:
     )
 except OSError:
     pass
-
-
-@app.exception_handler(NeedsLoginRedirect)
-async def _needs_login_redirect(_: Request, __: NeedsLoginRedirect) -> RedirectResponse:
-    return RedirectResponse("/admin-ui/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/healthz", tags=["meta"])

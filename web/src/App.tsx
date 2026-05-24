@@ -135,9 +135,8 @@ function App() {
             }
           />
 
-          {/* Admin SPA — Verwalter-only, mounted under /admin/*. All
-              admin functionality lives here; the legacy Jinja /admin-ui/
-              routes have been removed. */}
+          {/* Admin SPA — Verwalter-only, mounted under /admin/*. Served
+              from the admin.* host via Caddy rewrite root → /admin. */}
           <Route
             path="/admin"
             element={

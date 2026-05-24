@@ -40,14 +40,16 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     password_reset_ttl_minutes: int = 30
 
-    # Absolute origin (scheme + host) of the admin UI. Used to build clickable
-    # reset links in password-reset emails — needs to differ per environment
-    # (localhost in dev, admin.wagner-hausverwaltung.com on staging/prod).
-    admin_ui_base_url: str = "http://localhost:8000"
-
-    # Absolute origin of the public Eigentümer/Mieter web portal. Used as the
-    # allowed CORS origin for SPA requests.
+    # Absolute origin of the public web portal (SPA). Used as the allowed
+    # CORS origin for SPA requests and as the base for clickable reset
+    # links in password-reset emails. The same SPA bundle hosts both the
+    # customer portal and the Verwalter admin under /admin/*.
     portal_base_url: str = "http://localhost:5173"
+    # Optional second CORS origin: the admin host serves the same SPA but
+    # via a different DNS name (admin.wagner-hausverwaltung.com vs.
+    # portal.wagner-hausverwaltung.com). When set, it joins portal_base_url
+    # in the CORS allow-list. Empty in dev (single Vite origin).
+    admin_base_url: str = ""
 
     # AWS SES inbound email pipeline. The SES receipt rule saves the full MIME
     # to s3://{s3_inbound_bucket}/{messageId} and publishes a notification to

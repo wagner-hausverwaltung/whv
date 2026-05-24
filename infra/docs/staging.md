@@ -99,7 +99,9 @@ curl -i https://staging.api.wagner-hausverwaltung.com/healthz
 
 ## Admin UI host (`admin.wagner-hausverwaltung.com`)
 
-The Jinja admin UI lives on the **same backend container** as the API but is published on a separate host via Caddy so the bookmark `admin.wagner-hausverwaltung.com` works without exposing `/admin-ui` on the API host. The admin host block rewrites `/` → `/admin-ui/` so the bookmark lands on the dashboard.
+The admin SPA shares the **same React bundle as the portal** — Caddy on this host reverse-proxies to the `web` nginx container (not the backend) and rewrites the root `/` to `/admin` so the bookmark lands on the admin dashboard. Authentication uses the same JWT flow as the portal; Verwalter sign in at the portal's `/login` (or via this host's rewritten `/admin` which falls through to the SPA's login redirect).
+
+Two CORS origins are now allowed on the API: `PORTAL_BASE_URL` (portal.*) **and** `ADMIN_BASE_URL` (admin.*). The Jinja admin UI was removed on 2026-05-25 (commit history); the `whv_admin_session` cookie + `NeedsLoginRedirect` are gone with it.
 
 DNS prerequisite — add at the registrar (Bluehost) before the first hit:
 
@@ -114,12 +116,21 @@ Once the record propagates, Caddy obtains a Let's Encrypt cert on first request 
 Smoke after DNS + first deploy:
 
 ```bash
-# 1. Login form renders
-curl -i https://admin.wagner-hausverwaltung.com/admin-ui/login
+# 1. SPA bundle loads (HTML shell with the Vite assets)
+curl -i https://admin.wagner-hausverwaltung.com/
 
-# 2. Bookmark redirect works (root → /admin-ui/, then 303 → /admin-ui/login because no cookie)
-curl -iL https://admin.wagner-hausverwaltung.com/
+# 2. /admin/* paths resolve to the same SPA (nginx try_files → index.html)
+curl -i https://admin.wagner-hausverwaltung.com/admin/dashboard
 ```
+
+Staging compose / deploy env needs:
+
+```
+ADMIN_BASE_URL=https://admin.wagner-hausverwaltung.com
+PORTAL_BASE_URL=https://portal.wagner-hausverwaltung.com
+```
+
+without `ADMIN_BASE_URL`, the admin host's SPA can still load but every API call from it will fail CORS.
 
 ## Web portal host (`portal.wagner-hausverwaltung.com`)
 

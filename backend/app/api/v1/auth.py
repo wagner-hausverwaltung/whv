@@ -222,10 +222,7 @@ async def forgot_password(
         await session.commit()
 
         try:
-            reset_url = (
-                f"{settings.admin_ui_base_url.rstrip('/')}"
-                f"/admin-ui/reset-password?token={raw_token}"
-            )
+            reset_url = f"{settings.portal_base_url.rstrip('/')}/reset-password?token={raw_token}"
             subject, html, text = render_password_reset_email(
                 email=user.email,
                 token=raw_token,

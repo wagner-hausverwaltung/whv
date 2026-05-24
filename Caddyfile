@@ -20,17 +20,17 @@ staging.api.wagner-hausverwaltung.com {
     }
 }
 
-# Phase 1.6: Jinja2 admin UI. The bookmark `https://admin.wagner-hausverwaltung.com/`
-# rewrites to `/admin-ui/` on the backend so users land on the dashboard.
-# Today this DNS points at the staging server; when prod ships, the record moves
-# to prod and a separate `staging.admin.*` is added for staging.
+# Admin host. Serves the same SPA bundle as portal.* but rewrites `/` to
+# `/admin` so the Verwalter bookmark lands on the admin dashboard. The
+# Jinja admin UI was deprecated 2026-05-25; admin is now part of the same
+# React SPA mounted at /admin/*.
 admin.wagner-hausverwaltung.com {
     encode gzip zstd
 
     @root path /
-    rewrite @root /admin-ui/
+    rewrite @root /admin
 
-    reverse_proxy backend:8000
+    reverse_proxy web:80
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"

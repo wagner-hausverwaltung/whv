@@ -6,8 +6,8 @@ def render_password_reset_email(
 ) -> tuple[str, str, str]:
     """Returns (subject, html, text) for a password-reset email.
 
-    German primary. The clickable `reset_url` is the per-environment admin-UI
-    deep link (e.g. https://admin.wagner-hausverwaltung.com/admin-ui/reset-password?token=...).
+    German primary. The clickable `reset_url` is the per-environment portal
+    deep link (e.g. https://portal.wagner-hausverwaltung.com/reset-password?token=...).
     The raw token is also shown as a fallback for users who can't follow the link
     (curl, suspicious mail clients).
     """

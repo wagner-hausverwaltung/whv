@@ -8,13 +8,13 @@ This is the Wagner Hausverwaltung GmbH (WHV) digital platform: backend, iOS app,
 
 The §7 "Phase 1 status snapshot" and §15.1 "Next iteration priorities" tables show what's shipped vs. what's next — start there to orient.
 
-## What's running (as of 2026-05-24)
+## What's running (as of 2026-05-25)
 
 - **Staging API**: https://staging.api.wagner-hausverwaltung.com — Hetzner cax21 in Nürnberg, Caddy + Let's Encrypt, full demo loop works (invite → redeem → login → `/me/properties/{id}` with units). Op runbook: [`infra/docs/staging.md`](infra/docs/staging.md).
-- **Admin UI**: https://admin.wagner-hausverwaltung.com — Jinja2 + Pico.css; cookie-session auth, VERWALTER-only; dashboard + invites CRUD + audit log. Caddy rewrites `/` → `/admin-ui/` and reverse-proxies to the same backend container. Today this host points at staging; when prod ships, the DNS record moves to prod and a `staging.admin.*` is added for staging.
-- **Web Portal**: https://portal.wagner-hausverwaltung.com — React 18 + TS + Vite + Tailwind SPA for Eigentümer / Mieter / Beirat. Static bundle served by an nginx container, behind Caddy. Calls the API cross-origin via JWT in `Authorization` header (backend CORS allowlist gates this). DNS prerequisite: A record → 46.225.185.151.
+- **Admin UI**: https://admin.wagner-hausverwaltung.com — shares the **same React + MUI SPA bundle** as the portal. Caddy on this host proxies to the `web` nginx container and rewrites `/` → `/admin`. VERWALTER-only via JWT (same `/auth/login` flow as the portal). All admin pages — Dashboard, Tickets, Beschlüsse, Einladungen, Audit-Log, Stammdaten (Properties/Units/Contracts/Contacts) — live under `/admin/*` in the SPA. The Jinja admin UI was removed on 2026-05-25 (ADR-0005 documents the MUI migration).
+- **Web Portal**: https://portal.wagner-hausverwaltung.com — React 18 + TS + Vite + Material UI SPA for Eigentümer / Mieter / Beirat. Static bundle served by an nginx container, behind Caddy. Calls the API cross-origin via JWT in `Authorization` header (backend CORS allowlist gates this — `PORTAL_BASE_URL` + `ADMIN_BASE_URL`). DNS prerequisite: A record → 46.225.185.151.
 - **Local dev**: `docker compose up` brings up postgres + redis + backend + web. Web hot-reload via `cd web && npm run dev` (Vite proxy on :5173 forwards `/api` to backend on :8000). `.env` (gitignored) has the Impower test-instance token.
-- **Resolved infrastructure picks** (D8/D9/D10/D12, all 2026-05-24): Hetzner Object Storage for documents · Resend for transactional email · Jinja2 server-rendered for admin UI · GHCR push + SSH pull for staging deploy. Write an ADR on first implementation of each. See REQUIREMENTS.md §14.
+- **Resolved infrastructure picks** (D8/D9/D10/D12, all 2026-05-24): Hetzner Object Storage for documents · Resend for transactional email · ~~Jinja2 server-rendered for admin UI~~ → React+MUI SPA shared with portal (ADR-0005, 2026-05-25) · GHCR push + SSH pull for staging deploy. Write an ADR on first implementation of each. See REQUIREMENTS.md §14.
 
 ## Working agreement
 
