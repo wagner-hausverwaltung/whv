@@ -4,6 +4,9 @@ import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
 import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
+import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
+import { AdminResolutionNewPage } from "@/admin/pages/AdminResolutionNewPage";
+import { AdminResolutionsPage } from "@/admin/pages/AdminResolutionsPage";
 import { AdminTicketDetailPage } from "@/admin/pages/AdminTicketDetailPage";
 import { AdminTicketsPage } from "@/admin/pages/AdminTicketsPage";
 import { AdminRoute } from "@/auth/AdminRoute";
@@ -165,10 +168,27 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage
-                    title="Beschlüsse"
-                    legacyPath="/admin-ui/resolutions"
-                  />
+                  <AdminResolutionsPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/resolutions/new"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminResolutionNewPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/resolutions/:id"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminResolutionDetailPage />
                 </AdminLayout>
               </AdminRoute>
             }
