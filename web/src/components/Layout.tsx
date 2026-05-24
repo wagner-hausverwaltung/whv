@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
+import { Footer } from "@/components/Footer";
 import type { ReactNode } from "react";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -45,19 +46,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10">{children}</main>
 
-      <footer className="border-t border-whv-border bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-4 muted text-xs flex items-center justify-between flex-wrap gap-2">
-          <span>© Wagner Hausverwaltung GmbH</span>
-          <a
-            href="https://wagner-hausverwaltung.com/"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-          >
-            wagner-hausverwaltung.com
-          </a>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
