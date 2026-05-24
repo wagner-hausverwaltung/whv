@@ -77,6 +77,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
       - run: uv sync --frozen
+      - name: Run migrations (verifies migration applies cleanly)
+        run: uv run alembic upgrade head
       - run: uv run pytest
 
   build:
