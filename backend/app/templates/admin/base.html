@@ -11,14 +11,102 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Noto+Sans:wght@400;700&display=swap">
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous" defer></script>
   <style>
-    body { font-family: "Noto Sans", system-ui, sans-serif; }
+    /* Match the portal: same Montserrat/Noto Sans pair, same #1863DC accent. */
+    body {
+      font-family: "Noto Sans", system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
+    }
     h1, h2, h3, h4, h5, h6, button { font-family: "Montserrat", system-ui, sans-serif; }
-    body > main { max-width: 1100px; padding: 1rem 1.25rem; }
-    nav { padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--pico-muted-border-color); }
-    .logo { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; color: var(--pico-primary); text-decoration: none; }
+
+    /* Three-zone header: logo (left) · nav (left-of-right, flex-1) · user
+       menu (right). Replaces Pico's default two-<ul> nav which wraps poorly
+       once the user email and four tabs are present. */
+    .site-header {
+      border-bottom: 1px solid var(--pico-muted-border-color);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(4px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .site-header-inner {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.25rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
     .logo img { height: 36px; width: auto; }
-    .logo .logo-text { font-family: "Montserrat", system-ui, sans-serif; font-size: 0.95rem; color: var(--pico-color); }
-    .logo .logo-sub { color: var(--pico-muted-color); font-weight: 500; }
+    .logo-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border: 1px solid var(--pico-primary);
+      color: var(--pico-primary);
+      border-radius: 4px;
+      font-family: "Montserrat", system-ui, sans-serif;
+      font-weight: 600;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .site-nav {
+      display: flex;
+      gap: 0.25rem;
+      flex: 1;
+      flex-wrap: wrap;
+    }
+    .site-nav a {
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      text-decoration: none;
+      color: var(--pico-color);
+      font-size: 0.9rem;
+      font-family: "Montserrat", system-ui, sans-serif;
+      font-weight: 500;
+    }
+    .site-nav a:hover { background: var(--pico-secondary-background); }
+    .site-nav a.active { background: var(--pico-primary); color: var(--pico-primary-inverse); }
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-shrink: 0;
+    }
+    .user-menu .email {
+      color: var(--pico-muted-color);
+      font-size: 0.85rem;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .user-menu form { margin: 0; }
+    .user-menu button {
+      padding: 0.3rem 0.85rem;
+      font-size: 0.8rem;
+      margin: 0;
+    }
+
+    body > main {
+      max-width: 1100px;
+      width: 100%;
+      padding: 1.5rem 1.25rem;
+      margin: 0 auto;
+      flex: 1;
+    }
+
     .muted { color: var(--pico-muted-color); font-size: 0.875rem; }
     .status-pending  { color: #16a34a; font-weight: 600; }
     .status-consumed { color: var(--pico-muted-color); }
@@ -29,12 +117,27 @@
     .filter-bar { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 1rem; }
     .filter-bar a { padding: 0.25rem 0.75rem; border-radius: 0.5rem; text-decoration: none; }
     .filter-bar a.active { background: var(--pico-primary); color: var(--pico-primary-inverse); }
+
     .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
-    .stat { padding: 1rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.5rem; }
+    .stat {
+      padding: 1rem;
+      border: 1px solid var(--pico-muted-border-color);
+      border-radius: 0.5rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 120ms, transform 120ms;
+      display: block;
+    }
+    a.stat:hover {
+      border-color: var(--pico-primary);
+      transform: translateY(-1px);
+    }
     .stat .n { font-size: 1.75rem; font-weight: 700; }
     .stat .label { font-size: 0.85rem; color: var(--pico-muted-color); }
+
     .flash-success { background: #ecfdf5; border-left: 4px solid #16a34a; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 0.25rem; }
     form.inline { display: inline; }
+
     /* HTMX-driven typeahead pickers */
     .picker-results { list-style: none; padding: 0; margin: 0.25rem 0 0; max-height: 240px; overflow-y: auto; border: 1px solid var(--pico-muted-border-color); border-radius: 0.5rem; }
     .picker-results:empty { display: none; }
@@ -44,32 +147,56 @@
     .picker-results .detail { color: var(--pico-muted-color); font-size: 0.8rem; margin-left: 0.5rem; }
     .picker-pick { background: #ecfdf5; border: 1px solid #86efac; border-radius: 0.5rem; padding: 0.5rem 0.75rem; margin: 0.5rem 0; font-size: 0.875rem; display: flex; justify-content: space-between; align-items: center; }
     .picker-pick button { background: none; border: none; color: var(--pico-primary); cursor: pointer; padding: 0; font-size: 0.875rem; text-decoration: underline; }
+
+    /* Centered single-screen pre-auth pages (login, forgot, reset). The
+       parent <body> is flex so .auth-shell fills the rest of the viewport
+       and centers its child both axes. */
+    .auth-shell {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 380px;
+    }
+    .auth-card-logo {
+      display: block;
+      margin: 0 auto 1.25rem;
+      height: 80px;
+      width: auto;
+    }
   </style>
 </head>
 <body>
-  <nav>
-    <ul>
-      <li>
-        <a href="/admin-ui/" class="logo">
-          <img src="/admin-ui/static/wagner-logo.png" alt="Wagner Hausverwaltung GmbH">
-          <span class="logo-text">Wagner Hausverwaltung <span class="logo-sub">— Admin</span></span>
-        </a>
-      </li>
-    </ul>
-    {% if current_user %}
-    <ul>
-      <li><a href="/admin-ui/tickets">Tickets</a></li>
-      <li><a href="/admin-ui/resolutions">Beschlüsse</a></li>
-      <li><a href="/admin-ui/invites">Einladungen</a></li>
-      <li><a href="/admin-ui/audit">Audit-Log</a></li>
-      <li>
+  {% block header %}
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/admin-ui/" class="logo">
+        <img src="/admin-ui/static/wagner-logo.png" alt="Wagner Hausverwaltung GmbH">
+        <span class="logo-badge">Admin</span>
+      </a>
+      {% if current_user %}
+      {% set path = request.url.path %}
+      <nav class="site-nav">
+        <a href="/admin-ui/" {% if path == '/admin-ui/' %}class="active"{% endif %}>Dashboard</a>
+        <a href="/admin-ui/tickets" {% if path.startswith('/admin-ui/tickets') %}class="active"{% endif %}>Tickets</a>
+        <a href="/admin-ui/resolutions" {% if path.startswith('/admin-ui/resolutions') %}class="active"{% endif %}>Beschlüsse</a>
+        <a href="/admin-ui/invites" {% if path.startswith('/admin-ui/invites') %}class="active"{% endif %}>Einladungen</a>
+        <a href="/admin-ui/audit" {% if path.startswith('/admin-ui/audit') %}class="active"{% endif %}>Audit-Log</a>
+      </nav>
+      <div class="user-menu">
+        <span class="email">{{ current_user.email }}</span>
         <form method="POST" action="/admin-ui/logout" class="inline">
-          <button type="submit" class="secondary outline">{{ current_user.email }} — Logout</button>
+          <button type="submit" class="secondary outline">Logout</button>
         </form>
-      </li>
-    </ul>
-    {% endif %}
-  </nav>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+  {% endblock %}
   <main>
     {% block content %}{% endblock %}
   </main>

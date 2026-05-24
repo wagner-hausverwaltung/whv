@@ -25,11 +25,18 @@ interface DashboardStats {
 
 type StatKey = keyof DashboardStats;
 
-const NAV_TARGETS: Partial<Record<StatKey, string>> = {
+// Every stat card drills into a list. The admin SPA reuses the legacy Jinja
+// pages for master data (Objekte / Einheiten / Verträge / Kontakte) until
+// those screens are ported — the placeholder pages handle the visual jump.
+const NAV_TARGETS: Record<StatKey, string> = {
   pending_invites: "/admin/invites",
   consumed_invites: "/admin/invites",
   open_tickets: "/admin/tickets",
   open_resolutions: "/admin/resolutions",
+  properties: "/admin/properties",
+  units: "/admin/units",
+  contracts: "/admin/contracts",
+  contacts: "/admin/contacts",
 };
 
 export function AdminDashboardPage() {
@@ -91,28 +98,21 @@ export function AdminDashboardPage() {
         {ORDER.map((key) => {
           const value = stats[key];
           const to = NAV_TARGETS[key];
-          const card = (
-            <CardContent sx={{ textAlign: "center", py: 3 }}>
-              <Typography
-                variant="h3"
-                sx={{ fontWeight: 700, lineHeight: 1, mb: 0.5 }}
-              >
-                {value}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {t(`admin.stats.${key}`)}
-              </Typography>
-            </CardContent>
-          );
           return (
             <Card key={key} variant="outlined">
-              {to ? (
-                <CardActionArea component={RouterLink} to={to}>
-                  {card}
-                </CardActionArea>
-              ) : (
-                card
-              )}
+              <CardActionArea component={RouterLink} to={to}>
+                <CardContent sx={{ textAlign: "center", py: 3 }}>
+                  <Typography
+                    variant="h3"
+                    sx={{ fontWeight: 700, lineHeight: 1, mb: 0.5 }}
+                  >
+                    {value}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {t(`admin.stats.${key}`)}
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
             </Card>
           );
         })}

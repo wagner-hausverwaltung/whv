@@ -2,33 +2,37 @@
 {% block title %}Dashboard — WHV Admin{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
-<p class="muted">Übersicht zu Einladungen und Stammdaten.</p>
+<p class="muted">Übersicht zu Einladungen, Stammdaten und laufenden Vorgängen.</p>
 
+{# Each card is an anchor — clicking drills into the matching list view.
+   pending/consumed invites share the same target and filter via the
+   chip strip on the invites page; master-data cards point at the new
+   Stammdaten list pages. #}
 <section class="stats" style="margin-bottom: 2rem;">
-  <div class="stat">
+  <a class="stat" href="/admin-ui/invites?status_filter=pending">
     <div class="n">{{ counts.pending_invites }}</div>
     <div class="label">Offene Einladungen</div>
-  </div>
-  <div class="stat">
+  </a>
+  <a class="stat" href="/admin-ui/invites?status_filter=consumed">
     <div class="n">{{ counts.consumed_invites }}</div>
     <div class="label">Eingelöste Einladungen</div>
-  </div>
-  <div class="stat">
+  </a>
+  <a class="stat" href="/admin-ui/properties">
     <div class="n">{{ counts.properties }}</div>
     <div class="label">Objekte</div>
-  </div>
-  <div class="stat">
+  </a>
+  <a class="stat" href="/admin-ui/units">
     <div class="n">{{ counts.units }}</div>
     <div class="label">Einheiten</div>
-  </div>
-  <div class="stat">
+  </a>
+  <a class="stat" href="/admin-ui/contracts">
     <div class="n">{{ counts.contracts }}</div>
     <div class="label">Verträge</div>
-  </div>
-  <div class="stat">
+  </a>
+  <a class="stat" href="/admin-ui/contacts">
     <div class="n">{{ counts.contacts }}</div>
     <div class="label">Kontakte</div>
-  </div>
+  </a>
 </section>
 
 <h2>Schnellaktionen</h2>

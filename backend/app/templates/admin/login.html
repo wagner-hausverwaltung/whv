@@ -1,37 +1,43 @@
 {% extends "admin/base.html" %}
 {% block title %}Login — WHV Admin{% endblock %}
+
+{# Pre-auth: skip the site header so the form is centered on a clean canvas,
+   matching the portal's AuthShell. #}
+{% block header %}{% endblock %}
+
 {% block content %}
-<article style="max-width: 420px; margin: 4rem auto;">
-  <div style="text-align: center; margin-bottom: 1.5rem;">
-    <img src="/admin-ui/static/wagner-logo.png" alt="Wagner Hausverwaltung GmbH" style="height: 80px; width: auto;">
-  </div>
-  <h1>Admin Login</h1>
-  <p class="muted">Nur für Verwalter-Konten.</p>
+<div class="auth-shell">
+  <article class="auth-card">
+    <img src="/admin-ui/static/wagner-logo.png" alt="Wagner Hausverwaltung GmbH" class="auth-card-logo">
 
-  {% if request.query_params.get('reset') == 'ok' %}
-  <p class="flash-success">
-    ✓ Passwort wurde aktualisiert. Bitte melden Sie sich mit dem neuen Passwort an.
-  </p>
-  {% endif %}
+    <h1 style="text-align: center; margin-bottom: 0.25rem;">Admin Login</h1>
+    <p class="muted" style="text-align: center; margin-bottom: 1.5rem;">Nur für Verwalter-Konten.</p>
 
-  {% if error %}
-  <p style="color: #dc2626;">{{ error }}</p>
-  {% endif %}
+    {% if request.query_params.get('reset') == 'ok' %}
+    <p class="flash-success">
+      ✓ Passwort wurde aktualisiert. Bitte melden Sie sich mit dem neuen Passwort an.
+    </p>
+    {% endif %}
 
-  <form method="POST" action="/admin-ui/login">
-    <label>
-      E-Mail-Adresse
-      <input type="email" name="email" required autofocus autocomplete="email">
-    </label>
-    <label>
-      Passwort
-      <input type="password" name="password" required autocomplete="current-password">
-    </label>
-    <button type="submit">Anmelden</button>
-  </form>
+    {% if error %}
+    <p style="color: #dc2626;">{{ error }}</p>
+    {% endif %}
 
-  <p style="margin-top: 1.5rem; text-align: center;">
-    <a href="/admin-ui/forgot-password" class="muted">Passwort vergessen?</a>
-  </p>
-</article>
+    <form method="POST" action="/admin-ui/login">
+      <label>
+        E-Mail-Adresse
+        <input type="email" name="email" required autofocus autocomplete="email">
+      </label>
+      <label>
+        Passwort
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button type="submit" style="width: 100%;">Anmelden</button>
+    </form>
+
+    <p style="margin-top: 1.25rem; text-align: center;">
+      <a href="/admin-ui/forgot-password" class="muted">Passwort vergessen?</a>
+    </p>
+  </article>
+</div>
 {% endblock %}

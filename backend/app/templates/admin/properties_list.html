@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block title %}Objekte — WHV Admin{% endblock %}
+{% block content %}
+<header style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem;">
+  <h1>Objekte</h1>
+  <a href="/admin-ui/" class="muted">← Dashboard</a>
+</header>
+
+{% if properties %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Typ</th>
+      <th>Adresse</th>
+      <th>HR-ID</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in properties %}
+    <tr>
+      <td><strong>{{ p.name }}</strong></td>
+      <td><span class="muted">{{ p.type.value }}</span></td>
+      <td class="muted">
+        {% set parts = [] %}
+        {% if p.street %}{% set _ = parts.append(p.street ~ (' ' ~ p.number if p.number else '')) %}{% endif %}
+        {% if p.postal_code or p.city %}{% set _ = parts.append((p.postal_code ~ ' ' if p.postal_code else '') ~ (p.city or '')) %}{% endif %}
+        {{ parts | join(' · ') or '—' }}
+      </td>
+      <td class="code muted">{{ p.property_hr_id or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="muted">Anzeige der ersten 200 Objekte. Sortierung: Name (alphabetisch).</p>
+{% else %}
+<p class="muted">Keine Objekte vorhanden.</p>
+{% endif %}
+{% endblock %}

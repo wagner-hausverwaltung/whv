@@ -886,6 +886,116 @@ async def ticket_participant_remove_submit(
     )
 
 
+# --- Stammdaten list views (dashboard drill-down) ----------------------------
+# Each list is paginated to 200 rows (capped server-side) and renders the
+# columns most useful to a Verwalter at a glance. Soft-deleted rows are
+# excluded; ordering follows Impower's natural sync order (created_at desc).
+
+
+@router.get("/properties", response_class=HTMLResponse)
+async def properties_list_view(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    rows = (
+        await session.scalars(
+            select(Property)
+            .where(
+                Property.organization_id == current_user.organization_id,
+                Property.deleted_at.is_(None),
+            )
+            .order_by(Property.name)
+            .limit(200)
+        )
+    ).all()
+    return templates.TemplateResponse(
+        request,
+        "admin/properties_list.html",
+        {"current_user": current_user, "properties": rows},
+    )
+
+
+@router.get("/units", response_class=HTMLResponse)
+async def units_list_view(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    from app.models import Unit as _Unit
+
+    # JOIN to Property so the listing carries the human-readable property
+    # name; Unit.unit_hr_id alone (e.g. "U-19") is meaningless without it.
+    rows = (
+        await session.execute(
+            select(_Unit, Property.name)
+            .join(Property, Property.id == _Unit.property_id)
+            .where(
+                _Unit.organization_id == current_user.organization_id,
+                _Unit.deleted_at.is_(None),
+            )
+            .order_by(Property.name, _Unit.unit_hr_id)
+            .limit(200)
+        )
+    ).all()
+    units = [{"unit": u, "property_name": pn} for u, pn in rows]
+    return templates.TemplateResponse(
+        request,
+        "admin/units_list.html",
+        {"current_user": current_user, "units": units},
+    )
+
+
+@router.get("/contracts", response_class=HTMLResponse)
+async def contracts_list_view(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    rows = (
+        await session.execute(
+            select(Contract, Property.name)
+            .join(Property, Property.id == Contract.property_id)
+            .where(
+                Contract.organization_id == current_user.organization_id,
+                Contract.deleted_at.is_(None),
+            )
+            .order_by(Property.name, Contract.type, Contract.contract_number)
+            .limit(200)
+        )
+    ).all()
+    contracts = [{"contract": c, "property_name": pn} for c, pn in rows]
+    return templates.TemplateResponse(
+        request,
+        "admin/contracts_list.html",
+        {"current_user": current_user, "contracts": contracts},
+    )
+
+
+@router.get("/contacts", response_class=HTMLResponse)
+async def contacts_list_view(
+    request: Request,
+    current_user: Annotated[User, Depends(get_admin_user_from_cookie)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> HTMLResponse:
+    rows = (
+        await session.scalars(
+            select(Contact)
+            .where(
+                Contact.organization_id == current_user.organization_id,
+                Contact.deleted_at.is_(None),
+            )
+            .order_by(Contact.last_name, Contact.company_name)
+            .limit(200)
+        )
+    ).all()
+    return templates.TemplateResponse(
+        request,
+        "admin/contacts_list.html",
+        {"current_user": current_user, "contacts": rows},
+    )
+
+
 # --- Umlaufbeschlüsse ---------------------------------------------------------
 
 

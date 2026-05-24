@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+{% block title %}Einheiten — WHV Admin{% endblock %}
+{% block content %}
+<header style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem;">
+  <h1>Einheiten</h1>
+  <a href="/admin-ui/" class="muted">← Dashboard</a>
+</header>
+
+{% if units %}
+<table>
+  <thead>
+    <tr>
+      <th>Objekt</th>
+      <th>Einheit</th>
+      <th>Typ</th>
+      <th>Etage</th>
+      <th>Lage</th>
+      <th>Fläche (m²)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in units %}
+    <tr>
+      <td><strong>{{ row.property_name }}</strong></td>
+      <td class="code">{{ row.unit.unit_hr_id or '—' }}</td>
+      <td><span class="muted">{{ row.unit.type.value }}</span></td>
+      <td class="muted">{{ row.unit.floor or '—' }}</td>
+      <td class="muted">{{ row.unit.position or '—' }}</td>
+      <td class="muted">{{ '%.2f'|format(row.unit.area_m2) if row.unit.area_m2 is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="muted">Anzeige der ersten 200 Einheiten. Sortierung: Objekt, Einheits-ID.</p>
+{% else %}
+<p class="muted">Keine Einheiten vorhanden.</p>
+{% endif %}
+{% endblock %}

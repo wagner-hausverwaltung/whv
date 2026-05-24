@@ -185,6 +185,58 @@ function App() {
               </AdminRoute>
             }
           />
+          <Route
+            path="/admin/properties"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Objekte"
+                    legacyPath="/admin-ui/properties"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/units"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Einheiten"
+                    legacyPath="/admin-ui/units"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/contracts"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Verträge"
+                    legacyPath="/admin-ui/contracts"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/contacts"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Kontakte"
+                    legacyPath="/admin-ui/contacts"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
