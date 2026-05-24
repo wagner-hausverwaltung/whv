@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link as RouterLink,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+import { Alert, Box, Button, Link, Stack, TextField } from "@mui/material";
 import { api } from "@/api/client";
 import { AuthShell } from "@/components/AuthShell";
 
@@ -16,15 +21,21 @@ export function ResetPasswordPage() {
   if (!token) {
     return (
       <AuthShell title="Neues Passwort setzen">
-        <p className="flash-error">
+        <Alert severity="error">
           Diese Seite kann nur über den Link aus der Reset-E-Mail aufgerufen
           werden.
-        </p>
-        <p className="text-center">
-          <Link to="/forgot-password" className="muted hover:underline">
+        </Alert>
+        <Box sx={{ textAlign: "center" }}>
+          <Link
+            component={RouterLink}
+            to="/forgot-password"
+            color="text.secondary"
+            variant="body2"
+            underline="hover"
+          >
             Neuen Link anfordern
           </Link>
-        </p>
+        </Box>
       </AuthShell>
     );
   }
@@ -62,51 +73,47 @@ export function ResetPasswordPage() {
       subtitle="Mindestens 8 Zeichen. Nach dem Speichern werden alle aktiven Sitzungen beendet."
     >
       {error && (
-        <p className="flash-error" role="alert">
+        <Alert severity="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="password" className="label">
-            Neues Passwort
-          </label>
-          <input
+      <Box component="form" onSubmit={onSubmit}>
+        <Stack spacing={2}>
+          <TextField
             id="password"
             type="password"
+            label="Neues Passwort"
             required
             autoFocus
             autoComplete="new-password"
-            minLength={8}
-            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            slotProps={{ htmlInput: { minLength: 8 } }}
+            fullWidth
           />
-        </div>
-        <div>
-          <label htmlFor="confirm" className="label">
-            Passwort bestätigen
-          </label>
-          <input
+          <TextField
             id="confirm"
             type="password"
+            label="Passwort bestätigen"
             required
             autoComplete="new-password"
-            minLength={8}
-            className="input"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
+            slotProps={{ htmlInput: { minLength: 8 } }}
+            fullWidth
           />
-        </div>
-        <button
-          type="submit"
-          className="btn-primary w-full"
-          disabled={submitting}
-        >
-          {submitting ? "Wird gespeichert…" : "Passwort setzen"}
-        </button>
-      </form>
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={submitting}
+            fullWidth
+          >
+            {submitting ? "Wird gespeichert…" : "Passwort setzen"}
+          </Button>
+        </Stack>
+      </Box>
     </AuthShell>
   );
 }

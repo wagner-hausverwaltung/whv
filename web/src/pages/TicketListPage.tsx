@@ -1,81 +1,134 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardActionArea,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import {
   TICKET_CATEGORY_LABELS,
   TICKET_STATUS_LABELS,
   type TicketResponse,
+  type TicketStatus,
 } from "@/api/types";
 
-function StatusBadge({ status }: { status: TicketResponse["status"] }) {
-  const tone =
+function StatusChip({ status }: { status: TicketStatus }) {
+  const color: "success" | "warning" | "default" | "info" =
     status === "GESCHLOSSEN"
-      ? "bg-slate-100 text-slate-600 border-slate-200"
+      ? "default"
       : status === "WARTET_AUF_KUNDE"
-        ? "bg-amber-50 text-amber-900 border-amber-200"
-        : "bg-blue-50 text-whv-blue border-blue-200";
+        ? "warning"
+        : status === "NEU"
+          ? "info"
+          : "success";
   return (
-    <span
-      className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${tone}`}
-    >
-      {TICKET_STATUS_LABELS[status]}
-    </span>
+    <Chip
+      size="small"
+      label={TICKET_STATUS_LABELS[status]}
+      color={color}
+      variant={status === "GESCHLOSSEN" ? "outlined" : "filled"}
+    />
   );
 }
 
 export function TicketListPage() {
+  const { t } = useTranslation();
   const [tickets, setTickets] = useState<TicketResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .get<TicketResponse[]>("/me/tickets")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       .then((r) => setTickets(r.data))
-      .catch(() => setError("Tickets konnten nicht geladen werden."));
-  }, []);
+      .catch(() => setError(t("tickets.loadFailed")));
+  }, [t]);
 
-  if (error) return <p className="flash-error">{error}</p>;
-  if (tickets === null) return <p className="muted">Wird geladen…</p>;
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (tickets === null) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {t("common.loading")}
+      </Typography>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">Meine Tickets</h1>
-        <Link to="/tickets/new" className="btn-primary">
-          + Neues Ticket
-        </Link>
-      </header>
+    <Stack spacing={3}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <Typography variant="h4" component="h1">
+          {t("tickets.title")}
+        </Typography>
+        <Button
+          component={RouterLink}
+          to="/tickets/new"
+          variant="contained"
+          startIcon={<AddIcon />}
+        >
+          {t("tickets.newButton")}
+        </Button>
+      </Box>
 
       {tickets.length === 0 ? (
-        <p className="muted">
-          Sie haben noch keine Tickets eröffnet. Verwenden Sie diesen Kanal für
-          Anfragen, Schadensmeldungen oder Hinweise an die Hausverwaltung.
-        </p>
+        <Typography variant="body2" color="text.secondary">
+          {t("tickets.empty")}
+        </Typography>
       ) : (
-        <ul className="space-y-2">
-          {tickets.map((t) => (
-            <li key={t.id}>
-              <Link
-                to={`/tickets/${t.id}`}
-                className="card block hover:border-whv-blue transition-colors"
+        <Stack spacing={1.5}>
+          {tickets.map((tk) => (
+            <Card key={tk.id} variant="outlined">
+              <CardActionArea
+                component={RouterLink}
+                to={`/tickets/${tk.id}`}
+                sx={{ display: "block" }}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-display font-medium text-whv-text">
-                      {t.subject}
-                    </div>
-                    <div className="muted mt-1">
-                      {TICKET_CATEGORY_LABELS[t.category]} · letzte Aktivität{" "}
-                      {new Date(t.last_message_at).toLocaleString("de-DE")}
-                    </div>
-                  </div>
-                  <StatusBadge status={t.status} />
-                </div>
-              </Link>
-            </li>
+                <CardContent>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 2,
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontWeight: 500, mb: 0.5 }}
+                      >
+                        {tk.subject}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {TICKET_CATEGORY_LABELS[tk.category]} ·{" "}
+                        {t("tickets.lastActivity")}{" "}
+                        {new Date(tk.last_message_at).toLocaleString("de-DE")}
+                      </Typography>
+                    </Box>
+                    <StatusChip status={tk.status} />
+                  </Stack>
+                </CardContent>
+              </CardActionArea>
+            </Card>
           ))}
-        </ul>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }

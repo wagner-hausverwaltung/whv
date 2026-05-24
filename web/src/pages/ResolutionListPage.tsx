@@ -1,81 +1,119 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Card,
+  CardActionArea,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import {
   RESOLUTION_MODE_LABELS,
   RESOLUTION_STATUS_LABELS,
   type ResolutionResponse,
+  type ResolutionStatus,
 } from "@/api/types";
 
-function StatusBadge({ status }: { status: ResolutionResponse["status"] }) {
-  const tone =
+function StatusChip({ status }: { status: ResolutionStatus }) {
+  const color: "success" | "error" | "info" | "default" =
     status === "ANGENOMMEN"
-      ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+      ? "success"
       : status === "ABGELEHNT"
-        ? "bg-red-50 text-red-900 border-red-200"
+        ? "error"
         : status === "OFFEN"
-          ? "bg-blue-50 text-whv-blue border-blue-200"
-          : "bg-slate-100 text-slate-600 border-slate-200";
+          ? "info"
+          : "default";
   return (
-    <span
-      className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${tone}`}
-    >
-      {RESOLUTION_STATUS_LABELS[status]}
-    </span>
+    <Chip
+      size="small"
+      label={RESOLUTION_STATUS_LABELS[status]}
+      color={color}
+      variant={status === "ENTWURF" || status === "GESCHLOSSEN" ? "outlined" : "filled"}
+    />
   );
 }
 
 export function ResolutionListPage() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<ResolutionResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .get<ResolutionResponse[]>("/me/resolutions")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       .then((r) => setRows(r.data))
       .catch(() => setError("Beschlüsse konnten nicht geladen werden."));
   }, []);
 
-  if (error) return <p className="flash-error">{error}</p>;
-  if (rows === null) return <p className="muted">Wird geladen…</p>;
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (rows === null) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {t("common.loading")}
+      </Typography>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold">Umlaufbeschlüsse</h1>
-        <p className="muted mt-1">
-          Hier sehen Sie alle Umlaufbeschlüsse zu Ihren Liegenschaften und
-          können während der Frist Ihre Stimme abgeben.
-        </p>
-      </header>
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="h4" component="h1" gutterBottom>
+          {t("resolutions.title")}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {t("resolutions.subtitle")}
+        </Typography>
+      </Box>
 
       {rows.length === 0 ? (
-        <p className="muted">Keine Beschlüsse vorhanden.</p>
+        <Typography variant="body2" color="text.secondary">
+          {t("resolutions.empty")}
+        </Typography>
       ) : (
-        <ul className="space-y-2">
+        <Stack spacing={1.5}>
           {rows.map((r) => (
-            <li key={r.id}>
-              <Link
+            <Card key={r.id} variant="outlined">
+              <CardActionArea
+                component={RouterLink}
                 to={`/resolutions/${r.id}`}
-                className="card block hover:border-whv-blue transition-colors"
+                sx={{ display: "block" }}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-display font-medium text-whv-text">
-                      {r.title}
-                    </div>
-                    <div className="muted mt-1">
-                      {RESOLUTION_MODE_LABELS[r.mode]} · Frist{" "}
-                      {new Date(r.closes_at).toLocaleString("de-DE")}
-                    </div>
-                  </div>
-                  <StatusBadge status={r.status} />
-                </div>
-              </Link>
-            </li>
+                <CardContent>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 2,
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontWeight: 500, mb: 0.5 }}
+                      >
+                        {r.title}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {RESOLUTION_MODE_LABELS[r.mode]} ·{" "}
+                        {t("resolutions.deadline")}{" "}
+                        {new Date(r.closes_at).toLocaleString("de-DE")}
+                      </Typography>
+                    </Box>
+                    <StatusChip status={r.status} />
+                  </Stack>
+                </CardContent>
+              </CardActionArea>
+            </Card>
           ))}
-        </ul>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }

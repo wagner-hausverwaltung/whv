@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+import { Alert, Box, Button, Link, Stack, TextField } from "@mui/material";
 import { api } from "@/api/client";
 import { AuthShell } from "@/components/AuthShell";
 
@@ -27,16 +28,22 @@ export function ForgotPasswordPage() {
   if (submitted) {
     return (
       <AuthShell title="Passwort vergessen">
-        <p className="flash-success">
+        <Alert severity="success">
           Falls Ihre E-Mail-Adresse bei uns hinterlegt ist, wurde ein Link zum
           Zurücksetzen versandt. Bitte prüfen Sie Ihren Posteingang (auch
           Spam-Ordner). Der Link ist 30 Minuten gültig.
-        </p>
-        <p className="text-center">
-          <Link to="/login" className="muted hover:underline">
+        </Alert>
+        <Box sx={{ textAlign: "center" }}>
+          <Link
+            component={RouterLink}
+            to="/login"
+            color="text.secondary"
+            variant="body2"
+            underline="hover"
+          >
             ← Zurück zur Anmeldung
           </Link>
-        </p>
+        </Box>
       </AuthShell>
     );
   }
@@ -46,35 +53,41 @@ export function ForgotPasswordPage() {
       title="Passwort vergessen"
       subtitle="Aus Sicherheitsgründen erhalten Sie immer die gleiche Bestätigung — unabhängig davon, ob die Adresse bekannt ist."
     >
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="label">
-            E-Mail-Adresse
-          </label>
-          <input
+      <Box component="form" onSubmit={onSubmit}>
+        <Stack spacing={2}>
+          <TextField
             id="email"
             type="email"
+            label="E-Mail-Adresse"
             required
             autoFocus
             autoComplete="email"
-            className="input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            fullWidth
           />
-        </div>
-        <button
-          type="submit"
-          className="btn-primary w-full"
-          disabled={submitting}
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={submitting}
+            fullWidth
+          >
+            {submitting ? "Wird gesendet…" : "Link senden"}
+          </Button>
+        </Stack>
+      </Box>
+      <Box sx={{ textAlign: "center" }}>
+        <Link
+          component={RouterLink}
+          to="/login"
+          color="text.secondary"
+          variant="body2"
+          underline="hover"
         >
-          {submitting ? "Wird gesendet…" : "Link senden"}
-        </button>
-      </form>
-      <p className="text-center">
-        <Link to="/login" className="muted hover:underline">
           Abbrechen
         </Link>
-      </p>
+      </Box>
     </AuthShell>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Alert, Box, Button, Stack, TextField, Typography } from "@mui/material";
 import { api, setTokens } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { AuthShell } from "@/components/AuthShell";
@@ -13,7 +14,6 @@ export function InviteRedeemPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  // Initial error from URL state (computed once); submission errors overwrite.
   const [error, setError] = useState<string | null>(
     code ? null : "Kein Einladungscode in der URL.",
   );
@@ -55,74 +55,69 @@ export function InviteRedeemPage() {
       subtitle="Legen Sie Ihr Passwort fest, um sich künftig im WHV-Portal anzumelden."
     >
       {code && (
-        <p className="flash-info font-mono text-xs">
-          Code: <strong>{code}</strong>
-        </p>
+        <Alert severity="info" icon={false}>
+          <Typography
+            variant="caption"
+            sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+          >
+            Code: <strong>{code}</strong>
+          </Typography>
+        </Alert>
       )}
 
       {error && (
-        <p className="flash-error" role="alert">
+        <Alert severity="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="label">
-            E-Mail-Adresse
-          </label>
-          <input
+      <Box component="form" onSubmit={onSubmit}>
+        <Stack spacing={2}>
+          <TextField
             id="email"
             type="email"
+            label="E-Mail-Adresse"
             required
             autoFocus
             autoComplete="email"
-            className="input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            helperText="Muss mit der E-Mail-Adresse aus der Einladung übereinstimmen."
+            fullWidth
           />
-          <p className="muted mt-1.5 text-xs">
-            Muss mit der E-Mail-Adresse aus der Einladung übereinstimmen.
-          </p>
-        </div>
-        <div>
-          <label htmlFor="password" className="label">
-            Neues Passwort
-          </label>
-          <input
+          <TextField
             id="password"
             type="password"
+            label="Neues Passwort"
             required
             autoComplete="new-password"
-            minLength={8}
-            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            slotProps={{ htmlInput: { minLength: 8 } }}
+            fullWidth
           />
-        </div>
-        <div>
-          <label htmlFor="confirm" className="label">
-            Passwort bestätigen
-          </label>
-          <input
+          <TextField
             id="confirm"
             type="password"
+            label="Passwort bestätigen"
             required
             autoComplete="new-password"
-            minLength={8}
-            className="input"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
+            slotProps={{ htmlInput: { minLength: 8 } }}
+            fullWidth
           />
-        </div>
-        <button
-          type="submit"
-          className="btn-primary w-full"
-          disabled={submitting || !code}
-        >
-          {submitting ? "Wird eingelöst…" : "Einladung einlösen + anmelden"}
-        </button>
-      </form>
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={submitting || !code}
+            fullWidth
+          >
+            {submitting ? "Wird eingelöst…" : "Einladung einlösen + anmelden"}
+          </Button>
+        </Stack>
+      </Box>
     </AuthShell>
   );
 }

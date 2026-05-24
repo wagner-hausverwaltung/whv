@@ -1,33 +1,41 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Link,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { api, API_BASE_URL } from "@/api/client";
 import {
   RESOLUTION_MODE_LABELS,
   RESOLUTION_STATUS_LABELS,
   VOTE_CHOICE_LABELS,
   type ResolutionDetailResponse,
+  type ResolutionStatus,
   type VoteChoice,
 } from "@/api/types";
 
-function StatusBadge({
-  status,
-}: {
-  status: ResolutionDetailResponse["status"];
-}) {
-  const tone =
+function StatusChip({ status }: { status: ResolutionStatus }) {
+  const color: "success" | "error" | "info" | "default" =
     status === "ANGENOMMEN"
-      ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+      ? "success"
       : status === "ABGELEHNT"
-        ? "bg-red-50 text-red-900 border-red-200"
+        ? "error"
         : status === "OFFEN"
-          ? "bg-blue-50 text-whv-blue border-blue-200"
-          : "bg-slate-100 text-slate-600 border-slate-200";
+          ? "info"
+          : "default";
   return (
-    <span
-      className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${tone}`}
-    >
-      {RESOLUTION_STATUS_LABELS[status]}
-    </span>
+    <Chip
+      size="small"
+      label={RESOLUTION_STATUS_LABELS[status]}
+      color={color}
+      variant={status === "ENTWURF" || status === "GESCHLOSSEN" ? "outlined" : "filled"}
+    />
   );
 }
 
@@ -44,27 +52,45 @@ function ChoiceButton({
   disabled: boolean;
   tone: "green" | "red" | "neutral";
 }) {
-  const baseTone =
-    tone === "green"
-      ? active
-        ? "bg-emerald-600 text-white border-emerald-600"
-        : "border-emerald-200 text-emerald-900 hover:bg-emerald-50"
-      : tone === "red"
-        ? active
-          ? "bg-red-600 text-white border-red-600"
-          : "border-red-200 text-red-900 hover:bg-red-50"
-        : active
-          ? "bg-slate-700 text-white border-slate-700"
-          : "border-slate-200 text-slate-700 hover:bg-slate-50";
+  // Map our tone semantics to MUI colors; "neutral" → inherit means the
+  // theme's default button colors (works in dark mode unlike hard-coded slate).
+  const color: "success" | "error" | "inherit" =
+    tone === "green" ? "success" : tone === "red" ? "error" : "inherit";
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`px-4 py-2 rounded border font-medium transition-colors disabled:opacity-50 ${baseTone}`}
+      variant={active ? "contained" : "outlined"}
+      color={color}
+      size="large"
     >
       {label}
-    </button>
+    </Button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color?: string;
+}) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography
+        variant="h5"
+        sx={{ fontWeight: 600, color: color ?? "inherit" }}
+      >
+        {value}
+      </Typography>
+    </Box>
   );
 }
 
@@ -119,66 +145,88 @@ export function ResolutionDetailPage() {
 
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <p className="flash-error">
+      <Stack spacing={2}>
+        <Alert severity="error">
           Beschluss nicht gefunden oder nicht zugänglich.
-        </p>
-        <Link to="/resolutions" className="muted">
+        </Alert>
+        <Link component={RouterLink} to="/resolutions" color="text.secondary">
           ← Zurück zur Übersicht
         </Link>
-      </div>
+      </Stack>
     );
   }
-  if (error && !resolution) return <p className="flash-error">{error}</p>;
-  if (resolution === null) return <p className="muted">Wird geladen…</p>;
+  if (error && !resolution) return <Alert severity="error">{error}</Alert>;
+  if (resolution === null) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Wird geladen…
+      </Typography>
+    );
+  }
 
   const t = resolution.tally;
   const isOpen = resolution.status === "OFFEN";
   const myChoice = resolution.my_vote?.choice ?? null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/resolutions" className="muted">
+    <Stack spacing={3}>
+      <Box>
+        <Link
+          component={RouterLink}
+          to="/resolutions"
+          color="text.secondary"
+          underline="hover"
+        >
           ← Beschlüsse
         </Link>
-      </div>
+      </Box>
 
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold">{resolution.title}</h1>
-        <div className="muted">
-          <StatusBadge status={resolution.status} /> ·{" "}
-          {RESOLUTION_MODE_LABELS[resolution.mode]} · Frist{" "}
-          {new Date(resolution.closes_at).toLocaleString("de-DE")}
-        </div>
-      </header>
+      <Box>
+        <Typography variant="h4" component="h1" gutterBottom>
+          {resolution.title}
+        </Typography>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
+        >
+          <StatusChip status={resolution.status} />
+          <Typography variant="caption" color="text.secondary">
+            · {RESOLUTION_MODE_LABELS[resolution.mode]} · Frist{" "}
+            {new Date(resolution.closes_at).toLocaleString("de-DE")}
+          </Typography>
+        </Stack>
+      </Box>
 
-      {flash && <p className="flash-success">{flash}</p>}
-      {error && resolution && <p className="flash-error">{error}</p>}
+      {flash && <Alert severity="success">{flash}</Alert>}
+      {error && resolution && <Alert severity="error">{error}</Alert>}
 
-      <section className="card">
-        <h2 className="text-lg font-semibold mb-2">Beschlusstext</h2>
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Beschlusstext
+        </Typography>
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
           {resolution.description}
-        </div>
-      </section>
+        </Typography>
+      </Paper>
 
       {resolution.am_eligible && isOpen && (
-        <section className="card">
-          <h2 className="text-lg font-semibold mb-3">Ihre Stimme</h2>
-          {myChoice ? (
-            <p className="muted mb-3">
-              Sie haben bereits mit{" "}
-              <strong>{VOTE_CHOICE_LABELS[myChoice]}</strong> abgestimmt. Sie
-              können Ihre Stimme bis zur Frist ändern.
-            </p>
-          ) : (
-            <p className="muted mb-3">
-              Wählen Sie eine Option. Sie können Ihre Stimme bis zur Frist
-              ändern.
-            </p>
-          )}
-          <div className="flex gap-3">
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Typography variant="h6" gutterBottom>
+            Ihre Stimme
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {myChoice ? (
+              <>
+                Sie haben bereits mit{" "}
+                <strong>{VOTE_CHOICE_LABELS[myChoice]}</strong> abgestimmt. Sie
+                können Ihre Stimme bis zur Frist ändern.
+              </>
+            ) : (
+              "Wählen Sie eine Option. Sie können Ihre Stimme bis zur Frist ändern."
+            )}
+          </Typography>
+          <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
             <ChoiceButton
               label="JA"
               tone="green"
@@ -200,81 +248,77 @@ export function ResolutionDetailPage() {
               disabled={voting}
               onClick={() => castVote("ENTHALTUNG")}
             />
-          </div>
-        </section>
+          </Stack>
+        </Paper>
       )}
 
       {resolution.am_eligible && !isOpen && resolution.my_vote && (
-        <section className="card">
-          <h2 className="text-lg font-semibold mb-2">Ihre abgegebene Stimme</h2>
-          <p>
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Typography variant="h6" gutterBottom>
+            Ihre abgegebene Stimme
+          </Typography>
+          <Typography variant="body2">
             <strong>{VOTE_CHOICE_LABELS[resolution.my_vote.choice]}</strong>{" "}
-            <span className="muted">
+            <Typography component="span" variant="caption" color="text.secondary">
               · abgegeben{" "}
               {new Date(resolution.my_vote.voted_at).toLocaleString("de-DE")}
-            </span>
-          </p>
-        </section>
+            </Typography>
+          </Typography>
+        </Paper>
       )}
 
-      <section className="card">
-        <h2 className="text-lg font-semibold mb-3">Stand der Abstimmung</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-          <div>
-            <div className="muted">Stimmberechtigt</div>
-            <div className="text-2xl font-semibold">{t.eligible_voters}</div>
-          </div>
-          <div>
-            <div className="muted">Abgegeben</div>
-            <div className="text-2xl font-semibold">{t.cast}</div>
-          </div>
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Stand der Abstimmung
+        </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" },
+            gap: 2,
+          }}
+        >
+          <StatCard label="Stimmberechtigt" value={t.eligible_voters} />
+          <StatCard label="Abgegeben" value={t.cast} />
           {resolution.mode === "MEHRHEITS" && (
-            <div>
-              <div className="muted">Erforderliches Quorum</div>
-              <div className="text-2xl font-semibold">
-                {resolution.required_quorum}
-              </div>
-            </div>
+            <StatCard
+              label="Erforderliches Quorum"
+              value={resolution.required_quorum}
+            />
           )}
-        </div>
+        </Box>
         {resolution.status !== "OFFEN" && (
-          <div className="grid grid-cols-3 gap-3 text-sm mt-4">
-            <div>
-              <div className="muted">JA</div>
-              <div className="text-2xl font-semibold text-emerald-700">
-                {t.ja}
-              </div>
-            </div>
-            <div>
-              <div className="muted">NEIN</div>
-              <div className="text-2xl font-semibold text-red-700">
-                {t.nein}
-              </div>
-            </div>
-            <div>
-              <div className="muted">Enthaltung</div>
-              <div className="text-2xl font-semibold text-slate-700">
-                {t.enthaltung}
-              </div>
-            </div>
-          </div>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 2,
+              mt: 2,
+            }}
+          >
+            <StatCard label="JA" value={t.ja} color="success.main" />
+            <StatCard label="NEIN" value={t.nein} color="error.main" />
+            <StatCard label="Enthaltung" value={t.enthaltung} />
+          </Box>
         )}
         {resolution.result && (
-          <p className="mt-4 text-sm">
+          <Typography variant="body2" sx={{ mt: 2 }}>
             <strong>Ergebnis:</strong> {resolution.result}
-          </p>
+          </Typography>
         )}
         {resolution.result_pdf_url && (
-          <p className="mt-3">
-            <a
+          <Box sx={{ mt: 1.5 }}>
+            <Link
               href={`${API_BASE_URL}/me/resolutions/${resolution.id}/result.pdf`}
-              className="text-whv-blue underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              underline="hover"
             >
               Protokoll-PDF herunterladen
-            </a>
-          </p>
+            </Link>
+          </Box>
         )}
-      </section>
-    </div>
+      </Paper>
+    </Stack>
   );
 }

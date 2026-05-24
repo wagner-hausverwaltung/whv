@@ -1,5 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 
@@ -61,93 +70,138 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-slate-900">Einstellungen</h1>
+    <Stack spacing={4}>
+      <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+        Einstellungen
+      </Typography>
 
-      {error && <p className="flash-error">{error}</p>}
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <section className="card space-y-2">
-        <h2 className="font-semibold">Konto</h2>
-        <p>
-          <span className="muted">E-Mail: </span>
-          <span className="font-mono text-sm">{user.email}</span>
-        </p>
-        <p>
-          <span className="muted">Rolle: </span>
-          {user.role}
-        </p>
-        {user.contact_id_impower !== null && (
-          <p>
-            <span className="muted">Impower-Kontakt-ID: </span>
-            <span className="font-mono text-sm">{user.contact_id_impower}</span>
-          </p>
-        )}
-      </section>
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Konto
+        </Typography>
+        <Stack spacing={1}>
+          <Box>
+            <Typography component="span" variant="body2" color="text.secondary">
+              E-Mail:{" "}
+            </Typography>
+            <Typography
+              component="span"
+              variant="body2"
+              sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+            >
+              {user.email}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography component="span" variant="body2" color="text.secondary">
+              Rolle:{" "}
+            </Typography>
+            <Typography component="span" variant="body2">
+              {user.role}
+            </Typography>
+          </Box>
+          {user.contact_id_impower !== null && (
+            <Box>
+              <Typography
+                component="span"
+                variant="body2"
+                color="text.secondary"
+              >
+                Impower-Kontakt-ID:{" "}
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+              >
+                {user.contact_id_impower}
+              </Typography>
+            </Box>
+          )}
+        </Stack>
+      </Paper>
 
-      <section className="card space-y-3">
-        <h2 className="font-semibold">Passwort ändern</h2>
-        <p className="muted">
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Passwort ändern
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Klicken Sie unten, um eine Reset-E-Mail an{" "}
           <strong>{user.email}</strong> zu senden. Der Link ist 30 Minuten
           gültig und beendet alle aktiven Sitzungen.
-        </p>
+        </Typography>
         {pwRequested ? (
-          <p className="flash-success">
+          <Alert severity="success">
             ✓ Reset-E-Mail wurde versandt. Bitte prüfen Sie Ihren Posteingang.
-          </p>
+          </Alert>
         ) : (
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={requestPwReset}
-          >
+          <Button variant="outlined" onClick={requestPwReset}>
             Reset-E-Mail anfordern
-          </button>
+          </Button>
         )}
-      </section>
+      </Paper>
 
-      <section className="card space-y-3">
-        <h2 className="font-semibold">Meine Daten exportieren</h2>
-        <p className="muted">
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" gutterBottom>
+          Meine Daten exportieren
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           DSGVO Art. 20 — alle zu Ihrem Konto gespeicherten Daten als
           JSON-Datei herunterladen.
-        </p>
-        <button
-          type="button"
-          className="btn-secondary"
+        </Typography>
+        <Button
+          variant="outlined"
           onClick={downloadExport}
           disabled={exporting}
         >
           {exporting ? "Wird vorbereitet…" : "JSON-Export herunterladen"}
-        </button>
-      </section>
+        </Button>
+      </Paper>
 
-      <section className="card-danger space-y-3">
-        <h2 className="font-display font-semibold text-red-700">Konto löschen</h2>
-        <p className="muted">
+      <Paper
+        variant="outlined"
+        sx={(theme) => ({
+          p: 2.5,
+          borderColor:
+            theme.palette.mode === "dark"
+              ? "rgba(220, 38, 38, 0.4)"
+              : "rgba(220, 38, 38, 0.3)",
+        })}
+      >
+        <Typography variant="h6" color="error" gutterBottom>
+          Konto löschen
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Ihr Konto wird zum Löschen markiert (30-Tage-Wiederherstellungsfenster).
           Alle aktiven Sitzungen werden beendet. Die in Impower hinterlegten
           Stammdaten bleiben unberührt.
-        </p>
-        <p className="muted text-xs">
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
           Tippen Sie <strong>LÖSCHEN</strong> in das Feld unten, um zu bestätigen.
-        </p>
-        <input
-          type="text"
-          className="input max-w-xs"
-          placeholder="LÖSCHEN"
-          value={deleteConfirm}
-          onChange={(e) => setDeleteConfirm(e.target.value)}
-        />
-        <button
-          type="button"
-          className="btn-danger"
-          onClick={deleteAccount}
-          disabled={deleteConfirm !== "LÖSCHEN" || deleting}
-        >
-          {deleting ? "Wird gelöscht…" : "Konto unwiderruflich löschen"}
-        </button>
-      </section>
-    </div>
+        </Typography>
+        <Stack spacing={1.5}>
+          <TextField
+            type="text"
+            size="small"
+            placeholder="LÖSCHEN"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            sx={{ maxWidth: 280 }}
+          />
+          <Box>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={deleteAccount}
+              disabled={deleteConfirm !== "LÖSCHEN" || deleting}
+            >
+              {deleting ? "Wird gelöscht…" : "Konto unwiderruflich löschen"}
+            </Button>
+          </Box>
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }
