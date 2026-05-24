@@ -118,11 +118,6 @@ export function AdminDashboardPage() {
         })}
       </Box>
 
-      <Typography variant="caption" color="text.secondary">
-        Stammdaten (Objekte, Einheiten, Verträge, Kontakte) werden nächtlich aus
-        Impower synchronisiert. Letzte Änderung &gt; 24 h zurück → Health-Check
-        prüfen.
-      </Typography>
     </Stack>
   );
 }
