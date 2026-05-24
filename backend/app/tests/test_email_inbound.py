@@ -5,10 +5,6 @@ Three layers:
   2. SES envelope parser (pure stdlib email + json)
   3. Webhook endpoint (DB + ticket routing; signature verifier monkeypatched
      to a no-op since real SNS signatures would require AWS infrastructure)
-
-The layer-3 (endpoint) tests carry @pytest.mark.skip pending diagnosis of
-a CI-only test failure — local Docker is down so we can't repro yet. Pure
-parser + verifier tests run normally.
 """
 
 from __future__ import annotations
@@ -254,12 +250,12 @@ def _ses_payload(
     return json.dumps(inner)
 
 
-def test_extract_ticket_ref_finds_8_hex_chars() -> None:
-    assert extract_ticket_ref("Re: [#01928374] question") == "01928374"
-    assert extract_ticket_ref("[#AbCdEf12] mixed case") == "abcdef12"
+def test_extract_ticket_ref_finds_16_hex_chars() -> None:
+    assert extract_ticket_ref("Re: [#0192837465fedcba] question") == "0192837465fedcba"
+    assert extract_ticket_ref("[#AbCdEf12cafebabe] mixed case") == "abcdef12cafebabe"
     assert extract_ticket_ref("nothing special") is None
-    assert extract_ticket_ref("[#xyz12345] bad chars") is None  # non-hex
-    assert extract_ticket_ref("[#01928] too short") is None
+    assert extract_ticket_ref("[#xyz12345xyz12345] bad chars") is None  # non-hex letters
+    assert extract_ticket_ref("[#01928374] only 8 chars") is None  # too short
     assert extract_ticket_ref("") is None
 
 
@@ -282,10 +278,10 @@ def test_parser_extracts_sender_subject_body() -> None:
 def test_parser_extracts_ticket_ref_from_subject() -> None:
     raw = _ses_payload(
         sender="alice@example.de",
-        subject="Re: [#deadbeef] Frage",
+        subject="Re: [#deadbeefcafebabe] Frage",
     )
     parsed = parse_ses_sns_payload(raw)
-    assert parsed.ticket_ref == "deadbeef"
+    assert parsed.ticket_ref == "deadbeefcafebabe"
 
 
 def test_parser_extracts_threading_headers() -> None:
@@ -350,7 +346,6 @@ def _sns_envelope(message_body: str, msg_type: str = "Notification") -> dict[str
     }
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_email_creates_new_ticket_for_unknown_sender(
     test_engine: AsyncEngine,
     stub_email: _StubEmailClient,
@@ -434,7 +429,6 @@ async def test_email_creates_new_ticket_for_unknown_sender(
     assert "In-Reply-To" in stub_email.sent[0]["headers"]
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_email_appends_to_existing_ticket_via_ref(
     test_engine: AsyncEngine,
     stub_email: _StubEmailClient,
@@ -476,7 +470,8 @@ async def test_email_appends_to_existing_ticket_via_ref(
         await s.refresh(ticket)
         ticket_id_str = str(ticket.id)
 
-    short_id = ticket_id_str[:8]
+    # 16 hex chars (no dashes) — matches the production short_id format.
+    short_id = uuid.UUID(ticket_id_str).hex[:16]
     envelope = _sns_envelope(
         _ses_payload(
             sender=creator_email,
@@ -511,7 +506,6 @@ async def test_email_appends_to_existing_ticket_via_ref(
         assert refreshed.status == TicketStatus.OFFEN
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_email_idempotent_on_duplicate_message_id(
     test_engine: AsyncEngine,
     stub_email: _StubEmailClient,
@@ -547,7 +541,6 @@ async def test_email_idempotent_on_duplicate_message_id(
         assert len(msgs) == 1
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_email_rejected_when_spam(
     test_engine: AsyncEngine,
     stub_email: _StubEmailClient,
@@ -577,11 +570,20 @@ async def test_email_rejected_when_spam(
     assert all("spammer" not in str(s["to"]) for s in stub_email.sent)
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_subscription_confirmation_visits_subscribe_url(
     monkeypatch: pytest.MonkeyPatch,
+    stub_email: _StubEmailClient,
 ) -> None:
+    """Patching `app.api.v1.webhooks.httpx.AsyncClient` is global (it mutates
+    the shared httpx module object). EmailClient also uses httpx.AsyncClient,
+    so the fake leaks into other DI paths in the same request. Two defences:
+      - _FakeClient implements `aclose` so EmailClient.aclose() in the DI
+        teardown doesn't raise AttributeError
+      - stub_email fixture is required so EmailClient isn't actually
+        instantiated (its __init__ would call the now-fake httpx.AsyncClient)
+    """
     _bypass_signature(monkeypatch)
+    _ = stub_email  # force fixture override of email_client BEFORE we patch httpx
 
     visited: list[str] = []
 
@@ -591,6 +593,10 @@ async def test_subscription_confirmation_visits_subscribe_url(
 
         async def __aexit__(self, *_: Any) -> None:
             pass
+
+        async def aclose(self) -> None:
+            """Required for compatibility with EmailClient's DI teardown
+            when the fake leaks via the global httpx module patch."""
 
         async def get(self, url: str) -> MagicMock:
             visited.append(url)
@@ -614,7 +620,6 @@ async def test_subscription_confirmation_visits_subscribe_url(
     ]
 
 
-@pytest.mark.skip(reason="bisect: DB-touching endpoint tests")
 async def test_invalid_signature_rejected_with_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

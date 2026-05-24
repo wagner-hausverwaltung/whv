@@ -228,7 +228,11 @@ async def _send_message_notification(
         return None, "no recipients"
     try:
         subject, html, text = render_ticket_notification_email(
-            ticket_short_id=str(ticket.id)[:8],
+            # 16 hex chars (no dashes) — reaches into UUIDv7's version + rand_a
+            # bits so two tickets created in the same millisecond can be
+            # distinguished. Must stay in sync with the inbound subject regex
+            # in app/integrations/email/inbound.py.
+            ticket_short_id=ticket.id.hex[:16],
             ticket_subject=ticket.subject,
             sender_email=sender_email,
             message_body=message.body,

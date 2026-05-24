@@ -5,7 +5,7 @@ from typing import Annotated, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from redis.asyncio import Redis
-from sqlalchemy import String, cast, select, update
+from sqlalchemy import String, cast, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
@@ -168,17 +168,26 @@ async def receive_impower_webhook(
 async def _resolve_ticket_by_ref(
     session: AsyncSession, organization_id: Any, ticket_ref: str
 ) -> Ticket | None:
-    """Look up a ticket whose UUID starts with `ticket_ref` (8 hex chars).
+    """Look up a ticket whose UUID (without dashes) starts with `ticket_ref`.
 
-    Returns None on no-match or ambiguous match (more than one ticket whose
-    UUID starts with that prefix — exceedingly unlikely with UUIDv7, but
-    we'd rather create a fresh ticket than splice into the wrong thread).
+    `ticket_ref` is the 16-char hex prefix extracted from a subject `[#…]` tag.
+    UUIDv7 packs a millisecond timestamp into the first 12 hex chars, so an
+    8-char prefix collides for ~65 seconds — not acceptable. 16 hex chars
+    extend into the version + rand_a bits and give us 12 bits of entropy on
+    top of the timestamp (good for ~64 simultaneously-created tickets before
+    birthday-paradox risk).
+
+    The cast renders the UUID as `xxxxxxxx-xxxx-…` with dashes, so we strip
+    them in-SQL with replace() before the prefix match.
+
+    Returns None on no-match or ambiguous match.
     """
+    id_no_dashes = func.replace(cast(Ticket.id, String), "-", "")
     matches = (
         await session.scalars(
             select(Ticket).where(
                 Ticket.organization_id == organization_id,
-                cast(Ticket.id, String).ilike(f"{ticket_ref}%"),
+                id_no_dashes.ilike(f"{ticket_ref}%"),
             )
         )
     ).all()
@@ -381,7 +390,7 @@ async def email_inbound(
 
     if recipients:
         try:
-            short_id = str(ticket.id)[:8]
+            short_id = ticket.id.hex[:16]
             tagged_subject = (
                 ticket.subject
                 if f"[#{short_id}]" in ticket.subject

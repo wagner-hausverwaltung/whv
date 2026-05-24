@@ -25,10 +25,12 @@ from email.message import Message
 from email.utils import parseaddr
 from typing import Any
 
-# `[#xxxxxxxx]` where xxxxxxxx is the first 8 hex chars of a ticket UUID
-# (lowercase). Matches anywhere in the subject — humans tend to prepend
-# "Re:" or "Fwd:" or paste the ref in random spots when replying inline.
-_TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{8})\]", re.IGNORECASE)
+# `[#xxxxxxxxxxxxxxxx]` where the 16 hex chars are the first 16 hex chars of
+# a ticket UUID (without dashes), lowercase. We use 16 (not 8) because UUIDv7
+# packs a millisecond timestamp in the first 12 hex chars; an 8-char prefix
+# collides for ~65 seconds, which is fatal for tests that create two tickets
+# in quick succession.
+_TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{16})\]", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
