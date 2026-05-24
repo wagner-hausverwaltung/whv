@@ -245,7 +245,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.1 Project bootstrap | ✅ shipped | uv · FastAPI · CI · docker-compose |
 | 1.2 Database — core tables | ✅ shipped | 13 tables; enums match Impower; UUIDv7 PKs; see ADR-0002 |
 | 1.3a Auth core | ✅ shipped | invite/redeem, login, refresh, logout, `/me`, `/me/properties` (incl. property detail with units) |
-| 1.3b Auth finishers | ⏳ partial | `DELETE /me`, `GET /me/export`, Apple SIWA, forgot/reset-pw all pending |
+| 1.3b Auth finishers | ⏳ partial | `DELETE /me` + `GET /me/export` ✅ shipped 2026-05-24. Apple SIWA + forgot/reset-pw still pending (need DUNS / Resend integration). |
 | 1.4a Impower client + sync | ✅ shipped | Hybrid codegen per ADR-0003; CLI sync verified: 24/129/361/179 rows |
 | 1.4b Scheduled sync (Celery beat) | ⏳ pending | not started |
 | 1.4c Webhooks | ⏳ pending | not started |
@@ -310,8 +310,8 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
 - [x] `GET /me` (current user + scope)
 - [x] `GET /me/properties` (scoped: VERWALTER sees all; EIGENTUEMER scoped via contact_id_impower → contracts → properties)
 - [x] `GET /me/properties/{id}` (property detail with embedded units, scope-checked, 404 on out-of-scope)
-- [ ] `DELETE /me` (account deletion, soft-delete with 30-day recovery window) — App Store requirement
-- [ ] `GET /me/export` (DSGVO data export as JSON) — DSGVO Art. 20 (portability)
+- [x] `DELETE /me` — soft-delete (`users.deleted_at`), revokes all the user's active sessions, writes an `audit_log` row (`user_self_delete`). Hard-delete after 30 days is a future operational job.
+- [x] `GET /me/export` — DSGVO Art. 20 JSON: user profile (no `password_hash`/`mfa_secret`), sessions metadata (no `refresh_token_hash`), audit entries where actor=self; `Content-Disposition: attachment` for browser download.
 
 ### 7.4 Impower integration — ⏳ partial
 - [x] Pydantic DTOs generated from spec; client handwritten — see ADR-0003 (deviation from "full generated client")
@@ -684,7 +684,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 |---|---|---|---|
 | 1 | **§6.7 health-check routine** — scheduled Claude routine probing `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none |
 | 2 | **Phase 1.4d iter 2: documents file upload** — fetch document body from Impower, store in Hetzner Object Storage, populate `storage_url` + `mime_type` + `size_bytes`. Iter 1 metadata is live (2026-05-24). | M | none |
-| 3 | **Phase 1.3b `DELETE /me` + `GET /me/export`** — soft-delete with 30-day recovery; JSON dump per DSGVO Art. 20 | S | none |
+| 3 | ~~Phase 1.3b `DELETE /me` + `GET /me/export`~~ — ✅ shipped 2026-05-24 (54 tests green, live smoke OK) | S | done |
 | 4 | **Phase 1.5 admin invites + Resend email** — `POST/GET/DELETE /admin/invites`, render template, send via Resend (D9 resolved) | M | none |
 | 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |
 | 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |

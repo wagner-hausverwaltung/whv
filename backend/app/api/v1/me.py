@@ -1,14 +1,29 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.dependencies import get_current_user
 from app.db import get_session
-from app.models import Contact, Contract, ContractContact, Document, Property, Unit, User, UserRole
+from app.models import (
+    AuditLog,
+    Contact,
+    Contract,
+    ContractContact,
+    Document,
+    Property,
+    Unit,
+    User,
+    UserRole,
+)
+from app.models import (
+    Session as DbSession,
+)
 from app.schemas.auth import UserResponse
 from app.schemas.document import DocumentResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
@@ -114,6 +129,128 @@ async def get_my_property_documents(
     ).all()
 
     return [DocumentResponse.model_validate(d) for d in doc_rows]
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Soft-delete the current user. Spec §7.3: 30-day recovery window.
+
+    Effect:
+    - users.deleted_at = now (auth dependency rejects further requests)
+    - All non-revoked sessions for this user → revoked_at = now (refresh tokens dead)
+    - Audit row written
+    - One commit, all-or-nothing
+
+    Hard-delete after the 30-day window is a future operational job
+    (not implemented in v1 of this endpoint).
+    """
+    now = datetime.now(UTC)
+
+    current_user.deleted_at = now
+
+    await session.execute(
+        update(DbSession)
+        .where(DbSession.user_id == current_user.id, DbSession.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="user_self_delete",
+            target_type="users",
+            target_id=str(current_user.id),
+        )
+    )
+
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/export")
+async def export_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> JSONResponse:
+    """DSGVO Art. 20 (portability) — return the user's personal data as JSON.
+
+    Includes only data *about the user*: their profile, their sessions
+    (metadata, never the token hashes), and audit entries where they were
+    the actor. Organizational data (properties, documents, contacts they
+    have *access* to) is intentionally out of scope — it's not their
+    personal data under GDPR.
+    """
+    sessions = (
+        await session.scalars(
+            select(DbSession)
+            .where(DbSession.user_id == current_user.id)
+            .order_by(DbSession.created_at.desc())
+        )
+    ).all()
+
+    audit_rows = (
+        await session.scalars(
+            select(AuditLog)
+            .where(AuditLog.actor_user_id == current_user.id)
+            .order_by(AuditLog.created_at.desc())
+        )
+    ).all()
+
+    payload: dict[str, object] = {
+        "exported_at": datetime.now(UTC).isoformat(),
+        "format_version": "1.0",
+        "user": {
+            "id": str(current_user.id),
+            "organization_id": str(current_user.organization_id),
+            "email": current_user.email,
+            "role": current_user.role.value,
+            "contact_id_impower": current_user.contact_id_impower,
+            "locale": current_user.locale,
+            "last_login_at": (
+                current_user.last_login_at.isoformat() if current_user.last_login_at else None
+            ),
+            "created_at": current_user.created_at.isoformat(),
+            "updated_at": current_user.updated_at.isoformat(),
+            "deleted_at": (
+                current_user.deleted_at.isoformat() if current_user.deleted_at else None
+            ),
+            # password_hash, sign_in_with_apple_sub, mfa_secret intentionally omitted.
+        },
+        "sessions": [
+            {
+                "id": str(s.id),
+                "expires_at": s.expires_at.isoformat(),
+                "user_agent": s.user_agent,
+                "ip_hash": s.ip_hash,
+                "last_used_at": s.last_used_at.isoformat() if s.last_used_at else None,
+                "revoked_at": s.revoked_at.isoformat() if s.revoked_at else None,
+                "created_at": s.created_at.isoformat(),
+                # refresh_token_hash intentionally omitted.
+            }
+            for s in sessions
+        ],
+        "audit_log_entries": [
+            {
+                "id": str(a.id),
+                "action": a.action,
+                "target_type": a.target_type,
+                "target_id": a.target_id,
+                "payload": a.payload_json,
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in audit_rows
+        ],
+    }
+
+    filename = f"whv-export-{current_user.id}-{datetime.now(UTC).date().isoformat()}.json"
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # selectinload import is kept for future N+1 mitigation; silence unused-import.
