@@ -15,7 +15,7 @@ from app.models.document import (
 from app.models.organization import Organization
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.unit import Unit, UnitType
-from app.models.user import InviteCode, Session, User, UserRole
+from app.models.user import InviteCode, PasswordResetToken, Session, User, UserRole
 
 __all__ = [
     "AuditLog",
@@ -32,6 +32,7 @@ __all__ = [
     "DocumentVisibility",
     "InviteCode",
     "Organization",
+    "PasswordResetToken",
     "PreferredChannel",
     "Property",
     "PropertyState",

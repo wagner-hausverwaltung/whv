@@ -245,7 +245,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.1 Project bootstrap | ✅ shipped | uv · FastAPI · CI · docker-compose |
 | 1.2 Database — core tables | ✅ shipped | 13 tables; enums match Impower; UUIDv7 PKs; see ADR-0002 |
 | 1.3a Auth core | ✅ shipped | invite/redeem, login, refresh, logout, `/me`, `/me/properties` (incl. property detail with units) |
-| 1.3b Auth finishers | ⏳ partial | `DELETE /me` + `GET /me/export` ✅ shipped 2026-05-24. Apple SIWA + forgot/reset-pw still pending (need DUNS / Resend integration). |
+| 1.3b Auth finishers | ⏳ partial | `DELETE /me`, `/me/export`, forgot/reset-password all ✅ shipped 2026-05-24. Apple SIWA still pending (waiting on DUNS / Apple Developer enrollment). |
 | 1.4a Impower client + sync | ✅ shipped | Hybrid codegen per ADR-0003; CLI sync verified: 24/129/361/179 rows |
 | 1.4b Scheduled sync (Celery beat) | ✅ shipped | `worker` + `beat` containers; `sync_all_impower` task at 02:00 UTC daily. Verified end-to-end (30.87s for the full graph). |
 | 1.4c Webhooks | ⏳ pending | not started |
@@ -305,8 +305,8 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
 - [x] `POST /auth/refresh`
 - [x] `POST /auth/logout`
 - [ ] `POST /auth/apple` (Sign in with Apple ID token verification) — depends on Apple Developer Program (DUNS in flight)
-- [ ] `POST /auth/forgot-password` → email link — **blocked on D9 (email provider)**
-- [ ] `POST /auth/reset-password` — paired with above
+- [x] `POST /auth/forgot-password` — always 204 (no enumeration); on hit, single-use sha256-hashed token persisted in `password_reset_tokens`, raw token emailed via Resend (German template); 30-min TTL
+- [x] `POST /auth/reset-password` — validates token; updates `password_hash`; **revokes every active session for the user**; marks token consumed; writes `audit_log` row
 - [x] `GET /me` (current user + scope)
 - [x] `GET /me/properties` (scoped: VERWALTER sees all; EIGENTUEMER scoped via contact_id_impower → contracts → properties)
 - [x] `GET /me/properties/{id}` (property detail with embedded units, scope-checked, 404 on out-of-scope)
@@ -686,7 +686,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 4 | ~~Phase 1.5 admin invites + Resend email~~ — ✅ shipped 2026-05-24 (ADR-0004, 63 tests green, live email send verified) | M | done |
 | 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |
 | 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
-| 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw via Resend | M | DUNS for SIWA only |
+| 7 | **Phase 1.3b auth finishers** — forgot/reset-pw ✅ shipped 2026-05-24. SIWA still pending DUNS / Apple Developer enrollment. | M | DUNS for SIWA only |
 | 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + HMAC + Impower-side connection registration | S | none |
 | 9 | ~~Phase 1.4b Celery beat~~ — ✅ shipped 2026-05-24 (worker + beat live, nightly 02:00 UTC) | M | done |
 | 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views, Jinja2 server-rendered (D10 resolved) | L | none |

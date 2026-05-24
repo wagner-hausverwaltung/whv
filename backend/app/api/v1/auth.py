@@ -1,8 +1,10 @@
-from datetime import UTC, datetime
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt as jwt_lib
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,15 +17,24 @@ from app.auth.jwt import (
 from app.auth.passwords import hash_password, verify_password
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import InviteCode, Session, User
+from app.integrations.email.client import EmailClient, EmailError, get_email_client
+from app.integrations.email.password_reset import render_password_reset_email
+from app.models import AuditLog, InviteCode, PasswordResetToken, Session, User
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     InviteRedeemRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserResponse,
 )
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -178,3 +189,103 @@ async def logout(
         .values(revoked_at=datetime.now(UTC))
     )
     await session.commit()
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(
+    req: ForgotPasswordRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> Response:
+    """Issue a single-use password-reset token.
+
+    Always returns 204 regardless of whether the email matches a user — this
+    prevents email enumeration. If a user exists, a sha256-hashed token is
+    stored and the raw token is emailed to them. Failures (no user, email
+    send failure) are silently absorbed; the response is the same.
+    """
+    user = await session.scalar(select(User).where(User.email == req.email.lower()))
+
+    if user is not None and user.deleted_at is None:
+        raw_token = secrets.token_urlsafe(32)
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(minutes=settings.password_reset_ttl_minutes)
+        session.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=_hash_reset_token(raw_token),
+                expires_at=expires_at,
+            )
+        )
+        await session.commit()
+
+        try:
+            subject, html, text = render_password_reset_email(
+                email=user.email,
+                token=raw_token,
+                ttl_minutes=settings.password_reset_ttl_minutes,
+            )
+            await email_client.send(to=user.email, subject=subject, html=html, text=text)
+        except EmailError:
+            # Don't leak whether email was sent; user can request another reset.
+            # The token row exists and is redeemable until expiry.
+            pass
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    req: ResetPasswordRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Redeem a password-reset token to set a new password.
+
+    On success:
+    - users.password_hash updated
+    - all active sessions for the user revoked (force re-login everywhere)
+    - token marked consumed
+    - audit_log row written
+    """
+    now = datetime.now(UTC)
+    token = await session.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == _hash_reset_token(req.token),
+            PasswordResetToken.consumed_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    if token is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token invalid, expired, or used"
+        )
+
+    user = await session.scalar(select(User).where(User.id == token.user_id))
+    if user is None or user.deleted_at is not None:
+        # The user was deleted between issue + reset; nothing to do.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token invalid, expired, or used"
+        )
+
+    user.password_hash = hash_password(req.new_password)
+    token.consumed_at = now
+
+    await session.execute(
+        update(Session)
+        .where(Session.user_id == user.id, Session.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+
+    session.add(
+        AuditLog(
+            organization_id=user.organization_id,
+            actor_user_id=user.id,
+            action="user_password_reset",
+            target_type="users",
+            target_id=str(user.id),
+        )
+    )
+
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
