@@ -206,6 +206,32 @@ hausverwaltung/
 - Dependabot / Renovate for dependency updates
 - Rate limiting per IP and per user on all endpoints
 
+### 6.7 Automated health checks & self-remediation (Claude routine)
+
+A scheduled Claude Code routine (configured via the `/schedule` skill) runs at a regular cadence — initial target **every 30 min** — and:
+
+1. **Probes each integrated system with a lightweight read** (no writes, idempotent, low-impact). Per-system probes evolve as integrations come online:
+   - **Backend**: `GET /healthz`, `GET /readyz` → 200 expected; `/readyz` body must report `postgres: true, redis: true`.
+   - **Impower API**: `GET /v2/properties?size=1` with the configured bearer token → 200 expected; warn on 401 (token expired/rotated), 429 (rate-limited), 5xx (Impower outage).
+   - **Object storage** (when added): list one bucket prefix.
+   - **ePost** (Phase 4): account/credit balance endpoint.
+   - **WhatsApp BSP** (Phase 4): number status / template status.
+   - **SharePoint Graph** (Phase 5): drive listing.
+   - **Email provider** (Phase 1.3b+): account API ping.
+
+2. **Records each probe** with HTTP status, latency, and a body excerpt on failure. The routine writes a single status report per run.
+
+3. **Addresses failures at three escalation levels**, in order:
+   - **Auto-remediate** safe, idempotent fixes (e.g., `docker compose restart backend` when `/readyz` is 503 and the container is `unhealthy`; renew Let's Encrypt cert if Caddy hasn't done so).
+   - **Diagnose-and-document** — capture container logs, recent commits, and the failing probe into a Markdown note under `infra/incidents/YYYY-MM-DD.md` for Luis to review.
+   - **Escalate immediately** for user-facing failures (auth broken, sync stale > 24 h, certificate expired, data loss suspected) — notification channel TBD (push, email, or Slack); fallback is a high-priority incident note plus a flagged commit.
+
+4. **Never mutates business data.** The routine reads, restarts infra containers, edits its own diagnostic notes — nothing else. Database/file mutations are explicitly out of scope.
+
+5. **Versioned with the repo** — probe definitions and the schedule prompt live in `infra/scripts/health-checks/` so changes are reviewed.
+
+First version lands alongside the Phase 1.7 staging deploy (so we're monitoring something real). Probe coverage grows with each new integration.
+
 ---
 
 ## 7. Phase 1 — Backend Foundation (4–6 weeks)
