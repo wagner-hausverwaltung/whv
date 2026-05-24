@@ -80,6 +80,29 @@ async def _to_detail(
     t: Ticket, messages: list[TicketMessage], session: AsyncSession
 ) -> TicketDetailResponse:
     participants = await _load_participants(session, t.id)
+    # Resolve author emails in one batch so the SPA can render thread rows
+    # without N follow-up requests. Hard-deleted users → email is None.
+    author_ids = {m.author_user_id for m in messages if m.author_user_id}
+    author_emails: dict[uuid.UUID, str] = {}
+    if author_ids:
+        author_rows = (
+            await session.scalars(select(User).where(User.id.in_(author_ids)))
+        ).all()
+        author_emails = {u.id: u.email for u in author_rows}
+    message_resps = [
+        TicketMessageResponse(
+            id=m.id,
+            ticket_id=m.ticket_id,
+            author_user_id=m.author_user_id,
+            author_email=(
+                author_emails.get(m.author_user_id) if m.author_user_id else None
+            ),
+            body=m.body,
+            is_internal_note=m.is_internal_note,
+            created_at=m.created_at,
+        )
+        for m in messages
+    ]
     return TicketDetailResponse(
         id=t.id,
         property_id=t.property_id,
@@ -92,7 +115,7 @@ async def _to_detail(
         last_message_at=t.last_message_at,
         created_at=t.created_at,
         closed_at=t.closed_at,
-        messages=[TicketMessageResponse.model_validate(m) for m in messages],
+        messages=message_resps,
         participants=participants,
     )
 

@@ -78,6 +78,7 @@ export type TicketShareScope = "PRIVATE" | "PARTICIPANTS" | "PROPERTY";
 export interface TicketMessageResponse {
   id: string;
   ticket_id: string;
+  author_email?: string | null;
   author_user_id: string;
   body: string;
   is_internal_note: boolean;

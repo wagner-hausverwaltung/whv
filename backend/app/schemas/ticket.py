@@ -47,6 +47,9 @@ class TicketMessageResponse(BaseModel):
     id: uuid.UUID
     ticket_id: uuid.UUID
     author_user_id: uuid.UUID
+    # Author email is resolved server-side so the SPA doesn't have to make
+    # a second batch lookup. None if the user has been hard-deleted.
+    author_email: str | None = None
     body: str
     is_internal_note: bool
     created_at: datetime

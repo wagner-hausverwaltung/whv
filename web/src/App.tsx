@@ -4,6 +4,8 @@ import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
 import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
+import { AdminTicketDetailPage } from "@/admin/pages/AdminTicketDetailPage";
+import { AdminTicketsPage } from "@/admin/pages/AdminTicketsPage";
 import { AdminRoute } from "@/auth/AdminRoute";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
@@ -143,7 +145,17 @@ function App() {
             element={
               <AdminRoute>
                 <AdminLayout>
-                  <AdminPlaceholderPage title="Tickets" legacyPath="/admin-ui/tickets" />
+                  <AdminTicketsPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/tickets/:id"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminTicketDetailPage />
                 </AdminLayout>
               </AdminRoute>
             }
