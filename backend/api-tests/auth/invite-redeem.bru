@@ -1,0 +1,30 @@
+meta {
+  name: POST /auth/invite/redeem
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/auth/invite/redeem
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "code": "PASTE_INVITE_CODE_HERE",
+    "email": "you@example.com",
+    "password": "choose-a-strong-password"
+  }
+}
+
+docs {
+  Exchanges an invite code for a new user + access/refresh tokens.
+
+  Invite codes are created via the bootstrap CLI on the server:
+    ssh whv@staging-host 'cd whv && docker compose ... exec backend \
+      python -m app.auth.bootstrap create-invite EMAIL --role verwalter'
+
+  On success: stash access_token + refresh_token into the active environment
+  for use by the authenticated requests below.
+}

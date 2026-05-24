@@ -1,0 +1,24 @@
+meta {
+  name: GET /me/properties
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/me/properties
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Lists properties the authenticated user can see.
+
+  - VERWALTER: all properties in their organization
+  - EIGENTUEMER / MIETER: scoped via contact_id_impower → contracts → properties
+
+  Sorted by property name.
+}

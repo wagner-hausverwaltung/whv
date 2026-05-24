@@ -1,0 +1,23 @@
+meta {
+  name: GET /me/properties/{id}/documents
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/me/properties/PASTE_PROPERTY_UUID_HERE/documents
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Documents attached to the property. Metadata only — file body download
+  comes in Phase 1.4d iter 2 (Hetzner Object Storage).
+
+  Same scope rules as /me/properties/{id}: 404 on out-of-scope.
+  Ordered by issued_date DESC NULLS LAST, then name.
+}

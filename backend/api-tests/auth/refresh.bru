@@ -1,0 +1,22 @@
+meta {
+  name: POST /auth/refresh
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/auth/refresh
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refresh_token": "{{refresh_token}}"
+  }
+}
+
+docs {
+  Rotates the refresh token: returns a new access + refresh pair, marks the
+  old session revoked. The old refresh_token will return 401 on the next call.
+}

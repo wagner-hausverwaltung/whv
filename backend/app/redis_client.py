@@ -8,7 +8,7 @@ _redis: Redis | None = None
 
 def init_redis(redis_url: str) -> None:
     global _redis
-    _redis = from_url(redis_url, decode_responses=True)
+    _redis = from_url(redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
 
 
 async def close_redis() -> None:

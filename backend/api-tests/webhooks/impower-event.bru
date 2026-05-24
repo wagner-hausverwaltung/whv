@@ -1,0 +1,35 @@
+meta {
+  name: POST /webhooks/impower (simulated)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/webhooks/impower
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "connectionId": 25815,
+    "entityType": "properties",
+    "entityId": 53867,
+    "eventType": "UPDATE"
+  }
+}
+
+docs {
+  Webhook receiver for Impower events. In production this is called by
+  Impower's own infrastructure (connection registered with appId=8 in
+  POST /v2/connections).
+
+  Behavior:
+  - properties/units/contracts/contacts/documents +
+    CREATE/UPDATE → triggers a full sync of that entity type
+  - …same entity types + DELETE → soft-deletes the local mirror row
+  - other entity types (buildings, invoices, messages) → acked-and-ignored
+  - duplicate event within 5 min → acked as "duplicate" (Redis-backed dedupe)
+
+  This request is for manual replay/testing only.
+}

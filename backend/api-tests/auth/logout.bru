@@ -1,0 +1,22 @@
+meta {
+  name: POST /auth/logout
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/auth/logout
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refresh_token": "{{refresh_token}}"
+  }
+}
+
+docs {
+  Marks the refresh-token's session revoked. Returns 204.
+  Access token stays valid until its 15-min expiry — refresh will fail.
+}

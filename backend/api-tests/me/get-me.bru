@@ -1,0 +1,20 @@
+meta {
+  name: GET /me
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Returns the authenticated user's profile: id, email, role, organization_id,
+  contact_id_impower.
+}

@@ -18,6 +18,7 @@ dependencies = [
     "argon2-cffi>=25.1.0",
     "pyjwt[crypto]>=2.13.0",
     "email-validator>=2.3.0",
+    "celery[redis]>=5.4",
 ]
 
 [dependency-groups]
@@ -62,6 +63,18 @@ disallow_untyped_decorators = false
 [[tool.mypy.overrides]]
 module = "app.integrations.impower._schemas_generated"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Celery ships no py.typed marker; the task decorator and many helpers
+# are untyped. Allow the imports without complaining.
+module = ["celery", "celery.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# The celery_app.task decorator is untyped — silence the decorator
+# check just for the workers module so we don't have to noqa every task.
+module = "app.workers.tasks"
+disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

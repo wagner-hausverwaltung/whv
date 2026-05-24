@@ -45,6 +45,36 @@ services:
     ports:
       - "8000:8000"
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-whv}:${POSTGRES_PASSWORD:-whv}@postgres:5432/${POSTGRES_DB:-whv}
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-whv}:${POSTGRES_PASSWORD:-whv}@postgres:5432/${POSTGRES_DB:-whv}
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   redis-data:

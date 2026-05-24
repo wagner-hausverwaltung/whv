@@ -1,0 +1,16 @@
+meta {
+  name: GET /readyz
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/readyz
+  body: none
+  auth: none
+}
+
+docs {
+  Readiness probe — 200 only when postgres and redis are both reachable.
+  Returns 503 with the failing dep when degraded.
+}

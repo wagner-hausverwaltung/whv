@@ -1,0 +1,23 @@
+meta {
+  name: GET /me/export
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/me/export
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  DSGVO Art. 20 portability: JSON dump of the user's personal data
+  (profile + sessions metadata + audit log entries). Content-Disposition
+  is "attachment" so browsers download instead of rendering inline.
+
+  Never includes password_hash, mfa_secret, or refresh_token_hash.
+}

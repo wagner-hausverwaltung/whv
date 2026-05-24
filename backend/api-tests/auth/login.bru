@@ -1,0 +1,23 @@
+meta {
+  name: POST /auth/login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "you@example.com",
+    "password": "your-password"
+  }
+}
+
+docs {
+  Returns access_token (15 min TTL) + refresh_token (30 day TTL).
+  Update the environment's access_token + refresh_token with the response.
+}

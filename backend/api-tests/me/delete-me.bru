@@ -1,0 +1,27 @@
+meta {
+  name: DELETE /me
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{base_url}}/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Soft-deletes the user account (sets users.deleted_at = now). Revokes
+  all of the user's active sessions in the same transaction so refresh
+  tokens die immediately. Writes an audit_log row.
+
+  Does NOT touch the user's Impower contact record (if any) — that data
+  belongs to Impower's master-data system, not the portal.
+
+  Returns 204. Subsequent /me / /auth/refresh / /auth/login with the
+  same credentials all return 401.
+}

@@ -247,7 +247,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.3a Auth core | ✅ shipped | invite/redeem, login, refresh, logout, `/me`, `/me/properties` (incl. property detail with units) |
 | 1.3b Auth finishers | ⏳ partial | `DELETE /me` + `GET /me/export` ✅ shipped 2026-05-24. Apple SIWA + forgot/reset-pw still pending (need DUNS / Resend integration). |
 | 1.4a Impower client + sync | ✅ shipped | Hybrid codegen per ADR-0003; CLI sync verified: 24/129/361/179 rows |
-| 1.4b Scheduled sync (Celery beat) | ⏳ pending | not started |
+| 1.4b Scheduled sync (Celery beat) | ✅ shipped | `worker` + `beat` containers; `sync_all_impower` task at 02:00 UTC daily. Verified end-to-end (30.87s for the full graph). |
 | 1.4c Webhooks | ⏳ pending | not started |
 | 1.4d Documents sync | ✅ shipped (iter 1: metadata) | 3,309 docs synced on staging; per-property iteration (Impower /v2/documents requires propertyId filter). File upload to Hetzner Object Storage stays as iter 2. |
 | 1.5 Invite admin + email | ⏳ partial | code generation + bootstrap CLI done; `/admin/invites` + email not started |
@@ -318,9 +318,7 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
 - [x] `integrations/impower/client.py` — async httpx, Bearer auth, retry on 5xx + ConnectError, 429 Retry-After
 - [x] Pagination iterators for properties, units, contracts, contacts
 - [x] Manual sync via CLI: `python -m app.integrations.impower sync [entity|all]` — upserts via `INSERT … ON CONFLICT (impower_id)`; populates `contract_contacts` junction
-- [ ] **1.4b** — Celery beat scheduled jobs:
-  - Full sync nightly (properties, units, contracts, contacts, documents)
-  - Delta sync every 15 min using `updated_since` filters where supported (note: Impower's v2 spec doesn't expose `updated_since` on most endpoints — fall back to periodic full sync until webhooks land)
+- [x] **1.4b** — Celery `worker` + `beat` containers; `sync_all_impower` task runs at 02:00 UTC daily (one hour before the postgres backup). Full sync of properties → units → contacts → contracts → documents. Verified live: 30.87s for the entire graph. Delta sync (`updated_since`) deferred — Impower's v2 spec doesn't expose it on most endpoints; webhooks handle real-time updates between nightly runs.
 - [ ] **1.4c** — Webhook endpoint `/webhooks/impower` — register connection via Impower `POST /v2/connections` with `appId=8`; verify signature; idempotent processing keyed on `(entityType, entityId, eventType)`
 - [x] **1.4d (iter 1)** — Documents metadata mirror — per-property iteration (Impower's `/v2/documents` requires `propertyId` filter, unfiltered times out); 31-value `sourceType` enum mapped to our 8-value `DocumentKind` with `SONSTIGES` catchall + raw `impower_source_type` retained
 - [ ] **1.4d (iter 2)** — File body upload to Hetzner Object Storage (D8)
@@ -345,10 +343,10 @@ A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/Rea
 
 ### 7.7 Definition of Done (Phase 1)
 - [x] Backend deployed to staging on Hetzner Cloud — https://staging.api.wagner-hausverwaltung.com
-- [ ] Postman/Bruno collection committed in `backend/api-tests/`
+- [x] Bruno collection committed in `backend/api-tests/` (chose Bruno over Postman — plain text, git-diffable, no cloud account)
 - [x] Luis can invite his own personal Impower contact, redeem the invite, log in, see his properties
 - [x] All endpoints documented in OpenAPI / Swagger UI at `/docs`
-- [x] Test coverage ≥ 70% on services and integrations (34 tests covering models, sync, client, auth, /me — all green)
+- [x] Test coverage ≥ 70% on services and integrations (56 tests covering models, sync, client, auth, /me, webhooks, workers — all green)
 
 ---
 
@@ -690,9 +688,9 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 6 | **Phase 1.7+ Postgres backups to B2** — daily pg_dump, 30-day retention | S | none |
 | 7 | **Phase 1.3b auth finishers** — SIWA (waits on DUNS), forgot/reset-pw via Resend | M | DUNS for SIWA only |
 | 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + HMAC + Impower-side connection registration | S | none |
-| 9 | **Phase 1.4b Celery beat** — worker container + beat schedule for nightly full sync | M | none |
+| 9 | ~~Phase 1.4b Celery beat~~ — ✅ shipped 2026-05-24 (worker + beat live, nightly 02:00 UTC) | M | done |
 | 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views, Jinja2 server-rendered (D10 resolved) | L | none |
-| 11 | **Phase 1.7+ Postman/Bruno collection** — closes the last §7.7 DoD item | S | none |
+| 11 | ~~Phase 1.7+ Postman/Bruno collection~~ — ✅ shipped 2026-05-24 (Bruno, `backend/api-tests/`) | S | done |
 | 12 | **Phase 2 iOS scaffold** — Xcode project + first 2-3 screens hitting staging | L | DUNS before App Store submission; can scaffold without |
 
 All Phase 1 work is now unblocked (D8/D9/D10/D12 resolved 2026-05-24). Items 1–11 close Phase 1 fully (~4–6 weeks of focused work). A "minimum to start Phase 2" cut is items 1, 2 (iter 1), 3, 8, 11 (~1–2 weeks).
