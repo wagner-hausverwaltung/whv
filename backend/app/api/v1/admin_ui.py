@@ -611,6 +611,7 @@ async def property_contacts_search(
         {
             "id": str(c.impower_id),  # what the invite form actually wants
             "label": _contact_display_name(c),
+            "email": c.email or "",  # surfaced via data-email; "" → JS swaps hint
             "detail": " · ".join(
                 bit
                 for bit in (

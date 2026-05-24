@@ -229,6 +229,9 @@ async def test_contact_search_returns_contacts_linked_to_property(
     # Result item carries the Impower contact ID as data-id (this is what
     # the inline JS shoves into the hidden contact_id_impower input)
     assert 'data-id="987654"' in r.text
+    # ...and data-email is present (empty in this case since we didn't set one;
+    # the JS reads this and swaps the hint accordingly)
+    assert "data-email=" in r.text
 
 
 async def test_contact_search_filters_by_query(
@@ -294,6 +297,65 @@ async def test_contact_search_filters_by_query(
     assert r.status_code == 200
     assert "QFilterMatch" in r.text
     assert "QFilterMiss" not in r.text
+
+
+async def test_contact_search_surfaces_email_for_autofill(
+    test_engine: AsyncEngine, verwalter_session: tuple[TestClient, User]
+) -> None:
+    """The contact picker exposes contact.email via data-email so the invite
+    form's inline JS can auto-fill the recipient address."""
+    client, user = verwalter_session
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.models import Contact as ContactModel
+    from app.models import (
+        ContactKind,
+        ContractType,
+        PropertyState,
+        PropertyType,
+    )
+    from app.models import Contract as ContractModel
+    from app.models import ContractContact as JunctionModel
+    from app.models import Property as PropertyModel
+
+    expected_email = f"autofill-{uuid.uuid4().hex[:6]}@beispiel.de"
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        prop = PropertyModel(
+            organization_id=user.organization_id,
+            name="Autofill-Test-Objekt",
+            type=PropertyType.STRATA,
+            state=PropertyState.READY,
+            city="Stuttgart",
+        )
+        s.add(prop)
+        await s.flush()
+
+        c = ContactModel(
+            organization_id=user.organization_id,
+            impower_id=765432,
+            kind=ContactKind.PERSON,
+            first_name="Autofill",
+            last_name="EmailHolder",
+            email=expected_email,
+        )
+        s.add(c)
+        await s.flush()
+
+        contract = ContractModel(
+            organization_id=user.organization_id,
+            property_id=prop.id,
+            type=ContractType.OWNER,
+        )
+        s.add(contract)
+        await s.flush()
+        s.add(JunctionModel(contract_id=contract.id, contact_id=c.id))
+        await s.commit()
+        property_id = prop.id
+
+    r = client.get(f"/admin-ui/properties/{property_id}/contacts/search?q=Autofill")
+    assert r.status_code == 200
+    assert f'data-email="{expected_email}"' in r.text
 
 
 # --- Invite create still works with new form field source --------------------

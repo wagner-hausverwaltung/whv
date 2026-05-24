@@ -5,7 +5,11 @@
 {% if results %}
 <ul class="picker-results" data-kind="{{ kind }}">
   {% for r in results %}
-  <li data-id="{{ r.id }}" data-label="{{ r.label }}">
+  <li
+    data-id="{{ r.id }}"
+    data-label="{{ r.label }}"
+    {% if r.email is defined %}data-email="{{ r.email }}"{% endif %}
+  >
     <strong>{{ r.label }}</strong>
     {% if r.detail %}<span class="detail">{{ r.detail }}</span>{% endif %}
   </li>
