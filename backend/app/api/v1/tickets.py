@@ -85,18 +85,14 @@ async def _to_detail(
     author_ids = {m.author_user_id for m in messages if m.author_user_id}
     author_emails: dict[uuid.UUID, str] = {}
     if author_ids:
-        author_rows = (
-            await session.scalars(select(User).where(User.id.in_(author_ids)))
-        ).all()
+        author_rows = (await session.scalars(select(User).where(User.id.in_(author_ids)))).all()
         author_emails = {u.id: u.email for u in author_rows}
     message_resps = [
         TicketMessageResponse(
             id=m.id,
             ticket_id=m.ticket_id,
             author_user_id=m.author_user_id,
-            author_email=(
-                author_emails.get(m.author_user_id) if m.author_user_id else None
-            ),
+            author_email=(author_emails.get(m.author_user_id) if m.author_user_id else None),
             body=m.body,
             is_internal_note=m.is_internal_note,
             created_at=m.created_at,
