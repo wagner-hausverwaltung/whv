@@ -21,6 +21,8 @@ from app.models import (
     Property,
     PropertyState,
     PropertyType,
+    Unit,
+    UnitType,
     User,
     UserRole,
 )
@@ -115,6 +117,30 @@ async def make_property(
         await s.commit()
         await s.refresh(prop)
     return prop
+
+
+async def make_unit(
+    engine: AsyncEngine,
+    *,
+    org: Organization,
+    prop: Property,
+    unit_hr_id: str | None = None,
+    unit_type: UnitType = UnitType.APARTMENT,
+    floor: str | None = "EG",
+) -> Unit:
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        unit = Unit(
+            organization_id=org.id,
+            property_id=prop.id,
+            unit_hr_id=unit_hr_id or f"U-{_short_id()}",
+            type=unit_type,
+            floor=floor,
+        )
+        s.add(unit)
+        await s.commit()
+        await s.refresh(unit)
+    return unit
 
 
 async def make_contact_with_contract_link(

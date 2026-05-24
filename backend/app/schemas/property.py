@@ -2,6 +2,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.unit import UnitResponse
+
 
 class PropertyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -17,3 +19,7 @@ class PropertyResponse(BaseModel):
     number: str | None = None
     postal_code: str | None = None
     country: str | None = None
+
+
+class PropertyDetailResponse(PropertyResponse):
+    units: list[UnitResponse] = []
