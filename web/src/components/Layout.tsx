@@ -20,7 +20,12 @@ export function Layout({ children }: { children: ReactNode }) {
           </Link>
           {user && (
             <div className="flex items-center gap-3">
-              <span className="muted hidden sm:inline">{user.email}</span>
+              <Link
+                to="/settings"
+                className="muted hover:underline hidden sm:inline"
+              >
+                {user.email}
+              </Link>
               <button
                 type="button"
                 className="btn-secondary text-xs"

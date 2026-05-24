@@ -121,6 +121,29 @@ curl -i https://admin.wagner-hausverwaltung.com/admin-ui/login
 curl -iL https://admin.wagner-hausverwaltung.com/
 ```
 
+## Web portal host (`portal.wagner-hausverwaltung.com`)
+
+The Eigentümer / Mieter / Beirat web portal (React 18 + Vite, served by an nginx static container behind Caddy). The SPA calls `staging.api.*` cross-origin via JWT in `Authorization` header; backend's `CORSMiddleware` allowlists this host via `PORTAL_BASE_URL`.
+
+DNS prerequisite — add at the registrar (Bluehost) before the first hit:
+
+| Host                                  | Type | Value             |
+|---------------------------------------|------|-------------------|
+| `portal.wagner-hausverwaltung.com`    | A    | `46.225.185.151`  |
+
+Same provisioning behaviour as the admin host: once DNS resolves, Caddy obtains a Let's Encrypt cert on the first inbound request. If you hit the back-off issue from below (e.g. you set DNS after Caddy already tried + failed), `docker compose restart caddy` clears it.
+
+Smoke after DNS:
+
+```bash
+# Static landing renders (HTTP 200, contains "WHV-Portal")
+curl -i https://portal.wagner-hausverwaltung.com/
+
+# Auth flow: /login is the default unauth landing, /invite?code= the redemption flow
+```
+
+The portal builds at CI time with `VITE_API_BASE_URL=https://staging.api.wagner-hausverwaltung.com` baked into the bundle. If you ever need to redeploy with a different API origin, change the build-arg in `.github/workflows/deploy.yml` and re-push.
+
 ### Gotcha: Caddy ACME back-off after late DNS
 
 If you added the host block to the Caddyfile *before* DNS propagated, Caddy's first ACME attempt will have failed and exponential back-off kicks in (10-60 min between retries). `caddy reload` does **not** reset that back-off state. The fix is a container restart:

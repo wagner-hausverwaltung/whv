@@ -9,6 +9,7 @@ import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
 import { PropertyListPage } from "@/pages/PropertyListPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 function App() {
   return (
@@ -48,6 +49,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <PropertyDocumentsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <SettingsPage />
                 </Layout>
               </ProtectedRoute>
             }

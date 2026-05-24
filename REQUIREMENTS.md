@@ -694,6 +694,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 10 | ~~Phase 1.6 admin UI~~ — ✅ shipped 2026-05-24 (Jinja2 + Pico.css at admin.wagner-hausverwaltung.com, cookie auth, dashboard + invites CRUD + audit log; 15 new tests, 85 total green) | L | done |
 | 11 | ~~Phase 1.7+ Postman/Bruno collection~~ — ✅ shipped 2026-05-24 (Bruno, `backend/api-tests/`) | S | done |
 | 12 | **Phase 2 iOS scaffold** — Xcode project + first 2-3 screens hitting staging | L | DUNS before App Store submission; can scaffold without |
+| 13 | **Phase 3 web portal MVP** — ⏳ in flight 2026-05-24. Pages 1-6: invite redeem, login, forgot/reset, property list, property detail, documents, settings. React 18 + TS + Vite + Tailwind. Lives at `portal.wagner-hausverwaltung.com`. Tokens in localStorage (XSS tradeoff acknowledged; iOS uses Keychain). | M | none — backend `/me/*` endpoints already wired + scope-tested |
 
 All Phase 1 work is now unblocked (D8/D9/D10/D12 resolved 2026-05-24). Items 1–11 close Phase 1 fully (~4–6 weeks of focused work). A "minimum to start Phase 2" cut is items 1, 2 (iter 1), 3, 8, 11 (~1–2 weeks).
 
