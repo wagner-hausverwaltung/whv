@@ -96,6 +96,15 @@ jobs:
              IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml run --rm backend alembic upgrade head && \
              IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml up -d --no-deps backend worker beat"
 
+      - name: Reload Caddy to pick up Caddyfile changes
+        # The Caddyfile is bind-mounted into the caddy container, but compose
+        # won't recreate the container just because a bind-mounted file
+        # changed. `caddy reload` re-reads /etc/caddy/Caddyfile in-place.
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ env.STAGING_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
+            "cd ${{ env.STAGING_REPO_DIR }} && \
+             docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+
       - name: Verify /healthz over HTTPS
         run: |
           for i in $(seq 1 12); do

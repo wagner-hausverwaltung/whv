@@ -96,3 +96,27 @@ Verify externally:
 ```bash
 curl -i https://staging.api.wagner-hausverwaltung.com/healthz
 ```
+
+## Admin UI host (`admin.wagner-hausverwaltung.com`)
+
+The Jinja admin UI lives on the **same backend container** as the API but is published on a separate host via Caddy so the bookmark `admin.wagner-hausverwaltung.com` works without exposing `/admin-ui` on the API host. The admin host block rewrites `/` → `/admin-ui/` so the bookmark lands on the dashboard.
+
+DNS prerequisite — add at the registrar (Bluehost) before the first hit:
+
+| Host                                 | Type | Value             |
+|--------------------------------------|------|-------------------|
+| `admin.wagner-hausverwaltung.com`    | A    | `46.225.185.151`  |
+
+Once the record propagates, Caddy obtains a Let's Encrypt cert on first request (the host is opened on 80/443 already, no firewall change needed).
+
+> **Today this host points at staging.** When prod ships, move the A record to the prod IP and add a `staging.admin.wagner-hausverwaltung.com` block to staging's Caddyfile pointing at the staging IP.
+
+Smoke after DNS + first deploy:
+
+```bash
+# 1. Login form renders
+curl -i https://admin.wagner-hausverwaltung.com/admin-ui/login
+
+# 2. Bookmark redirect works (root → /admin-ui/, then 303 → /admin-ui/login because no cookie)
+curl -iL https://admin.wagner-hausverwaltung.com/
+```

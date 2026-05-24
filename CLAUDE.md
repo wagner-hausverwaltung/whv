@@ -10,7 +10,8 @@ The §7 "Phase 1 status snapshot" and §15.1 "Next iteration priorities" tables 
 
 ## What's running (as of 2026-05-24)
 
-- **Staging**: https://staging.api.wagner-hausverwaltung.com — Hetzner cax21 in Nürnberg, Caddy + Let's Encrypt, full demo loop works (invite → redeem → login → `/me/properties/{id}` with units). Op runbook: [`infra/docs/staging.md`](infra/docs/staging.md).
+- **Staging API**: https://staging.api.wagner-hausverwaltung.com — Hetzner cax21 in Nürnberg, Caddy + Let's Encrypt, full demo loop works (invite → redeem → login → `/me/properties/{id}` with units). Op runbook: [`infra/docs/staging.md`](infra/docs/staging.md).
+- **Admin UI**: https://admin.wagner-hausverwaltung.com — Jinja2 + Pico.css; cookie-session auth, VERWALTER-only; dashboard + invites CRUD + audit log. Caddy rewrites `/` → `/admin-ui/` and reverse-proxies to the same backend container. Today this host points at staging; when prod ships, the DNS record moves to prod and a `staging.admin.*` is added for staging.
 - **Local dev**: `docker compose up` brings up postgres + redis + backend. `.env` (gitignored) has the Impower test-instance token.
 - **Resolved infrastructure picks** (D8/D9/D10/D12, all 2026-05-24): Hetzner Object Storage for documents · Resend for transactional email · Jinja2 server-rendered for admin UI · GHCR push + SSH pull for staging deploy. Write an ADR on first implementation of each. See REQUIREMENTS.md §14.
 

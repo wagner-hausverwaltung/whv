@@ -1,0 +1,40 @@
+{% extends "admin/base.html" %}
+{% block title %}Neue Einladung — WHV Admin{% endblock %}
+{% block content %}
+<h1>Neue Einladung</h1>
+<p class="muted">Generiert einen 8-stelligen Code, sendet eine E-Mail über Resend (German template) und legt eine Audit-Log-Zeile an.</p>
+
+{% if error %}
+<p style="color: #dc2626;">{{ error }}</p>
+{% endif %}
+
+<form method="POST" action="/admin-ui/invites/new" style="max-width: 540px;">
+  <label>
+    E-Mail-Adresse <span style="color: #dc2626;">*</span>
+    <input type="email" name="email" required autofocus autocomplete="off">
+  </label>
+
+  <label>
+    Rolle <span style="color: #dc2626;">*</span>
+    <select name="role" required>
+      {% for role in roles %}
+      <option value="{{ role }}">{{ role }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>
+    Impower-Contact-ID (optional, ganze Zahl)
+    <input type="text" name="contact_id_impower" placeholder="z.B. 1462481" pattern="[0-9]*" inputmode="numeric">
+    <small class="muted">Bindet das neue Konto an einen Impower-Kontakt — Eigentümer/Mieter sehen dann nur ihre Objekte/Verträge.</small>
+  </label>
+
+  <label>
+    Gültigkeit (Tage)
+    <input type="number" name="ttl_days" value="14" min="1" max="90" required>
+  </label>
+
+  <button type="submit">Einladung erstellen + E-Mail senden</button>
+  <a href="/admin-ui/invites" role="button" class="secondary outline">Abbrechen</a>
+</form>
+{% endblock %}

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WHV Admin{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body > main { max-width: 1100px; padding: 1rem 1.25rem; }
+    nav { padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+    .logo { font-weight: 700; color: var(--pico-primary); text-decoration: none; }
+    .muted { color: var(--pico-muted-color); font-size: 0.875rem; }
+    .status-pending  { color: #16a34a; font-weight: 600; }
+    .status-consumed { color: var(--pico-muted-color); }
+    .status-expired  { color: #dc2626; }
+    table { font-size: 0.9rem; }
+    table th { white-space: nowrap; }
+    table td.code { font-family: ui-monospace, Menlo, monospace; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 1rem; }
+    .filter-bar a { padding: 0.25rem 0.75rem; border-radius: 0.5rem; text-decoration: none; }
+    .filter-bar a.active { background: var(--pico-primary); color: var(--pico-primary-inverse); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
+    .stat { padding: 1rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.5rem; }
+    .stat .n { font-size: 1.75rem; font-weight: 700; }
+    .stat .label { font-size: 0.85rem; color: var(--pico-muted-color); }
+    .flash-success { background: #ecfdf5; border-left: 4px solid #16a34a; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 0.25rem; }
+    form.inline { display: inline; }
+  </style>
+</head>
+<body>
+  <nav>
+    <ul>
+      <li><a href="/admin-ui/" class="logo">Wagner Hausverwaltung — Admin</a></li>
+    </ul>
+    {% if current_user %}
+    <ul>
+      <li><a href="/admin-ui/invites">Einladungen</a></li>
+      <li><a href="/admin-ui/audit">Audit-Log</a></li>
+      <li>
+        <form method="POST" action="/admin-ui/logout" class="inline">
+          <button type="submit" class="secondary outline">{{ current_user.email }} — Logout</button>
+        </form>
+      </li>
+    </ul>
+    {% endif %}
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

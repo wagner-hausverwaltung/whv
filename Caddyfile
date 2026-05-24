@@ -19,3 +19,27 @@ staging.api.wagner-hausverwaltung.com {
         level INFO
     }
 }
+
+# Phase 1.6: Jinja2 admin UI. The bookmark `https://admin.wagner-hausverwaltung.com/`
+# rewrites to `/admin-ui/` on the backend so users land on the dashboard.
+# Today this DNS points at the staging server; when prod ships, the record moves
+# to prod and a separate `staging.admin.*` is added for staging.
+admin.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    @root path /
+    rewrite @root /admin-ui/
+
+    reverse_proxy backend:8000
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}

@@ -251,7 +251,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.4c Webhooks | ⏳ pending | not started |
 | 1.4d Documents sync | ✅ shipped (iter 1: metadata) | 3,309 docs synced on staging; per-property iteration (Impower /v2/documents requires propertyId filter). File upload to Hetzner Object Storage stays as iter 2. |
 | 1.5 Invite admin + email | ✅ shipped | `/admin/invites` POST/GET/DELETE wired with `require_role(VERWALTER)`; emails sent via Resend (ADR-0004), best-effort with audit trail; verified live end-to-end. |
-| 1.6 Admin UI | ⏳ pending | not started; framework decision needed (D10) |
+| 1.6 Admin UI | ✅ shipped | Jinja2 + Pico.css at `https://admin.wagner-hausverwaltung.com/` (separate Caddy host → `/admin-ui/`). Cookie-session auth (HttpOnly/Secure/SameSite=Strict, 15-min TTL), VERWALTER-only. Dashboard counts, invites CRUD (create + send email + revoke + status filter), audit log view. 15 admin-UI tests in addition to the 7 admin-API tests; full suite at 85. |
 | 1.7 Staging deploy | ✅ shipped | https://staging.api.wagner-hausverwaltung.com live; runbook at `infra/docs/staging.md` |
 | 1.7+ Deploy hardening | ✅ shipped | Postgres backups (local + B2 off-site) ✅. Bruno collection ✅. CI/CD via GH Actions → GHCR → SSH ✅ (live 2026-05-24; pushes to main auto-deploy to staging). |
 | §6.7 Health-check routine | ⏳ requirement added (this session), not implemented |
@@ -333,20 +333,22 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
 - [ ] Bulk invite via CSV upload — not started, low priority
 - [x] Email via **Resend** (ADR-0004) — best-effort send: failure logs to audit + leaves invite redeemable; iOS deep link (`whv://invite/CODE`) + web fallback URL pending the actual web/iOS clients
 
-### 7.6 Minimal admin UI — ⏳ pending
-A separate route `/admin/*` (server-rendered with Jinja2 or simple SvelteKit/React island — pick whichever is faster, **D10**) so Luis can:
-- [ ] Search contacts (from synced mirror)
-- [ ] Send invite to a contact
-- [ ] List pending/consumed invites
-- [ ] Resend / revoke invites
-- [ ] View audit log
+### 7.6 Minimal admin UI — ✅ shipped
+Server-rendered Jinja2 + Pico.css (D10 → Jinja2). Mounted at `/admin-ui/*` on the backend; Caddy publishes it at `https://admin.wagner-hausverwaltung.com/` (with `/` rewritten to `/admin-ui/`). Single host avoids a second TLS cert + CORS hop. Auth via HttpOnly cookie (`whv_admin_session`, SameSite=Strict, Secure outside dev), VERWALTER-only — non-Verwalter login returns 401, unauthenticated requests redirect to `/admin-ui/login` via `NeedsLoginRedirect` exception handler.
+
+- [x] Dashboard with org-scoped counts (open / consumed invites, properties, units, contracts, contacts)
+- [x] Invite create (German form: email + role + optional Impower-Contact-ID + TTL) — wires the same code path as `POST /admin/invites`: row + Resend email + audit log in one commit
+- [x] Invites list with `pending` / `consumed` / `expired` filter (latest 200)
+- [x] Revoke pending invite (POST form with JS confirm)
+- [x] Audit-log view with collapsible JSON payloads (latest 200, org-scoped)
+- [ ] Contact search across the synced mirror — not in iter 1; iOS/web portals will surface this when they exist
 
 ### 7.7 Definition of Done (Phase 1)
 - [x] Backend deployed to staging on Hetzner Cloud — https://staging.api.wagner-hausverwaltung.com
 - [x] Bruno collection committed in `backend/api-tests/` (chose Bruno over Postman — plain text, git-diffable, no cloud account)
 - [x] Luis can invite his own personal Impower contact, redeem the invite, log in, see his properties
 - [x] All endpoints documented in OpenAPI / Swagger UI at `/docs`
-- [x] Test coverage ≥ 70% on services and integrations (56 tests covering models, sync, client, auth, /me, webhooks, workers — all green)
+- [x] Test coverage ≥ 70% on services and integrations (85 tests covering models, sync, client, auth, /me, webhooks, workers, admin invites, admin UI — all green)
 
 ---
 
@@ -689,7 +691,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | 7 | **Phase 1.3b auth finishers** — forgot/reset-pw ✅ shipped 2026-05-24. SIWA still pending DUNS / Apple Developer enrollment. | M | DUNS for SIWA only |
 | 8 | **Phase 1.4c webhooks** — `POST /webhooks/impower` receiver + HMAC + Impower-side connection registration | S | none |
 | 9 | ~~Phase 1.4b Celery beat~~ — ✅ shipped 2026-05-24 (worker + beat live, nightly 02:00 UTC) | M | done |
-| 10 | **Phase 1.6 admin UI** — invite mgmt + audit log views, Jinja2 server-rendered (D10 resolved) | L | none |
+| 10 | ~~Phase 1.6 admin UI~~ — ✅ shipped 2026-05-24 (Jinja2 + Pico.css at admin.wagner-hausverwaltung.com, cookie auth, dashboard + invites CRUD + audit log; 15 new tests, 85 total green) | L | done |
 | 11 | ~~Phase 1.7+ Postman/Bruno collection~~ — ✅ shipped 2026-05-24 (Bruno, `backend/api-tests/`) | S | done |
 | 12 | **Phase 2 iOS scaffold** — Xcode project + first 2-3 screens hitting staging | L | DUNS before App Store submission; can scaffold without |
 

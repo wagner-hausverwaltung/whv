@@ -1,13 +1,15 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.api.v1 import admin as admin_router
+from app.api.v1 import admin_ui as admin_ui_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import me as me_router
 from app.api.v1 import webhooks as webhooks_router
+from app.auth.dependencies import NeedsLoginRedirect
 from app.config import get_settings
 from app.db import close_engine, init_engine, ping_db
 from app.redis_client import close_redis, init_redis, ping_redis
@@ -36,6 +38,12 @@ app.include_router(auth_router.router)
 app.include_router(me_router.router)
 app.include_router(admin_router.router)
 app.include_router(webhooks_router.router)
+app.include_router(admin_ui_router.router)
+
+
+@app.exception_handler(NeedsLoginRedirect)
+async def _needs_login_redirect(_: Request, __: NeedsLoginRedirect) -> RedirectResponse:
+    return RedirectResponse("/admin-ui/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/healthz", tags=["meta"])
