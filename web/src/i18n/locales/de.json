@@ -51,5 +51,26 @@
     "subtitle": "Hier sehen Sie alle Umlaufbeschlüsse zu Ihren Liegenschaften und können während der Frist Ihre Stimme abgeben.",
     "empty": "Keine Beschlüsse vorhanden.",
     "deadline": "Frist"
+  },
+  "admin": {
+    "title": "Verwaltung",
+    "dashboard": "Dashboard",
+    "tickets": "Tickets",
+    "resolutions": "Beschlüsse",
+    "invites": "Einladungen",
+    "audit": "Audit-Log",
+    "subtitle": "Übersicht zu Einladungen, Stammdaten und laufenden Vorgängen.",
+    "stats": {
+      "pending_invites": "Offene Einladungen",
+      "consumed_invites": "Eingelöste Einladungen",
+      "properties": "Objekte",
+      "units": "Einheiten",
+      "contracts": "Verträge",
+      "contacts": "Kontakte",
+      "open_tickets": "Offene Tickets",
+      "open_resolutions": "Laufende Beschlüsse"
+    },
+    "loadFailed": "Daten konnten nicht geladen werden.",
+    "notVerwalter": "Sie haben keinen Zugriff auf den Admin-Bereich."
   }
 }

@@ -86,10 +86,7 @@ export function PropertyListPage() {
       {isVerwalter && (
         <Alert severity="info" variant="outlined">
           {t("properties.verwalterNote")}{" "}
-          <Link
-            href="https://admin.wagner-hausverwaltung.com/"
-            underline="hover"
-          >
+          <Link component={RouterLink} to="/admin" underline="hover">
             {t("properties.adminLink")}
           </Link>
         </Alert>

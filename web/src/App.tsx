@@ -1,4 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AdminLayout } from "@/admin/AdminLayout";
+import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
+import { AdminPlaceholderPage } from "@/admin/pages/AdminPlaceholderPage";
+import { AdminRoute } from "@/auth/AdminRoute";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
@@ -116,6 +120,69 @@ function App() {
                   <ResolutionDetailPage />
                 </Layout>
               </ProtectedRoute>
+            }
+          />
+
+          {/* Admin SPA — Verwalter-only, mounted under /admin/*. Replaces the
+              Jinja /admin-ui/ pages as they get ported. Until each tab is
+              ported, AdminPlaceholderPage links back to the legacy URL. */}
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminDashboardPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/tickets"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage title="Tickets" legacyPath="/admin-ui/tickets" />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/resolutions"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Beschlüsse"
+                    legacyPath="/admin-ui/resolutions"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/invites"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Einladungen"
+                    legacyPath="/admin-ui/invites"
+                  />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPlaceholderPage
+                    title="Audit-Log"
+                    legacyPath="/admin-ui/audit"
+                  />
+                </AdminLayout>
+              </AdminRoute>
             }
           />
 

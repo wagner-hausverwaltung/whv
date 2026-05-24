@@ -51,5 +51,26 @@
     "subtitle": "All circular resolutions for your properties. Cast your vote here while the deadline is open.",
     "empty": "No resolutions.",
     "deadline": "Deadline"
+  },
+  "admin": {
+    "title": "Admin",
+    "dashboard": "Dashboard",
+    "tickets": "Tickets",
+    "resolutions": "Resolutions",
+    "invites": "Invitations",
+    "audit": "Audit log",
+    "subtitle": "Overview of invitations, master data, and active workflows.",
+    "stats": {
+      "pending_invites": "Pending invites",
+      "consumed_invites": "Redeemed invites",
+      "properties": "Properties",
+      "units": "Units",
+      "contracts": "Contracts",
+      "contacts": "Contacts",
+      "open_tickets": "Open tickets",
+      "open_resolutions": "Active resolutions"
+    },
+    "loadFailed": "Failed to load dashboard data.",
+    "notVerwalter": "You do not have access to the admin area."
   }
 }

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.bootstrap import generate_invite_code
@@ -10,8 +10,26 @@ from app.auth.dependencies import require_role
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.invites import render_invite_email
-from app.models import AuditLog, InviteCode, User, UserRole
-from app.schemas.admin import AdminInviteResponse, CreateInviteRequest, InviteStatus
+from app.models import (
+    AuditLog,
+    CircularResolution,
+    Contact,
+    Contract,
+    InviteCode,
+    Property,
+    ResolutionStatus,
+    Ticket,
+    TicketStatus,
+    Unit,
+    User,
+    UserRole,
+)
+from app.schemas.admin import (
+    AdminDashboardStats,
+    AdminInviteResponse,
+    CreateInviteRequest,
+    InviteStatus,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -169,3 +187,97 @@ async def revoke_invite(
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _scalar_count(session: AsyncSession, stmt: Any) -> int:
+    result = await session.scalar(stmt)
+    return int(result or 0)
+
+
+@router.get("/dashboard-stats", response_model=AdminDashboardStats)
+async def dashboard_stats(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminDashboardStats:
+    """Aggregate counts for the admin SPA dashboard.
+
+    Same data as the Jinja /admin-ui/ dashboard, exposed as JSON so the
+    React admin can render the same stats without server-side templating.
+    """
+    org_id = current_user.organization_id
+    now = datetime.now(UTC)
+    return AdminDashboardStats(
+        pending_invites=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(InviteCode)
+            .where(
+                InviteCode.organization_id == org_id,
+                InviteCode.consumed_at.is_(None),
+                InviteCode.expires_at > now,
+            ),
+        ),
+        consumed_invites=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(InviteCode)
+            .where(
+                InviteCode.organization_id == org_id,
+                InviteCode.consumed_at.is_not(None),
+            ),
+        ),
+        properties=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(Property)
+            .where(
+                Property.organization_id == org_id,
+                Property.deleted_at.is_(None),
+            ),
+        ),
+        units=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(Unit)
+            .where(
+                Unit.organization_id == org_id,
+                Unit.deleted_at.is_(None),
+            ),
+        ),
+        contracts=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(Contract)
+            .where(
+                Contract.organization_id == org_id,
+                Contract.deleted_at.is_(None),
+            ),
+        ),
+        contacts=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(Contact)
+            .where(
+                Contact.organization_id == org_id,
+                Contact.deleted_at.is_(None),
+            ),
+        ),
+        open_tickets=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(Ticket)
+            .where(
+                Ticket.organization_id == org_id,
+                Ticket.status != TicketStatus.GESCHLOSSEN,
+            ),
+        ),
+        open_resolutions=await _scalar_count(
+            session,
+            select(func.count())
+            .select_from(CircularResolution)
+            .where(
+                CircularResolution.organization_id == org_id,
+                CircularResolution.status == ResolutionStatus.OFFEN,
+            ),
+        ),
+    )
