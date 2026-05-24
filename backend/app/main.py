@@ -1,9 +1,11 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import admin as admin_router
 from app.api.v1 import admin_ui as admin_ui_router
@@ -60,6 +62,16 @@ app.include_router(tickets_router.me_router)
 app.include_router(tickets_router.admin_router)
 app.include_router(circular_router.me_router)
 app.include_router(circular_router.admin_router)
+
+# Static assets for the admin Jinja UI (logo, favicon). Lives next to the
+# templates so the Docker image picks it up automatically. The portal SPA
+# serves its own copies under its nginx, so this mount is admin-only.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount(
+    "/admin-ui/static",
+    StaticFiles(directory=str(_STATIC_DIR)),
+    name="admin-static",
+)
 
 
 @app.exception_handler(NeedsLoginRedirect)
