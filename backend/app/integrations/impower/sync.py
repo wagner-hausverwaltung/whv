@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -9,16 +10,63 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import WHV_ORGANIZATION_ID
 from app.integrations.impower.client import ImpowerClient
-from app.integrations.impower.schemas import ContactDto, ContractDto, PropertyDto, UnitDto
+from app.integrations.impower.schemas import (
+    ContactDto,
+    ContractDto,
+    DocumentDto,
+    PropertyDto,
+    UnitDto,
+)
 from app.models import (
+    Building,
     Contact,
     ContactKind,
     Contract,
     ContractContact,
+    Document,
+    DocumentKind,
+    DocumentState,
     Property,
     Unit,
 )
 from app.models._mixins import uuid7_pk
+
+# Best-effort mapping from Impower's 31-value sourceType enum to our small
+# DocumentKind enum. Values not listed fall through to SONSTIGES (catch-all).
+# Raw sourceType is retained on `documents.impower_source_type` for traceability.
+_IMPOWER_SOURCE_TYPE_TO_KIND: dict[str, DocumentKind] = {
+    "HOUSE_MONEY_SETTLEMENT": DocumentKind.JAHRESABRECHNUNG,
+    "ECONOMIC_PLAN": DocumentKind.WIRTSCHAFTSPLAN,
+    "OWNERS_MEETING_PROTOCOL": DocumentKind.PROTOKOLL,
+    "INVOICE": DocumentKind.RECHNUNG,
+    "INVOICE_XML": DocumentKind.RECHNUNG,
+    "OPS_COST_REPORT": DocumentKind.JAHRESABRECHNUNG,
+    "RENT_SETTLEMENT_EXCHANGE": DocumentKind.JAHRESABRECHNUNG,
+    "HEATING_COST_DISTRIBUTION": DocumentKind.JAHRESABRECHNUNG,
+}
+
+
+def _map_document_kind(source_type: str | None) -> DocumentKind:
+    if source_type is None:
+        return DocumentKind.SONSTIGES
+    return _IMPOWER_SOURCE_TYPE_TO_KIND.get(source_type, DocumentKind.SONSTIGES)
+
+
+def _map_document_state(state: str | None) -> DocumentState | None:
+    if state is None:
+        return None
+    try:
+        return DocumentState(state)
+    except ValueError:
+        return None
+
+
+async def _iter_all_docs(
+    client: ImpowerClient, property_impower_ids: list[int]
+) -> "AsyncIterator[DocumentDto]":
+    for prop_impower_id in property_impower_ids:
+        async for doc in client.iter_documents(property_id=prop_impower_id):
+            yield doc
 
 
 @dataclass
@@ -314,5 +362,80 @@ async def sync_contracts(session: AsyncSession, client: ImpowerClient) -> SyncSt
     return stats
 
 
+async def sync_documents(session: AsyncSession, client: ImpowerClient) -> SyncStats:
+    """Sync documents per property.
+
+    Impower's /v2/documents requires propertyId — calling it unfiltered times out.
+    We iterate every known property's impower_id and pull its documents.
+    """
+    stats = SyncStats()
+    now = datetime.now(UTC)
+
+    property_ids = {
+        row.impower_id: row.id
+        for row in (await session.execute(select(Property.id, Property.impower_id))).all()
+        if row.impower_id is not None
+    }
+    building_ids = {
+        row.impower_id: row.id
+        for row in (await session.execute(select(Building.id, Building.impower_id))).all()
+    }
+    unit_ids = {
+        row.impower_id: row.id
+        for row in (await session.execute(select(Unit.id, Unit.impower_id))).all()
+    }
+    contract_ids = {
+        row.impower_id: row.id
+        for row in (await session.execute(select(Contract.id, Contract.impower_id))).all()
+    }
+    contact_ids = {
+        row.impower_id: row.id
+        for row in (await session.execute(select(Contact.id, Contact.impower_id))).all()
+    }
+
+    docs_iter = _iter_all_docs(client, list(property_ids.keys()))
+    async for doc in docs_iter:
+        stats.fetched += 1
+        if doc.id is None or doc.name is None:
+            stats.skipped += 1
+            stats.warnings.append(f"document impower_id={doc.id} missing required fields")
+            continue
+
+        kind = _map_document_kind(doc.sourceType)
+        state = _map_document_state(doc.state)
+
+        values: dict[str, Any] = {
+            "id": uuid7_pk(),
+            "organization_id": WHV_ORGANIZATION_ID,
+            "impower_id": doc.id,
+            "property_id": property_ids.get(doc.propertyId) if doc.propertyId is not None else None,
+            "building_id": building_ids.get(doc.buildingId) if doc.buildingId is not None else None,
+            "unit_id": unit_ids.get(doc.unitId) if doc.unitId is not None else None,
+            "contract_id": contract_ids.get(doc.contractId) if doc.contractId is not None else None,
+            "contact_id": contact_ids.get(doc.contactId) if doc.contactId is not None else None,
+            "name": doc.name,
+            "kind": kind.value,
+            "impower_source_type": doc.sourceType,
+            "amount": Decimal(str(doc.amount)) if doc.amount is not None else None,
+            "issued_date": _parse_date(doc.issuedDate),
+            "state": state.value if state is not None else None,
+            "raw_jsonb": _serialize(doc),
+            "last_synced_at": now,
+        }
+        update_set = {
+            k: v for k, v in values.items() if k not in ("id", "organization_id", "impower_id")
+        }
+        update_set["updated_at"] = now
+        stmt = (
+            pg_insert(Document)
+            .values(**values)
+            .on_conflict_do_update(index_elements=["impower_id"], set_=update_set)
+        )
+        await session.execute(stmt)
+        stats.upserted += 1
+    await session.commit()
+    return stats
+
+
 # Silence ruff about an unused import (kept for forward use / type hints in tests).
-_ = (ContactDto, ContractDto, PropertyDto, UnitDto, Decimal)
+_ = (ContactDto, ContractDto, DocumentDto, PropertyDto, UnitDto, Decimal)

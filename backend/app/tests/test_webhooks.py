@@ -100,7 +100,7 @@ async def test_unsupported_entity_type_is_ignored(
             "/webhooks/impower",
             json={
                 "connectionId": 7,
-                "entityType": "documents",  # not yet mirrored
+                "entityType": "buildings",  # not yet mirrored
                 "entityId": _unique_impower_id(),
                 "eventType": "CREATE",
             },

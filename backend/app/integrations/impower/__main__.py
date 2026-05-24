@@ -11,6 +11,7 @@ from app.integrations.impower.sync import (
     SyncStats,
     sync_contacts,
     sync_contracts,
+    sync_documents,
     sync_properties,
     sync_units,
 )
@@ -41,7 +42,7 @@ async def amain() -> None:
     )
     sync_p.add_argument(
         "entity",
-        choices=["properties", "units", "contacts", "contracts", "all"],
+        choices=["properties", "units", "contacts", "contracts", "documents", "all"],
     )
     args = parser.parse_args()
 
@@ -64,6 +65,8 @@ async def amain() -> None:
             await _run("contacts", sync_contacts, session, client)
         if args.entity in ("contracts", "all"):
             await _run("contracts", sync_contracts, session, client)
+        if args.entity in ("documents", "all"):
+            await _run("documents", sync_documents, session, client)
 
     await engine.dispose()
 

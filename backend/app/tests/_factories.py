@@ -16,6 +16,8 @@ from app.models import (
     Contract,
     ContractContact,
     ContractType,
+    Document,
+    DocumentKind,
     InviteCode,
     Organization,
     Property,
@@ -141,6 +143,31 @@ async def make_unit(
         await s.commit()
         await s.refresh(unit)
     return unit
+
+
+async def make_document(
+    engine: AsyncEngine,
+    *,
+    org: Organization,
+    prop: Property,
+    name: str | None = None,
+    kind: "DocumentKind | None" = None,
+) -> "Document":
+    from app.models import Document as _Document
+    from app.models import DocumentKind as _DocumentKind
+
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        doc = _Document(
+            organization_id=org.id,
+            property_id=prop.id,
+            name=name or f"Test Doc {_short_id()}.pdf",
+            kind=kind or _DocumentKind.SONSTIGES,
+        )
+        s.add(doc)
+        await s.commit()
+        await s.refresh(doc)
+    return doc
 
 
 async def make_contact_with_contract_link(

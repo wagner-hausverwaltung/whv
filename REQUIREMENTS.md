@@ -249,7 +249,7 @@ First version lands alongside the Phase 1.7 staging deploy (so we're monitoring 
 | 1.4a Impower client + sync | ✅ shipped | Hybrid codegen per ADR-0003; CLI sync verified: 24/129/361/179 rows |
 | 1.4b Scheduled sync (Celery beat) | ⏳ pending | not started |
 | 1.4c Webhooks | ⏳ pending | not started |
-| 1.4d Documents sync | ⏳ pending | last §7.2 entity; needs object-storage decision (D8) |
+| 1.4d Documents sync | ✅ shipped (iter 1: metadata) | 3,309 docs synced on staging; per-property iteration (Impower /v2/documents requires propertyId filter). File upload to Hetzner Object Storage stays as iter 2. |
 | 1.5 Invite admin + email | ⏳ partial | code generation + bootstrap CLI done; `/admin/invites` + email not started |
 | 1.6 Admin UI | ⏳ pending | not started; framework decision needed (D10) |
 | 1.7 Staging deploy | ✅ shipped | https://staging.api.wagner-hausverwaltung.com live; runbook at `infra/docs/staging.md` |
@@ -322,7 +322,8 @@ documents (id, organization_id, impower_id, sharepoint_id, property_id, building
   - Full sync nightly (properties, units, contracts, contacts, documents)
   - Delta sync every 15 min using `updated_since` filters where supported (note: Impower's v2 spec doesn't expose `updated_since` on most endpoints — fall back to periodic full sync until webhooks land)
 - [ ] **1.4c** — Webhook endpoint `/webhooks/impower` — register connection via Impower `POST /v2/connections` with `appId=8`; verify signature; idempotent processing keyed on `(entityType, entityId, eventType)`
-- [ ] **1.4d** — Documents sync — metadata mirror first; file body upload to object storage (**blocked on D8**)
+- [x] **1.4d (iter 1)** — Documents metadata mirror — per-property iteration (Impower's `/v2/documents` requires `propertyId` filter, unfiltered times out); 31-value `sourceType` enum mapped to our 8-value `DocumentKind` with `SONSTIGES` catchall + raw `impower_source_type` retained
+- [ ] **1.4d (iter 2)** — File body upload to Hetzner Object Storage (D8)
 - [ ] Reconciliation job: detect drift between mirror and Impower, alert on Sentry
 
 ### 7.5 Invite-code flow — ⏳ partial
@@ -682,7 +683,7 @@ The remaining work in Phase 1, in recommended execution order. Sizes are S (≤1
 | # | Work | Size | Blockers |
 |---|---|---|---|
 | 1 | **§6.7 health-check routine** — scheduled Claude routine probing `/healthz`, `/readyz`, Impower `GET /properties?size=1` every 30 min | S | none |
-| 2 | **Phase 1.4d Documents sync** — iter 1: metadata mirror with nullable `storage_url`. iter 2: file upload to Hetzner Object Storage (D8 resolved) | M | none |
+| 2 | **Phase 1.4d iter 2: documents file upload** — fetch document body from Impower, store in Hetzner Object Storage, populate `storage_url` + `mime_type` + `size_bytes`. Iter 1 metadata is live (2026-05-24). | M | none |
 | 3 | **Phase 1.3b `DELETE /me` + `GET /me/export`** — soft-delete with 30-day recovery; JSON dump per DSGVO Art. 20 | S | none |
 | 4 | **Phase 1.5 admin invites + Resend email** — `POST/GET/DELETE /admin/invites`, render template, send via Resend (D9 resolved) | M | none |
 | 5 | **Phase 1.7+ CI/CD via GHCR + SSH** — Actions builds → ghcr.io → SSH `docker compose pull && up -d` (D12 resolved) | M | none |

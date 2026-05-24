@@ -5,6 +5,7 @@ from app.main import app
 from app.models import UserRole
 from app.tests._factories import (
     make_contact_with_contract_link,
+    make_document,
     make_org,
     make_property,
     make_unit,
@@ -183,5 +184,70 @@ async def test_me_property_detail_eigentuemer_no_contact_returns_404(
     with TestClient(app) as client:
         response = client.get(
             f"/me/properties/{prop.id}", headers={"Authorization": f"Bearer {token}"}
+        )
+    assert response.status_code == 404
+
+
+async def test_me_property_documents_verwalter_sees_all(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    d1 = await make_document(test_engine, org=org, prop=prop, name="Aaa.pdf")
+    d2 = await make_document(test_engine, org=org, prop=prop, name="Bbb.pdf")
+    _, email, password = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, password)
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/me/properties/{prop.id}/documents",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+    ids = {d["id"] for d in response.json()}
+    assert {str(d1.id), str(d2.id)}.issubset(ids)
+
+
+async def test_me_property_documents_eigentuemer_sees_own_property_docs(
+    test_engine: AsyncEngine,
+) -> None:
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    doc = await make_document(test_engine, org=org, prop=prop, name="Jahresabrechnung.pdf")
+    impower_contact = 9_000_020
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_contact
+    )
+    _, email, password = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_contact
+    )
+    token = _login(email, password)
+    with TestClient(app) as client:
+        response = client.get(
+            f"/me/properties/{prop.id}/documents",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+    ids = {d["id"] for d in response.json()}
+    assert str(doc.id) in ids
+
+
+async def test_me_property_documents_eigentuemer_other_property_returns_404(
+    test_engine: AsyncEngine,
+) -> None:
+    org = await make_org(test_engine)
+    mine = await make_property(test_engine, org=org)
+    not_mine = await make_property(test_engine, org=org)
+    await make_document(test_engine, org=org, prop=not_mine)
+    impower_contact = 9_000_021
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=mine, contact_impower_id=impower_contact
+    )
+    _, email, password = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_contact
+    )
+    token = _login(email, password)
+    with TestClient(app) as client:
+        response = client.get(
+            f"/me/properties/{not_mine.id}/documents",
+            headers={"Authorization": f"Bearer {token}"},
         )
     assert response.status_code == 404

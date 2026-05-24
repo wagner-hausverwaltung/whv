@@ -9,6 +9,8 @@ from app.config import Settings, get_settings
 from app.integrations.impower.schemas import (
     ContactDto,
     ContractDto,
+    DocumentDto,
+    PageOfDocumentDto,
     PageOfUnitDto,
     PropertyDto,
     SliceOfContactDto,
@@ -135,6 +137,18 @@ class ImpowerClient:
         response = await self._request("GET", "/contacts", params={"page": page, "size": size})
         return SliceOfContactDto.model_validate(response.json())
 
+    async def list_documents(
+        self,
+        page: int = 0,
+        size: int = _DEFAULT_PAGE_SIZE,
+        property_id: int | None = None,
+    ) -> PageOfDocumentDto:
+        params: dict[str, Any] = {"page": page, "size": size}
+        if property_id is not None:
+            params["propertyId"] = property_id
+        response = await self._request("GET", "/documents", params=params)
+        return PageOfDocumentDto.model_validate(response.json())
+
     async def iter_properties(self) -> AsyncIterator[PropertyDto]:
         page = 0
         while True:
@@ -177,6 +191,22 @@ class ImpowerClient:
                 return
             for contact in content:
                 yield contact
+            page += 1
+
+    async def iter_documents(self, property_id: int) -> AsyncIterator[DocumentDto]:
+        """Iterate documents for a single property.
+
+        property_id is required: Impower's /v2/documents without a property
+        filter times out (likely returns the entire customer's catalog).
+        """
+        page = 0
+        while True:
+            page_obj = await self.list_documents(page=page, property_id=property_id)
+            content = page_obj.content or []
+            if not content:
+                return
+            for doc in content:
+                yield doc
             page += 1
 
 

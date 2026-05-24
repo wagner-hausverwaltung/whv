@@ -8,8 +8,9 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.dependencies import get_current_user
 from app.db import get_session
-from app.models import Contact, Contract, ContractContact, Property, Unit, User, UserRole
+from app.models import Contact, Contract, ContractContact, Document, Property, Unit, User, UserRole
 from app.schemas.auth import UserResponse
+from app.schemas.document import DocumentResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
 
@@ -86,6 +87,33 @@ async def get_my_property(
         **PropertyResponse.model_validate(prop).model_dump(),
         units=[UnitResponse.model_validate(u) for u in unit_rows],
     )
+
+
+@router.get("/properties/{property_id}/documents", response_model=list[DocumentResponse])
+async def get_my_property_documents(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[DocumentResponse]:
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    # Reuse the same scope check as /me/properties/{id}: if the property isn't visible,
+    # return 404 (not 403) so we don't leak existence.
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    doc_rows = (
+        await session.scalars(
+            select(Document)
+            .where(Document.property_id == prop.id, Document.deleted_at.is_(None))
+            .order_by(Document.issued_date.desc().nulls_last(), Document.name)
+        )
+    ).all()
+
+    return [DocumentResponse.model_validate(d) for d in doc_rows]
 
 
 # selectinload import is kept for future N+1 mitigation; silence unused-import.

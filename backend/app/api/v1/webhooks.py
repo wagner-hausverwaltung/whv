@@ -11,10 +11,11 @@ from app.integrations.impower.client import ImpowerClient, get_impower_client
 from app.integrations.impower.sync import (
     sync_contacts,
     sync_contracts,
+    sync_documents,
     sync_properties,
     sync_units,
 )
-from app.models import Contact, Contract, Property, Unit
+from app.models import Contact, Contract, Document, Property, Unit
 from app.redis_client import get_redis
 from app.schemas.webhook import ImpowerEntityType, ImpowerWebhookPayload
 
@@ -25,10 +26,9 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 # so Impower's retry actually re-runs.
 _DEDUPE_TTL_SECONDS = 300
 
-# Entity types we currently mirror. Other types (buildings, documents, invoices,
-# messages) are acked silently until we add support — see REQUIREMENTS.md §7.4d
-# for documents.
-_HANDLED_ENTITY_TYPES = ("properties", "units", "contracts", "contacts")
+# Entity types we currently mirror. Other types (buildings, invoices, messages)
+# are acked silently until we add support.
+_HANDLED_ENTITY_TYPES = ("properties", "units", "contracts", "contacts", "documents")
 
 
 def _dedupe_key(payload: ImpowerWebhookPayload) -> str:
@@ -61,6 +61,8 @@ async def _handle_create_update(
         await sync_contracts(session, client)
     elif entity_type == "contacts":
         await sync_contacts(session, client)
+    elif entity_type == "documents":
+        await sync_documents(session, client)
 
 
 async def _handle_delete(
@@ -92,6 +94,12 @@ async def _handle_delete(
         stmt = (
             update(Contact)
             .where(Contact.impower_id == entity_id, Contact.deleted_at.is_(None))
+            .values(deleted_at=now)
+        )
+    elif entity_type == "documents":
+        stmt = (
+            update(Document)
+            .where(Document.impower_id == entity_id, Document.deleted_at.is_(None))
             .values(deleted_at=now)
         )
     else:
