@@ -1,0 +1,21 @@
+# WHV staging reverse proxy. Caddy 2 auto-provisions Let's Encrypt certs.
+# Domain must already resolve to this server before first start.
+
+staging.api.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    # Forward all paths to the FastAPI backend container.
+    reverse_proxy backend:8000
+
+    # Sensible defaults: HSTS, hide server banner.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}

@@ -1,0 +1,35 @@
+# Staging override: adds Caddy as the public TLS terminator and removes
+# every public port mapping except 80/443 (which Caddy owns).
+#
+# Usage on the staging server:
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_started
+
+  postgres:
+    ports: []
+  redis:
+    ports: []
+  backend:
+    ports: []
+    restart: unless-stopped
+    environment:
+      APP_ENV: staging
+      LOG_LEVEL: INFO
+
+volumes:
+  caddy-data:
+  caddy-config:
