@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily WHV staging Postgres backup
+Requires=whv-backup.service
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

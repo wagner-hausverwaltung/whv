@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import auth as auth_router
 from app.api.v1 import me as me_router
+from app.api.v1 import webhooks as webhooks_router
 from app.config import get_settings
 from app.db import close_engine, init_engine, ping_db
 from app.redis_client import close_redis, init_redis, ping_redis
@@ -32,6 +33,7 @@ app = FastAPI(
 
 app.include_router(auth_router.router)
 app.include_router(me_router.router)
+app.include_router(webhooks_router.router)
 
 
 @app.get("/healthz", tags=["meta"])

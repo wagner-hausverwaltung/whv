@@ -1,9 +1,11 @@
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
+from fastapi import Depends
 
+from app.config import Settings, get_settings
 from app.integrations.impower.schemas import (
     ContactDto,
     ContractDto,
@@ -176,3 +178,11 @@ class ImpowerClient:
             for contact in content:
                 yield contact
             page += 1
+
+
+async def get_impower_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AsyncIterator[ImpowerClient]:
+    """FastAPI dependency that yields an ImpowerClient bound to the configured token."""
+    async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
+        yield client

@@ -1,4 +1,4 @@
-from collections.abc import Awaitable
+from collections.abc import AsyncIterator, Awaitable
 from typing import cast
 
 from redis.asyncio import Redis, from_url
@@ -26,3 +26,9 @@ async def ping_redis() -> bool:
     except Exception:
         return False
     return bool(result)
+
+
+async def get_redis() -> AsyncIterator[Redis]:
+    if _redis is None:
+        raise RuntimeError("Redis not initialized — call init_redis first")
+    yield _redis

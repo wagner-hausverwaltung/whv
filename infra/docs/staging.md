@@ -81,6 +81,12 @@ ssh whv@46.225.185.151 'cd whv && docker compose -f docker-compose.yml -f docker
 
 GitHub Actions auto-deploy is a follow-up.
 
+## Operational layer
+
+- **Postgres backup**: daily at 03:00 UTC, runbook at [`backups.md`](backups.md). Local-only for now; off-site to B2 is TODO.
+- **Health checks**: scheduled Claude routine (every 30 min, when the service is registered) probes `/healthz` + `/readyz`. Prompt at [`health-checks.md`](health-checks.md).
+- **Impower webhooks**: connection registered (connection `id: 25815`, state `READY`) — Impower POSTs to `https://staging.api.wagner-hausverwaltung.com/webhooks/impower` on CREATE/UPDATE/DELETE of properties/buildings/units/contracts/contacts/messages/invoices/documents. We currently handle properties/units/contracts/contacts; the rest are acked-and-ignored. CREATE/UPDATE trigger a full entity-type re-sync (v1 simplification); DELETE soft-deletes the local row.
+
 ## TLS / DNS
 
 Caddy auto-provisions a Let's Encrypt cert via the HTTP-01 challenge as soon as `staging.api.wagner-hausverwaltung.com` resolves to the server's public IP. While DNS is missing, expect `tls.obtain` errors in Caddy logs every ~60s with exponential backoff — they self-heal once DNS propagates.

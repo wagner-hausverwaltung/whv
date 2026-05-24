@@ -1,0 +1,10 @@
+[Unit]
+Description=WHV staging Postgres backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-postgres.sh
+StandardOutput=journal
+StandardError=journal
