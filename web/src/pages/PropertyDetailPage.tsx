@@ -42,68 +42,68 @@ export function PropertyDetailPage() {
     .join(", ");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/" className="muted hover:underline">
-          ← Meine Objekte
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <Link to="/" className="muted hover:underline inline-block">
+        ← Meine Objekte
+      </Link>
 
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{prop.name}</h1>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold">{prop.name}</h1>
         {prop.property_hr_id && (
-          <p className="muted font-mono text-xs mt-1">{prop.property_hr_id}</p>
+          <p className="muted font-mono text-xs">{prop.property_hr_id}</p>
         )}
-      </div>
+      </header>
 
       <section className="card space-y-2">
-        <h2 className="font-semibold">Stammdaten</h2>
+        <h2 className="font-semibold text-sm uppercase tracking-wide text-whv-muted mb-3">
+          Stammdaten
+        </h2>
         {address && (
           <p>
             <span className="muted">Adresse: </span>
-            {address}
+            <span className="text-whv-text">{address}</span>
           </p>
         )}
         <p>
           <span className="muted">Typ: </span>
-          {prop.type}
+          <span className="text-whv-text">{prop.type}</span>
         </p>
         <p>
           <span className="muted">Status: </span>
-          {prop.state}
+          <span className="text-whv-text">{prop.state}</span>
         </p>
       </section>
 
       <section>
-        <h2 className="font-semibold mb-3">
+        <h2 className="font-semibold text-sm uppercase tracking-wide text-whv-muted mb-3">
           Einheiten ({prop.units.length})
         </h2>
         {prop.units.length === 0 ? (
           <p className="muted">Keine Einheiten erfasst.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-slate-500 border-b border-slate-200">
+          <div className="overflow-x-auto card !p-0">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="py-2 pr-4">Bezeichnung</th>
-                  <th className="py-2 pr-4">Typ</th>
-                  <th className="py-2 pr-4">Etage</th>
-                  <th className="py-2 pr-4">Lage</th>
-                  <th className="py-2 pr-4">m²</th>
-                  <th className="py-2">Zimmer</th>
+                  <th>Bezeichnung</th>
+                  <th>Typ</th>
+                  <th>Etage</th>
+                  <th>Lage</th>
+                  <th>m²</th>
+                  <th>Zimmer</th>
                 </tr>
               </thead>
               <tbody>
                 {prop.units.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4 font-mono text-xs">
+                  <tr key={u.id}>
+                    <td className="font-mono text-xs">
                       {u.unit_hr_id ?? "—"}
                     </td>
-                    <td className="py-2 pr-4">{u.type}</td>
-                    <td className="py-2 pr-4">{u.floor ?? "—"}</td>
-                    <td className="py-2 pr-4">{u.position ?? "—"}</td>
-                    <td className="py-2 pr-4">{u.area_m2 ?? "—"}</td>
-                    <td className="py-2">{u.rooms ?? "—"}</td>
+                    <td>{u.type}</td>
+                    <td>{u.floor ?? "—"}</td>
+                    <td>{u.position ?? "—"}</td>
+                    <td>{u.area_m2 ?? "—"}</td>
+                    <td>{u.rooms ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

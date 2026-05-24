@@ -122,8 +122,8 @@ export function SettingsPage() {
         </button>
       </section>
 
-      <section className="card space-y-3 border-red-200">
-        <h2 className="font-semibold text-red-700">Konto löschen</h2>
+      <section className="card-danger space-y-3">
+        <h2 className="font-display font-semibold text-red-700">Konto löschen</h2>
         <p className="muted">
           Ihr Konto wird zum Löschen markiert (30-Tage-Wiederherstellungsfenster).
           Alle aktiven Sitzungen werden beendet. Die in Impower hinterlegten
@@ -141,7 +141,7 @@ export function SettingsPage() {
         />
         <button
           type="button"
-          className="btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+          className="btn-danger"
           onClick={deleteAccount}
           disabled={deleteConfirm !== "LÖSCHEN" || deleting}
         >

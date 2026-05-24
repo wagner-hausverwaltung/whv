@@ -12,23 +12,27 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="font-bold text-slate-900">
-            WHV-Portal
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b border-whv-border bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link
+            to="/"
+            className="font-display font-bold text-whv-text hover:text-whv-blue text-base tracking-tight"
+          >
+            Wagner Hausverwaltung
+            <span className="muted ml-2 font-sans font-normal">Portal</span>
           </Link>
           {user && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <Link
                 to="/settings"
-                className="muted hover:underline hidden sm:inline"
+                className="muted hover:text-whv-blue hidden sm:inline"
               >
                 {user.email}
               </Link>
               <button
                 type="button"
-                className="btn-secondary text-xs"
+                className="btn-secondary text-xs px-3 py-1.5"
                 onClick={onLogout}
               >
                 Abmelden
@@ -37,7 +41,22 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
       </header>
-      <main className="max-w-4xl mx-auto px-4 py-6">{children}</main>
+
+      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10">{children}</main>
+
+      <footer className="border-t border-whv-border bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-4 muted text-xs flex items-center justify-between flex-wrap gap-2">
+          <span>© Wagner Hausverwaltung GmbH</span>
+          <a
+            href="https://wagner-hausverwaltung.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+          >
+            wagner-hausverwaltung.com
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

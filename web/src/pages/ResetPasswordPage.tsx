@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
+import { AuthShell } from "@/components/AuthShell";
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -14,20 +15,17 @@ export function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <h1 className="text-2xl font-bold mb-3">Neues Passwort setzen</h1>
-          <p className="flash-error">
-            Diese Seite kann nur über den Link aus der Reset-E-Mail aufgerufen
-            werden.
-          </p>
-          <p className="text-center mt-6">
-            <Link to="/forgot-password" className="muted hover:underline">
-              Neuen Link anfordern
-            </Link>
-          </p>
-        </div>
-      </div>
+      <AuthShell title="Neues Passwort setzen">
+        <p className="flash-error">
+          Diese Seite kann nur über den Link aus der Reset-E-Mail aufgerufen
+          werden.
+        </p>
+        <p className="text-center">
+          <Link to="/forgot-password" className="muted hover:underline">
+            Neuen Link anfordern
+          </Link>
+        </p>
+      </AuthShell>
     );
   }
 
@@ -59,63 +57,56 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold mb-1 text-slate-900">
-          Neues Passwort setzen
-        </h1>
-        <p className="muted mb-6">
-          Mindestens 8 Zeichen. Nach dem Speichern werden alle aktiven
-          Sitzungen beendet — Sie müssen sich neu anmelden.
+    <AuthShell
+      title="Neues Passwort setzen"
+      subtitle="Mindestens 8 Zeichen. Nach dem Speichern werden alle aktiven Sitzungen beendet."
+    >
+      {error && (
+        <p className="flash-error" role="alert">
+          {error}
         </p>
+      )}
 
-        {error && (
-          <p className="flash-error mb-4" role="alert">
-            {error}
-          </p>
-        )}
-
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="label">
-              Neues Passwort
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoFocus
-              autoComplete="new-password"
-              minLength={8}
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="confirm" className="label">
-              Passwort bestätigen
-            </label>
-            <input
-              id="confirm"
-              type="password"
-              required
-              autoComplete="new-password"
-              minLength={8}
-              className="input"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </div>
-          <button
-            type="submit"
-            className="btn-primary w-full"
-            disabled={submitting}
-          >
-            {submitting ? "Wird gespeichert…" : "Passwort setzen"}
-          </button>
-        </form>
-      </div>
-    </div>
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="password" className="label">
+            Neues Passwort
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            autoFocus
+            autoComplete="new-password"
+            minLength={8}
+            className="input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <label htmlFor="confirm" className="label">
+            Passwort bestätigen
+          </label>
+          <input
+            id="confirm"
+            type="password"
+            required
+            autoComplete="new-password"
+            minLength={8}
+            className="input"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </div>
+        <button
+          type="submit"
+          className="btn-primary w-full"
+          disabled={submitting}
+        >
+          {submitting ? "Wird gespeichert…" : "Passwort setzen"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

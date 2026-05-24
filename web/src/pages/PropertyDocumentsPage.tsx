@@ -43,43 +43,43 @@ export function PropertyDocumentsPage() {
   if (docs === null) return <p className="muted">Wird geladen…</p>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to={`/properties/${id}`} className="muted hover:underline">
-          ← Objektdetails
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <Link to={`/properties/${id}`} className="muted hover:underline inline-block">
+        ← Objektdetails
+      </Link>
 
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dokumente</h1>
-        <p className="muted mt-1">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold">Dokumente</h1>
+        <p className="muted">
           Datei-Downloads kommen mit dem nächsten Update — derzeit sehen Sie nur
           die Metadaten der vom Hausverwalter hinterlegten Dokumente.
         </p>
-      </div>
+      </header>
 
       {docs.length === 0 ? (
         <p className="muted">Keine Dokumente erfasst.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-slate-500 border-b border-slate-200">
+        <div className="overflow-x-auto card !p-0">
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">Art</th>
-                <th className="py-2 pr-4">Datum</th>
-                <th className="py-2 pr-4">Größe</th>
-                <th className="py-2">Typ</th>
+                <th>Name</th>
+                <th>Art</th>
+                <th>Datum</th>
+                <th>Größe</th>
+                <th>Typ</th>
               </tr>
             </thead>
             <tbody>
               {docs.map((d) => (
-                <tr key={d.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-4">{d.name}</td>
-                  <td className="py-2 pr-4 text-xs uppercase">{d.kind}</td>
-                  <td className="py-2 pr-4">{d.issued_date ?? "—"}</td>
-                  <td className="py-2 pr-4">{formatBytes(d.size_bytes)}</td>
-                  <td className="py-2 muted text-xs">{d.mime_type ?? "—"}</td>
+                <tr key={d.id}>
+                  <td>{d.name}</td>
+                  <td className="text-xs uppercase tracking-wide muted">
+                    {d.kind}
+                  </td>
+                  <td>{d.issued_date ?? "—"}</td>
+                  <td>{formatBytes(d.size_bytes)}</td>
+                  <td className="muted text-xs">{d.mime_type ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

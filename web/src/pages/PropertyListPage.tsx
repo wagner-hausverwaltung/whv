@@ -16,54 +16,66 @@ export function PropertyListPage() {
       .catch(() => setError("Objekte konnten nicht geladen werden."));
   }, []);
 
-  if (error) {
-    return <p className="flash-error">{error}</p>;
-  }
-  if (properties === null) {
-    return <p className="muted">Wird geladen…</p>;
-  }
+  if (error) return <p className="flash-error">{error}</p>;
+  if (properties === null) return <p className="muted">Wird geladen…</p>;
 
+  const isVerwalter = user?.role === "verwalter";
   const isUnbound =
-    user && user.role !== "verwalter" && user.contact_id_impower === null;
+    user && !isVerwalter && user.contact_id_impower === null;
 
-  if (properties.length === 0) {
-    return (
-      <div className="space-y-3">
-        <h1 className="text-xl font-bold">Meine Objekte</h1>
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Meine Objekte</h1>
+        {isVerwalter && (
+          <p className="muted mt-2">
+            Sie sind als Verwalter angemeldet und sehen alle Objekte der
+            Organisation.{" "}
+            <a
+              href="https://admin.wagner-hausverwaltung.com/"
+              className="hover:underline"
+            >
+              Verwaltungsfunktionen →
+            </a>
+          </p>
+        )}
+      </div>
+
+      {properties.length === 0 ? (
         <p className="muted">
           {isUnbound
             ? "Ihr Konto ist noch nicht mit einem Impower-Kontakt verknüpft. Bitte wenden Sie sich an die Hausverwaltung."
             : "Keine Objekte gefunden."}
         </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Meine Objekte</h1>
-      <ul className="space-y-3">
-        {properties.map((p) => (
-          <li key={p.id}>
-            <Link
-              to={`/properties/${p.id}`}
-              className="card block hover:border-slate-400 hover:shadow transition"
-            >
-              <div className="font-medium text-slate-900">{p.name}</div>
-              <div className="muted mt-1">
-                {[p.street && [p.street, p.number].filter(Boolean).join(" "), p.city]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
-              </div>
-              {p.property_hr_id && (
-                <div className="muted mt-1 font-mono text-xs">
-                  {p.property_hr_id}
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {properties.map((p) => (
+            <li key={p.id}>
+              <Link
+                to={`/properties/${p.id}`}
+                className="card block hover:border-whv-blue transition-colors group"
+              >
+                <div className="font-display font-medium text-whv-text group-hover:text-whv-blue">
+                  {p.name}
                 </div>
-              )}
-            </Link>
-          </li>
-        ))}
-      </ul>
+                <div className="muted mt-2">
+                  {[
+                    p.street && [p.street, p.number].filter(Boolean).join(" "),
+                    [p.postal_code, p.city].filter(Boolean).join(" "),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </div>
+                {p.property_hr_id && (
+                  <div className="muted mt-1 font-mono text-xs">
+                    {p.property_hr_id}
+                  </div>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
