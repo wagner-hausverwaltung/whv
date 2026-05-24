@@ -1,9 +1,41 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Link,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { PropertyDetailResponse } from "@/api/types";
 
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack direction="row" spacing={1.5} sx={{ alignItems: "baseline" }}>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ minWidth: 80, flexShrink: 0 }}
+      >
+        {label}
+      </Typography>
+      <Typography variant="body2">{value}</Typography>
+    </Stack>
+  );
+}
+
 export function PropertyDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [prop, setProp] = useState<PropertyDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -13,25 +45,32 @@ export function PropertyDetailPage() {
     if (!id) return;
     api
       .get<PropertyDetailResponse>(`/me/properties/${id}`)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       .then((r) => setProp(r.data))
       .catch((err) => {
         if (err.response?.status === 404) setNotFound(true);
-        else setError("Objektdetails konnten nicht geladen werden.");
+        else setError(t("properties.loadFailed"));
       });
-  }, [id]);
+  }, [id, t]);
 
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <p className="flash-error">Objekt nicht gefunden oder nicht zugänglich.</p>
-        <Link to="/" className="muted hover:underline">
-          ← Zurück zur Übersicht
+      <Stack spacing={2}>
+        <Alert severity="error">{t("properties.empty")}</Alert>
+        <Link component={RouterLink} to="/" color="text.secondary">
+          ← {t("properties.title")}
         </Link>
-      </div>
+      </Stack>
     );
   }
-  if (error) return <p className="flash-error">{error}</p>;
-  if (!prop) return <p className="muted">Wird geladen…</p>;
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!prop) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {t("common.loading")}
+      </Typography>
+    );
+  }
 
   const address = [
     [prop.street, prop.number].filter(Boolean).join(" "),
@@ -42,84 +81,98 @@ export function PropertyDetailPage() {
     .join(", ");
 
   return (
-    <div className="space-y-8">
-      <Link to="/" className="muted hover:underline inline-block">
-        ← Meine Objekte
-      </Link>
+    <Stack spacing={4}>
+      <Box>
+        <Link component={RouterLink} to="/" color="text.secondary" underline="hover">
+          ← {t("properties.title")}
+        </Link>
+      </Box>
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold">{prop.name}</h1>
+      <Box>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+          {prop.name}
+        </Typography>
         {prop.property_hr_id && (
-          <p className="muted font-mono text-xs">{prop.property_hr_id}</p>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+          >
+            {prop.property_hr_id}
+          </Typography>
         )}
-      </header>
+      </Box>
 
-      <section className="card space-y-2">
-        <h2 className="font-semibold text-sm uppercase tracking-wide text-whv-muted mb-3">
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography
+          variant="overline"
+          color="text.secondary"
+          sx={{ letterSpacing: "0.08em", display: "block", mb: 1.5 }}
+        >
           Stammdaten
-        </h2>
-        {address && (
-          <p>
-            <span className="muted">Adresse: </span>
-            <span className="text-whv-text">{address}</span>
-          </p>
-        )}
-        <p>
-          <span className="muted">Typ: </span>
-          <span className="text-whv-text">{prop.type}</span>
-        </p>
-        <p>
-          <span className="muted">Status: </span>
-          <span className="text-whv-text">{prop.state}</span>
-        </p>
-      </section>
+        </Typography>
+        <Stack spacing={1}>
+          {address && <Row label="Adresse:" value={address} />}
+          <Row label="Typ:" value={prop.type} />
+          <Row label="Status:" value={prop.state} />
+        </Stack>
+      </Paper>
 
-      <section>
-        <h2 className="font-semibold text-sm uppercase tracking-wide text-whv-muted mb-3">
+      <Box>
+        <Typography
+          variant="overline"
+          color="text.secondary"
+          sx={{ letterSpacing: "0.08em", display: "block", mb: 1.5 }}
+        >
           Einheiten ({prop.units.length})
-        </h2>
+        </Typography>
         {prop.units.length === 0 ? (
-          <p className="muted">Keine Einheiten erfasst.</p>
+          <Typography variant="body2" color="text.secondary">
+            Keine Einheiten erfasst.
+          </Typography>
         ) : (
-          <div className="overflow-x-auto card !p-0">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Bezeichnung</th>
-                  <th>Typ</th>
-                  <th>Etage</th>
-                  <th>Lage</th>
-                  <th>m²</th>
-                  <th>Zimmer</th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Bezeichnung</TableCell>
+                  <TableCell>Typ</TableCell>
+                  <TableCell>Etage</TableCell>
+                  <TableCell>Lage</TableCell>
+                  <TableCell>m²</TableCell>
+                  <TableCell>Zimmer</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {prop.units.map((u) => (
-                  <tr key={u.id}>
-                    <td className="font-mono text-xs">
+                  <TableRow key={u.id} hover>
+                    <TableCell
+                      sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+                    >
                       {u.unit_hr_id ?? "—"}
-                    </td>
-                    <td>{u.type}</td>
-                    <td>{u.floor ?? "—"}</td>
-                    <td>{u.position ?? "—"}</td>
-                    <td>{u.area_m2 ?? "—"}</td>
-                    <td>{u.rooms ?? "—"}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>{u.type}</TableCell>
+                    <TableCell>{u.floor ?? "—"}</TableCell>
+                    <TableCell>{u.position ?? "—"}</TableCell>
+                    <TableCell>{u.area_m2 ?? "—"}</TableCell>
+                    <TableCell>{u.rooms ?? "—"}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
-      </section>
+      </Box>
 
-      <section>
-        <Link
+      <Box>
+        <Button
+          component={RouterLink}
           to={`/properties/${prop.id}/documents`}
-          className="btn-secondary inline-block"
+          variant="outlined"
         >
           Dokumente ansehen →
-        </Link>
-      </section>
-    </div>
+        </Button>
+      </Box>
+    </Stack>
   );
 }

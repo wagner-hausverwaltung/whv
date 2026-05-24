@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Link,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { DocumentResponse } from "@/api/types";
 
@@ -16,6 +31,7 @@ function formatBytes(bytes: number | null): string {
 }
 
 export function PropertyDocumentsPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [docs, setDocs] = useState<DocumentResponse[] | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -24,6 +40,7 @@ export function PropertyDocumentsPage() {
     if (!id) return;
     api
       .get<DocumentResponse[]>(`/me/properties/${id}/documents`)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       .then((r) => setDocs(r.data))
       .catch((err) => {
         if (err.response?.status === 404) setNotFound(true);
@@ -32,60 +49,92 @@ export function PropertyDocumentsPage() {
 
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <p className="flash-error">Objekt nicht gefunden oder nicht zugänglich.</p>
-        <Link to="/" className="muted hover:underline">
-          ← Zurück zur Übersicht
+      <Stack spacing={2}>
+        <Alert severity="error">
+          Objekt nicht gefunden oder nicht zugänglich.
+        </Alert>
+        <Link component={RouterLink} to="/" color="text.secondary">
+          ← {t("properties.title")}
         </Link>
-      </div>
+      </Stack>
     );
   }
-  if (docs === null) return <p className="muted">Wird geladen…</p>;
+  if (docs === null) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {t("common.loading")}
+      </Typography>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <Link to={`/properties/${id}`} className="muted hover:underline inline-block">
-        ← Objektdetails
-      </Link>
+    <Stack spacing={4}>
+      <Box>
+        <Link
+          component={RouterLink}
+          to={`/properties/${id}`}
+          color="text.secondary"
+          underline="hover"
+        >
+          ← Objektdetails
+        </Link>
+      </Box>
 
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Dokumente</h1>
-        <p className="muted">
+      <Box>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+          Dokumente
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Datei-Downloads kommen mit dem nächsten Update — derzeit sehen Sie nur
           die Metadaten der vom Hausverwalter hinterlegten Dokumente.
-        </p>
-      </header>
+        </Typography>
+      </Box>
 
       {docs.length === 0 ? (
-        <p className="muted">Keine Dokumente erfasst.</p>
+        <Typography variant="body2" color="text.secondary">
+          Keine Dokumente erfasst.
+        </Typography>
       ) : (
-        <div className="overflow-x-auto card !p-0">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Art</th>
-                <th>Datum</th>
-                <th>Größe</th>
-                <th>Typ</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Art</TableCell>
+                <TableCell>Datum</TableCell>
+                <TableCell>Größe</TableCell>
+                <TableCell>Typ</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {docs.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.name}</td>
-                  <td className="text-xs uppercase tracking-wide muted">
-                    {d.kind}
-                  </td>
-                  <td>{d.issued_date ?? "—"}</td>
-                  <td>{formatBytes(d.size_bytes)}</td>
-                  <td className="muted text-xs">{d.mime_type ?? "—"}</td>
-                </tr>
+                <TableRow key={d.id} hover>
+                  <TableCell>{d.name}</TableCell>
+                  <TableCell>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {d.kind}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{d.issued_date ?? "—"}</TableCell>
+                  <TableCell>{formatBytes(d.size_bytes)}</TableCell>
+                  <TableCell>
+                    <Typography variant="caption" color="text.secondary">
+                      {d.mime_type ?? "—"}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
-    </div>
+    </Stack>
   );
 }
