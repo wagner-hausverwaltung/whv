@@ -62,11 +62,44 @@ export interface DocumentResponse {
   amount: string | null;
 }
 
+// 32 ticket categories grouped into 7 buckets — see
+// backend/app/services/ticket_categories.py for the source of truth
+// (group / German label / English label / MUI icon name per value).
 export type TicketCategory =
-  | "SCHADEN"
-  | "VERWALTUNG"
-  | "HAUSGELD"
-  | "SONSTIGES";
+  | "ALLGEMEIN_FRAGE"
+  | "ALLGEMEIN_KLINGEL"
+  | "ALLGEMEIN_DOKUMENTE"
+  | "ALLGEMEIN_ONBOARDING"
+  | "ALLGEMEIN_LOB"
+  | "ALLGEMEIN_RUECKRUF"
+  | "ALLGEMEIN_SCHLUESSEL"
+  | "ALLGEMEIN_TELEFONNOTIZ"
+  | "BUCHHALTUNG_BANK_SEPA"
+  | "BUCHHALTUNG_BETRIEBSKOSTEN"
+  | "BUCHHALTUNG_JAHRESABRECHNUNG"
+  | "BUCHHALTUNG_BELEGE"
+  | "BUCHHALTUNG_ABBUCHUNGEN"
+  | "VERTRIEB_BEWERTUNG"
+  | "VERTRIEB_BERATUNG"
+  | "VERTRIEB_INTERESSE"
+  | "MIETER_WECHSEL"
+  | "SCHADEN_ALLGEMEIN"
+  | "SCHADEN_BAUMANGEL"
+  | "SCHADEN_ELEMENTAR"
+  | "SCHADEN_FEUER"
+  | "SCHADEN_SCHAEDLINGE"
+  | "SCHADEN_STROM"
+  | "SCHADEN_ABWASSER"
+  | "SCHADEN_WASSER"
+  | "WEG_ANFRAGE"
+  | "WEG_BESCHLUSSANTRAG"
+  | "WEG_LEGIONELLEN"
+  | "SONSTIGES_DATEN"
+  | "SONSTIGES_BESCHLUSSUMSETZUNG"
+  | "SONSTIGES_ETV"
+  | "SONSTIGES_RELAY"
+  | "SONSTIGES_STOERUNG"
+  | "SONSTIGES_OTHER";
 
 export type TicketStatus =
   | "NEU"
@@ -126,11 +159,45 @@ export const TICKET_SHARE_SCOPE_LABELS: Record<TicketShareScope, string> = {
   PROPERTY: "Alle Eigentümer dieses Objekts",
 };
 
+// Display labels keyed by category. Kept in sync with the German
+// labels from app/services/ticket_categories.py — when adding values
+// keep that file and this dict in lockstep. English labels and group
+// metadata live in src/lib/ticketCategories.ts.
 export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
-  SCHADEN: "Schaden",
-  VERWALTUNG: "Verwaltung",
-  HAUSGELD: "Hausgeld",
-  SONSTIGES: "Sonstiges",
+  ALLGEMEIN_FRAGE: "Allgemeine Frage / Information",
+  ALLGEMEIN_KLINGEL: "Änderung Klingel-/Namensschild",
+  ALLGEMEIN_DOKUMENTE: "Anforderung von Dokumenten",
+  ALLGEMEIN_ONBOARDING: "Ihr Onboarding zur Hausverwaltung",
+  ALLGEMEIN_LOB: "Lob & Kritik",
+  ALLGEMEIN_RUECKRUF: "Rückrufbitte",
+  ALLGEMEIN_SCHLUESSEL: "Schlüssel-/Schließzylinderbestellung",
+  ALLGEMEIN_TELEFONNOTIZ: "Telefonnotiz",
+  BUCHHALTUNG_BANK_SEPA: "Änderung der Bankverbindung / SEPA-Lastschriftmandat",
+  BUCHHALTUNG_BETRIEBSKOSTEN: "Anfrage zur Betriebskostenabrechnung",
+  BUCHHALTUNG_JAHRESABRECHNUNG: "Anfrage zur Jahresabrechnung",
+  BUCHHALTUNG_BELEGE: "Belegprüfung",
+  BUCHHALTUNG_ABBUCHUNGEN: "Rückfragen zu Abbuchungen",
+  VERTRIEB_BEWERTUNG: "Anfrage zur Immobilienbewertung",
+  VERTRIEB_BERATUNG: "Beratungsgespräch",
+  VERTRIEB_INTERESSE: "Kauf-/Mietinteresse",
+  MIETER_WECHSEL: "Mieterwechsel",
+  SCHADEN_ALLGEMEIN: "Allgemeine Schadensmeldung",
+  SCHADEN_BAUMANGEL: "Baumangel",
+  SCHADEN_ELEMENTAR: "Elementarschaden",
+  SCHADEN_FEUER: "Feuer-/Brandschaden",
+  SCHADEN_SCHAEDLINGE: "Schädlingsbekämpfung",
+  SCHADEN_STROM: "Strom-/Elektrikschaden",
+  SCHADEN_ABWASSER: "Verstopfung / Rückstau Abwasser",
+  SCHADEN_WASSER: "Wasserschaden",
+  WEG_ANFRAGE: "Anfrage an die WEG-Verwaltung",
+  WEG_BESCHLUSSANTRAG: "Antrag zur Tagesordnung / Beschlussantrag",
+  WEG_LEGIONELLEN: "Legionellenprüfung",
+  SONSTIGES_DATEN: "Änderung der Daten im Kundenportal",
+  SONSTIGES_BESCHLUSSUMSETZUNG: "Beschlussumsetzung",
+  SONSTIGES_ETV: "Eigentümerversammlung",
+  SONSTIGES_RELAY: "Relay-Meldung",
+  SONSTIGES_STOERUNG: "Störung",
+  SONSTIGES_OTHER: "Sonstiges",
 };
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {

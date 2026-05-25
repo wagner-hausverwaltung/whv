@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  ListSubheader,
   MenuItem,
   Paper,
   Stack,
@@ -16,18 +17,12 @@ import {
   type TicketCategory,
   type TicketDetailResponse,
 } from "@/api/types";
-
-const CATEGORIES: TicketCategory[] = [
-  "SCHADEN",
-  "VERWALTUNG",
-  "HAUSGELD",
-  "SONSTIGES",
-];
+import { CATEGORY_META, groupedCategories } from "@/lib/ticketCategories";
 
 export function TicketNewPage() {
   const navigate = useNavigate();
   const [subject, setSubject] = useState("");
-  const [category, setCategory] = useState<TicketCategory>("SONSTIGES");
+  const [category, setCategory] = useState<TicketCategory>("SONSTIGES_OTHER");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -85,11 +80,27 @@ export function TicketNewPage() {
             onChange={(e) => setCategory(e.target.value as TicketCategory)}
             fullWidth
           >
-            {CATEGORIES.map((c) => (
-              <MenuItem key={c} value={c}>
-                {TICKET_CATEGORY_LABELS[c]}
-              </MenuItem>
-            ))}
+            {groupedCategories().flatMap(({ group, items }) => [
+              <ListSubheader key={`g-${group}`}>{group}</ListSubheader>,
+              ...items.map((c) => {
+                const Icon = CATEGORY_META[c].icon;
+                return (
+                  <MenuItem key={c} value={c}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        pl: 1,
+                      }}
+                    >
+                      <Icon fontSize="small" sx={{ color: "text.secondary" }} />
+                      {TICKET_CATEGORY_LABELS[c]}
+                    </Box>
+                  </MenuItem>
+                );
+              }),
+            ])}
           </TextField>
           <TextField
             id="body"

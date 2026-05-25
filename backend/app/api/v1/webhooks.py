@@ -357,7 +357,7 @@ async def email_inbound(
             organization_id=WHV_ORGANIZATION_ID,
             created_by_user_id=author.id if author else None,
             external_sender_email=None if author else parsed.sender_email,
-            category=TicketCategory.SONSTIGES,
+            category=TicketCategory.SONSTIGES_OTHER,
             status=TicketStatus.NEU,
             subject=parsed.subject or "(ohne Betreff)",
             last_message_at=now,

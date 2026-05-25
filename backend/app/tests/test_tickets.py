@@ -98,14 +98,14 @@ async def test_owner_can_create_and_read_own_ticket(
             json={
                 "subject": "Wasserschaden im Keller",
                 "body": "Seit gestern Abend tropft es vom Heizungsrohr.",
-                "category": "SCHADEN",
+                "category": "SCHADEN_ALLGEMEIN",
             },
         )
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["subject"] == "Wasserschaden im Keller"
     assert body["status"] == "NEU"
-    assert body["category"] == "SCHADEN"
+    assert body["category"] == "SCHADEN_ALLGEMEIN"
     assert body["created_by_user_id"] == str(eigent.id)
     assert len(body["messages"]) == 1
     assert body["messages"][0]["body"].startswith("Seit gestern")
@@ -135,7 +135,7 @@ async def test_owner_sees_only_their_own_tickets(
         client.post(
             "/me/tickets",
             headers=_auth(token_a),
-            json={"subject": "A only", "body": "private body", "category": "SONSTIGES"},
+            json={"subject": "A only", "body": "private body", "category": "SONSTIGES_OTHER"},
         )
         r = client.get("/me/tickets", headers=_auth(token_b))
     assert r.status_code == 200
@@ -155,7 +155,7 @@ async def test_owner_thread_excludes_internal_notes(
         create = client.post(
             "/me/tickets",
             headers=_auth(e_token),
-            json={"subject": "Frage", "body": "Initialer Text", "category": "VERWALTUNG"},
+            json={"subject": "Frage", "body": "Initialer Text", "category": "WEG_ANFRAGE"},
         )
         ticket_id = create.json()["id"]
 
@@ -197,7 +197,7 @@ async def test_owner_cannot_post_internal_note_via_me_endpoint(
         create = client.post(
             "/me/tickets",
             headers=_auth(token),
-            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         ticket_id = create.json()["id"]
         client.post(
@@ -233,7 +233,7 @@ async def test_verwalter_sees_all_tickets_in_org(
             r = client.post(
                 "/me/tickets",
                 headers=_auth(tok),
-                json={"subject": subj, "body": "Body text", "category": "SONSTIGES"},
+                json={"subject": subj, "body": "Body text", "category": "SONSTIGES_OTHER"},
             )
             assert r.status_code == 201, r.text
         r = client.get("/admin/tickets", headers=_auth(vw_token))
@@ -256,7 +256,7 @@ async def test_ticket_is_invisible_across_orgs(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "org A only", "body": "secret", "category": "SONSTIGES"},
+            json={"subject": "org A only", "body": "secret", "category": "SONSTIGES_OTHER"},
         )
         ticket_id = create.json()["id"]
 
@@ -280,7 +280,11 @@ async def test_email_sent_on_owner_create_but_not_on_internal_note(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "Heizung kalt", "body": "Bitte prüfen.", "category": "SCHADEN"},
+            json={
+                "subject": "Heizung kalt",
+                "body": "Bitte prüfen.",
+                "category": "SCHADEN_ALLGEMEIN",
+            },
         )
         ticket_id = create.json()["id"]
         assert len(stub_email.sent) == 1
@@ -334,7 +338,7 @@ async def test_create_succeeds_even_when_email_send_fails(
             r = client.post(
                 "/me/tickets",
                 headers=_auth(token),
-                json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES"},
+                json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES_OTHER"},
             )
         assert r.status_code == 201
     finally:
@@ -353,7 +357,7 @@ async def test_status_lifecycle_owner_close(
         create = client.post(
             "/me/tickets",
             headers=_auth(token),
-            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         ticket_id = create.json()["id"]
         assert create.json()["status"] == "NEU"
@@ -384,7 +388,7 @@ async def test_admin_patch_status_writes_audit_row(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         ticket_id = create.json()["id"]
         r = client.patch(
@@ -422,7 +426,7 @@ async def test_verwalter_public_reply_moves_to_wartet_auf_kunde(
         create = client.post(
             "/me/tickets",
             headers=_auth(e_token),
-            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Status-Test", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         tid = create.json()["id"]
         client.post(
@@ -467,7 +471,7 @@ async def test_eigentuemer_with_contract_sees_co_owner_ticket(
             json={
                 "subject": "Common laundry room broken",
                 "body": "trommel is gone",
-                "category": "SCHADEN",
+                "category": "SCHADEN_ALLGEMEIN",
                 "property_id": str(prop.id),
                 "share_scope": "PROPERTY",
             },
@@ -494,7 +498,7 @@ async def test_default_share_scope_is_private(
         r = client.post(
             "/me/tickets",
             headers=_auth(token),
-            json={"subject": "Test", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Test", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
     assert r.status_code == 201
     assert r.json()["share_scope"] == "PRIVATE"
@@ -516,7 +520,7 @@ async def test_creator_can_add_participant_who_then_sees_ticket(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "Shared", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Shared", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         tid = create.json()["id"]
 
@@ -559,7 +563,7 @@ async def test_remove_participant_revokes_access(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         tid = create.json()["id"]
         add = client.post(
@@ -599,7 +603,7 @@ async def test_non_creator_cannot_add_participants(
         create = client.post(
             "/me/tickets",
             headers=_auth(ea_token),
-            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES"},
+            json={"subject": "Test ticket", "body": "Body text", "category": "SONSTIGES_OTHER"},
         )
         tid = create.json()["id"]
         client.post(
@@ -648,7 +652,7 @@ async def test_share_scope_property_lets_co_owner_see_without_explicit_add(
             json={
                 "subject": "Roof leak",
                 "body": "Body text",
-                "category": "SCHADEN",
+                "category": "SCHADEN_ALLGEMEIN",
                 "property_id": str(prop.id),
             },
         )
@@ -708,7 +712,7 @@ async def test_property_scope_does_not_auto_email_co_owners(
             json={
                 "subject": "Foo",
                 "body": "Body text",
-                "category": "SCHADEN",
+                "category": "SCHADEN_ALLGEMEIN",
                 "property_id": str(prop.id),
                 "share_scope": "PROPERTY",
             },
@@ -745,7 +749,7 @@ async def test_create_with_property_scope_requires_property_id(
             json={
                 "subject": "Test",
                 "body": "Body text",
-                "category": "SONSTIGES",
+                "category": "SONSTIGES_OTHER",
                 "share_scope": "PROPERTY",
                 # property_id missing — should 400
             },
@@ -764,7 +768,7 @@ async def test_ticket_default_status_is_neu(test_engine: AsyncEngine) -> None:
         t = Ticket(
             organization_id=org.id,
             created_by_user_id=user.id,
-            category=TicketCategory.SONSTIGES,
+            category=TicketCategory.SONSTIGES_OTHER,
             subject="hi",
         )
         s.add(t)

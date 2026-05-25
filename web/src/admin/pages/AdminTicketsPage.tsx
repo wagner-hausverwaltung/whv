@@ -7,7 +7,12 @@ import {
   CardActionArea,
   CardContent,
   Chip,
+  FormControl,
+  InputLabel,
   Link,
+  ListSubheader,
+  MenuItem,
+  Select,
   Stack,
   Typography,
 } from "@mui/material";
@@ -20,19 +25,13 @@ import {
   type TicketResponse,
   type TicketStatus,
 } from "@/api/types";
+import { groupedCategories } from "@/lib/ticketCategories";
 
 const STATUSES: TicketStatus[] = [
   "NEU",
   "OFFEN",
   "WARTET_AUF_KUNDE",
   "GESCHLOSSEN",
-];
-
-const CATEGORIES: TicketCategory[] = [
-  "SCHADEN",
-  "VERWALTUNG",
-  "HAUSGELD",
-  "SONSTIGES",
 ];
 
 function StatusChip({ status }: { status: TicketStatus }) {
@@ -290,32 +289,30 @@ export function AdminTicketsPage({
               />
             ))}
           </Stack>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ alignSelf: "center", mr: 1 }}
+          {/* 32 categories → too many chips. Drop into a grouped Select
+              and keep the same query-param contract (?category=…). */}
+          <FormControl size="small" sx={{ minWidth: 280, maxWidth: 400 }}>
+            <InputLabel>{t("admin.ticketsPage.category")}</InputLabel>
+            <Select
+              value={categoryFilter}
+              label={t("admin.ticketsPage.category")}
+              onChange={(e) =>
+                setCategory(e.target.value as "" | TicketCategory)
+              }
             >
-              {t("admin.ticketsPage.category")}:
-            </Typography>
-            <Chip
-              label={t("admin.ticketsPage.filterAll")}
-              color={!categoryFilter ? "primary" : "default"}
-              variant={!categoryFilter ? "filled" : "outlined"}
-              onClick={() => setCategory("")}
-              clickable
-            />
-            {CATEGORIES.map((c) => (
-              <Chip
-                key={c}
-                label={TICKET_CATEGORY_LABELS[c]}
-                color={categoryFilter === c ? "primary" : "default"}
-                variant={categoryFilter === c ? "filled" : "outlined"}
-                onClick={() => setCategory(c)}
-                clickable
-              />
-            ))}
-          </Stack>
+              <MenuItem value="">
+                <em>{t("admin.ticketsPage.filterAll")}</em>
+              </MenuItem>
+              {groupedCategories().flatMap(({ group, items }) => [
+                <ListSubheader key={`g-${group}`}>{group}</ListSubheader>,
+                ...items.map((c) => (
+                  <MenuItem key={c} value={c} sx={{ pl: 4 }}>
+                    {TICKET_CATEGORY_LABELS[c]}
+                  </MenuItem>
+                )),
+              ])}
+            </Select>
+          </FormControl>
         </Stack>
       )}
 

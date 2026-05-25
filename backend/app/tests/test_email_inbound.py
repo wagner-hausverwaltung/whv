@@ -401,7 +401,7 @@ async def test_email_creates_new_ticket_for_unknown_sender(
         assert ticket is not None
         assert ticket.created_by_user_id is None
         assert ticket.external_sender_email == "stranger@example.de"
-        assert ticket.category == TicketCategory.SONSTIGES
+        assert ticket.category == TicketCategory.SONSTIGES_OTHER
         assert ticket.status == TicketStatus.NEU
         assert ticket.subject == "Heizung defekt"
 
@@ -461,7 +461,7 @@ async def test_email_appends_to_existing_ticket_via_ref(
         ticket = Ticket(
             organization_id=WHV_ORGANIZATION_ID,
             created_by_user_id=creator.id,
-            category=TicketCategory.SCHADEN,
+            category=TicketCategory.SCHADEN_ALLGEMEIN,
             status=TicketStatus.WARTET_AUF_KUNDE,
             subject="Original subject",
         )
