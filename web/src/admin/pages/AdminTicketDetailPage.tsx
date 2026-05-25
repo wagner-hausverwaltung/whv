@@ -31,6 +31,7 @@ import {
   type TicketShareScope,
   type TicketStatus,
 } from "@/api/types";
+import { MessageTimeline } from "@/components/MessageTimeline";
 
 const STATUSES: TicketStatus[] = [
   "NEU",
@@ -253,6 +254,19 @@ export function AdminTicketDetailPage() {
         {t("admin.ticketDetail.shareScopeHelp")}
       </Typography>
 
+      {/* Below the controls, the body splits into the main column
+          (participants + thread + reply) and a sticky timeline rail on
+          md+ screens. On narrow screens the timeline hides — thread
+          cards remain linear and short. */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 280px" },
+          gap: 3,
+          alignItems: "start",
+        }}
+      >
+        <Stack spacing={3} sx={{ minWidth: 0 }}>
       {/* Participants */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" gutterBottom>
@@ -321,6 +335,7 @@ export function AdminTicketDetailPage() {
         {ticket.messages.map((m) => (
           <Card
             key={m.id}
+            id={`msg-${m.id}`}
             variant="outlined"
             sx={{
               p: 2,
@@ -331,6 +346,9 @@ export function AdminTicketDetailPage() {
                       : "#fef9c3"
                 : "background.paper",
               borderColor: m.is_internal_note ? "warning.light" : "divider",
+              // Sticky AppBar offset so the timeline-jump doesn't park
+              // the card under the header.
+              scrollMarginTop: 88,
             }}
           >
             <Stack
@@ -404,6 +422,16 @@ export function AdminTicketDetailPage() {
           </Stack>
         </Box>
       </Paper>
+        </Stack>
+
+        {/* Sticky message timeline (md+). Hidden on narrow screens. */}
+        <Box sx={{ display: { xs: "none", md: "block" } }}>
+          <MessageTimeline
+            messages={ticket.messages}
+            ticketSubject={ticket.subject}
+          />
+        </Box>
+      </Box>
     </Stack>
   );
 }

@@ -44,7 +44,10 @@
     "newButton": "New ticket",
     "empty": "You have not opened any tickets yet. Use this channel for enquiries, damage reports, or notes to the property manager.",
     "loadFailed": "Tickets could not be loaded.",
-    "lastActivity": "last activity"
+    "lastActivity": "last activity",
+    "timeline": {
+      "title": "Timeline"
+    }
   },
   "resolutions": {
     "title": "Circular resolutions",

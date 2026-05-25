@@ -27,6 +27,7 @@ import {
   type TicketDetailResponse,
   type TicketShareScope,
 } from "@/api/types";
+import { MessageTimeline } from "@/components/MessageTimeline";
 
 export function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -190,7 +191,19 @@ export function TicketDetailPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {/* Body splits into a main column (visibility, thread, reply) and
+          a sticky timeline on md+ screens. On small screens the timeline
+          is hidden — the thread cards are already linear and short there. */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 280px" },
+          gap: 3,
+          alignItems: "start",
+        }}
+      >
+        <Stack spacing={3} sx={{ minWidth: 0 }}>
+          <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack
           direction="row"
           sx={{
@@ -328,10 +341,14 @@ export function TicketDetailPage() {
           return (
             <Card
               key={m.id}
+              id={`msg-${m.id}`}
               variant="outlined"
               sx={{
                 p: 2,
                 borderColor: isMine ? "primary.main" : "divider",
+                // Sticky header offset so the timeline-jump lands the
+                // card below the AppBar instead of behind it.
+                scrollMarginTop: 88,
               }}
             >
               <Stack
@@ -353,44 +370,60 @@ export function TicketDetailPage() {
         })}
       </Stack>
 
-      {isClosed ? (
-        <Typography variant="body2" color="text.secondary">
-          Dieses Ticket ist geschlossen. Für eine neue Frage erstellen Sie bitte
-          ein neues Ticket.
-        </Typography>
-      ) : (
-        <Paper variant="outlined" component="form" onSubmit={onReply} sx={{ p: 2.5 }}>
-          <Stack spacing={1.5}>
-            <TextField
-              id="reply"
-              label="Antworten"
-              required
-              multiline
-              minRows={5}
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="Ihre Antwort…"
-              slotProps={{ htmlInput: { minLength: 1, maxLength: 10_000 } }}
-              fullWidth
-            />
-            <Stack direction="row" spacing={2}>
-              <Button type="submit" variant="contained" disabled={posting}>
-                {posting ? "Wird gesendet…" : "Antwort senden"}
-              </Button>
-              {canClose && (
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={onClose}
-                  disabled={closing}
-                >
-                  {closing ? "Wird geschlossen…" : "Ticket schließen"}
-                </Button>
-              )}
-            </Stack>
-          </Stack>
-        </Paper>
-      )}
+          {isClosed ? (
+            <Typography variant="body2" color="text.secondary">
+              Dieses Ticket ist geschlossen. Für eine neue Frage erstellen Sie
+              bitte ein neues Ticket.
+            </Typography>
+          ) : (
+            <Paper
+              variant="outlined"
+              component="form"
+              onSubmit={onReply}
+              sx={{ p: 2.5 }}
+            >
+              <Stack spacing={1.5}>
+                <TextField
+                  id="reply"
+                  label="Antworten"
+                  required
+                  multiline
+                  minRows={5}
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="Ihre Antwort…"
+                  slotProps={{ htmlInput: { minLength: 1, maxLength: 10_000 } }}
+                  fullWidth
+                />
+                <Stack direction="row" spacing={2}>
+                  <Button type="submit" variant="contained" disabled={posting}>
+                    {posting ? "Wird gesendet…" : "Antwort senden"}
+                  </Button>
+                  {canClose && (
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      onClick={onClose}
+                      disabled={closing}
+                    >
+                      {closing ? "Wird geschlossen…" : "Ticket schließen"}
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
+            </Paper>
+          )}
+        </Stack>
+
+        {/* Sticky timeline rail on md+. The component bails on empty
+            arrays, but a ticket always has at least the original message. */}
+        <Box sx={{ display: { xs: "none", md: "block" } }}>
+          <MessageTimeline
+            messages={ticket.messages}
+            ticketSubject={ticket.subject}
+          />
+        </Box>
+      </Box>
     </Stack>
   );
 }
