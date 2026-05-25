@@ -19,6 +19,15 @@ class TicketCreateRequest(BaseModel):
 class TicketMessageCreateRequest(BaseModel):
     body: str = Field(..., min_length=1, max_length=10_000)
     is_internal_note: bool = False
+    # SPA sets this to True when it's about to upload attachments for
+    # the new message — the notification email gets deferred until the
+    # SPA calls POST .../messages/{id}/notify after the uploads finish,
+    # so the recipient's email actually carries the files as
+    # multipart-attached binary. Without the defer flag the email goes
+    # out on commit (the original behavior) and never sees the
+    # subsequent uploads. Default False keeps every legacy / test
+    # caller on the original "send email inline" path.
+    defer_notification: bool = False
 
 
 class TicketStatusUpdateRequest(BaseModel):

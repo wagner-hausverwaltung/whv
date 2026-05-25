@@ -4,6 +4,8 @@ Both routers live in this file so the shared state-transition logic stays in
 one place. They mount under different prefixes via main.py.
 """
 
+import base64
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -53,6 +55,8 @@ from app.schemas.ticket import (
     TicketShareScopeUpdateRequest,
     TicketStatusUpdateRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 me_router = APIRouter(prefix="/me/tickets", tags=["tickets"])
 admin_router = APIRouter(prefix="/admin/tickets", tags=["tickets"])
@@ -374,6 +378,43 @@ async def _latest_email_thread_headers(
     }
 
 
+def _attachments_for_resend(
+    attachments: list[TicketMessageAttachment] | None,
+) -> list[dict[str, str]]:
+    """Convert TicketMessageAttachment rows into Resend's attachment
+    format: `[{filename, content (base64)}]`.
+
+    Reads each on-disk file at send time — we don't keep bytes in memory
+    longer than the email request. Rows without a `local-disk:` prefix
+    or with a missing file are skipped silently (the user already saw
+    the upload succeed; we'd rather send the email without the
+    attachment than fail the whole notification).
+    """
+    if not attachments:
+        return []
+    out: list[dict[str, str]] = []
+    for att in attachments:
+        if not att.storage_url or not att.storage_url.startswith("local-disk:"):
+            continue
+        suffix = att.storage_url[len("local-disk:") :]
+        path = attachment_path(att.id, suffix)
+        if not path.exists():
+            logger.warning("Skipping attachment %s — file missing at %s", att.id, path)
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            logger.exception("Could not read attachment %s from disk", att.id)
+            continue
+        out.append(
+            {
+                "filename": att.filename,
+                "content": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return out
+
+
 async def _send_message_notification(
     *,
     email_client: EmailClient,
@@ -382,6 +423,7 @@ async def _send_message_notification(
     recipients: list[str],
     sender_email: str,
     headers: dict[str, str] | None = None,
+    message_attachments: list[TicketMessageAttachment] | None = None,
 ) -> tuple[str | None, str | None]:
     """Best-effort send — returns (message_id, error_string). Caller is
     responsible for capturing the outcome in audit if desired.
@@ -416,6 +458,7 @@ async def _send_message_notification(
             text=text,
             headers=headers,
             reply_to=settings.email_inbound_address or None,
+            attachments=_attachments_for_resend(message_attachments) or None,
         )
         return msg_id, None
     except EmailError as exc:
@@ -616,14 +659,21 @@ async def post_my_message(
         ]
     )
     recipients = [e for e in recipients if e != current_user.email]
-    await _send_message_notification(
-        email_client=email_client,
-        ticket=ticket,
-        message=message,
-        recipients=recipients,
-        sender_email=current_user.email,
-        headers=await _latest_email_thread_headers(session, ticket.id),
-    )
+    # SPA sets `defer_notification=True` when it's about to upload
+    # attachments for this message — the notify email goes out via the
+    # explicit POST .../{msg_id}/notify call once the uploads land, so
+    # the recipient's mailbox actually carries the files. Legacy /
+    # test callers leave the flag at its default False and get the
+    # inline send.
+    if not req.defer_notification:
+        await _send_message_notification(
+            email_client=email_client,
+            ticket=ticket,
+            message=message,
+            recipients=recipients,
+            sender_email=current_user.email,
+            headers=await _latest_email_thread_headers(session, ticket.id),
+        )
 
     await session.commit()
     await session.refresh(message)
@@ -748,7 +798,10 @@ async def post_admin_message(
     # Notify creator (or external sender if the ticket came in by email) +
     # explicit participants. Internal notes stay Verwalter-only — no email.
     # Property-scope viewers are intentionally NOT fanned out to here.
-    if not req.is_internal_note:
+    # When the SPA has attachments queued it sets `defer_notification=True`
+    # so the email goes out via the explicit /notify endpoint after the
+    # uploads land (so the email actually carries the files).
+    if not req.is_internal_note and not req.defer_notification:
         owner = (
             await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
             if ticket.created_by_user_id
@@ -1498,6 +1551,130 @@ async def delete_my_attachment(
     await session.commit()
     if suffix is not None:
         delete_attachment(attachment.id, suffix)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _send_deferred_notification(
+    *,
+    session: AsyncSession,
+    email_client: EmailClient,
+    actor: User,
+    ticket: Ticket,
+    message: TicketMessage,
+    admin: bool,
+) -> None:
+    """Build the recipient list for a deferred-notification call and
+    send it with the message's attachments. Shared by `/me` + `/admin`
+    /notify endpoints. Internal notes don't get email regardless of
+    who triggered the notify call — same rule as the inline path.
+    """
+    if message.is_internal_note:
+        return
+
+    if admin:
+        # Admin reply → notify creator (or external sender) + participants.
+        owner = (
+            await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+            if ticket.created_by_user_id
+            else None
+        )
+        recipients = _dedupe(
+            [
+                *([owner.email] if owner and owner.deleted_at is None else []),
+                *([ticket.external_sender_email] if ticket.external_sender_email else []),
+                *(await _participant_emails(session, ticket.id)),
+            ]
+        )
+    else:
+        # Owner reply → Verwalter + creator + external sender + participants,
+        # minus the author themselves.
+        creator = (
+            await session.scalar(select(User).where(User.id == ticket.created_by_user_id))
+            if ticket.created_by_user_id
+            else None
+        )
+        recipients = _dedupe(
+            [
+                *(await _verwalter_recipients(session, ticket.organization_id)),
+                *(await _participant_emails(session, ticket.id)),
+                *([creator.email] if creator and creator.deleted_at is None else []),
+                *([ticket.external_sender_email] if ticket.external_sender_email else []),
+            ]
+        )
+        recipients = [e for e in recipients if e != actor.email]
+
+    if not recipients:
+        return
+
+    # Eager-load attachments for this message — the very reason we
+    # deferred the notification in the first place.
+    attachments_by_msg = await _load_attachments_for_messages(session, [message.id])
+    attachments = attachments_by_msg.get(message.id, [])
+
+    await _send_message_notification(
+        email_client=email_client,
+        ticket=ticket,
+        message=message,
+        recipients=recipients,
+        sender_email=actor.email,
+        headers=await _latest_email_thread_headers(session, ticket.id),
+        message_attachments=attachments,
+    )
+
+
+@me_router.post(
+    "/{ticket_id}/messages/{message_id}/notify",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def notify_my_message(
+    ticket_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> Response:
+    """SPA calls this after uploading attachments to a message that
+    was created with `defer_notification=True`. Sends the notification
+    email with the message's attachments included so the recipient's
+    mailbox actually carries the files."""
+    ticket = await _load_ticket_for_caller(
+        session=session, user=current_user, ticket_id=ticket_id, admin=False
+    )
+    msg = await _load_message_for_ticket(session, message_id=message_id, ticket_id=ticket.id)
+    await _send_deferred_notification(
+        session=session,
+        email_client=email_client,
+        actor=current_user,
+        ticket=ticket,
+        message=msg,
+        admin=False,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@admin_router.post(
+    "/{ticket_id}/messages/{message_id}/notify",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def notify_admin_message(
+    ticket_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> Response:
+    ticket = await _load_ticket_for_caller(
+        session=session, user=current_user, ticket_id=ticket_id, admin=True
+    )
+    msg = await _load_message_for_ticket(session, message_id=message_id, ticket_id=ticket.id)
+    await _send_deferred_notification(
+        session=session,
+        email_client=email_client,
+        actor=current_user,
+        ticket=ticket,
+        message=msg,
+        admin=True,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

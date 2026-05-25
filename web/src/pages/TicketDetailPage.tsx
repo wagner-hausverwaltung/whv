@@ -119,9 +119,18 @@ export function TicketDetailPage() {
     setUploadErrors([]);
     setPosting(true);
     try {
+      // Defer the notification email when files are queued — backend
+      // sends it via the explicit /notify endpoint after uploads land,
+      // and only then can it include the binary in Resend's
+      // `attachments` field.
+      const hasAttachments = pendingFiles.length > 0;
       const res = await api.post<{ id: string }>(
         `/me/tickets/${ticket.id}/messages`,
-        { body: reply.trim(), is_internal_note: false },
+        {
+          body: reply.trim(),
+          is_internal_note: false,
+          defer_notification: hasAttachments,
+        },
       );
       const newMessageId = res.data.id;
       // Best-effort attachment upload — failures don't abort the rest.
@@ -140,6 +149,16 @@ export function TicketDetailPage() {
         } catch (err: unknown) {
           // Diagnostic-rich message covering 401/404/413/415/5xx/network.
           failures.push({ name: file.name, detail: describeUploadError(err) });
+        }
+      }
+      // Trigger deferred email send so the recipient gets the files.
+      if (hasAttachments) {
+        try {
+          await api.post(
+            `/me/tickets/${ticket.id}/messages/${newMessageId}/notify`,
+          );
+        } catch {
+          // Best-effort — the in-portal thread already succeeded.
         }
       }
       setReply("");

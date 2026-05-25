@@ -243,9 +243,18 @@ export function AdminTicketDetailPage() {
     setPosting(true);
     setUploadErrors([]);
     try {
+      // If files are queued, defer the email until after attachments
+      // upload so the recipient's mailbox actually carries the binary
+      // (the backend reads bytes off disk + base64-encodes them for
+      // Resend's attachments field).
+      const hasAttachments = pendingFiles.length > 0;
       const res = await api.post<{ id: string }>(
         `/admin/tickets/${id}/messages`,
-        { body: reply, is_internal_note: internal },
+        {
+          body: reply,
+          is_internal_note: internal,
+          defer_notification: hasAttachments,
+        },
       );
       const newMessageId = res.data.id;
       // Best-effort: upload each pending file. Capture per-file
@@ -263,6 +272,21 @@ export function AdminTicketDetailPage() {
         } catch (err: unknown) {
           // Diagnostic-rich message covering 401/404/413/415/5xx/network.
           failures.push({ name: file.name, detail: describeUploadError(err) });
+        }
+      }
+      // Fire the deferred-notification call if we used `defer_notification`,
+      // regardless of whether some uploads failed — the recipient still
+      // gets the email with whichever files did make it onto disk. We
+      // skip the notify call for internal notes (the backend already
+      // suppresses email for those).
+      if (hasAttachments && !internal) {
+        try {
+          await api.post(
+            `/admin/tickets/${id}/messages/${newMessageId}/notify`,
+          );
+        } catch {
+          // Best-effort. The thread itself succeeded; failing the
+          // email shouldn't block the user's UI.
         }
       }
       setReply("");
