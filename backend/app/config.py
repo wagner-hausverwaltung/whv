@@ -29,6 +29,12 @@ class Settings(BaseSettings):
 
     impower_api_base: str = "https://api.app.impower.de/v2/d"
     impower_api_token: str = ""
+    # Shared secret for verifying inbound POST /webhooks/impower payloads.
+    # Impower signs the raw request body with HMAC-SHA256 and sends the
+    # hex digest in `X-Impower-Signature`. We recompute and compare in
+    # constant time before processing. Empty disables verification (dev
+    # convenience — never deploy to prod without it set).
+    impower_webhook_secret: str = ""
 
     resend_api_key: str = ""
     email_from_address: str = "noreply@wagner-hausverwaltung.com"

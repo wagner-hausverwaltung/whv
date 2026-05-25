@@ -149,13 +149,83 @@ async def _handle_delete(
     await session.commit()
 
 
+def _verify_impower_signature(*, body: bytes, header_value: str | None, secret: str) -> bool:
+    """Constant-time HMAC-SHA256 verification of an Impower webhook
+    payload. Compares the hex digest of `secret(body)` against whatever
+    Impower sent in `X-Impower-Signature`. The header value may carry a
+    `sha256=` prefix (some webhook providers add it); we strip it
+    before comparison.
+
+    Returns True on match. Returns False (rather than raising) so the
+    caller can decide whether to 401 or 403.
+    """
+    import hashlib
+    import hmac
+
+    if not header_value:
+        return False
+    received = header_value.strip()
+    if received.startswith("sha256="):
+        received = received[len("sha256=") :]
+    expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(received, expected)
+
+
 @router.post("/impower", status_code=200)
 async def receive_impower_webhook(
-    payload: ImpowerWebhookPayload,
+    request: Request,
     redis: Annotated[Redis, Depends(get_redis)],
     session: Annotated[AsyncSession, Depends(get_session)],
     client: Annotated[ImpowerClient, Depends(get_impower_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
+    # Read the raw body once for both HMAC verification AND payload
+    # parsing — FastAPI's automatic body-binding consumes the stream,
+    # so we re-parse manually after the signature check.
+    raw_body = await request.body()
+
+    # HMAC-SHA256 verification. Empty `impower_webhook_secret` disables
+    # the check (dev convenience). In prod / staging we always reject
+    # unsigned or wrongly-signed requests with 401.
+    if settings.impower_webhook_secret:
+        provided = request.headers.get("X-Impower-Signature")
+        if not _verify_impower_signature(
+            body=raw_body,
+            header_value=provided,
+            secret=settings.impower_webhook_secret,
+        ):
+            logger.warning(
+                "impower webhook: signature mismatch from %s",
+                request.client.host if request.client else "<unknown>",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing X-Impower-Signature",
+            )
+
+    # Now parse the validated body into the schema model. We do this
+    # by hand (rather than via FastAPI's body binding) so we get the
+    # raw bytes for the HMAC check above. Convert Pydantic
+    # ValidationError into the same 422 FastAPI would have produced.
+    import json
+
+    from pydantic import ValidationError as _ValidationError
+
+    try:
+        parsed_json = json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Body is not valid JSON",
+        ) from exc
+    try:
+        payload = ImpowerWebhookPayload(**parsed_json)
+    except _ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.errors(),
+        ) from exc
+
     key = _dedupe_key(payload)
     if await _is_duplicate(redis, key):
         return {"status": "duplicate", "key": key}

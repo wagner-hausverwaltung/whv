@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -149,3 +152,103 @@ async def test_create_event_triggers_sync_function(
             assert r.json()["status"] == "processed"
 
     assert calls == {"properties": 1, "units": 1, "contracts": 1, "contacts": 1}
+
+
+# --- HMAC signature verification (spec §15.1 #8) ----------------------------
+
+
+async def test_impower_webhook_rejects_missing_signature(
+    test_engine: AsyncEngine,
+    override_impower_client: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a secret configured, an unsigned request → 401."""
+    from app.config import get_settings
+
+    monkeypatch.setenv("IMPOWER_WEBHOOK_SECRET", "shh-its-a-secret")
+    get_settings.cache_clear()
+    try:
+        with TestClient(app) as client:
+            r = client.post(
+                "/webhooks/impower",
+                json={
+                    "connectionId": 7,
+                    "entityType": "properties",
+                    "entityId": _unique_impower_id(),
+                    "eventType": "CREATE",
+                },
+            )
+        assert r.status_code == 401
+        assert "signature" in r.json()["detail"].lower()
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_impower_webhook_accepts_correct_signature(
+    test_engine: AsyncEngine,
+    override_impower_client: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Valid HMAC-SHA256 hex digest in X-Impower-Signature → 200."""
+    from app.config import get_settings
+
+    secret = "shh-its-a-secret"
+    monkeypatch.setenv("IMPOWER_WEBHOOK_SECRET", secret)
+    get_settings.cache_clear()
+    try:
+        # Make the syncs no-ops so the test stays fast + offline.
+        async def noop_sync(*args: Any, **kwargs: Any) -> SyncStats:
+            return SyncStats(fetched=0, upserted=0, skipped=0)
+
+        monkeypatch.setattr("app.api.v1.webhooks.sync_properties", noop_sync)
+
+        payload = {
+            "connectionId": 7,
+            "entityType": "properties",
+            "entityId": _unique_impower_id(),
+            "eventType": "CREATE",
+        }
+        body = json.dumps(payload).encode("utf-8")
+        signature = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+        with TestClient(app) as client:
+            r = client.post(
+                "/webhooks/impower",
+                content=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Impower-Signature": signature,
+                },
+            )
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "processed"
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_impower_webhook_rejects_wrong_signature(
+    test_engine: AsyncEngine,
+    override_impower_client: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tampered body with a fixed signature → 401."""
+    from app.config import get_settings
+
+    monkeypatch.setenv("IMPOWER_WEBHOOK_SECRET", "shh-its-a-secret")
+    get_settings.cache_clear()
+    try:
+        payload = {
+            "connectionId": 7,
+            "entityType": "properties",
+            "entityId": _unique_impower_id(),
+            "eventType": "CREATE",
+        }
+        with TestClient(app) as client:
+            r = client.post(
+                "/webhooks/impower",
+                json=payload,
+                headers={"X-Impower-Signature": "0" * 64},
+            )
+        assert r.status_code == 401
+    finally:
+        get_settings.cache_clear()
