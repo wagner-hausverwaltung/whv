@@ -448,3 +448,78 @@ export interface AdminAuditLogResponse {
   payload_json: Record<string, unknown> | null;
   created_at: string;
 }
+
+// --- Announcements (Mitteilungen) -------------------------------------------
+//
+// Mirrors app/schemas/announcement.py. The owner + admin shapes are
+// identical on the wire — admin reads see hidden comments in the
+// comments[] list with is_hidden=true, owner reads have them filtered
+// out server-side.
+
+export interface AnnouncementAttachmentResponse {
+  id: string;
+  announcement_id: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number;
+  uploaded_by_user_id: string | null;
+  created_at: string;
+}
+
+export interface AnnouncementCommentResponse {
+  id: string;
+  announcement_id: string;
+  author_user_id: string;
+  author_email: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  is_hidden: boolean;
+  hidden_at: string | null;
+  hidden_by_user_id: string | null;
+  hidden_reason: string | null;
+}
+
+export interface AnnouncementResponse {
+  id: string;
+  organization_id: string;
+  property_id: string;
+  created_by_user_id: string;
+  title: string;
+  body: string;
+  audience_eigentuemer: boolean;
+  audience_mieter: boolean;
+  audience_beirat: boolean;
+  created_at: string;
+  updated_at: string;
+  scheduled_publish_at: string;
+  // Null while unpublished. Doubles as the "is published" flag.
+  notification_sent_at: string | null;
+  // Denormalised fields populated by the backend handler.
+  property_name: string | null;
+  creator_email: string | null;
+  is_edited: boolean;
+  attachment_count: number;
+  comment_count: number;
+}
+
+export interface AnnouncementDetailResponse extends AnnouncementResponse {
+  attachments: AnnouncementAttachmentResponse[];
+  comments: AnnouncementCommentResponse[];
+}
+
+export interface AnnouncementCreateRequest {
+  title: string;
+  body: string;
+  audience_eigentuemer: boolean;
+  audience_mieter: boolean;
+  audience_beirat: boolean;
+}
+
+export interface AnnouncementUpdateRequest {
+  title?: string;
+  body?: string;
+  audience_eigentuemer?: boolean;
+  audience_mieter?: boolean;
+  audience_beirat?: boolean;
+}

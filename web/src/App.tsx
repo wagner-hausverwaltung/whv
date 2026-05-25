@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
+import { AdminAnnouncementDetailPage } from "@/admin/pages/AdminAnnouncementDetailPage";
 import { AdminAuditPage } from "@/admin/pages/AdminAuditPage";
 import { AdminContactsPage } from "@/admin/pages/AdminContactsPage";
 import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
@@ -223,6 +224,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminAuditPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/announcements/:id"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminAnnouncementDetailPage />
                 </AdminLayout>
               </AdminRoute>
             }

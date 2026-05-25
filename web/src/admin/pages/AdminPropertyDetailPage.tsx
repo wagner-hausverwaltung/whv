@@ -37,10 +37,16 @@ import type {
   AdminPropertyCompanyResponse,
   AdminPropertyDetailResponse,
 } from "@/api/types";
+import { AdminAnnouncementsTab } from "@/components/AdminAnnouncementsTab";
 import { DocumentFoldersPanel } from "@/components/DocumentFoldersPanel";
 import { AdminTicketsPage } from "./AdminTicketsPage";
 
-type TabKey = "overview" | "tickets" | "documents" | "companies";
+type TabKey =
+  | "overview"
+  | "tickets"
+  | "documents"
+  | "announcements"
+  | "companies";
 
 interface PropertyImageEditorProps {
   property: AdminPropertyDetailResponse;
@@ -470,6 +476,10 @@ export function AdminPropertyDetailPage() {
           label={t("admin.propertyDetail.tabDocuments")}
         />
         <Tab
+          value="announcements"
+          label={t("admin.propertyDetail.tabAnnouncements")}
+        />
+        <Tab
           value="companies"
           label={`${t("admin.propertyDetail.tabCompanies")} (${detail.invoice_companies_count})`}
         />
@@ -483,6 +493,9 @@ export function AdminPropertyDetailPage() {
       )}
       {activeTab === "documents" && id && (
         <DocumentFoldersPanel propertyId={id} mode="admin" />
+      )}
+      {activeTab === "announcements" && id && (
+        <AdminAnnouncementsTab propertyId={id} />
       )}
       {activeTab === "companies" && id && <CompaniesTab propertyId={id} />}
     </Stack>
