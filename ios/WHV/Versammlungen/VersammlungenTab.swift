@@ -34,6 +34,9 @@ final class AssemblyListStore: ObservableObject {
             let rows = try await api.listMyAssemblies(propertyId: propertyId)
             self.assemblies = rows
             self.loadedPropertyId = propertyId
+            // Surface the next upcoming ETV on the Lock/Home Screen
+            // widget as soon as the list refreshes.
+            WidgetSync.updateNextEtv(from: rows)
         } catch APIError.unauthorized {
             onUnauthorized?()
         } catch let error as APIError {

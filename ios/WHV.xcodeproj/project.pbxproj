@@ -6,8 +6,58 @@
 	objectVersion = 71;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
+		9ED26CC9D0D015BE24E43BAC /* UpcomingEtvWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */; };
+		C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */; };
+		EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		23266C20FF22051A3B3B72D7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A0000010000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 72F45ED374BF436525F9FFF4;
+			remoteInfo = WHVWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		87A26F8629B72652D76D6F08 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1EA64FA4821C489C506029BB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVWidgets.entitlements; sourceTree = "<group>"; };
+		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
+		E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpcomingEtvWidget.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2A0000010000000000000010 /* WHV */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = WHV; sourceTree = "<group>"; };
+		2A0000010000000000000010 /* WHV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = WHV;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -18,22 +68,61 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		42BDE42370B583791BE45363 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0E255BF922D567A8EAB28C5C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E2FF9A41D0C9EFBF2223C713 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		2A0000010000000000000000 = {
 			isa = PBXGroup;
 			children = (
 				2A0000010000000000000010 /* WHV */,
 				2A0000010000000000000030 /* Products */,
+				C19384519A4F8842436FA03A /* WHVWidgets */,
+				0E255BF922D567A8EAB28C5C /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
 		2A0000010000000000000030 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C19384519A4F8842436FA03A /* WHVWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */,
+				D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */,
+				1EA64FA4821C489C506029BB /* Info.plist */,
+				C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */,
+			);
+			name = WHVWidgets;
+			path = WHVWidgets;
+			sourceTree = "<group>";
+		};
+		E2FF9A41D0C9EFBF2223C713 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				67F718301EE433F26BB4AB54 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -46,19 +135,36 @@
 				2A0000010000000000000060 /* Sources */,
 				2A0000010000000000000020 /* Frameworks */,
 				2A0000010000000000000070 /* Resources */,
+				87A26F8629B72652D76D6F08 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				DB65F19F79F73C9F708AE531 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2A0000010000000000000010 /* WHV */,
 			);
 			name = WHV;
-			packageProductDependencies = (
-			);
 			productName = WHV;
 			productType = "com.apple.product-type.application";
+		};
+		72F45ED374BF436525F9FFF4 /* WHVWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5EEFB1D74D0F406295C9C642 /* Build configuration list for PBXNativeTarget "WHVWidgets" */;
+			buildPhases = (
+				EB6CB990BACC886F5688C759 /* Sources */,
+				42BDE42370B583791BE45363 /* Frameworks */,
+				59BDE40749BDB28BFDD50524 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WHVWidgets;
+			productName = WHVWidgets;
+			productReference = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -91,12 +197,20 @@
 			projectRoot = "";
 			targets = (
 				2A0000010000000000000050 /* WHV */,
+				72F45ED374BF436525F9FFF4 /* WHVWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		2A0000010000000000000070 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		59BDE40749BDB28BFDD50524 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -113,9 +227,55 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EB6CB990BACC886F5688C759 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9ED26CC9D0D015BE24E43BAC /* UpcomingEtvWidget.swift in Sources */,
+				C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		DB65F19F79F73C9F708AE531 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = WHVWidgets;
+			target = 72F45ED374BF436525F9FFF4 /* WHVWidgets */;
+			targetProxy = 23266C20FF22051A3B3B72D7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		07B7B7BA5704A85E04969830 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5XQDFG9H83;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WHVWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "WHV ETV-Widget";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.WHV.WHVWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		2A00000100000000000000B0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -239,6 +399,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
@@ -270,6 +431,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
@@ -296,6 +458,33 @@
 			};
 			name = Release;
 		};
+		EC1DAF64A86A43F4DD949147 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5XQDFG9H83;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WHVWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "WHV ETV-Widget";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.WHV.WHVWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -313,6 +502,15 @@
 			buildConfigurations = (
 				2A00000100000000000000B0 /* Debug */,
 				2A00000100000000000000C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5EEFB1D74D0F406295C9C642 /* Build configuration list for PBXNativeTarget "WHVWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07B7B7BA5704A85E04969830 /* Release */,
+				EC1DAF64A86A43F4DD949147 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

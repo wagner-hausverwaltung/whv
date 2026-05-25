@@ -119,6 +119,9 @@ final class AuthStore: ObservableObject {
         keychain.delete(refreshTokenKey)
         defaults.removeObject(forKey: cachedUserKey)
         user = nil
+        // Clear the widget snapshot so the next account (or no
+        // account) doesn't show the previous user's next ETV.
+        WidgetSync.clear()
         onSignOut?()
     }
 
