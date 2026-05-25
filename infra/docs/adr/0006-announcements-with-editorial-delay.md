@@ -78,10 +78,9 @@ The fan-out task issues one Resend `POST /emails` per audience-matched user. BCC
 
 In production on staging from 2026-05-25. 19 backend tests (lifecycle, scope, audience, moderation, fan-out idempotency) all passing. Admin SPA tab + detail page live on `staging.admin.wagner-hausverwaltung.com`; portal list + detail on `staging.portal.wagner-hausverwaltung.com`.
 
-**Still not in v1.2, follow-ups if real-world usage demands**:
+**Still not in v1.3, follow-ups if real-world usage demands**:
 
-- Per-comment edit history (currently only `edited_at` is captured; the prior body is lost). Add an `announcement_comment_versions` table if we ever need to argue with an author about "what they actually wrote".
-- Comment-thread digest emails. Currently every comment fires its own notification — sufficient at the v1 volume we expect, but a noisy thread could spam Verwalter. Trivially solvable by switching the per-comment send to a Celery debounce that batches every 10 min.
+- Comment-thread digest emails. Currently every comment fires its own notification — sufficient at the v1 volume we expect, but a noisy thread could spam Verwalter. Trivially solvable by switching the per-comment send to a Celery debounce that batches every 10 min. Promoted to a top v1.4 candidate once real-world email volume justifies it.
 - iOS surface — `Messages` inbox screen in REQUIREMENTS.md §8.3 maps to this domain; binding will happen in the Phase 2 iOS scaffold.
 
 ## v1.1 follow-ups (shipped 2026-05-25)
@@ -123,6 +122,23 @@ The fix is a **per-Mitteilung recipient editor** that lets the admin both see th
 
 - Same three carry-overs as before (per-comment edit history, comment-thread digest, iOS Messages screen).
 - Rate-limit feedback in the SPA. When Resend rejects with 429 (free tier 100/day), the per-recipient FAILED row captures it but the toast doesn't distinguish "rate-limited" from "permanent failure". A v1.3 polish would parse the error code and show "Tageslimit erreicht — bitte Plan upgraden" with a doc link.
+
+## v1.3 follow-ups (shipped 2026-05-25)
+
+Three polish items prompted by real-world testing. The user hit Resend's 100-email/day free-tier limit, observed a "senden fehlgeschlagen" toast that turned out to be a 409 publish-now race, and asked for an audit trail on comment edits.
+
+1. **Per-comment edit history** — `announcement_comment_versions` table captures the prior body on every `edit_comment` call (before mutation). Service helper `list_comment_versions(session, comment_id)` returns newest-first. Author + admin can read the chain via `GET /me/announcements/{id}/comments/{cid}/versions` (author-only on /me, any-comment-in-org on /admin). Portal SPA renders a "Vorherige Versionen anzeigen" toggle on edited rows that lazy-loads + caches the version list. Closes the v1.0 caveat *"the prior body is lost"*.
+2. **Resend 429 rate-limit recognition** — `EmailError` gains an optional `code: str` field; the Resend client categorises 429 responses (and any body with `error.type` matching "rate") as `"rate_limited"`, missing-key as `"no_api_key"`, everything-else-non-200 as `"upstream"`. New `announcement_send_attempts.error_code TEXT NULL` column captures the category on every FAILED row. `AnnouncementResendSummary` gains `dominant_error_code` (mode of the FAILED codes in the pass). Admin SPA branches on it: rate-limit hits get a dedicated *"Tageslimit erreicht — 100 E-Mails/Tag im Free-Tier abgelehnt. {n} bereits versandt, {n} ausstehend. Plan upgraden oder morgen erneut senden."* message instead of dumping the raw "Resend returned 429: …" string.
+3. **409 publish-now race → soft-success** — `publishNow` SPA handler special-cases 409: instead of red error toast, render an info-level `Alert` with *"Bereits veröffentlicht — keine Aktion nötig."* + reload the row. The DB state was always correct; the SPA now reflects that. Fixes the "senden fehlgeschlagen → reload shows published" trap the user reported.
+
+**Decisions made during v1.3**:
+
+- **Edit-history no-op edits write a version row too**. New body == current body still archives + bumps `edited_at`. Detecting "no real change" and silently skipping is more confusing than the duplicate row — the audit trail then shows the author did hit Save, which is itself useful information. Storage cost is negligible (a comment body is at most 10 KB; users don't spam Save).
+- **Error categorisation is a small enum**, not free-text parsing on the SPA. SPA reads `error_code` from the wire and branches; never touches `error_message` for control flow. Adding a new failure mode (e.g. SES bounce after the migration) means adding a new constant on the backend + a new branch on the SPA — explicit on both sides. Free-text parsing would couple the SPA to upstream error formats we don't control.
+- **No coalesce of repeated rate-limit error strings**. The SPA's `error_message_examples` list is suppressed entirely for the rate-limited path — the dedicated copy IS the story; dumping three lines of `Resend returned 429: ...` underneath would clutter without adding signal.
+- **409 stays a 409**. Backend doesn't change the response code; the SPA absorbs it. This keeps the contract truthful (the resource is in a state that didn't accept the request) while making the UX friendly. Any future non-SPA caller of `publish-now` still gets the correct 409 + structured detail message.
+
+**Note on smoke validation**: the Resend key was disabled on staging during v1.3 development to protect the user's email budget. Commits #1 and #3 are fully validated against the unit-test suite (24 → 27 tests, all passing). Commit #2 lands as code + types only; the live "rate_limited" toast path will be smoke-verified when the user either re-enables Resend or completes the SES cutover (open follow-up).
 
 ## Consequences
 

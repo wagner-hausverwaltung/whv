@@ -590,6 +590,12 @@ Property-scoped messages from Verwalter to Eigentümer / Mieter / Beirat, with a
 - `GET /admin/announcements/{id}/recipient-preview` returns auto-resolved users (with per-row `excluded` flag) + extras + `active_emails`. Admin SPA renders a Switch-per-row list + chip list with add-form, between the edit form and the Zustellprotokoll panel.
 - `POST /admin/announcements/{id}/resend-failed` renamed to `/resend` with general semantics — sends to the current active set regardless of prior outcome, so the admin can edit the audience and re-fire in one workflow.
 
+**v1.3 follow-ups (shipped 2026-05-25)** — polish + carry-forward; ADR-0006 v1.3 section has the design rationale:
+
+- **Per-comment edit history** — `announcement_comment_versions` table archives the prior body on every `edit_comment` before mutation. Author reads via `GET /me/announcements/{id}/comments/{cid}/versions`; admin reads any in-org via the same path under `/admin`. Portal SPA renders a "Vorherige Versionen anzeigen" toggle on edited rows.
+- **Resend 429 rate-limit recognition** — `EmailError.code` + `announcement_send_attempts.error_code` capture the category ("rate_limited", "no_api_key", "upstream"). `AnnouncementResendSummary.dominant_error_code` drives admin SPA branching to user-friendly copy ("Tageslimit erreicht — 100 E-Mails/Tag im Free-Tier") instead of dumping the raw upstream string.
+- **409 publish-now race → soft success** — admin SPA detects 409 from `publish-now` (= the Celery beat already auto-published the row at the 10-min boundary) and renders an info Alert "Bereits veröffentlicht — keine Aktion nötig." + reloads, instead of a red error toast.
+
 ### 10.9 Definition of Done (Phase 4)
 - All four channels (portal, email, WhatsApp, ePost) live and routed via dispatcher
 - At least one Umlaufbeschluss successfully run end-to-end with a real WEG
