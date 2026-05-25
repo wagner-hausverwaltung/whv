@@ -395,6 +395,32 @@ struct APIClient {
         try await authedGET("/me/properties")
     }
 
+    /// GET /me/export → tmp file URL with the DSGVO Art. 20 JSON
+    /// dump (profile + sessions metadata + audit entries). Caller
+    /// presents via ShareLink so the user can save / mail it.
+    func exportMyData() async throws -> URL {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        return try await authedDownload(
+            "/me/export",
+            saveAs: "whv-data-export-\(stamp).json"
+        )
+    }
+
+    /// DELETE /me — soft-deletes the user, revokes every active
+    /// session, writes an audit row. Caller signs out cleanly on
+    /// success (the JWT is now backed by a revoked session so any
+    /// next request would 401 anyway).
+    func deleteMyAccount() async throws {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        var request = URLRequest(url: baseURL.appending(path: "/me"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+    }
+
     /// GET /me/assemblies/{id}/protocol → local file URL. Streams the
     /// PDF into the caller's temporary directory under a stable name
     /// (one file per assembly) so re-opens hit the same path. The
