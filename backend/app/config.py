@@ -158,9 +158,12 @@ class Settings(BaseSettings):
     # via env override for tougher cases without code changes.
     gemini_model: str = "gemini-flash-latest"
     # Hard cap so a misconfigured prompt template can't run away with
-    # the budget. ETV invitations top out around 15 pages; 32 KB of
-    # output JSON is generous for the largest agenda we've seen.
-    llm_max_output_tokens: int = 8192
+    # the budget. Default is set for the protocol-extraction path,
+    # which is the densest output we generate (Beschluss texts +
+    # discussion entries per TOP). 8 KB was too tight — Gemini
+    # truncated mid-string. 32 KB fits even multi-TOP protocols with
+    # plenty of margin; Gemini 2.5 Flash supports up to 65 K.
+    llm_max_output_tokens: int = 32768
 
 
 @lru_cache

@@ -269,6 +269,10 @@ async def extract_protocol_and_apply(
             subject_id=assembly_id,
             error=str(exc),
         )
+        # Commit before re-raise so the audit survives the Celery
+        # wrapper's rollback-on-exception. The only thing in the
+        # session up to this point is the audit row.
+        await session.commit()
         raise
 
     payload = result.payload

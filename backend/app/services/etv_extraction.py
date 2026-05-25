@@ -237,6 +237,12 @@ async def extract_and_apply(
             subject_id=assembly_id,
             error=str(exc),
         )
+        # Commit the audit row BEFORE re-raising — otherwise the
+        # Celery wrapper's session context rolls back on the raise
+        # and we lose the diagnostic. Nothing else is in the session
+        # at this point (we read the assembly + the audit row is the
+        # only insert).
+        await session.commit()
         raise
 
     payload = result.payload

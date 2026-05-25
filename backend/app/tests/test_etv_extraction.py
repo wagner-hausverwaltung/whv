@@ -311,11 +311,14 @@ async def test_apply_records_parse_error_and_reraises(
                 source_document_id=None,
                 provider=provider,  # type: ignore[arg-type]
             )
-        # Even with the raise, the audit insert in this session is
-        # rolled back unless we commit the audit-only write. The
-        # service inserts the audit row BEFORE raising — verify it's
-        # in the session even though the test re-raised before commit.
-        # (In production, the Celery wrapper catches + commits the
-        # audit row separately.)
-        pending_audit = [obj for obj in s.new if isinstance(obj, LLMAuditLog)]
-    assert any(a.status == "parse_error" for a in pending_audit)
+
+    # The service commits the audit row BEFORE re-raising so the
+    # diagnostic survives the Celery wrapper's rollback. Open a
+    # fresh session and read it back.
+    async with sm() as s:
+        audit = (
+            await s.execute(
+                select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)
+            )
+        ).scalars().all()
+    assert any(a.status == "parse_error" for a in audit)
