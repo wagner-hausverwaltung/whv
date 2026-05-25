@@ -576,3 +576,14 @@ export interface AnnouncementResendSummary {
   failed: number;
   error_message_examples: string[];
 }
+
+export interface AnnouncementCommentVersionResponse {
+  id: string;
+  comment_id: string;
+  body: string;
+  author_user_id: string;
+  // ISO 8601 timestamp of when this body was *replaced*. The current
+  // (live) body lives on the parent AnnouncementCommentResponse and
+  // its replacement time is `edited_at`.
+  recorded_at: string;
+}

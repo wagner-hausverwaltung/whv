@@ -700,6 +700,111 @@ async def test_author_can_edit_own_comment(
         assert d.json()["comments"][0]["edited_at"] is not None
 
 
+async def test_comment_edit_writes_version_history(
+    test_engine: AsyncEngine,
+) -> None:
+    """Each save writes a version row capturing the *prior* body.
+    Two edits → two versions, newest first via the GET endpoint."""
+    org = await make_org(test_engine)
+    _, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    _, o_email, o_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    v_token = _login(v_email, v_pw)
+    o_token = _login(o_email, o_pw)
+    with TestClient(app) as client:
+        ann = client.post(
+            f"/admin/properties/{prop.id}/announcements",
+            headers=_auth(v_token),
+            json={"title": "history", "body": ""},
+        ).json()
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Announcement, uuid.UUID(ann["id"]))
+        assert row is not None
+        row.notification_sent_at = datetime.now(UTC)
+        await s.commit()
+
+    with TestClient(app) as client:
+        c = client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(o_token),
+            json={"body": "v1 — first take"},
+        ).json()
+        # First edit: archive "v1 — first take".
+        client.patch(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}",
+            headers=_auth(o_token),
+            json={"body": "v2 — better wording"},
+        )
+        # Second edit: archive "v2 — better wording".
+        client.patch(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}",
+            headers=_auth(o_token),
+            json={"body": "v3 — final"},
+        )
+        # Owner reads their own history.
+        h_o = client.get(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}/versions",
+            headers=_auth(o_token),
+        )
+        # Admin can also read it (any comment in their org).
+        h_a = client.get(
+            f"/admin/announcements/{ann['id']}/comments/{c['id']}/versions",
+            headers=_auth(v_token),
+        )
+    assert h_o.status_code == 200
+    versions = h_o.json()
+    # Newest first: v2 was archived during the v3 save, v1 was
+    # archived during the v2 save — so versions[0] holds v2,
+    # versions[1] holds v1.
+    assert [v["body"] for v in versions] == ["v2 — better wording", "v1 — first take"]
+    assert h_a.status_code == 200
+    assert len(h_a.json()) == 2
+
+
+async def test_other_user_cannot_read_comment_version_history(
+    test_engine: AsyncEngine,
+) -> None:
+    """Non-author 404 — no existence leak."""
+    org = await make_org(test_engine)
+    _, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    _, a_email, a_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    _, b_email, b_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    v_token = _login(v_email, v_pw)
+    a_token = _login(a_email, a_pw)
+    b_token = _login(b_email, b_pw)
+    with TestClient(app) as client:
+        ann = client.post(
+            f"/admin/properties/{prop.id}/announcements",
+            headers=_auth(v_token),
+            json={"title": "x", "body": ""},
+        ).json()
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Announcement, uuid.UUID(ann["id"]))
+        assert row is not None
+        row.notification_sent_at = datetime.now(UTC)
+        await s.commit()
+    with TestClient(app) as client:
+        c = client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(a_token),
+            json={"body": "v1"},
+        ).json()
+        client.patch(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}",
+            headers=_auth(a_token),
+            json={"body": "v2"},
+        )
+        # b is on the same property + audience but isn't the author.
+        r = client.get(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}/versions",
+            headers=_auth(b_token),
+        )
+    assert r.status_code == 404
+
+
 async def test_other_user_cannot_edit_someone_elses_comment(
     test_engine: AsyncEngine,
 ) -> None:

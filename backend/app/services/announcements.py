@@ -32,6 +32,7 @@ from app.models import (
     Announcement,
     AnnouncementAttachment,
     AnnouncementComment,
+    AnnouncementCommentVersion,
     AnnouncementSendAttempt,
     AnnouncementUnit,
     Contact,
@@ -428,24 +429,55 @@ def add_comment(
 
 
 def edit_comment(
+    session: AsyncSession,
     *,
     comment: AnnouncementComment,
     author: User,
     new_body: str,
 ) -> None:
-    """Author-only inline edit. Mutates `comment.body` + stamps
-    `edited_at = now()`. Raises ValueError if the requester isn't the
-    original author — admins use the moderation path, not this one.
+    """Author-only inline edit. Captures the prior body into
+    `announcement_comment_versions` *before* mutating, then writes
+    the new body and stamps `edited_at = now()`. Raises ValueError
+    if the requester isn't the original author — admins use the
+    moderation path, not this one.
 
     Hidden comments are intentionally editable too (admin can ask the
     author to fix a problem before unhiding); the portal hides them
     from non-admin reads anyway so an edit while hidden has no
     user-visible side-effect until the admin un-hides.
+
+    A no-op edit (new body identical to current) still writes a
+    version row + bumps edited_at. Detecting "no change" silently
+    is more confusing than the duplicate row: the audit trail then
+    shows the author hit Save, which is a useful signal.
     """
     if comment.author_user_id != author.id:
         raise ValueError("Only the comment author can edit it")
+    session.add(
+        AnnouncementCommentVersion(
+            comment_id=comment.id,
+            body=comment.body,
+            author_user_id=author.id,
+        )
+    )
     comment.body = new_body
     comment.edited_at = _now()
+
+
+async def list_comment_versions(
+    session: AsyncSession, comment_id: uuid.UUID
+) -> list[AnnouncementCommentVersion]:
+    """All prior bodies of a comment, newest first. Each row is the
+    body that was active *before* the edit recorded at `recorded_at`.
+    The current (latest) body lives on the parent comment row."""
+    rows = (
+        await session.scalars(
+            select(AnnouncementCommentVersion)
+            .where(AnnouncementCommentVersion.comment_id == comment_id)
+            .order_by(AnnouncementCommentVersion.recorded_at.desc())
+        )
+    ).all()
+    return list(rows)
 
 
 def set_comment_hidden(

@@ -61,6 +61,7 @@ from app.schemas.announcement import (
     AnnouncementCommentEditRequest,
     AnnouncementCommentModerationRequest,
     AnnouncementCommentResponse,
+    AnnouncementCommentVersionResponse,
     AnnouncementCreateRequest,
     AnnouncementDetailResponse,
     AnnouncementResendSummary,
@@ -1254,7 +1255,7 @@ async def my_edit_comment(
     if comment is None or comment.author_user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
     try:
-        svc.edit_comment(comment=comment, author=current_user, new_body=payload.body)
+        svc.edit_comment(session, comment=comment, author=current_user, new_body=payload.body)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     session.add(
@@ -1273,3 +1274,101 @@ async def my_edit_comment(
     await session.commit()
     await session.refresh(comment)
     return _comment_to_response(comment, author_email=current_user.email)
+
+
+async def _load_comment_for_history(
+    session: AsyncSession,
+    *,
+    announcement_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    requester: User,
+    admin: bool,
+) -> AnnouncementComment:
+    """Resolve a comment for the version-history endpoint.
+
+    Admins can read any comment in their org's announcements. Portal
+    callers can only read their own comments' history (and only if
+    they can see the parent announcement at all). Returns the comment
+    row on success; raises 404 on miss / wrong scope (no existence
+    leak).
+    """
+    if admin:
+        # Admin path: join the comment to its announcement and gate
+        # by org.
+        row: AnnouncementComment | None = await session.scalar(
+            select(AnnouncementComment)
+            .join(
+                Announcement,
+                Announcement.id == AnnouncementComment.announcement_id,
+            )
+            .where(
+                AnnouncementComment.id == comment_id,
+                AnnouncementComment.announcement_id == announcement_id,
+                Announcement.organization_id == requester.organization_id,
+            )
+        )
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+        return row
+
+    # Owner path: full visibility chain — announcement is published,
+    # audience-matches, caller can access the property, AND caller
+    # is the comment's author.
+    announcement = await svc.get_owner(session, announcement_id=announcement_id, user=requester)
+    if announcement is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Announcement not found")
+    await _load_property_for_owner(session, user=requester, property_id=announcement.property_id)
+    own_row: AnnouncementComment | None = await session.scalar(
+        select(AnnouncementComment).where(
+            AnnouncementComment.id == comment_id,
+            AnnouncementComment.announcement_id == announcement.id,
+        )
+    )
+    if own_row is None or own_row.author_user_id != requester.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    return own_row
+
+
+@me_router.get(
+    "/announcements/{announcement_id}/comments/{comment_id}/versions",
+    response_model=list[AnnouncementCommentVersionResponse],
+)
+async def my_list_comment_versions(
+    announcement_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AnnouncementCommentVersionResponse]:
+    """Versions of *your own* comment, newest first. 404 for someone
+    else's comment (no existence leak)."""
+    await _load_comment_for_history(
+        session,
+        announcement_id=announcement_id,
+        comment_id=comment_id,
+        requester=current_user,
+        admin=False,
+    )
+    rows = await svc.list_comment_versions(session, comment_id)
+    return [AnnouncementCommentVersionResponse.model_validate(r) for r in rows]
+
+
+@admin_router.get(
+    "/announcements/{announcement_id}/comments/{comment_id}/versions",
+    response_model=list[AnnouncementCommentVersionResponse],
+)
+async def admin_list_comment_versions(
+    announcement_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AnnouncementCommentVersionResponse]:
+    """Admin moderation reads any comment's history in the org."""
+    await _load_comment_for_history(
+        session,
+        announcement_id=announcement_id,
+        comment_id=comment_id,
+        requester=current_user,
+        admin=True,
+    )
+    rows = await svc.list_comment_versions(session, comment_id)
+    return [AnnouncementCommentVersionResponse.model_validate(r) for r in rows]

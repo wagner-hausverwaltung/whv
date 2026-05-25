@@ -117,7 +117,10 @@
       "commentFailed": "Couldn’t post the comment.",
       "commentEdited": "edited",
       "editComment": "Edit comment",
-      "editFailed": "Couldn’t save the change."
+      "editFailed": "Couldn’t save the change.",
+      "showCommentVersions": "Show prior versions",
+      "hideCommentVersions": "Hide prior versions",
+      "versionRecordedAt": "Replaced at {{when}}"
     }
   },
   "admin": {

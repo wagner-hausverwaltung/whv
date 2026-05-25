@@ -259,6 +259,48 @@ class AnnouncementUnit(Base):
     )
 
 
+class AnnouncementCommentVersion(Base):
+    """Pre-edit snapshot of an `AnnouncementComment.body`.
+
+    Append-only audit trail: every edit writes a row capturing the
+    prior body before the parent row is mutated. The chain of rows
+    for a given comment_id reconstructs the comment's full history,
+    in reverse-chronological order via `recorded_at`.
+
+    Hide-on-moderation doesn't change this table — the hidden body
+    plus its versions stay in the DB; admin can still inspect the
+    full audit trail.
+    """
+
+    __tablename__ = "announcement_comment_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    comment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("announcement_comments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_announcement_comment_versions_thread",
+            "comment_id",
+            "recorded_at",
+        ),
+    )
+
+
 class AnnouncementSendAttempt(Base):
     """One row per recipient per fan-out attempt.
 

@@ -31,6 +31,7 @@ import { useTranslation } from "react-i18next";
 import { API_BASE_URL, api } from "@/api/client";
 import type {
   AnnouncementCommentResponse,
+  AnnouncementCommentVersionResponse,
   AnnouncementDetailResponse,
 } from "@/api/types";
 import { useAuth } from "@/auth/AuthContext";
@@ -57,6 +58,15 @@ export function MyAnnouncementDetailPage() {
   const [editingBody, setEditingBody] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // Per-comment version-history disclosure: when the user clicks
+  // "Vorherige Versionen anzeigen" on an edited row, we lazy-fetch
+  // the versions list and cache here keyed by comment id.
+  const [expandedHistory, setExpandedHistory] = useState<
+    Record<string, AnnouncementCommentVersionResponse[] | null>
+  >({});
+  const [loadingHistoryFor, setLoadingHistoryFor] = useState<string | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -104,6 +114,31 @@ export function MyAnnouncementDetailPage() {
       setEditError(t("portal.announcementDetail.editFailed"));
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const toggleHistory = async (commentId: string) => {
+    if (!id) return;
+    if (commentId in expandedHistory) {
+      // Already loaded once — collapse / re-show as toggle.
+      setExpandedHistory((prev) => {
+        const next = { ...prev };
+        if (next[commentId] === null) delete next[commentId];
+        else next[commentId] = null;
+        return next;
+      });
+      return;
+    }
+    setLoadingHistoryFor(commentId);
+    try {
+      const r = await api.get<AnnouncementCommentVersionResponse[]>(
+        `/me/announcements/${id}/comments/${commentId}/versions`,
+      );
+      setExpandedHistory((prev) => ({ ...prev, [commentId]: r.data }));
+    } catch {
+      // Soft-fail: user sees the toggle stays "show"; backend logs the error.
+    } finally {
+      setLoadingHistoryFor(null);
     }
   };
 
@@ -343,6 +378,65 @@ export function MyAnnouncementDetailPage() {
                     >
                       {c.body}
                     </Typography>
+                  )}
+                  {!isEditing && c.edited_at && isMine && (
+                    <Box sx={{ mt: 0.5 }}>
+                      <Button
+                        size="small"
+                        sx={{ p: 0, minWidth: 0, textTransform: "none" }}
+                        onClick={() => toggleHistory(c.id)}
+                      >
+                        {loadingHistoryFor === c.id
+                          ? t("common.loading")
+                          : expandedHistory[c.id] === undefined ||
+                              expandedHistory[c.id] === null
+                            ? t(
+                                "portal.announcementDetail.showCommentVersions",
+                              )
+                            : t(
+                                "portal.announcementDetail.hideCommentVersions",
+                              )}
+                      </Button>
+                      {Array.isArray(expandedHistory[c.id]) && (
+                        <Stack
+                          spacing={0.75}
+                          sx={{
+                            mt: 1,
+                            pl: 1.5,
+                            borderLeft: 2,
+                            borderColor: "divider",
+                          }}
+                        >
+                          {(expandedHistory[c.id] ?? []).map((v) => (
+                            <Box key={v.id}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {t(
+                                  "portal.announcementDetail.versionRecordedAt",
+                                  {
+                                    when: new Date(
+                                      v.recorded_at,
+                                    ).toLocaleString("de-DE"),
+                                  },
+                                )}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  whiteSpace: "pre-wrap",
+                                  color: "text.secondary",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                {v.body}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
+                    </Box>
                   )}
                 </Paper>
               );

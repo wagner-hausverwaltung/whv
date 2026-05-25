@@ -117,7 +117,10 @@
       "commentFailed": "Kommentar konnte nicht gespeichert werden.",
       "commentEdited": "bearbeitet",
       "editComment": "Kommentar bearbeiten",
-      "editFailed": "Änderung konnte nicht gespeichert werden."
+      "editFailed": "Änderung konnte nicht gespeichert werden.",
+      "showCommentVersions": "Vorherige Versionen anzeigen",
+      "hideCommentVersions": "Vorherige Versionen ausblenden",
+      "versionRecordedAt": "Ersetzt am {{when}}"
     }
   },
   "admin": {

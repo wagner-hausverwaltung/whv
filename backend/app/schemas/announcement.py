@@ -204,6 +204,20 @@ class RecipientPreviewResponse(BaseModel):
     active_emails: list[str]
 
 
+class AnnouncementCommentVersionResponse(BaseModel):
+    """One historical version of a comment body. Newest version =
+    first row (= what the body was just *before* the latest edit).
+    The current body is on `AnnouncementCommentResponse`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    comment_id: uuid.UUID
+    body: str
+    author_user_id: uuid.UUID
+    recorded_at: datetime
+
+
 class AnnouncementSendAttemptResponse(BaseModel):
     """One row of the per-recipient fan-out log. Admin-only — the
     owner endpoints never expose this surface."""
