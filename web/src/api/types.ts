@@ -504,6 +504,10 @@ export interface AnnouncementResponse {
   is_edited: boolean;
   attachment_count: number;
   comment_count: number;
+  // Optional per-unit narrowing. Empty = property-wide-by-role
+  // (default). Non-empty = recipients are intersected with users
+  // on contracts for these units.
+  unit_ids: string[];
 }
 
 export interface AnnouncementDetailResponse extends AnnouncementResponse {
@@ -517,6 +521,8 @@ export interface AnnouncementCreateRequest {
   audience_eigentuemer: boolean;
   audience_mieter: boolean;
   audience_beirat: boolean;
+  // Optional per-unit narrowing. Empty = property-wide-by-role.
+  unit_ids: string[];
 }
 
 export interface AnnouncementUpdateRequest {
@@ -525,6 +531,9 @@ export interface AnnouncementUpdateRequest {
   audience_eigentuemer?: boolean;
   audience_mieter?: boolean;
   audience_beirat?: boolean;
+  // null = leave existing unit rows alone; explicit list (incl. [])
+  // replaces the entire set (PUT-style on the collection).
+  unit_ids?: string[];
 }
 
 export interface AnnouncementSendAttemptResponse {
