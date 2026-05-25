@@ -1,10 +1,12 @@
 import asyncio
+import base64
 
 from celery.utils.log import get_task_logger
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import get_settings
-from app.integrations.email.client import EmailClient
+from app.integrations.email.announcements import render_publish_email
+from app.integrations.email.client import EmailClient, EmailError
 from app.integrations.impower.client import ImpowerClient
 from app.integrations.impower.sync import (
     sync_contacts,
@@ -13,7 +15,15 @@ from app.integrations.impower.sync import (
     sync_properties,
     sync_units,
 )
-from app.models import CircularResolution, ResolutionStatus
+from app.integrations.storage.announcements import attachment_path
+from app.models import (
+    Announcement,
+    AnnouncementAttachment,
+    CircularResolution,
+    Property,
+    ResolutionStatus,
+)
+from app.services import announcements as announcements_svc
 from app.services.circular import (
     finalize_resolution,
     find_expired_open_resolutions,
@@ -133,3 +143,166 @@ async def _process_due_resolutions_async() -> dict[str, int]:
 def process_due_resolutions() -> dict[str, int]:
     """Beat-driven: open new resolutions + finalize expired ones (one tick)."""
     return asyncio.run(_process_due_resolutions_async())
+
+
+def _read_attachments_for_send(
+    attachments: list[AnnouncementAttachment],
+) -> list[dict[str, str]]:
+    """Convert AnnouncementAttachment rows into Resend's attachment format.
+
+    Mirrors `app/api/v1/tickets._attachments_for_resend` — keep the bytes
+    only in scope for the send, and skip rows whose on-disk file is
+    missing so a half-uploaded attachment doesn't sink the whole
+    fan-out.
+    """
+    out: list[dict[str, str]] = []
+    for att in attachments:
+        if not att.storage_url or not att.storage_url.startswith("local-disk:"):
+            continue
+        suffix = att.storage_url[len("local-disk:") :]
+        path = attachment_path(att.id, suffix)
+        if not path.exists():
+            logger.warning(
+                "Skipping announcement attachment %s — file missing at %s",
+                att.id,
+                path,
+            )
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            logger.exception("Could not read announcement attachment %s from disk", att.id)
+            continue
+        out.append(
+            {
+                "filename": att.filename,
+                "content": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return out
+
+
+async def _publish_due_announcements_async() -> dict[str, int]:
+    """Find announcements whose editorial buffer has elapsed and fan out.
+
+    Per-row session so one bad row (missing property, all recipients
+    deleted, Resend hiccup) doesn't roll back successful neighbors.
+    Mirrors the resolution-finalize pattern. Idempotent — once
+    `notification_sent_at` is set the row drops out of the publish-due
+    partial index and won't be picked up again on the next tick.
+    """
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    email_client = EmailClient(settings)
+
+    sent = 0
+    skipped = 0
+    failed = 0
+
+    try:
+        # Phase A: scan in its own session — keeps the read short and
+        # releases the connection before the per-row work begins.
+        async with session_factory() as scan_session:
+            due = await announcements_svc.find_due_for_publish(scan_session)
+
+        for stub in due:
+            try:
+                async with session_factory() as session:
+                    fresh = await session.get(Announcement, stub.id)
+                    # Race-guard: someone could have soft-deleted or
+                    # already published the row between scan and now.
+                    if fresh is None:
+                        skipped += 1
+                        continue
+                    if fresh.deleted_at is not None or fresh.notification_sent_at is not None:
+                        skipped += 1
+                        continue
+
+                    recipients = await announcements_svc.resolve_recipients(session, fresh)
+                    if not recipients:
+                        # No matching users on this property + audience.
+                        # Still mark published so we don't re-scan it
+                        # forever — admin can see in the audit log
+                        # that fan-out was empty.
+                        logger.warning(
+                            "announcement %s has no audience-matched recipients; "
+                            "marking published anyway",
+                            fresh.id,
+                        )
+                        announcements_svc.mark_published(fresh)
+                        await session.commit()
+                        sent += 1
+                        continue
+
+                    prop = await session.get(Property, fresh.property_id)
+                    property_name = prop.name if prop else "—"
+
+                    attachments = await announcements_svc.list_attachments(session, fresh.id)
+                    resend_attachments = _read_attachments_for_send(attachments)
+
+                    # Mark published *before* sending so a Resend hiccup
+                    # mid-fan-out doesn't double-send next tick. The
+                    # tradeoff: if every send fails, the admin sees a
+                    # published row with no emails. The audit log
+                    # captures the per-recipient outcome below.
+                    announcements_svc.mark_published(fresh)
+                    # Narrow the type for mypy — mark_published always
+                    # sets notification_sent_at, but the column type is
+                    # `datetime | None` so static analysis can't tell.
+                    assert fresh.notification_sent_at is not None
+                    published_at = fresh.notification_sent_at
+                    await session.commit()
+
+                    subject, html, text = render_publish_email(
+                        announcement_id=str(fresh.id),
+                        title=fresh.title,
+                        body=fresh.body,
+                        property_name=property_name,
+                        published_at=published_at,
+                        attachment_count=len(resend_attachments),
+                    )
+
+                    # Per-recipient send — no BCC leak, per-address
+                    # bounce tracking, and a single bad address can't
+                    # take down the rest of the fan-out.
+                    for recipient in recipients:
+                        if not recipient.email:
+                            continue
+                        try:
+                            await email_client.send(
+                                to=[recipient.email],
+                                subject=subject,
+                                html=html,
+                                text=text,
+                                attachments=resend_attachments or None,
+                            )
+                        except EmailError:
+                            failed += 1
+                            logger.exception(
+                                "announcement fan-out failed: announcement=%s recipient=%s",
+                                fresh.id,
+                                recipient.email,
+                            )
+
+                    sent += 1
+                    logger.info(
+                        "published announcement=%s recipients=%d attachments=%d",
+                        fresh.id,
+                        len(recipients),
+                        len(resend_attachments),
+                    )
+            except Exception:
+                failed += 1
+                logger.exception("publish failed for announcement=%s", stub.id)
+    finally:
+        await email_client.aclose()
+        await engine.dispose()
+
+    return {"sent": sent, "skipped": skipped, "failed": failed}
+
+
+@celery_app.task(name="app.workers.tasks.publish_due_announcements")
+def publish_due_announcements() -> dict[str, int]:
+    """Beat-driven: fan out any announcements whose 10-min buffer has elapsed."""
+    return asyncio.run(_publish_due_announcements_async())

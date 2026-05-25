@@ -37,4 +37,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.process_due_resolutions",
         "schedule": crontab(minute=5),
     },
+    # Every minute: fan out announcements whose 10-min editorial buffer
+    # has elapsed (or that the admin pressed "Sofort veröffentlichen"
+    # on). The partial index makes the scan O(due-rows) so a 1-minute
+    # cadence is cheap. Lower granularity (e.g. 5 min) would give the
+    # admin a frustrating "I clicked publish-now but it took ages"
+    # experience — 1 min is the sweet spot.
+    "publish-due-announcements-every-minute": {
+        "task": "app.workers.tasks.publish_due_announcements",
+        "schedule": crontab(minute="*"),
+    },
 }
