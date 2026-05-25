@@ -317,13 +317,20 @@ export function AdminTicketDetailPage() {
       {/* Below the controls, the body splits into the main column
           (participants + thread + reply) and a sticky timeline rail on
           md+ screens. On narrow screens the timeline hides — thread
-          cards remain linear and short. */}
+          cards remain linear and short.
+
+          Note on alignment: NO `alignItems: "start"` here. Grid's
+          default `stretch` is exactly what we want so the right column
+          tracks the main column's height — that's what gives
+          `position: sticky` on the rail enough scroll range to stay
+          pinned through the whole thread. With `start`, the right
+          column was only as tall as the rail itself and sticky ran out
+          of room after ~one screen of scrolling. */}
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 280px" },
           gap: 3,
-          alignItems: "start",
         }}
       >
         <Stack spacing={3} sx={{ minWidth: 0 }}>
@@ -583,7 +590,17 @@ export function AdminTicketDetailPage() {
             timeline + attachments roll-up in a single sticky frame so
             they scroll together. */}
         <Box sx={{ display: { xs: "none", md: "block" } }}>
-          <Box sx={{ position: "sticky", top: 88 }}>
+          <Box
+            sx={{
+              position: "sticky",
+              top: 88,
+              // Cap to viewport so a ticket with a tall timeline +
+              // attachment roll-up scrolls internally instead of
+              // pushing the bottom items below the fold while pinned.
+              maxHeight: "calc(100vh - 104px)",
+              overflowY: "auto",
+            }}
+          >
             <Stack spacing={2}>
               <MessageTimeline
                 messages={ticket.messages}

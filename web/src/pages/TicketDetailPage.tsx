@@ -234,13 +234,17 @@ export function TicketDetailPage() {
 
       {/* Body splits into a main column (visibility, thread, reply) and
           a sticky timeline on md+ screens. On small screens the timeline
-          is hidden — the thread cards are already linear and short there. */}
+          is hidden — the thread cards are already linear and short there.
+
+          Note: NO `alignItems: "start"` — grid's default `stretch`
+          makes the right column track the main column's height, which
+          is what gives the sticky rail enough scroll range to stay
+          pinned through the whole thread. */}
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 280px" },
           gap: 3,
-          alignItems: "start",
         }}
       >
         <Stack spacing={3} sx={{ minWidth: 0 }}>
@@ -556,7 +560,16 @@ export function TicketDetailPage() {
         {/* Sticky right rail (md+). Hidden on narrow screens. Wraps the
             timeline + attachments roll-up so they share one sticky frame. */}
         <Box sx={{ display: { xs: "none", md: "block" } }}>
-          <Box sx={{ position: "sticky", top: 88 }}>
+          <Box
+            sx={{
+              position: "sticky",
+              top: 88,
+              // Cap to viewport so a tall rail scrolls internally
+              // instead of overflowing below the fold while pinned.
+              maxHeight: "calc(100vh - 104px)",
+              overflowY: "auto",
+            }}
+          >
             <Stack spacing={2}>
               <MessageTimeline
                 messages={ticket.messages}
