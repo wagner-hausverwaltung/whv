@@ -263,7 +263,12 @@ async def extract_protocol_and_apply(
     if assembly is None:
         raise ValueError(f"Assembly not found: {assembly_id}")
 
-    if assembly.verified_at is not None:
+    # Protocol extractor has its OWN verification gate. Invitation-
+    # side `verified_at` doesn't block protocol extraction (the
+    # natural workflow is: verify invitation when it's uploaded, then
+    # the meeting happens, then the protocol arrives and needs to be
+    # extracted — even though the invitation is already signed off).
+    if assembly.protocol_verified_at is not None:
         await llm_audit.record(
             session,
             organization_id=assembly.organization_id,
@@ -272,9 +277,15 @@ async def extract_protocol_and_apply(
             status="ok",
             subject_kind="etv_assembly",
             subject_id=assembly_id,
-            error="skipped: assembly already verified",
+            error="skipped: protocol already verified",
         )
         return "skipped_verified"
+
+    # When the invitation has been verified, the Verwalter's curated
+    # agenda titles + bodies are sacred. Protocol extraction still
+    # runs (we want vote tallies + discussion) but won't touch
+    # title/body — only the protocol-derived fields below.
+    title_locked = assembly.verified_at is not None
 
     try:
         result = await provider.extract_from_pdf(
@@ -371,10 +382,13 @@ async def extract_protocol_and_apply(
             by_position[max_position] = item
         else:
             # Update the existing row's fields. Title is overwritten
-            # because the protocol's title is more accurate (the
-            # invitation's was a proposal). Body is left alone — that
-            # was the Verwalter's narrative pre-meeting.
-            item.title = outcome.title
+            # by default (protocol's wording is more authoritative
+            # post-meeting), BUT skipped when the invitation has been
+            # verified — in that case the Verwalter's curated title
+            # wins. Body is left alone — that was the Verwalter's
+            # narrative pre-meeting.
+            if not title_locked:
+                item.title = outcome.title
             if outcome.final_beschluss_text is not None:
                 item.beschluss_text = outcome.final_beschluss_text
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import uuid
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -155,6 +155,7 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
         auto_extracted_at=a.auto_extracted_at,
         protocol_extracted_at=a.protocol_extracted_at,
         verified_at=a.verified_at,
+        protocol_verified_at=a.protocol_verified_at,
         agenda_pdf_url=a.agenda_pdf_url,
         protocol_pdf_url=a.protocol_pdf_url,
         protocol_uploaded_at=a.protocol_uploaded_at,
@@ -791,14 +792,19 @@ async def admin_verify_assembly(
     assembly_id: uuid.UUID,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    kind: Literal["invitation", "protocol"] = "invitation",
 ) -> AssemblyDetailResponse:
-    """Verwalter sign-off on the auto-extracted data. Sets
-    `verified_at` + `verified_by_user_id`; subsequent extraction
-    runs see verified_at and skip per the service-level idempotency
-    guard, so the model can never overwrite a curated row.
+    """Verwalter sign-off on auto-extracted data. Two-stage:
 
-    Idempotent: re-verifying a verified row just bumps the
-    timestamp (handy if a Verwalter edits + re-confirms).
+      kind=invitation (default, backward compat): sets `verified_at` +
+        `verified_by_user_id`. Locks the invitation-derived fields
+        (meeting date, location, agenda titles) against future
+        re-extractions. Does NOT block protocol extraction.
+      kind=protocol: sets `protocol_verified_at` +
+        `protocol_verified_by_user_id`. Locks the protocol-derived
+        fields (vote tallies, discussion, actual_start/end).
+
+    Idempotent: re-verifying a row just bumps the timestamp.
     """
     a = await svc.load_assembly_for_org(
         session,
@@ -807,13 +813,17 @@ async def admin_verify_assembly(
     )
     if a is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
-    a.verified_at = svc._now()
-    a.verified_by_user_id = current_user.id
+    if kind == "invitation":
+        a.verified_at = svc._now()
+        a.verified_by_user_id = current_user.id
+    else:
+        a.protocol_verified_at = svc._now()
+        a.protocol_verified_by_user_id = current_user.id
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
             actor_user_id=current_user.id,
-            action="etv_assembly_verified",
+            action=f"etv_assembly_verified_{kind}",
             target_type="etv_assemblies",
             target_id=str(a.id),
             payload_json={},

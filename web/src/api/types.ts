@@ -375,6 +375,7 @@ export interface AssemblyResponse {
   auto_extracted_at: string | null;
   protocol_extracted_at: string | null;
   verified_at: string | null;
+  protocol_verified_at: string | null;
   created_at: string;
 }
 

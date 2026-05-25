@@ -248,6 +248,20 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
         JSON,
         nullable=True,
     )
+    # Verwalter sign-off on the protocol extraction. Separate from
+    # `verified_at` (which now means "invitation-side verified") so
+    # the Verwalter can sign off on the invitation when it's uploaded
+    # without blocking the later protocol extraction. Once this is
+    # set, the protocol extractor skips on re-runs.
+    protocol_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    protocol_verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
         # Property-scoped queue: "next ETV on this property" + "past ETVs

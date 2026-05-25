@@ -975,8 +975,11 @@ function InvitationSection({ assembly, onChanged }: InvitationSectionProps) {
     setError(null);
     setVerifying(true);
     try {
+      // Default kind=invitation matches what this button has always
+      // done: lock the invitation-derived fields. The protocol
+      // section has its own confirm button that passes kind=protocol.
       const r = await api.post<AssemblyDetailResponse>(
-        `/admin/assemblies/${assembly.id}/verify`,
+        `/admin/assemblies/${assembly.id}/verify?kind=invitation`,
       );
       onChanged(r.data);
     } catch {
@@ -1160,10 +1163,30 @@ interface ProtocolSectionProps {
 function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   // Polls /admin/assemblies/:id every 3s after upload until
   // protocol_extracted_at lands (LLM merges Beschluss outcomes +
   // Diskussion). Cleared once the timestamp shows up.
   const [polling, setPolling] = useState(false);
+
+  const onVerifyProtocol = async () => {
+    setError(null);
+    setVerifying(true);
+    try {
+      const r = await api.post<AssemblyDetailResponse>(
+        `/admin/assemblies/${assembly.id}/verify?kind=protocol`,
+      );
+      onChanged(r.data);
+    } catch {
+      setError("Bestätigung fehlgeschlagen.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const protocolNeedsReview = Boolean(
+    assembly.protocol_extracted_at && !assembly.protocol_verified_at,
+  );
 
   useEffect(() => {
     if (!polling) return;
@@ -1228,12 +1251,22 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
         sx={{ alignItems: "center", mb: 2, flexWrap: "wrap" }}
       >
         <Typography variant="h6">Signiertes Protokoll</Typography>
-        {assembly.protocol_extracted_at && !assembly.verified_at && (
+        {protocolNeedsReview && (
           <Chip
             color="warning"
             size="small"
             icon={<AutoAwesomeIcon />}
             label="KI-extrahiert · bitte prüfen"
+          />
+        )}
+        {assembly.protocol_verified_at && (
+          <Chip
+            color="success"
+            size="small"
+            icon={<CheckCircleIcon />}
+            label={`Bestätigt am ${new Date(
+              assembly.protocol_verified_at,
+            ).toLocaleDateString("de-DE")}`}
           />
         )}
       </Stack>
@@ -1287,6 +1320,36 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
             und die Diskussionseinträge in der Tagesordnung oben
             befüllt.
           </Alert>
+        )}
+
+        {protocolNeedsReview && (
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{
+              alignItems: "center",
+              flexWrap: "wrap",
+              p: 2,
+              bgcolor: "warning.main",
+              borderRadius: 1,
+              color: "warning.contrastText",
+            }}
+          >
+            <Typography variant="body2" sx={{ flex: 1, minWidth: 200 }}>
+              Bitte Stimm-Tallies und Diskussion prüfen, dann
+              bestätigen. Re-Upload des Protokolls löst die KI erneut
+              aus; nach Bestätigung sind die Felder gesperrt.
+            </Typography>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={onVerifyProtocol}
+              disabled={verifying}
+              startIcon={<CheckCircleIcon />}
+            >
+              {verifying ? "Wird bestätigt…" : "Protokoll bestätigen"}
+            </Button>
+          </Stack>
         )}
       </Stack>
     </Paper>

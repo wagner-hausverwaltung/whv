@@ -192,7 +192,11 @@ class AssemblyResponse(BaseModel):
     # EITHER stamp is set AND verified_at is null.
     auto_extracted_at: datetime | None = None
     protocol_extracted_at: datetime | None = None
+    # Two-stage verification: invitation-side (`verified_at`) and
+    # protocol-side (`protocol_verified_at`). Independent. Either or
+    # both can be set.
     verified_at: datetime | None = None
+    protocol_verified_at: datetime | None = None
     created_at: datetime
 
 
