@@ -52,6 +52,11 @@ export function TicketDetailPage() {
   // /me/tickets/{id}/messages/{msg_id}/attachments after the message
   // POST returns (we need its id to attach against).
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Per-file failures from the last submit — shown inline under the
+  // reply form so the user knows which file the server rejected.
+  const [uploadErrors, setUploadErrors] = useState<
+    { name: string; detail?: string }[]
+  >([]);
 
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
   const [participantError, setParticipantError] = useState<string | null>(null);
@@ -110,6 +115,7 @@ export function TicketDetailPage() {
   const onReply = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setUploadErrors([]);
     setPosting(true);
     try {
       const res = await api.post<{ id: string }>(
@@ -118,7 +124,10 @@ export function TicketDetailPage() {
       );
       const newMessageId = res.data.id;
       // Best-effort attachment upload — failures don't abort the rest.
-      let uploadFailures = 0;
+      // We capture the server's `detail` field so the inline Alert can
+      // tell the user *why* a specific file rejected (unsupported type,
+      // size cap exceeded, etc.).
+      const failures: { name: string; detail?: string }[] = [];
       for (const file of pendingFiles) {
         try {
           const form = new FormData();
@@ -127,15 +136,23 @@ export function TicketDetailPage() {
             `/me/tickets/${ticket.id}/messages/${newMessageId}/attachments`,
             form,
           );
-        } catch {
-          uploadFailures += 1;
+        } catch (err: unknown) {
+          const detail = (
+            err as { response?: { data?: { detail?: string } } }
+          ).response?.data?.detail;
+          failures.push({ name: file.name, detail });
         }
       }
-      if (uploadFailures > 0) {
-        setError(t("tickets.attachments.uploadFailed"));
-      }
       setReply("");
-      setPendingFiles([]);
+      if (failures.length > 0) {
+        setUploadErrors(failures);
+        // Keep failed files in the picker so the user can adjust
+        // (compress / change type) and retry without re-picking.
+        const failedNames = new Set(failures.map((f) => f.name));
+        setPendingFiles((prev) => prev.filter((f) => failedNames.has(f.name)));
+      } else {
+        setPendingFiles([]);
+      }
       await refresh();
     } catch {
       setError("Antwort konnte nicht gesendet werden.");
@@ -537,6 +554,9 @@ export function TicketDetailPage() {
                         const picked = Array.from(e.target.files ?? []);
                         if (picked.length === 0) return;
                         setPendingFiles((prev) => [...prev, ...picked]);
+                        // Stale failures from a prior submit no longer
+                        // describe what's queued — clear them.
+                        setUploadErrors([]);
                         e.target.value = "";
                       }}
                     />
@@ -552,6 +572,31 @@ export function TicketDetailPage() {
                     </Button>
                   )}
                 </Stack>
+                {uploadErrors.length > 0 && (
+                  <Alert
+                    severity="error"
+                    onClose={() => setUploadErrors([])}
+                    sx={{ mt: 0.5 }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 600, mb: 0.5 }}
+                    >
+                      {t("tickets.attachments.uploadFailed")}
+                    </Typography>
+                    {uploadErrors.map((errInfo, i) => (
+                      <Typography
+                        key={`${errInfo.name}-${i}`}
+                        variant="caption"
+                        component="div"
+                        sx={{ ml: 0.5 }}
+                      >
+                        {errInfo.name}
+                        {errInfo.detail ? ` — ${errInfo.detail}` : ""}
+                      </Typography>
+                    ))}
+                  </Alert>
+                )}
               </Stack>
             </Paper>
           )}

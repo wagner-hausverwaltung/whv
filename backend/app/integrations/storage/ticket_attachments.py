@@ -29,7 +29,7 @@ class TicketAttachmentStorageError(ValueError):
 # can't launch arbitrary code. We never execute the bytes; this is
 # just belt-and-braces.
 _ALLOWED_SUFFIXES = {
-    # PDFs + office docs (mirror of documents.py)
+    # PDFs + office docs (mirror of documents.py).
     ".pdf",
     ".doc",
     ".docx",
@@ -51,6 +51,17 @@ _ALLOWED_SUFFIXES = {
     ".heif",
     # Archives that arrive from contractors.
     ".zip",
+    # Plaintext / structured-data formats we've seen real customers send:
+    # JSON exports, XML invoices (XRechnung), raw email forwards, server
+    # logs, YAML configs. Still no executables — we never run these
+    # bytes; this is belt-and-braces against a careless click on the
+    # download link.
+    ".json",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".log",
+    ".eml",
 }
 
 

@@ -228,20 +228,29 @@ export function AdminTicketDetailPage() {
   // Pending file picks staged before submit. Files upload after the
   // message POST returns (we need its id to attach against).
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Per-file failures from the most recent submit — rendered inline
+  // under the reply form so the Verwalter sees *which* file rejected
+  // and the server's reason (unsupported type, size cap, etc.) without
+  // leaving the textarea. Cleared when the user picks new files.
+  const [uploadErrors, setUploadErrors] = useState<
+    { name: string; detail?: string }[]
+  >([]);
 
   const sendReply = async (e: FormEvent) => {
     e.preventDefault();
     if (!id || !reply.trim()) return;
     setPosting(true);
+    setUploadErrors([]);
     try {
       const res = await api.post<{ id: string }>(
         `/admin/tickets/${id}/messages`,
         { body: reply, is_internal_note: internal },
       );
       const newMessageId = res.data.id;
-      // Best-effort: upload each pending file. One failure doesn't abort
-      // the rest — surface a generic toast at the end if any fail.
-      let uploadFailures = 0;
+      // Best-effort: upload each pending file. Capture per-file
+      // failures so the inline Alert can tell the user exactly which
+      // file the server rejected and why.
+      const failures: { name: string; detail?: string }[] = [];
       for (const file of pendingFiles) {
         try {
           const form = new FormData();
@@ -250,16 +259,27 @@ export function AdminTicketDetailPage() {
             `/admin/tickets/${id}/messages/${newMessageId}/attachments`,
             form,
           );
-        } catch {
-          uploadFailures += 1;
+        } catch (err: unknown) {
+          const detail = (
+            err as { response?: { data?: { detail?: string } } }
+          ).response?.data?.detail;
+          failures.push({ name: file.name, detail });
         }
-      }
-      if (uploadFailures > 0) {
-        setError(t("tickets.attachments.uploadFailed"));
       }
       setReply("");
       setInternal(false);
-      setPendingFiles([]);
+      if (failures.length > 0) {
+        setUploadErrors(failures);
+        // Keep the failed files in the picker so the user can adjust
+        // (e.g. compress a too-large photo) and retry without
+        // re-picking. The message itself is already sent — they only
+        // need to retry the attachments. Successful uploads are
+        // already linked to that message via refresh().
+        const failedNames = new Set(failures.map((f) => f.name));
+        setPendingFiles((prev) => prev.filter((f) => failedNames.has(f.name)));
+      } else {
+        setPendingFiles([]);
+      }
       await refresh();
     } catch {
       setError(t("admin.ticketDetail.actionFailed"));
@@ -763,12 +783,37 @@ export function AdminTicketDetailPage() {
                     const picked = Array.from(e.target.files ?? []);
                     if (picked.length === 0) return;
                     setPendingFiles((prev) => [...prev, ...picked]);
+                    // Stale failures from a previous submit no longer
+                    // describe what's queued — clear them.
+                    setUploadErrors([]);
                     // Reset so picking the same file again still fires.
                     e.target.value = "";
                   }}
                 />
               </Button>
             </Stack>
+            {uploadErrors.length > 0 && (
+              <Alert
+                severity="error"
+                onClose={() => setUploadErrors([])}
+                sx={{ mt: 0.5 }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  {t("tickets.attachments.uploadFailed")}
+                </Typography>
+                {uploadErrors.map((errInfo, i) => (
+                  <Typography
+                    key={`${errInfo.name}-${i}`}
+                    variant="caption"
+                    component="div"
+                    sx={{ ml: 0.5 }}
+                  >
+                    {errInfo.name}
+                    {errInfo.detail ? ` — ${errInfo.detail}` : ""}
+                  </Typography>
+                ))}
+              </Alert>
+            )}
           </Stack>
         </Box>
       </Paper>
