@@ -28,11 +28,13 @@ struct EinstellungenView: View {
     var body: some View {
         NavigationStack {
             List {
-                kontoSection
                 liegenschaftSection
                 appearanceSection
-                languageSection
                 sicherheitSection
+                // Konto + Datenschutz cluster together at the
+                // bottom — both are account-action pairs (sign out
+                // up top, export + delete just below).
+                kontoSection
                 datenschutzSection
                 rechtlichesSection
                 infoSection
@@ -169,17 +171,6 @@ struct EinstellungenView: View {
         }
     }
 
-    private var languageSection: some View {
-        Section("Sprache") {
-            Picker("Sprache", selection: $settings.language) {
-                ForEach(LanguagePreference.allCases) { p in
-                    Text(p.label).tag(p)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-
     @ViewBuilder
     private var sicherheitSection: some View {
         if biometricLock.isAvailable {
@@ -279,18 +270,6 @@ struct EinstellungenView: View {
 
     private var infoSection: some View {
         Section("App") {
-            Link(destination: WHVContact.telURL) {
-                HStack {
-                    Label(
-                        "Verwaltung anrufen · \(WHVContact.displayName)",
-                        systemImage: "phone.fill"
-                    )
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
             HStack {
                 Text("Version")
                 Spacer()
