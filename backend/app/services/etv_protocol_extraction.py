@@ -46,6 +46,7 @@ from app.integrations.llm.base import (
 from app.models import (
     AgendaItemType,
     AgendaItemVoteResult,
+    AgendaItemVotingBasis,
     AssemblyStatus,
     EtvAgendaItem,
     EtvAssembly,
@@ -108,6 +109,29 @@ class _ExtractedProtocolAgendaItem(BaseModel):
             "Outcome as declared in the protocol. Null for INFORMATION/"
             "DISKUSSION items + for BESCHLUSS items the protocol didn't "
             "explicitly resolve."
+        ),
+    )
+    voting_basis: Literal["KOPF", "MEA", "OBJEKT"] | None = Field(
+        default=None,
+        description=(
+            "Stimmrecht — which voting basis applied to THIS vote. "
+            "KOPF for Kopfprinzip (one vote per Eigentümer), MEA for "
+            "Anteilsprinzip (weighted by Miteigentumsanteile / "
+            "Stimmrecht-Anteil), OBJEKT for Objektprinzip (one vote "
+            "per Einheit / Wohnung). Null when the protocol doesn't "
+            "specify."
+        ),
+    )
+    present_count: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Anwesend — total votes castable for this vote, measured "
+            "against `voting_basis`. For KOPF: number of Eigentümer "
+            "present. For MEA: total Miteigentumsanteile represented "
+            "(out of e.g. 1000 or 10000). For OBJEKT: number of "
+            "Einheiten represented. Null if the protocol doesn't "
+            "state it."
         ),
     )
     discussion: list[_ExtractedDiscussionEntry] = Field(default_factory=list)
@@ -180,10 +204,22 @@ Das angehängte PDF ist das *unterschriebene Protokoll* einer bereits \
       abgestimmte Beschlusstext (das Protokoll zitiert ihn typischerweise \
       vor der Abstimmung). Falls die Versammlung die ursprüngliche \
       Formulierung geändert hat: die geänderte Fassung. Null sonst.
-    * vote_yes / vote_no / vote_abstain: Stimmen-Anzahl (NICHT MEA). \
+    * vote_yes / vote_no / vote_abstain: Stimmen-Anzahl in der \
+      Einheit, die das Stimmrecht vorgibt (siehe voting_basis). \
       Null wenn das Protokoll keine Tally nennt.
     * vote_result: "ANGENOMMEN" oder "ABGELEHNT" wie im Protokoll \
       festgestellt. Null bei INFORMATION/DISKUSSION.
+    * voting_basis: Welches Stimmrecht für diesen TOP galt:
+        - "KOPF"   beim Kopfprinzip (eine Stimme pro Eigentümer)
+        - "MEA"    beim Anteilsprinzip (Miteigentumsanteile)
+        - "OBJEKT" beim Objektprinzip (eine Stimme pro Einheit)
+      Das Protokoll erwähnt das oft direkt am TOP ("Abstimmung nach \
+      Anteilen" / "nach Köpfen") oder in der Anwesenheitsliste. \
+      Null bei INFORMATION/DISKUSSION oder wenn nicht angegeben.
+    * present_count: Anwesend / abgegebene Stimmen-Summe für diesen \
+      TOP — nicht die Anzahl der Personen, sondern die Stimmrecht-\
+      Einheit (bei MEA z. B. 850 von 1000). Null wenn nicht \
+      genannt.
     * discussion: Wortmeldungen pro TOP — speaker_label (z. B. \
       "Herr Müller (Wohnung 4)", "Verwalter", "Beirat Frau Schmidt") \
       und content (paraphrasiert wenn das Protokoll zusammenfasst, \
@@ -353,6 +389,10 @@ async def extract_protocol_and_apply(
             item.vote_abstain = outcome.vote_abstain
         if outcome.vote_result is not None:
             item.vote_result = AgendaItemVoteResult(outcome.vote_result)
+        if outcome.voting_basis is not None:
+            item.voting_basis = AgendaItemVotingBasis(outcome.voting_basis)
+        if outcome.present_count is not None:
+            item.present_count = outcome.present_count
 
         # Discussion entries — already wiped above; insert fresh.
         for idx, entry in enumerate(outcome.discussion, start=1):

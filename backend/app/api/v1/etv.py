@@ -127,6 +127,8 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
             vote_abstain=i.vote_abstain,
             vote_required_quorum=i.vote_required_quorum,
             vote_result=i.vote_result,
+            voting_basis=i.voting_basis,
+            present_count=i.present_count,
             discussion=[
                 DiscussionEntryResponse.model_validate(d) for d in disc_by_item.get(i.id, [])
             ],
@@ -525,6 +527,8 @@ async def admin_add_agenda_item(
         vote_abstain=item.vote_abstain,
         vote_required_quorum=item.vote_required_quorum,
         vote_result=item.vote_result,
+        voting_basis=item.voting_basis,
+        present_count=item.present_count,
         discussion=[],
     )
 
@@ -583,6 +587,8 @@ async def admin_update_agenda_item(
         vote_abstain=item.vote_abstain,
         vote_required_quorum=item.vote_required_quorum,
         vote_result=item.vote_result,
+        voting_basis=item.voting_basis,
+        present_count=item.present_count,
         discussion=[],
     )
 

@@ -16,7 +16,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import AgendaItemType, AgendaItemVoteResult, AssemblyStatus
+from app.models import (
+    AgendaItemType,
+    AgendaItemVoteResult,
+    AgendaItemVotingBasis,
+    AssemblyStatus,
+)
 
 # ---------- Agenda items ----------
 
@@ -55,6 +60,8 @@ class UpdateAgendaItemRequest(BaseModel):
     vote_abstain: int | None = Field(None, ge=0)
     vote_required_quorum: int | None = Field(None, ge=0)
     vote_result: AgendaItemVoteResult | None = None
+    voting_basis: AgendaItemVotingBasis | None = None
+    present_count: int | None = Field(None, ge=0)
 
 
 class DiscussionEntryResponse(BaseModel):
@@ -89,6 +96,8 @@ class AgendaItemResponse(BaseModel):
     vote_abstain: int
     vote_required_quorum: int | None
     vote_result: AgendaItemVoteResult | None
+    voting_basis: AgendaItemVotingBasis | None = None
+    present_count: int | None = None
     discussion: list[DiscussionEntryResponse] = []
 
 

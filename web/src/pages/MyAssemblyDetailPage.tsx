@@ -34,6 +34,7 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import {
   AGENDA_ITEM_TYPE_LABELS,
+  VOTING_BASIS_LABELS,
   ASSEMBLY_STATUS_LABELS,
   type AgendaItemResponse,
   type AgendaItemType,
@@ -408,6 +409,16 @@ export function MyAssemblyDetailPage() {
 
 function AgendaCard({ item }: { item: AgendaItemResponse }) {
   const total = item.vote_yes + item.vote_no + item.vote_abstain;
+  // Show the tally block when *any* vote-related field has data,
+  // not just when sum > 0. A protocol can record voting_basis +
+  // present_count + a result without the model returning per-vote
+  // counts (some Verwalter protocols print "einstimmig angenommen"
+  // without enumerating the tally).
+  const hasVoteInfo =
+    total > 0 ||
+    item.vote_result !== null ||
+    item.voting_basis !== null ||
+    item.present_count !== null;
   return (
     <Paper variant="outlined" sx={{ p: 2.5 }}>
       <Stack spacing={1.5}>
@@ -467,7 +478,7 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
             </Typography>
           </Box>
         )}
-        {item.type === "BESCHLUSS" && total > 0 && (
+        {item.type === "BESCHLUSS" && hasVoteInfo && (
           <Box>
             <Typography
               variant="caption"
@@ -479,13 +490,41 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
                 mb: 0.5,
               }}
             >
-              Abstimmungsergebnis ({total} Stimmen)
+              Abstimmungsergebnis
             </Typography>
+            {(item.voting_basis !== null || item.present_count !== null) && (
+              <Stack
+                direction="row"
+                spacing={2}
+                sx={{ mb: 1, flexWrap: "wrap", rowGap: 0.5 }}
+              >
+                {item.voting_basis !== null && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Stimmrecht
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {VOTING_BASIS_LABELS[item.voting_basis]}
+                    </Typography>
+                  </Box>
+                )}
+                {item.present_count !== null && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Anwesend
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {item.present_count}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            )}
             <Stack direction="row" spacing={2}>
               <VoteCell label="Ja" value={item.vote_yes} color="success.main" />
               <VoteCell label="Nein" value={item.vote_no} color="error.main" />
               <VoteCell
-                label="Enthaltung"
+                label="Enthaltungen"
                 value={item.vote_abstain}
                 color="text.secondary"
               />

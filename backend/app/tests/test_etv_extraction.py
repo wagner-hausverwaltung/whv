@@ -317,8 +317,8 @@ async def test_apply_records_parse_error_and_reraises(
     # fresh session and read it back.
     async with sm() as s:
         audit = (
-            await s.execute(
-                select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)
-            )
-        ).scalars().all()
+            (await s.execute(select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)))
+            .scalars()
+            .all()
+        )
     assert any(a.status == "parse_error" for a in audit)

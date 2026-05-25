@@ -87,6 +87,27 @@ class AgendaItemVoteResult(enum.StrEnum):
     ABGELEHNT = "ABGELEHNT"
 
 
+class AgendaItemVotingBasis(enum.StrEnum):
+    """The three Stimmrecht modes German WEG-Recht recognises.
+
+    KOPF   — Kopfprinzip. One vote per Eigentümer regardless of how
+             many Einheiten / MEA they hold. Default for many WEG
+             decisions; required by some §-rules.
+    MEA    — Anteilsprinzip. Votes weighted by Miteigentumsanteile
+             (typically out of 1000 or 10000). Required for
+             building-affecting decisions (§ 16 WEG etc.).
+    OBJEKT — Objektprinzip. One vote per Einheit / Wohnung. Some
+             communities pick this in the Teilungserklärung.
+
+    Stored on the agenda item because different TOPs in the same
+    meeting can have different bases (§-rule determines).
+    """
+
+    KOPF = "KOPF"
+    MEA = "MEA"
+    OBJEKT = "OBJEKT"
+
+
 class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "etv_assemblies"
 
@@ -316,6 +337,18 @@ class EtvAgendaItem(TimestampMixin, Base):
         Enum(AgendaItemVoteResult, name="agenda_item_vote_result"),
         nullable=True,
     )
+    # Stimmrecht — which voting basis the protocol used for THIS TOP.
+    # Different TOPs in the same meeting can have different bases
+    # depending on §-rule. NULL when not stated / not a BESCHLUSS.
+    voting_basis: Mapped[AgendaItemVotingBasis | None] = mapped_column(
+        Enum(AgendaItemVotingBasis, name="agenda_item_voting_basis"),
+        nullable=True,
+    )
+    # Anwesend — votes available for THIS vote (count is interpreted
+    # against `voting_basis`: per-head, MEA share, or per-Einheit).
+    # Often ≠ yes+no+abstain because owners can leave the room or
+    # arrive between TOPs. NULL when not stated in the protocol.
+    present_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         UniqueConstraint(

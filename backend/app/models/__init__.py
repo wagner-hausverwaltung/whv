@@ -32,6 +32,7 @@ from app.models.document import (
 from app.models.etv import (
     AgendaItemType,
     AgendaItemVoteResult,
+    AgendaItemVotingBasis,
     AssemblyStatus,
     EtvAgendaItem,
     EtvAssembly,
@@ -56,6 +57,7 @@ from app.models.user import InviteCode, PasswordResetToken, Session, User, UserR
 __all__ = [
     "AgendaItemType",
     "AgendaItemVoteResult",
+    "AgendaItemVotingBasis",
     "Announcement",
     "AnnouncementAttachment",
     "AnnouncementComment",

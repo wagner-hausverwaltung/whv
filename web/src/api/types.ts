@@ -318,6 +318,16 @@ export type AgendaItemType = "INFORMATION" | "BESCHLUSS" | "DISKUSSION";
 
 export type AgendaItemVoteResult = "ANGENOMMEN" | "ABGELEHNT";
 
+// Stimmrecht — which voting basis applied. UI shows human-friendly
+// labels via VOTING_BASIS_LABELS.
+export type AgendaItemVotingBasis = "KOPF" | "MEA" | "OBJEKT";
+
+export const VOTING_BASIS_LABELS: Record<AgendaItemVotingBasis, string> = {
+  KOPF: "Kopfprinzip",
+  MEA: "Anteilsprinzip (MEA)",
+  OBJEKT: "Objektprinzip (Einheiten)",
+};
+
 export interface DiscussionEntryResponse {
   id: string;
   agenda_item_id: string;
@@ -340,6 +350,8 @@ export interface AgendaItemResponse {
   vote_abstain: number;
   vote_required_quorum: number | null;
   vote_result: AgendaItemVoteResult | null;
+  voting_basis: AgendaItemVotingBasis | null;
+  present_count: number | null;
   discussion: DiscussionEntryResponse[];
 }
 
