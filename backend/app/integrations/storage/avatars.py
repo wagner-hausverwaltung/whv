@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 # JPEG/PNG/WEBP set, the user just gets a clear "unsupported format"
 # error on a HEIC upload instead of a silent decode failure.
 try:
-    from pillow_heif import register_heif_opener
+    # pillow-heif ships no py.typed marker / stubs as of 1.3.0, so mypy
+    # can't introspect the module. The runtime call is a single-line
+    # registration of a Pillow plugin; type-checking adds no value.
+    from pillow_heif import register_heif_opener  # type: ignore[import-untyped]
 
     register_heif_opener()
 except ImportError:  # pragma: no cover - only hit on a partial install
