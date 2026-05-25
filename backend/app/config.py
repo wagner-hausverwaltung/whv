@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from_address: str = "noreply@wagner-hausverwaltung.com"
     email_from_name: str = "Wagner Hausverwaltung"
+    # Address that SES is configured to receive at. Set as Reply-To on
+    # ticket notification emails so a recipient who hits "Reply" lands
+    # back on the SES inbound rule → /webhooks/email/inbound, and never
+    # has to touch the portal to respond. Empty in dev — leave the
+    # header unset so we don't direct staging replies into a void.
+    email_inbound_address: str = ""
 
     jwt_secret: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"

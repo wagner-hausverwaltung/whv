@@ -48,6 +48,7 @@ from app.schemas.ticket import (
     TicketMessageResponse,
     TicketParticipantAddRequest,
     TicketParticipantResponse,
+    TicketPropertyUpdateRequest,
     TicketResponse,
     TicketShareScopeUpdateRequest,
     TicketStatusUpdateRequest,
@@ -372,7 +373,17 @@ async def _send_message_notification(
     headers: dict[str, str] | None = None,
 ) -> tuple[str | None, str | None]:
     """Best-effort send — returns (message_id, error_string). Caller is
-    responsible for capturing the outcome in audit if desired."""
+    responsible for capturing the outcome in audit if desired.
+
+    Reply-To: when `settings.email_inbound_address` is set, every
+    notification carries it so a recipient who hits "Reply" routes back
+    to the SES inbound mailbox → /webhooks/email/inbound → posts as the
+    next ticket message. That closes the email loop: the user (whether
+    registered or external) never has to visit the portal to respond.
+    The subject already carries `[#<short_id>]`, the inbound parser
+    extracts the ref, and the message lands on the same ticket. Empty
+    in dev so we don't direct staging replies into a void.
+    """
     if not recipients:
         return None, "no recipients"
     try:
@@ -386,12 +397,14 @@ async def _send_message_notification(
             sender_email=sender_email,
             message_body=message.body,
         )
+        settings = get_settings()
         msg_id = await email_client.send(
             to=",".join(recipients),
             subject=subject,
             html=html,
             text=text,
             headers=headers,
+            reply_to=settings.email_inbound_address or None,
         )
         return msg_id, None
     except EmailError as exc:
@@ -804,6 +817,77 @@ async def patch_ticket(
                 payload_json={
                     "from": old_status.value,
                     "to": req.status.value,
+                },
+            )
+        )
+
+    await session.commit()
+    await session.refresh(ticket)
+    return _to_summary(ticket)
+
+
+@admin_router.patch("/{ticket_id}/property", response_model=TicketResponse)
+async def admin_set_ticket_property(
+    ticket_id: uuid.UUID,
+    req: TicketPropertyUpdateRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TicketResponse:
+    """Assign or clear `tickets.property_id`.
+
+    Primary use case: an inbound email arrives from a sender we don't
+    have a registered user for. The webhook creates a ticket with
+    external_sender_email set but property_id NULL — we don't know
+    which Liegenschaft they're asking about. The Verwalter ties it to
+    a property after triage so the ticket shows up in property-scoped
+    views (queue filters, property-detail tab, PROPERTY share-scope).
+    """
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    old_property_id = ticket.property_id
+
+    if req.property_id is not None:
+        # Same-org check — never let the Verwalter leak a ticket into
+        # another organisation's property by id-fuzzing.
+        prop = await session.scalar(
+            select(Property).where(
+                Property.id == req.property_id,
+                Property.organization_id == current_user.organization_id,
+                Property.deleted_at.is_(None),
+            )
+        )
+        if prop is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property not found in organization",
+            )
+
+    ticket.property_id = req.property_id
+
+    # If the scope is PROPERTY and we just cleared property_id, demote
+    # back to PRIVATE so the access rule stays consistent (PROPERTY
+    # scope requires a property to widen access against).
+    if ticket.share_scope == TicketShareScope.PROPERTY and req.property_id is None:
+        ticket.share_scope = TicketShareScope.PRIVATE
+
+    if old_property_id != ticket.property_id:
+        session.add(
+            AuditLog(
+                organization_id=current_user.organization_id,
+                actor_user_id=current_user.id,
+                action="ticket_property_changed",
+                target_type="tickets",
+                target_id=str(ticket.id),
+                payload_json={
+                    "from": str(old_property_id) if old_property_id else None,
+                    "to": str(ticket.property_id) if ticket.property_id else None,
                 },
             )
         )

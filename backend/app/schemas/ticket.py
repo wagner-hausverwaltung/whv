@@ -26,6 +26,18 @@ class TicketStatusUpdateRequest(BaseModel):
     assignee_user_id: uuid.UUID | None = None
 
 
+class TicketPropertyUpdateRequest(BaseModel):
+    """Verwalter-only: assign / clear the property of a ticket. Used
+    after the fact for tickets created via inbound email from an
+    unknown sender — there's no creator-side context to pre-fill
+    property_id, so the Verwalter wires it up by hand from the admin
+    detail page."""
+
+    # Explicit null = clear the property. Omitted in the request body
+    # would be rejected by FastAPI since the field has no default.
+    property_id: uuid.UUID | None
+
+
 class TicketShareScopeUpdateRequest(BaseModel):
     share_scope: TicketShareScope
 

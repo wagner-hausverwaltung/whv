@@ -114,6 +114,69 @@ export function AdminTicketDetailPage() {
     }
   };
 
+  // --- Property assignment --------------------------------------------------
+  // Mostly relevant for tickets created via inbound email from an unknown
+  // sender — they arrive without a property attached, and the Verwalter
+  // wires one up after triage. Also lets us re-tag a misfiled ticket.
+  const [propQuery, setPropQuery] = useState("");
+  const [propOptions, setPropOptions] = useState<
+    import("@/api/types").AdminPropertySearchResult[]
+  >([]);
+  const [propSearching, setPropSearching] = useState(false);
+  // Debounced property search keyed off propQuery. Cleans up on
+  // unmount via the cancel flag.
+  useEffect(() => {
+    const term = propQuery.trim();
+    if (!term) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPropOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setPropSearching(true);
+    const handle = window.setTimeout(() => {
+      api
+        .get<import("@/api/types").AdminPropertySearchResult[]>(
+          `/admin/properties/search?q=${encodeURIComponent(term)}`,
+        )
+        .then((r) => {
+          if (cancelled) return;
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setPropOptions(r.data);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setPropOptions([]);
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setPropSearching(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [propQuery]);
+
+  const assignProperty = async (propertyId: string | null) => {
+    if (!id) return;
+    try {
+      await api.patch(`/admin/tickets/${id}/property`, {
+        property_id: propertyId,
+      });
+      setPropQuery("");
+      setPropOptions([]);
+      await refresh();
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail ?? t("admin.ticketDetail.actionFailed");
+      setError(detail);
+    }
+  };
+
   // --- Participants ---------------------------------------------------------
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
@@ -313,6 +376,131 @@ export function AdminTicketDetailPage() {
           </Tooltip>
         </Stack>
       </Stack>
+
+      {/* Property assignment. Most relevant for inbound-email tickets
+          from unknown senders — they arrive with property_id=NULL and
+          the Verwalter ties them to a Liegenschaft after triage. Also
+          works for re-tagging a misfiled ticket. */}
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 1.5,
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          flexWrap: "wrap",
+          // Highlight when nothing is set — draws Verwalter attention to
+          // the assignment gap without being shouty.
+          borderColor: ticket.property_id ? "divider" : "warning.light",
+          bgcolor: ticket.property_id
+            ? "background.paper"
+            : (th) =>
+                th.palette.mode === "dark"
+                  ? "rgba(217, 119, 6, 0.06)"
+                  : "rgba(254, 252, 232, 0.6)",
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          {t("admin.ticketDetail.propertyLabel")}:
+        </Typography>
+        {ticket.property_id ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", flex: 1, minWidth: 240 }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              {ticket.property_name ?? ticket.property_id.slice(0, 8)}
+            </Typography>
+            {ticket.property_address && (
+              <Typography variant="caption" color="text.secondary">
+                · {ticket.property_address}
+              </Typography>
+            )}
+            <Button
+              size="small"
+              color="inherit"
+              onClick={() => void assignProperty(null)}
+              sx={{ ml: "auto" }}
+            >
+              {t("admin.ticketDetail.propertyClear")}
+            </Button>
+          </Stack>
+        ) : (
+          <Typography
+            variant="body2"
+            color="warning.main"
+            sx={{ fontStyle: "italic" }}
+          >
+            {t("admin.ticketDetail.propertyNotAssigned")}
+          </Typography>
+        )}
+        <Box sx={{ position: "relative", minWidth: 260 }}>
+          <TextField
+            size="small"
+            placeholder={t("admin.ticketDetail.propertyAssignPlaceholder")}
+            value={propQuery}
+            onChange={(e) => setPropQuery(e.target.value)}
+            fullWidth
+          />
+          {propOptions.length > 0 && (
+            <Paper
+              variant="outlined"
+              sx={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                right: 0,
+                maxHeight: 260,
+                overflowY: "auto",
+                zIndex: 2,
+              }}
+            >
+              {propOptions.map((p) => (
+                <Box
+                  key={p.id}
+                  component="button"
+                  type="button"
+                  onClick={() => void assignProperty(p.id)}
+                  sx={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    background: "none",
+                    border: 0,
+                    p: 1,
+                    cursor: "pointer",
+                    color: "text.primary",
+                    "&:hover": { bgcolor: "action.hover" },
+                    "& + &": {
+                      borderTop: 1,
+                      borderColor: "divider",
+                    },
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {p.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {[p.street, p.city, p.property_hr_id]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Typography>
+                </Box>
+              ))}
+            </Paper>
+          )}
+          {propSearching && propOptions.length === 0 && propQuery.trim() && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ position: "absolute", top: "100%", mt: 0.5 }}
+            >
+              {t("common.loading")}
+            </Typography>
+          )}
+        </Box>
+      </Paper>
 
       {/* Below the controls, the body splits into the main column
           (participants + thread + reply) and a sticky timeline rail on

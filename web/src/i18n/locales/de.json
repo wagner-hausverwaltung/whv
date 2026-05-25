@@ -317,7 +317,11 @@
       "send": "Senden",
       "loadFailed": "Ticket konnte nicht geladen werden.",
       "notFound": "Ticket nicht gefunden.",
-      "actionFailed": "Aktion fehlgeschlagen."
+      "actionFailed": "Aktion fehlgeschlagen.",
+      "propertyLabel": "Objekt",
+      "propertyNotAssigned": "Noch keinem Objekt zugeordnet",
+      "propertyAssignPlaceholder": "Objekt suchen (Name, Straße, HR-ID)…",
+      "propertyClear": "Zuordnung entfernen"
     },
     "inviteNew": {
       "title": "Neue Einladung anlegen",

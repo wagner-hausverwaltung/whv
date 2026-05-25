@@ -317,7 +317,11 @@
       "send": "Send",
       "loadFailed": "Could not load ticket.",
       "notFound": "Ticket not found.",
-      "actionFailed": "Action failed."
+      "actionFailed": "Action failed.",
+      "propertyLabel": "Property",
+      "propertyNotAssigned": "Not assigned to a property yet",
+      "propertyAssignPlaceholder": "Search property (name, street, HR-ID)…",
+      "propertyClear": "Clear assignment"
     },
     "inviteNew": {
       "title": "New invitation",

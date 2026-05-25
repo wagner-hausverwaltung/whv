@@ -42,10 +42,20 @@ class _StubEmailClient:
         html: str,
         text: str,
         headers: dict[str, str] | None = None,
+        reply_to: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> str:
         msg_id = f"sim-{uuid.uuid4()}"
         self.sent.append(
-            {"to": to, "subject": subject, "html": html, "text": text, "headers": headers or {}}
+            {
+                "to": to,
+                "subject": subject,
+                "html": html,
+                "text": text,
+                "headers": headers or {},
+                "reply_to": reply_to,
+                "attachments": attachments or [],
+            }
         )
         return msg_id
 
@@ -320,6 +330,8 @@ async def test_create_succeeds_even_when_email_send_fails(
         html: str,
         text: str,
         headers: dict[str, str] | None = None,
+        reply_to: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> str:
         raise EmailError("simulated")
 
