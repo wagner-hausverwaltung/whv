@@ -37,6 +37,7 @@ import { MessageAttachments } from "@/components/MessageAttachments";
 import { MessageBody } from "@/components/MessageBody";
 import { MessageTimeline } from "@/components/MessageTimeline";
 import { TicketAttachmentsRollup } from "@/components/TicketAttachmentsRollup";
+import { describeUploadError } from "@/lib/ticketAttachments";
 
 export function TicketDetailPage() {
   const { t } = useTranslation();
@@ -137,10 +138,8 @@ export function TicketDetailPage() {
             form,
           );
         } catch (err: unknown) {
-          const detail = (
-            err as { response?: { data?: { detail?: string } } }
-          ).response?.data?.detail;
-          failures.push({ name: file.name, detail });
+          // Diagnostic-rich message covering 401/404/413/415/5xx/network.
+          failures.push({ name: file.name, detail: describeUploadError(err) });
         }
       }
       setReply("");
