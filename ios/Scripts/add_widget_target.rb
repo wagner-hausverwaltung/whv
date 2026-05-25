@@ -62,9 +62,22 @@ if project.targets.any? { |t| t.name == WIDGET_TARGET_NAME }
   widget_target.build_configurations.each do |config|
     config.build_settings['PRODUCT_NAME'] ||= '$(TARGET_NAME)'
   end
-  # NSSupportsLiveActivities lives on the HOST app, not the widget.
+  # Host-app plist switches from generated to manual so we can
+  # register CFBundleURLTypes for the `whv://` deep-link scheme
+  # (widget → host → NewTicketSheet). NSSupportsLiveActivities,
+  # scene manifest, orientations etc. all live in WHV/Info.plist
+  # now; the INFOPLIST_KEY_* settings get dropped because the
+  # manual plist supersedes them.
   app_target.build_configurations.each do |config|
-    config.build_settings['INFOPLIST_KEY_NSSupportsLiveActivities'] = 'YES'
+    settings = config.build_settings
+    settings['GENERATE_INFOPLIST_FILE'] = 'NO'
+    settings['INFOPLIST_FILE'] = 'WHV-Info.plist'
+    settings.delete('INFOPLIST_KEY_NSSupportsLiveActivities')
+    settings.delete('INFOPLIST_KEY_UIApplicationSceneManifest_Generation')
+    settings.delete('INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents')
+    settings.delete('INFOPLIST_KEY_UILaunchScreen_Generation')
+    settings.delete('INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad')
+    settings.delete('INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone')
   end
   SHARED_FILES.each do |rel|
     ensure_shared_file(project, app_target, widget_target, rel)

@@ -19,6 +19,7 @@ struct WHVApp: App {
     @StateObject private var authStore = AuthStore()
     @StateObject private var liegenschaftStore = LiegenschaftStore()
     @StateObject private var settings = SettingsStore()
+    @StateObject private var deepLinkRouter = DeepLinkRouter()
 
     var body: some Scene {
         WindowGroup {
@@ -26,6 +27,16 @@ struct WHVApp: App {
                 .environmentObject(authStore)
                 .environmentObject(liegenschaftStore)
                 .environmentObject(settings)
+                .environmentObject(deepLinkRouter)
+                // Widget taps + Universal Links land here. The
+                // router decodes them; RootTabView (when mounted)
+                // observes pendingTarget and reacts. Links that
+                // arrive before sign-in stay queued until the user
+                // has authenticated, then the tab shell picks them
+                // up on first render.
+                .onOpenURL { url in
+                    deepLinkRouter.handle(url)
+                }
                 .task {
                     // Wire AuthStore → LiegenschaftStore transitions.
                     // Sign-in pre-loads /me/properties so the picker

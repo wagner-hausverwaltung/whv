@@ -197,6 +197,12 @@ struct WidgetView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
+        familyView
+            .widgetURL(deepLink(for: entry.items.first ?? .quiet))
+    }
+
+    @ViewBuilder
+    private var familyView: some View {
         switch family {
         case .accessoryInline:
             InlineView(item: entry.items.first ?? .quiet)
@@ -206,6 +212,20 @@ struct WidgetView: View {
             MediumView(items: entry.items)
         default:
             SmallView(item: entry.items.first ?? .quiet)
+        }
+    }
+
+    /// Tap target for the whole widget. Quiet state opens the
+    /// new-ticket flow so a glance at "nothing to do" is one tap
+    /// away from "report something" — the rest of the kinds stay
+    /// unscoped for now (a future commit can wire each case to the
+    /// matching detail screen via whv:// hosts).
+    private func deepLink(for item: WidgetItem) -> URL? {
+        switch item {
+        case .quiet:
+            return URL(string: "whv://new-ticket")
+        default:
+            return nil
         }
     }
 }
@@ -230,7 +250,7 @@ private struct InlineView: View {
         case .announcementFresh(let announcement):
             Text("Mitteilung: \(announcement.title)")
         case .quiet:
-            Text("WHV: alles ruhig")
+            Text("WHV: Neues Anliegen melden")
         }
     }
 }
@@ -265,7 +285,7 @@ private struct RectangularView: View {
         case .ticketFresh, .ticketCountOnly: return "Offene Tickets"
         case .etvNewComment: return "Neue Frage"
         case .announcementFresh: return "Mitteilung"
-        case .quiet: return "WHV"
+        case .quiet: return "Anliegen melden"
         }
     }
 
@@ -282,7 +302,7 @@ private struct RectangularView: View {
         case .announcementFresh(let a):
             return a.title
         case .quiet:
-            return "Nichts Neues"
+            return "Neues Anliegen"
         }
     }
 
@@ -353,7 +373,7 @@ private struct SmallView: View {
         case .announcementFresh(let a):
             return a.title
         case .quiet:
-            return "Alles ruhig"
+            return "Neues Anliegen"
         }
     }
 
@@ -386,7 +406,7 @@ private struct SmallView: View {
         case .announcementFresh(let a):
             return formatRelative(a.publishedAt)
         case .quiet:
-            return nil
+            return "Tippen zum Melden"
         }
     }
 }
@@ -473,7 +493,7 @@ private struct MediumView: View {
         case .announcementFresh(let a):
             return a.title
         case .quiet:
-            return "Alles ruhig"
+            return "Neues Anliegen"
         }
     }
 
@@ -492,7 +512,7 @@ private struct MediumView: View {
         case .announcementFresh(let a):
             return "\(formatRelative(a.publishedAt)) · \(a.propertyName ?? "—")"
         case .quiet:
-            return nil
+            return "Tippen zum Melden"
         }
     }
 }
@@ -505,7 +525,7 @@ private func kindIcon(_ item: WidgetItem) -> String {
     case .ticketFresh, .ticketCountOnly: return "tray.full.fill"
     case .etvNewComment: return "bubble.left.fill"
     case .announcementFresh: return "megaphone.fill"
-    case .quiet: return "checkmark.seal.fill"
+    case .quiet: return "plus.bubble.fill"
     }
 }
 
@@ -517,7 +537,7 @@ private func kindColor(_ item: WidgetItem) -> Color {
     case .ticketFresh, .ticketCountOnly: return .orange
     case .etvNewComment: return .blue
     case .announcementFresh: return .green
-    case .quiet: return .secondary
+    case .quiet: return .orange  // call-to-action — same hue as ticket card
     }
 }
 
@@ -529,7 +549,7 @@ private func kindLabel(_ item: WidgetItem) -> String {
     case .ticketFresh, .ticketCountOnly: return "Tickets"
     case .etvNewComment: return "Neue Frage"
     case .announcementFresh: return "Mitteilung"
-    case .quiet: return "WHV"
+    case .quiet: return "Anliegen melden"
     }
 }
 

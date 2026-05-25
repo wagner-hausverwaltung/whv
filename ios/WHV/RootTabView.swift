@@ -13,8 +13,10 @@ import SwiftUI
 
 struct RootTabView: View {
     @EnvironmentObject var store: LiegenschaftStore
+    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @State private var selection = 2  // start on ETV — the most
                                        // load-bearing tab today
+    @State private var newTicketSheetOpen = false
 
     private let tabCount = 5
 
@@ -28,6 +30,26 @@ struct RootTabView: View {
                 CallVerwaltungButton()
                     .padding(.trailing, 16)
                     .padding(.bottom, 64)  // floats above the tab bar
+            }
+            // Deep-link consumer: whv://new-ticket from the widget
+            // (or a Universal Link in the future) flips selection
+            // to the Tickets tab + presents the new-ticket sheet.
+            // Consume immediately so a second open of the same link
+            // re-fires the side effect.
+            .onChange(of: deepLinkRouter.pendingTarget) { _, target in
+                guard let target else { return }
+                switch target {
+                case .newTicket:
+                    selection = 1
+                    newTicketSheetOpen = true
+                }
+                deepLinkRouter.consume()
+            }
+            .sheet(isPresented: $newTicketSheetOpen) {
+                // No-op onCreated — the Tickets tab owns its store
+                // and will refresh itself on next appear. The
+                // deep-link sheet is purely an entry point.
+                NewTicketSheet { _ in }
             }
     }
 
