@@ -525,6 +525,74 @@ async def resolve_recipients(session: AsyncSession, announcement: Announcement) 
     return list(rows)
 
 
+async def resolve_comment_notification_recipients(
+    session: AsyncSession,
+    *,
+    announcement: Announcement,
+    new_comment: AnnouncementComment,
+) -> list[User]:
+    """Recipients for the "new comment on Mitteilung X" email.
+
+    Two sets, unioned + de-duped + minus the new commenter:
+      - Every active VERWALTER in the announcement's org (always — the
+        admin team owns the conversation).
+      - Every distinct author of any *non-hidden* prior comment on
+        the same announcement (thread participants).
+
+    Hidden comments don't grant their author membership — a user
+    whose post was moderated away shouldn't keep getting pinged about
+    new replies they can't see.
+    """
+    # Active VERWALTER for this org.
+    verwalter = (
+        await session.scalars(
+            select(User).where(
+                User.organization_id == announcement.organization_id,
+                User.role == UserRole.VERWALTER,
+                User.deleted_at.is_(None),
+                User.id != new_comment.author_user_id,
+            )
+        )
+    ).all()
+
+    # Prior commenters with non-hidden visibility — distinct users.
+    prior_author_ids_rows = (
+        await session.execute(
+            select(AnnouncementComment.author_user_id)
+            .where(
+                AnnouncementComment.announcement_id == announcement.id,
+                AnnouncementComment.is_hidden.is_(False),
+                AnnouncementComment.id != new_comment.id,
+                AnnouncementComment.author_user_id != new_comment.author_user_id,
+            )
+            .distinct()
+        )
+    ).all()
+    prior_author_ids = [row[0] for row in prior_author_ids_rows]
+
+    prior_users: list[User] = []
+    if prior_author_ids:
+        prior_users = list(
+            (
+                await session.scalars(
+                    select(User).where(
+                        User.id.in_(prior_author_ids),
+                        User.deleted_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+
+    seen: set[uuid.UUID] = set()
+    merged: list[User] = []
+    for u in [*verwalter, *prior_users]:
+        if u.id in seen:
+            continue
+        seen.add(u.id)
+        merged.append(u)
+    return merged
+
+
 def mark_published(announcement: Announcement) -> None:
     """Stamp `notification_sent_at = now()` so the row drops out of
     the publish-due partial index. Caller commits."""

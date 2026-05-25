@@ -34,6 +34,8 @@ from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.integrations.email.announcements import render_comment_notification_email
+from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.storage.announcements import (
     AnnouncementAttachmentStorageError,
     attachment_path,
@@ -874,11 +876,15 @@ async def my_create_comment(
     payload: AnnouncementCommentCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> AnnouncementCommentResponse:
     """Post a comment under a published announcement.
 
     Requires: announcement is published + audience-matches + caller
-    has access to the property.
+    has access to the property. On success, fires a "new comment"
+    notification to the Verwalter team + everyone who has already
+    commented on this announcement (excl. the new commenter, hidden
+    commenters); failures don't roll back the comment.
     """
     announcement = await svc.get_owner(session, announcement_id=announcement_id, user=current_user)
     if announcement is None:
@@ -909,6 +915,52 @@ async def my_create_comment(
     )
     await session.commit()
     await session.refresh(comment)
+
+    # Fan-out the "new comment" notification. Best-effort — a Resend
+    # hiccup doesn't reverse the commit (the user already saw their
+    # comment go in). Resolve recipients after the commit so the new
+    # comment is included in the prior-commenter check on retries.
+    try:
+        recipients = await svc.resolve_comment_notification_recipients(
+            session, announcement=announcement, new_comment=comment
+        )
+        if recipients:
+            prop = await session.scalar(
+                select(Property).where(Property.id == announcement.property_id)
+            )
+            property_name = prop.name if prop else "—"
+            subject, html, text = render_comment_notification_email(
+                announcement_id=str(announcement.id),
+                announcement_title=announcement.title,
+                property_name=property_name,
+                commenter_label=current_user.email,
+                comment_body=payload.body,
+                commented_at=comment.created_at,
+            )
+            for r in recipients:
+                if not r.email:
+                    continue
+                try:
+                    await email_client.send(
+                        to=[r.email],
+                        subject=subject,
+                        html=html,
+                        text=text,
+                    )
+                except EmailError:
+                    logger.warning(
+                        "comment notification send failed: announcement=%s recipient=%s",
+                        announcement.id,
+                        r.email,
+                    )
+    except Exception:
+        # Never let notification fan-out crash the request — the
+        # comment is already committed.
+        logger.exception(
+            "comment notification fan-out failed for announcement=%s",
+            announcement.id,
+        )
+
     return _comment_to_response(comment, author_email=current_user.email)
 
 

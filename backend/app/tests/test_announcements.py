@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.config import get_settings
+from app.integrations.email.client import get_email_client
 from app.main import app
 from app.models import Announcement, UserRole
 from app.tests._factories import (
@@ -71,6 +72,20 @@ class _StubEmailClient:
 
     async def aclose(self) -> None:
         return None
+
+
+@pytest_asyncio.fixture
+async def stub_email() -> AsyncIterator[_StubEmailClient]:
+    """Capture every notification email the request handler fires so
+    tests can assert recipients + subjects."""
+    stub = _StubEmailClient()
+
+    async def _override() -> AsyncIterator[_StubEmailClient]:
+        yield stub
+
+    app.dependency_overrides[get_email_client] = _override
+    yield stub
+    app.dependency_overrides.pop(get_email_client, None)
 
 
 @pytest_asyncio.fixture
@@ -587,6 +602,65 @@ async def test_owner_cannot_comment_before_publish(
             json={"body": "should not stick"},
         )
     assert r.status_code == 404
+
+
+async def test_comment_notifies_verwalter_and_prior_commenters(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """First comment → only Verwalter is pinged.
+    Second comment from a different owner → Verwalter + first commenter."""
+    org = await make_org(test_engine)
+    v_user, v_email, v_pw = await make_user(
+        test_engine, org=org, role=UserRole.VERWALTER
+    )
+    prop = await make_property(test_engine, org=org)
+    _, a_email, a_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    _, b_email, b_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    v_token = _login(v_email, v_pw)
+    a_token = _login(a_email, a_pw)
+    b_token = _login(b_email, b_pw)
+    with TestClient(app) as client:
+        ann = client.post(
+            f"/admin/properties/{prop.id}/announcements",
+            headers=_auth(v_token),
+            json={"title": "Topic", "body": ""},
+        ).json()
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Announcement, uuid.UUID(ann["id"]))
+        assert row is not None
+        row.notification_sent_at = datetime.now(UTC)
+        await s.commit()
+
+    with TestClient(app) as client:
+        # Owner A comments first. Only the Verwalter should be in
+        # the recipient set (no prior commenters yet).
+        client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(a_token),
+            json={"body": "first reply from A"},
+        )
+        first_round = [
+            entry for entry in stub_email.sent if "Kommentar" in entry["subject"]
+        ]
+        recipients_first = {to[0] for entry in first_round for to in [entry["to"]]}
+        assert recipients_first == {v_user.email}
+
+        # Owner B comments next. Recipients should now be Verwalter
+        # + Owner A (the prior non-hidden commenter), but NOT B.
+        stub_email.sent.clear()
+        client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(b_token),
+            json={"body": "second reply from B"},
+        )
+        second_round = [
+            entry for entry in stub_email.sent if "Kommentar" in entry["subject"]
+        ]
+        recipients_second = {to[0] for entry in second_round for to in [entry["to"]]}
+        assert v_email in recipients_second
+        assert a_email in recipients_second
+        assert b_email not in recipients_second
 
 
 async def test_author_can_edit_own_comment(
