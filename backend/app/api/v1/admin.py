@@ -33,6 +33,7 @@ from app.models import (
     ContactKind,
     Contract,
     ContractContact,
+    ContractType,
     Document,
     DocumentFolder,
     DocumentKind,
@@ -54,10 +55,16 @@ from app.schemas.admin import (
     AdminDashboardStats,
     AdminInviteResponse,
     AdminPropertyCompanyResponse,
+    AdminPropertyContactInviteInfo,
+    AdminPropertyContactResponse,
     AdminPropertyDetailResponse,
     AdminPropertyListItem,
     AdminPropertySearchResult,
     AdminUnitListItem,
+    BulkInviteOutcome,
+    BulkInviteOutcomeStatus,
+    BulkInviteRequest,
+    BulkInviteResponse,
     CreateInviteRequest,
     InviteStatus,
 )
@@ -1448,3 +1455,366 @@ async def download_document(
         media_type=doc.mime_type or "application/octet-stream",
         filename=f"{doc.name}{suffix}",
     )
+
+
+# =================================================================
+# Per-property contacts + bulk invite
+# =================================================================
+
+
+def _role_for_contract_type(t: ContractType) -> UserRole | None:
+    """Map Impower contract types to portal user roles.
+
+    OWNER + PROPERTY_OWNER → EIGENTUEMER. TENANT → MIETER. Anything
+    new from Impower without an explicit mapping returns None and
+    the bulk endpoint skips that contact (the Verwalter can still
+    invite manually via /admin/invites/new picking the role).
+    """
+    if t in (ContractType.OWNER, ContractType.PROPERTY_OWNER):
+        return UserRole.EIGENTUEMER
+    if t == ContractType.TENANT:
+        return UserRole.MIETER
+    return None
+
+
+async def _load_property_contacts(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> list[tuple[Contact, ContractType]]:
+    """Distinct (Contact, contract_type) rows linked to a property
+    via active contracts. Companies are included — the Einladungen
+    tab shows them as non-invitable rows so the Verwalter can see
+    the full link graph."""
+    stmt = (
+        select(Contact, Contract.type)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            Contract.property_id == property_id,
+            Contract.organization_id == organization_id,
+            Contract.deleted_at.is_(None),
+            Contact.deleted_at.is_(None),
+        )
+        .order_by(Contact.last_name.asc().nulls_last(), Contact.company_name.asc().nulls_last())
+    )
+    rows = (await session.execute(stmt)).all()
+    # Dedupe by contact_id (a contact can be on multiple contracts —
+    # the SPA only cares about the contact once; pick the first
+    # contract type seen).
+    seen: dict[uuid.UUID, tuple[Contact, ContractType]] = {}
+    for contact, ctype in rows:
+        if contact.id not in seen:
+            seen[contact.id] = (contact, ctype)
+    return list(seen.values())
+
+
+@router.get(
+    "/properties/{property_id}/contacts",
+    response_model=list[AdminPropertyContactResponse],
+)
+async def list_property_contacts(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AdminPropertyContactResponse]:
+    """Contacts linked to a property via active contracts, enriched
+    with account / pending-invite status for the Einladungen tab."""
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    pairs = await _load_property_contacts(
+        session,
+        organization_id=current_user.organization_id,
+        property_id=property_id,
+    )
+    if not pairs:
+        return []
+
+    impower_ids = [c.impower_id for c, _ in pairs if c.impower_id is not None]
+    accounts: set[int] = set()
+    if impower_ids:
+        rows = (
+            await session.execute(
+                select(User.contact_id_impower).where(
+                    User.organization_id == current_user.organization_id,
+                    User.contact_id_impower.in_(impower_ids),
+                    User.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        accounts = {r[0] for r in rows if r[0] is not None}
+
+    now = datetime.now(UTC)
+    pending_by_impower: dict[int, InviteCode] = {}
+    last_invited_by_impower: dict[int, datetime] = {}
+    if impower_ids:
+        invites = (
+            (
+                await session.execute(
+                    select(InviteCode)
+                    .where(
+                        InviteCode.organization_id == current_user.organization_id,
+                        InviteCode.contact_id_impower.in_(impower_ids),
+                    )
+                    .order_by(InviteCode.created_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for inv in invites:
+            iid = inv.contact_id_impower
+            if iid is None:
+                continue
+            # First write wins (we ordered desc) → captures the most
+            # recent invite per contact, which is what the UI labels
+            # as last_invited_at.
+            last_invited_by_impower.setdefault(iid, inv.created_at)
+            if inv.consumed_at is None and inv.expires_at > now and iid not in pending_by_impower:
+                pending_by_impower[iid] = inv
+
+    out: list[AdminPropertyContactResponse] = []
+    for contact, ctype in pairs:
+        suggested = _role_for_contract_type(ctype) or UserRole.EIGENTUEMER
+        pending = (
+            pending_by_impower.get(contact.impower_id) if contact.impower_id is not None else None
+        )
+        out.append(
+            AdminPropertyContactResponse(
+                contact_id=contact.id,
+                impower_id=contact.impower_id,
+                name=_contact_display_name(contact) or "(unbenannt)",
+                email=contact.email,
+                contract_type=ctype.value,
+                suggested_role=suggested,
+                has_user_account=(
+                    contact.impower_id is not None and contact.impower_id in accounts
+                ),
+                pending_invite=(
+                    AdminPropertyContactInviteInfo(
+                        code=pending.code,
+                        expires_at=pending.expires_at,
+                        created_at=pending.created_at,
+                    )
+                    if pending is not None
+                    else None
+                ),
+                last_invited_at=(
+                    last_invited_by_impower.get(contact.impower_id)
+                    if contact.impower_id is not None
+                    else None
+                ),
+            )
+        )
+    return out
+
+
+@router.post(
+    "/properties/{property_id}/invites/bulk",
+    response_model=BulkInviteResponse,
+)
+async def bulk_invite_property_contacts(
+    property_id: uuid.UUID,
+    req: BulkInviteRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> BulkInviteResponse:
+    """Create or refresh invites for N contacts at once.
+
+    Per contact:
+      - Skip if no email (no_email).
+      - Skip if a user account exists for the contact's
+        impower_id (account_exists).
+      - Skip if the contact's contract type doesn't map to a role
+        (no_role) — Verwalter must invite manually.
+      - If a pending unconsumed invite exists, invalidate it
+        (expires_at = now - 1s) and issue a fresh code (resent).
+      - Otherwise issue a new code (sent).
+      - Email is best-effort; a failed send still creates the
+        invite row + records the failure in the outcome.
+
+    All audited under one `bulk_invite_dispatched` action with the
+    full per-contact outcome list.
+    """
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    # Pre-load all candidate contacts WITH their contract type so we
+    # can map role. Filter to the explicitly-requested IDs.
+    pairs = await _load_property_contacts(
+        session,
+        organization_id=current_user.organization_id,
+        property_id=property_id,
+    )
+    by_id = {c.id: (c, ctype) for c, ctype in pairs}
+
+    requested = [cid for cid in req.contact_ids if cid in by_id]
+    if not requested:
+        return BulkInviteResponse(outcomes=[])
+
+    candidates = [by_id[cid] for cid in requested]
+    impower_ids = [c.impower_id for c, _ in candidates if c.impower_id is not None]
+
+    now = datetime.now(UTC)
+    accounts: set[int] = set()
+    pending_by_impower: dict[int, InviteCode] = {}
+    if impower_ids:
+        account_rows = (
+            await session.execute(
+                select(User.contact_id_impower).where(
+                    User.organization_id == current_user.organization_id,
+                    User.contact_id_impower.in_(impower_ids),
+                    User.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        accounts = {r[0] for r in account_rows if r[0] is not None}
+
+        pending_rows = (
+            (
+                await session.execute(
+                    select(InviteCode).where(
+                        InviteCode.organization_id == current_user.organization_id,
+                        InviteCode.contact_id_impower.in_(impower_ids),
+                        InviteCode.consumed_at.is_(None),
+                        InviteCode.expires_at > now,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for inv in pending_rows:
+            if inv.contact_id_impower is not None:
+                pending_by_impower[inv.contact_id_impower] = inv
+
+    outcomes: list[BulkInviteOutcome] = []
+    for contact, ctype in candidates:
+        # 1. Has account?
+        if contact.impower_id is not None and contact.impower_id in accounts:
+            outcomes.append(
+                BulkInviteOutcome(
+                    contact_id=contact.id,
+                    status=BulkInviteOutcomeStatus.SKIPPED_ACCOUNT_EXISTS,
+                    email=contact.email,
+                )
+            )
+            continue
+
+        # 2. No email?
+        if not contact.email:
+            outcomes.append(
+                BulkInviteOutcome(
+                    contact_id=contact.id,
+                    status=BulkInviteOutcomeStatus.SKIPPED_NO_EMAIL,
+                )
+            )
+            continue
+
+        # 3. Role mappable?
+        role = _role_for_contract_type(ctype)
+        if role is None:
+            outcomes.append(
+                BulkInviteOutcome(
+                    contact_id=contact.id,
+                    status=BulkInviteOutcomeStatus.SKIPPED_NO_ROLE,
+                    email=contact.email,
+                    reason=f"contract_type {ctype.value} has no role mapping",
+                )
+            )
+            continue
+
+        # 4. Invalidate any pending invite for this impower_id.
+        is_resend = False
+        if contact.impower_id is not None and contact.impower_id in pending_by_impower:
+            stale = pending_by_impower[contact.impower_id]
+            stale.expires_at = now - timedelta(seconds=1)
+            is_resend = True
+
+        # 5. Create + send.
+        code = generate_invite_code()
+        expires_at = now + timedelta(days=req.ttl_days)
+        invite = InviteCode(
+            organization_id=current_user.organization_id,
+            code=code,
+            email=contact.email.lower(),
+            contact_id_impower=contact.impower_id,
+            role=role,
+            scope_json={"property_id": str(property_id)},
+            expires_at=expires_at,
+            created_by=current_user.id,
+        )
+        session.add(invite)
+        try:
+            await session.flush()
+        except Exception as exc:  # pragma: no cover — defensive
+            outcomes.append(
+                BulkInviteOutcome(
+                    contact_id=contact.id,
+                    status=BulkInviteOutcomeStatus.FAILED,
+                    email=contact.email,
+                    reason=str(exc)[:200],
+                )
+            )
+            continue
+
+        email_error: str | None = None
+        try:
+            subject, html_body, text_body = render_invite_email(contact.email, code, role.value)
+            # Send is best-effort — the invite row exists regardless,
+            # and the per-contact outcome carries any error so the
+            # SPA can surface "Erneut senden" for the failed ones.
+            await email_client.send(
+                to=contact.email,
+                subject=subject,
+                html=html_body,
+                text=text_body,
+            )
+        except EmailError as exc:
+            email_error = str(exc)
+
+        outcomes.append(
+            BulkInviteOutcome(
+                contact_id=contact.id,
+                status=(
+                    BulkInviteOutcomeStatus.RESENT if is_resend else BulkInviteOutcomeStatus.SENT
+                ),
+                code=code,
+                email=contact.email,
+                reason=email_error[:200] if email_error else None,
+            )
+        )
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="bulk_invite_dispatched",
+            target_type="properties",
+            target_id=str(property_id),
+            payload_json={
+                "requested_count": len(req.contact_ids),
+                "outcomes": [
+                    {"contact_id": str(o.contact_id), "status": o.status.value} for o in outcomes
+                ],
+            },
+        )
+    )
+    await session.commit()
+    return BulkInviteResponse(outcomes=outcomes)

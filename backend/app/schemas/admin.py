@@ -59,6 +59,66 @@ class AdminDashboardStats(BaseModel):
     open_resolutions: int
 
 
+class AdminPropertyContactInviteInfo(BaseModel):
+    """Compact snapshot of the contact's currently-pending invite, if
+    any. None means no unconsumed + unexpired invite exists; the UI
+    surfaces this as "Einladen" vs. "Erneut senden"."""
+
+    code: str
+    expires_at: datetime
+    created_at: datetime
+
+
+class AdminPropertyContactResponse(BaseModel):
+    """One contact linked to the property via a contract, enriched
+    with their account / invite status for the Einladungen tab.
+
+    `suggested_role` is inferred from the contract type — OWNER and
+    PROPERTY_OWNER map to EIGENTUEMER, TENANT maps to MIETER. The
+    Verwalter can still override via the per-contact action.
+    """
+
+    contact_id: uuid.UUID
+    impower_id: int | None
+    name: str
+    email: str | None
+    contract_type: str  # raw enum value for the UI badge
+    suggested_role: UserRole
+    has_user_account: bool
+    pending_invite: AdminPropertyContactInviteInfo | None = None
+    last_invited_at: datetime | None = None
+
+
+class BulkInviteRequest(BaseModel):
+    """Bulk-invite N contacts on a property. The endpoint infers each
+    invite's role from the contact's contract type; if a contact has
+    no clear role mapping, it's skipped with `skipped_no_role`."""
+
+    contact_ids: list[uuid.UUID]
+    ttl_days: int = 14
+
+
+class BulkInviteOutcomeStatus(StrEnum):
+    SENT = "sent"  # fresh invite created + email sent
+    RESENT = "resent"  # old code invalidated, new code created + sent
+    SKIPPED_ACCOUNT_EXISTS = "skipped_account_exists"
+    SKIPPED_NO_EMAIL = "skipped_no_email"
+    SKIPPED_NO_ROLE = "skipped_no_role"
+    FAILED = "failed"
+
+
+class BulkInviteOutcome(BaseModel):
+    contact_id: uuid.UUID
+    status: BulkInviteOutcomeStatus
+    code: str | None = None
+    email: str | None = None
+    reason: str | None = None  # populated on FAILED
+
+
+class BulkInviteResponse(BaseModel):
+    outcomes: list[BulkInviteOutcome]
+
+
 class AdminPropertySearchResult(BaseModel):
     """Slim property row for the SPA invite/resolution typeahead picker."""
 
