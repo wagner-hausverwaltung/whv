@@ -37,14 +37,57 @@ project = Xcodeproj::Project.open(PROJ_PATH)
 app_target = project.targets.find { |t| t.name == APP_TARGET_NAME }
 abort("Could not find WHV target") unless app_target
 
+# Shared sources (visible to both targets). Loops at the end so
+# re-runs converge regardless of which targets pre-existed.
+SHARED_FILES = ['Shared/ETVActivity.swift'].freeze
+
+def ensure_shared_file(project, app_target, widget_target, relative_path)
+  # Find or create the file ref under a "Shared" group at root.
+  shared_group = project.main_group.find_subpath('Shared', true)
+  shared_group.set_source_tree('<group>')
+  shared_group.path ||= 'Shared'
+  filename = File.basename(relative_path)
+  file_ref = shared_group.files.find { |f| f.path == filename }
+  file_ref ||= shared_group.new_reference(filename)
+
+  [app_target, widget_target].compact.each do |target|
+    next if target.source_build_phase.files_references.include?(file_ref)
+    target.source_build_phase.add_file_reference(file_ref)
+  end
+end
+
 if project.targets.any? { |t| t.name == WIDGET_TARGET_NAME }
-  puts "WHVWidgets target already exists — backfilling PRODUCT_NAME and other settings if missing …"
+  puts "WHVWidgets target already exists — backfilling PRODUCT_NAME, NSSupportsLiveActivities, shared sources, and new widget files …"
   widget_target = project.targets.find { |t| t.name == WIDGET_TARGET_NAME }
   widget_target.build_configurations.each do |config|
     config.build_settings['PRODUCT_NAME'] ||= '$(TARGET_NAME)'
   end
+  # NSSupportsLiveActivities lives on the HOST app, not the widget.
+  app_target.build_configurations.each do |config|
+    config.build_settings['INFOPLIST_KEY_NSSupportsLiveActivities'] = 'YES'
+  end
+  SHARED_FILES.each do |rel|
+    ensure_shared_file(project, app_target, widget_target, rel)
+  end
+
+  # Re-scan WHVWidgets/*.swift so files dropped in after the target
+  # was first created (e.g. ETVLiveActivity, RunningLateIntent)
+  # actually land in the build phase. Same pattern PBXFileSystem-
+  # SynchronizedRootGroup gives the app target for free.
+  widget_group = project.main_group.find_subpath(WIDGET_TARGET_NAME, false)
+  if widget_group
+    Dir.glob(File.join(__dir__, '..', WIDGET_FOLDER, '*.swift')).sort.each do |path|
+      filename = File.basename(path)
+      file_ref = widget_group.files.find { |f| f.path == filename }
+      file_ref ||= widget_group.new_reference(filename)
+      unless widget_target.source_build_phase.files_references.include?(file_ref)
+        widget_target.source_build_phase.add_file_reference(file_ref)
+      end
+    end
+  end
+
   project.save
-  puts "✓ Settings updated."
+  puts "✓ Settings + shared sources + widget files updated."
 else
   puts "Adding WHVWidgets target …"
 

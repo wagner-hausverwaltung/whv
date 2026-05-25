@@ -122,6 +122,9 @@ final class AuthStore: ObservableObject {
         // Clear the widget snapshot so the next account (or no
         // account) doesn't show the previous user's next ETV.
         WidgetSync.clear()
+        // Same for the Lock Screen Live Activity — Apple keeps it
+        // alive across signs-out unless we explicitly kill it.
+        Task { await LiveActivityManager.endAll() }
         onSignOut?()
     }
 

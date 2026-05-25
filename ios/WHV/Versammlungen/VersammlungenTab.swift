@@ -37,6 +37,12 @@ final class AssemblyListStore: ObservableObject {
             // Surface the next upcoming ETV on the Lock/Home Screen
             // widget as soon as the list refreshes.
             WidgetSync.updateNextEtv(from: rows)
+            // Live Activity is a separate surface — fires only when
+            // an ETV is within 5h, so most refreshes are no-ops.
+            let api = self.api
+            await LiveActivityManager.reconcile(with: rows) { id in
+                try? await api.getAssemblyDetail(id: id)
+            }
         } catch APIError.unauthorized {
             onUnauthorized?()
         } catch let error as APIError {
