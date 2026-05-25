@@ -34,6 +34,10 @@ export function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Avatar errors live inline next to the Profilbild section, separate
+  // from the page-level `error` (which covers password reset / export /
+  // delete-account). Keeps the upload feedback in the user's eye-line.
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -44,7 +48,7 @@ export function SettingsPage() {
   const onAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setError(null);
+    setAvatarError(null);
     setAvatarBusy(true);
     try {
       const form = new FormData();
@@ -57,7 +61,17 @@ export function SettingsPage() {
       const detail = (
         err as { response?: { data?: { detail?: string } } }
       ).response?.data?.detail;
-      setError(detail ?? "Bild konnte nicht hochgeladen werden.");
+      const status = (err as { response?: { status?: number } }).response
+        ?.status;
+      // Surface the server's reason verbatim when we got one — backend
+      // already prefixes German user-facing copy ("Ungültige Bilddatei: …",
+      // "Avatar darf höchstens 4 MB groß sein.", etc.). Fall back to the
+      // generic line only when there's no body (network error / CORS).
+      const fallback =
+        status === 413
+          ? "Bild zu groß. Bitte verkleinern und erneut versuchen."
+          : "Bild konnte nicht hochgeladen werden. Bitte JPEG, PNG oder WebP wählen.";
+      setAvatarError(detail ?? fallback);
     } finally {
       setAvatarBusy(false);
       // Reset the input so picking the same file again re-triggers onChange.
@@ -66,13 +80,13 @@ export function SettingsPage() {
   };
 
   const onAvatarRemove = async () => {
-    setError(null);
+    setAvatarError(null);
     setAvatarBusy(true);
     try {
       await api.delete("/me/avatar");
       await refreshMe();
     } catch {
-      setError("Bild konnte nicht entfernt werden.");
+      setAvatarError("Bild konnte nicht entfernt werden.");
     } finally {
       setAvatarBusy(false);
     }
@@ -135,6 +149,15 @@ export function SettingsPage() {
         <Typography variant="h6" gutterBottom>
           Profilbild
         </Typography>
+        {avatarError && (
+          <Alert
+            severity="error"
+            onClose={() => setAvatarError(null)}
+            sx={{ mb: 2 }}
+          >
+            {avatarError}
+          </Alert>
+        )}
         <Stack direction="row" spacing={3} sx={{ alignItems: "center" }}>
           <Avatar
             src={
@@ -182,7 +205,12 @@ export function SettingsPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
+              // Broaden the picker hint to image/* so iPhone HEIC/HEIF
+              // shows up too. We still only persist what Pillow can
+              // decode server-side — if a HEIC slips through, the
+              // backend returns "Ungültige Bilddatei: …" which now
+              // renders in the inline Alert above.
+              accept="image/*"
               hidden
               onChange={onAvatarChange}
             />

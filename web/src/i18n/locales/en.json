@@ -64,8 +64,13 @@
     "title": "My tickets",
     "newButton": "New ticket",
     "empty": "You have not opened any tickets yet. Use this channel for enquiries, damage reports, or notes to the property manager.",
+    "noneForFilter": "No tickets for this filter.",
     "loadFailed": "Tickets could not be loaded.",
     "lastActivity": "last activity",
+    "filterLabel": "Status",
+    "filterOpen": "Open",
+    "filterAll": "All",
+    "closedHidden": "{{count}} closed hidden",
     "timeline": {
       "title": "Timeline"
     },

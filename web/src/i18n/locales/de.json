@@ -64,8 +64,13 @@
     "title": "Meine Tickets",
     "newButton": "Neues Ticket",
     "empty": "Sie haben noch keine Tickets eröffnet. Verwenden Sie diesen Kanal für Anfragen, Schadensmeldungen oder Hinweise an die Hausverwaltung.",
+    "noneForFilter": "Keine Tickets für diesen Filter.",
     "loadFailed": "Tickets konnten nicht geladen werden.",
     "lastActivity": "letzte Aktivität",
+    "filterLabel": "Status",
+    "filterOpen": "Offen",
+    "filterAll": "Alle",
+    "closedHidden": "{{count}} geschlossene ausgeblendet",
     "timeline": {
       "title": "Verlauf"
     },
