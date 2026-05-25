@@ -1,0 +1,17 @@
+# Xcode build + user-specific artefacts
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods (not currently used; defensive)
+Pods/
+
+# macOS noise
+.DS_Store
