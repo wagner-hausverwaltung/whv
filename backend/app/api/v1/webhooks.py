@@ -490,8 +490,7 @@ async def email_inbound(
                     for att in (
                         await session.scalars(
                             select(TicketMessageAttachment).where(
-                                TicketMessageAttachment.ticket_message_id
-                                == message_row.id
+                                TicketMessageAttachment.ticket_message_id == message_row.id
                             )
                         )
                     ).all()
