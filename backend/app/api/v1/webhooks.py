@@ -471,6 +471,11 @@ async def email_inbound(
                 ticket_subject=tagged_subject,
                 sender_email=parsed.sender_email,
                 message_body=parsed.body,
+                # New inbound-email tickets get the "Neues Ticket" framing
+                # so the Verwalter inbox can distinguish them from replies
+                # at a glance. Appends to existing threads use the default
+                # "Neue Nachricht zu Ticket #…" headline.
+                is_new_ticket=created_new,
             )
             await email_client.send(
                 to=",".join(recipients),

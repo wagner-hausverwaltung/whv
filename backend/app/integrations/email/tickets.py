@@ -4,22 +4,40 @@ def render_ticket_notification_email(
     ticket_subject: str,
     sender_email: str,
     message_body: str,
+    is_new_ticket: bool = False,
 ) -> tuple[str, str, str]:
-    """Returns (subject, html, text) for a new-message notification email.
+    """Returns (subject, html, text) for a ticket notification email.
+
+    `is_new_ticket=True` is the "Verwalter, an Eigentümer/Mieter just
+    opened a fresh ticket" path; the subject + headline get a "Neues
+    Ticket" prefix and the body greeting changes so the alert is
+    unambiguous in a busy inbox. Default False keeps the existing
+    "Neue Nachricht zu Ticket #…" framing for replies on existing
+    threads.
 
     German primary. Body is plain text from the user — escaped server-side in
-    the HTML version so a tag or & doesn't break the email. Once the portal
-    sees real use we'll add a deep link directly to the ticket; for now we
-    just nudge the reader to log in.
+    the HTML version so a tag or & doesn't break the email.
     """
     # [#<short_id>] bracketed format MUST match the inbound parser's regex in
     # app/integrations/email/inbound.py — that's how reply emails route back
     # to this ticket via the support@ inbox. Renaming the bracket pattern
     # without also updating the parser breaks email-thread continuity.
+    subject_prefix = "Neues Ticket: " if is_new_ticket else ""
     if f"[#{ticket_short_id}]" not in ticket_subject:
-        subject = f"[#{ticket_short_id}] {ticket_subject}"
+        subject = f"[#{ticket_short_id}] {subject_prefix}{ticket_subject}"
     else:
-        subject = ticket_subject
+        subject = f"{subject_prefix}{ticket_subject}" if subject_prefix else ticket_subject
+
+    headline = (
+        f"Neues Ticket #{ticket_short_id}"
+        if is_new_ticket
+        else f"Neue Nachricht zu Ticket #{ticket_short_id}"
+    )
+    intro_text = (
+        "ein neues Ticket wurde im WHV-Portal angelegt:"
+        if is_new_ticket
+        else "es gibt eine neue Nachricht zu Ihrem Ticket:"
+    )
 
     # Escape minimal HTML special characters for the rich body. Keep simple
     # — no markdown, no auto-linking; this is a transactional notification.
@@ -33,7 +51,7 @@ def render_ticket_notification_email(
     text = f"""\
 Hallo,
 
-es gibt eine neue Nachricht zu Ihrem Ticket:
+{intro_text}
 
   Ticket:   #{ticket_short_id} — {ticket_subject}
   Von:      {sender_email}
@@ -59,7 +77,7 @@ Wagner Hausverwaltung GmbH
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; \
 max-width: 560px; margin: 0 auto; padding: 24px; color: #212121;">
 <h1 style="font-size: 20px; margin-bottom: 16px; color: #212121;">
-  Neue Nachricht zu Ticket #{ticket_short_id}
+  {headline}
 </h1>
 <p><strong>{ticket_subject}</strong></p>
 <p style="color: #4e4b66; font-size: 14px;">Von: {sender_email}</p>

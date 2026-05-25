@@ -424,6 +424,7 @@ async def _send_message_notification(
     sender_email: str,
     headers: dict[str, str] | None = None,
     message_attachments: list[TicketMessageAttachment] | None = None,
+    is_new_ticket: bool = False,
 ) -> tuple[str | None, str | None]:
     """Best-effort send — returns (message_id, error_string). Caller is
     responsible for capturing the outcome in audit if desired.
@@ -449,6 +450,7 @@ async def _send_message_notification(
             ticket_subject=ticket.subject,
             sender_email=sender_email,
             message_body=message.body,
+            is_new_ticket=is_new_ticket,
         )
         settings = get_settings()
         msg_id = await email_client.send(
@@ -462,6 +464,16 @@ async def _send_message_notification(
         )
         return msg_id, None
     except EmailError as exc:
+        # Best-effort — caller doesn't block on failures, but a silent
+        # failure on staging is exactly how a Verwalter ended up
+        # missing new-ticket notifications. Log loud enough that the
+        # next deploy smoke catches it.
+        logger.warning(
+            "ticket notification send failed: ticket=%s recipients=%s err=%s",
+            ticket.id,
+            recipients,
+            exc,
+        )
         return None, str(exc)[:200]
 
 
@@ -553,16 +565,25 @@ async def create_my_ticket(
         )
     )
 
-    # Notify Verwalter(s) of the new ticket. Best-effort — failure to send
-    # doesn't roll back the ticket creation. No participants yet on a brand-new
-    # ticket, so we only fan out to Verwalter here.
+    # Notify every Verwalter in the org that a new ticket was opened.
+    # Best-effort — failure to send doesn't roll back the ticket
+    # creation (logged via _send_message_notification). No participants
+    # yet on a brand-new ticket, so we only fan out to Verwalter here.
+    # `is_new_ticket=True` gives the email a "Neues Ticket: …" headline
+    # so it's unambiguous in a busy inbox vs. reply notifications.
     recipients = await _verwalter_recipients(session, current_user.organization_id)
+    # Exclude the creator from the recipient list so a Verwalter who
+    # opens a test ticket from their own account doesn't see a copy
+    # of their own message back. Real Eigentümer/Mieter creators aren't
+    # Verwalter, so this is a no-op for them.
+    recipients = [r for r in recipients if r != current_user.email]
     await _send_message_notification(
         email_client=email_client,
         ticket=ticket,
         message=first_message,
         recipients=recipients,
         sender_email=current_user.email,
+        is_new_ticket=True,
     )
 
     await session.commit()
