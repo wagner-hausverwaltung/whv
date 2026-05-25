@@ -1,0 +1,483 @@
+"""Lifecycle helpers for announcements (Mitteilungen).
+
+Shared by the admin + owner API and the Celery beat publish task. None
+of these functions commit — the caller decides commit boundaries so an
+HTTP 4xx can roll back cleanly and the beat task can commit per
+announcement.
+
+Lifecycle in one paragraph: create → `scheduled_publish_at = now() +
+EDITORIAL_DELAY`. Every PATCH while unpublished resets it (each edit
+buys another 10-min review window). `publish_now()` collapses the
+remaining delay to zero so the next beat tick fans out. Once
+`notification_sent_at` is set, the row is "published"; edits to title
+/ body / audience still apply (and bump `updated_at`) but the timer
+is frozen — those changes are visible on the portal immediately.
+
+Audience filter: three independent booleans (eigentuemer / mieter /
+beirat). Fan-out resolves "users on this property whose role matches
+at least one audience flag". VERWALTER never receives the publish
+email — they sent it.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import (
+    Announcement,
+    AnnouncementAttachment,
+    AnnouncementComment,
+    Contact,
+    Contract,
+    ContractContact,
+    User,
+    UserRole,
+)
+from app.schemas.announcement import (
+    AnnouncementCreateRequest,
+    AnnouncementUpdateRequest,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# Editorial buffer between "admin saved" and "users get notified". Each
+# unpublished-state edit resets the countdown to give the admin another
+# review window. Tuned to 10 min per spec — short enough that admins
+# don't forget the message is queued, long enough to catch typos.
+EDITORIAL_DELAY = timedelta(minutes=10)
+# Threshold for "this announcement was edited after publish". Anything
+# inside this window is treated as the natural updated_at-bump on
+# publish itself (notification_sent_at + a few hundred ms). Anything
+# beyond it is a genuine user-visible edit and earns the "Bearbeitet"
+# indicator on the portal.
+EDIT_INDICATOR_GRACE = timedelta(seconds=60)
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+# ---------------------------------------------------------------------
+# Pure helpers — no DB access. Tested directly.
+# ---------------------------------------------------------------------
+
+
+def is_published(announcement: Announcement) -> bool:
+    """True once the fan-out task has stamped notification_sent_at."""
+    return announcement.notification_sent_at is not None
+
+
+def is_edited_post_publish(announcement: Announcement) -> bool:
+    """True when `updated_at` is meaningfully after `notification_sent_at`.
+
+    The grace window absorbs the trivial bump that happens during
+    publish itself (the worker writes notification_sent_at and that
+    counts as an UPDATE, advancing updated_at by a few hundred ms).
+    """
+    if announcement.notification_sent_at is None:
+        return False
+    return announcement.updated_at > (announcement.notification_sent_at + EDIT_INDICATOR_GRACE)
+
+
+def audience_roles(announcement: Announcement) -> set[UserRole]:
+    """The set of UserRole values an announcement should fan out to."""
+    out: set[UserRole] = set()
+    if announcement.audience_eigentuemer:
+        out.add(UserRole.EIGENTUEMER)
+    if announcement.audience_mieter:
+        out.add(UserRole.MIETER)
+    if announcement.audience_beirat:
+        out.add(UserRole.BEIRAT)
+    return out
+
+
+def audience_matches_role(announcement: Announcement, role: UserRole) -> bool:
+    """True if a user with this role is in the announcement's audience.
+
+    VERWALTER is never in any audience (they sent it). Owner-side reads
+    of an announcement always call this to decide visibility.
+    """
+    return role in audience_roles(announcement)
+
+
+# ---------------------------------------------------------------------
+# Create / update / publish — write helpers. Caller commits.
+# ---------------------------------------------------------------------
+
+
+def create_announcement(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+    author: User,
+    payload: AnnouncementCreateRequest,
+) -> Announcement:
+    """Build a new Announcement row and add it to the session.
+
+    Sets `scheduled_publish_at = now() + EDITORIAL_DELAY`. Caller is
+    responsible for org-scope + property-belongs-to-org + author-is-
+    VERWALTER checks before calling.
+    """
+    row = Announcement(
+        organization_id=organization_id,
+        property_id=property_id,
+        created_by_user_id=author.id,
+        title=payload.title,
+        body=payload.body,
+        audience_eigentuemer=payload.audience_eigentuemer,
+        audience_mieter=payload.audience_mieter,
+        audience_beirat=payload.audience_beirat,
+        scheduled_publish_at=_now() + EDITORIAL_DELAY,
+    )
+    session.add(row)
+    return row
+
+
+def apply_update(announcement: Announcement, payload: AnnouncementUpdateRequest) -> None:
+    """Apply a PATCH payload to an existing Announcement in place.
+
+    Pure mutation — no DB I/O, caller commits. If the announcement is
+    not yet published, also resets `scheduled_publish_at` to
+    `now() + EDITORIAL_DELAY` so each edit buys the admin another
+    review window. Once published the timer stays frozen.
+
+    Raises ValueError if the patch would leave the audience with zero
+    selected roles (resolved against current values, since a partial
+    PATCH may set only one flag).
+    """
+    if payload.title is not None:
+        announcement.title = payload.title
+    if payload.body is not None:
+        announcement.body = payload.body
+
+    # Resolve the post-patch audience state and validate at-least-one.
+    eig = (
+        payload.audience_eigentuemer
+        if payload.audience_eigentuemer is not None
+        else announcement.audience_eigentuemer
+    )
+    mie = (
+        payload.audience_mieter
+        if payload.audience_mieter is not None
+        else announcement.audience_mieter
+    )
+    bei = (
+        payload.audience_beirat
+        if payload.audience_beirat is not None
+        else announcement.audience_beirat
+    )
+    if not (eig or mie or bei):
+        raise ValueError(
+            "At least one audience flag (Eigentümer / Mieter / Beirat) must remain selected"
+        )
+    announcement.audience_eigentuemer = eig
+    announcement.audience_mieter = mie
+    announcement.audience_beirat = bei
+
+    # Editorial-buffer reset only while unpublished. Post-publish the
+    # timer is frozen — `notification_sent_at` remains the source of
+    # truth for "when did users actually see this".
+    if not is_published(announcement):
+        announcement.scheduled_publish_at = _now() + EDITORIAL_DELAY
+
+
+def publish_now(announcement: Announcement) -> None:
+    """Schedule the announcement for fan-out on the next beat tick.
+
+    Sets `scheduled_publish_at = now()`; the partial index entry
+    becomes immediately due, the Celery beat picks it up within a
+    minute. No-op if already published.
+    """
+    if is_published(announcement):
+        return
+    announcement.scheduled_publish_at = _now()
+
+
+def soft_delete(announcement: Announcement) -> None:
+    """Mark the announcement deleted_at = now().
+
+    Cascades visibility — non-admin reads filter `deleted_at IS NULL`,
+    and the publish-due partial index drops the row, so a soft-delete
+    before publish silently prevents the fan-out. Comments stay in the
+    DB (CASCADE) but become invisible by virtue of the parent being
+    hidden.
+    """
+    if announcement.deleted_at is None:
+        announcement.deleted_at = _now()
+
+
+# ---------------------------------------------------------------------
+# Read helpers — list / get with the right scope filters.
+# ---------------------------------------------------------------------
+
+
+async def list_for_property_admin(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Announcement], int]:
+    """Admin queue for a property — all announcements including drafts.
+
+    Soft-deleted rows are excluded; admin can't unhide via this list
+    (would need a separate "Papierkorb" endpoint, out of scope v1).
+    """
+    base = select(Announcement).where(
+        Announcement.organization_id == organization_id,
+        Announcement.property_id == property_id,
+        Announcement.deleted_at.is_(None),
+    )
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = (
+        await session.scalars(
+            base.order_by(Announcement.scheduled_publish_at.desc()).limit(limit).offset(offset)
+        )
+    ).all()
+    return list(rows), int(total or 0)
+
+
+async def list_for_property_owner(
+    session: AsyncSession,
+    *,
+    user: User,
+    property_id: uuid.UUID,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Announcement], int]:
+    """Portal list: published, audience-matched, not-deleted.
+
+    Caller is expected to have already confirmed the user can access
+    `property_id` via `_visible_properties_stmt`. Audience filter is
+    applied here so a user with role=EIGENTUEMER never sees a Mieter-
+    only Mitteilung even if their account technically belongs to the
+    property.
+    """
+    base = select(Announcement).where(
+        Announcement.property_id == property_id,
+        Announcement.deleted_at.is_(None),
+        Announcement.notification_sent_at.isnot(None),
+    )
+    if user.role == UserRole.EIGENTUEMER:
+        base = base.where(Announcement.audience_eigentuemer.is_(True))
+    elif user.role == UserRole.MIETER:
+        base = base.where(Announcement.audience_mieter.is_(True))
+    elif user.role == UserRole.BEIRAT:
+        base = base.where(Announcement.audience_beirat.is_(True))
+    else:
+        # VERWALTER doesn't normally hit the owner endpoint — but if
+        # they do (e.g. dogfooding their own portal), show them
+        # nothing. The admin list is the right surface for them.
+        return [], 0
+
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = (
+        await session.scalars(
+            base.order_by(Announcement.notification_sent_at.desc()).limit(limit).offset(offset)
+        )
+    ).all()
+    return list(rows), int(total or 0)
+
+
+async def get_admin(
+    session: AsyncSession,
+    *,
+    announcement_id: uuid.UUID,
+    organization_id: uuid.UUID,
+) -> Announcement | None:
+    """Fetch by id, scoped to the caller's org. Soft-deleted rows
+    excluded — admin doesn't get to peek into the trash via this
+    helper. Returns None on miss (caller maps to 404)."""
+    row: Announcement | None = await session.scalar(
+        select(Announcement).where(
+            Announcement.id == announcement_id,
+            Announcement.organization_id == organization_id,
+            Announcement.deleted_at.is_(None),
+        )
+    )
+    return row
+
+
+async def get_owner(
+    session: AsyncSession,
+    *,
+    announcement_id: uuid.UUID,
+    user: User,
+) -> Announcement | None:
+    """Fetch by id for a portal viewer.
+
+    Returns None unless the announcement is published, not deleted,
+    matches the viewer's role audience, and the viewer can access its
+    property. Property-access check is intentionally NOT done here —
+    the caller (route handler) has already loaded the visible-property
+    set via `_visible_properties_stmt`; passing it through would
+    couple this module to the API layer. Instead, this returns the row
+    if all *announcement-side* gates pass, and the caller asserts
+    property visibility separately.
+    """
+    row: Announcement | None = await session.scalar(
+        select(Announcement).where(
+            Announcement.id == announcement_id,
+            Announcement.deleted_at.is_(None),
+            Announcement.notification_sent_at.isnot(None),
+        )
+    )
+    if row is None:
+        return None
+    if not audience_matches_role(row, user.role):
+        return None
+    return row
+
+
+# ---------------------------------------------------------------------
+# Attachment + comment helpers.
+# ---------------------------------------------------------------------
+
+
+async def list_attachments(
+    session: AsyncSession, announcement_id: uuid.UUID
+) -> list[AnnouncementAttachment]:
+    rows = (
+        await session.scalars(
+            select(AnnouncementAttachment)
+            .where(AnnouncementAttachment.announcement_id == announcement_id)
+            .order_by(AnnouncementAttachment.created_at.asc())
+        )
+    ).all()
+    return list(rows)
+
+
+async def list_comments(
+    session: AsyncSession,
+    announcement_id: uuid.UUID,
+    *,
+    include_hidden: bool,
+) -> list[AnnouncementComment]:
+    """Load comments chronologically.
+
+    Owner-facing reads pass `include_hidden=False` to filter moderated
+    rows out at the DB level. Admin reads pass `True` so they can see
+    + unhide.
+    """
+    stmt = (
+        select(AnnouncementComment)
+        .where(AnnouncementComment.announcement_id == announcement_id)
+        .order_by(AnnouncementComment.created_at.asc())
+    )
+    if not include_hidden:
+        stmt = stmt.where(AnnouncementComment.is_hidden.is_(False))
+    rows = (await session.scalars(stmt)).all()
+    return list(rows)
+
+
+def add_comment(
+    session: AsyncSession,
+    *,
+    announcement: Announcement,
+    author: User,
+    body: str,
+) -> AnnouncementComment:
+    """Append a comment to a published announcement. Caller asserts
+    visibility (audience match + property participation) before
+    calling; this function only handles the DB write."""
+    comment = AnnouncementComment(
+        announcement_id=announcement.id,
+        author_user_id=author.id,
+        body=body,
+    )
+    session.add(comment)
+    return comment
+
+
+def set_comment_hidden(
+    *,
+    comment: AnnouncementComment,
+    is_hidden: bool,
+    moderator: User,
+    reason: str | None,
+) -> None:
+    """Toggle moderation. Setting `is_hidden=False` clears the
+    `hidden_*` audit fields; setting True stamps them with `moderator`
+    + `now()` + the optional reason."""
+    if is_hidden:
+        comment.is_hidden = True
+        comment.hidden_at = _now()
+        comment.hidden_by_user_id = moderator.id
+        comment.hidden_reason = reason
+    else:
+        comment.is_hidden = False
+        comment.hidden_at = None
+        comment.hidden_by_user_id = None
+        comment.hidden_reason = None
+
+
+# ---------------------------------------------------------------------
+# Celery publish-task support: find due rows, resolve recipients, mark
+# published.
+# ---------------------------------------------------------------------
+
+
+async def find_due_for_publish(
+    session: AsyncSession, *, now: datetime | None = None
+) -> list[Announcement]:
+    """Return announcements ready for fan-out.
+
+    Hits the `ix_announcements_due_for_publish` partial index. Caller
+    iterates and calls `resolve_recipients` + `mark_published` per
+    row.
+    """
+    cutoff = now or _now()
+    rows = (
+        await session.scalars(
+            select(Announcement)
+            .where(
+                Announcement.scheduled_publish_at <= cutoff,
+                Announcement.notification_sent_at.is_(None),
+                Announcement.deleted_at.is_(None),
+            )
+            .order_by(Announcement.scheduled_publish_at.asc())
+        )
+    ).all()
+    return list(rows)
+
+
+async def resolve_recipients(session: AsyncSession, announcement: Announcement) -> list[User]:
+    """Active users on the property whose role matches the audience.
+
+    Goes via the contact → contract chain (same source of truth as
+    `_visible_properties_stmt`). De-duped by user.id — a user with
+    multiple contracts on one property still gets one email.
+    """
+    roles = audience_roles(announcement)
+    if not roles:
+        return []
+    rows = (
+        await session.scalars(
+            select(User)
+            .join(Contact, Contact.impower_id == User.contact_id_impower)
+            .join(ContractContact, ContractContact.contact_id == Contact.id)
+            .join(Contract, Contract.id == ContractContact.contract_id)
+            .where(
+                Contract.property_id == announcement.property_id,
+                User.deleted_at.is_(None),
+                User.contact_id_impower.isnot(None),
+                User.role.in_(list(roles)),
+            )
+            .distinct()
+        )
+    ).all()
+    return list(rows)
+
+
+def mark_published(announcement: Announcement) -> None:
+    """Stamp `notification_sent_at = now()` so the row drops out of
+    the publish-due partial index. Caller commits."""
+    announcement.notification_sent_at = _now()
