@@ -15,7 +15,6 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-@available(iOS 17.0, *)
 struct ETVLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ETVActivityAttributes.self) { context in
@@ -54,7 +53,6 @@ struct ETVLiveActivity: Widget {
 
 // MARK: - Lock Screen card
 
-@available(iOS 17.0, *)
 private struct LockScreenView: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 
@@ -218,7 +216,6 @@ private struct LockScreenView: View {
 
 // MARK: - Dynamic Island
 
-@available(iOS 17.0, *)
 private struct CompactTrailing: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 
@@ -229,7 +226,6 @@ private struct CompactTrailing: View {
     }
 }
 
-@available(iOS 17.0, *)
 private struct ExpandedLeading: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 
@@ -246,7 +242,6 @@ private struct ExpandedLeading: View {
     }
 }
 
-@available(iOS 17.0, *)
 private struct ExpandedTrailing: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 
@@ -263,7 +258,6 @@ private struct ExpandedTrailing: View {
     }
 }
 
-@available(iOS 17.0, *)
 private struct ExpandedCenter: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 
@@ -283,7 +277,6 @@ private struct ExpandedCenter: View {
     }
 }
 
-@available(iOS 17.0, *)
 private struct ExpandedBottom: View {
     let context: ActivityViewContext<ETVActivityAttributes>
 

@@ -9,7 +9,6 @@ import ActivityKit
 import AppIntents
 import Foundation
 
-@available(iOS 17.0, *)
 struct RunningLateIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Ich komme später"
     static var description: IntentDescription = IntentDescription(

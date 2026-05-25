@@ -10,8 +10,6 @@ import WidgetKit
 struct WHVWidgetBundle: WidgetBundle {
     var body: some Widget {
         UpcomingEtvWidget()
-        if #available(iOS 17.0, *) {
-            ETVLiveActivity()
-        }
+        ETVLiveActivity()
     }
 }
