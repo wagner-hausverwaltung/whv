@@ -385,6 +385,17 @@ export interface AssemblyDetailResponse extends AssemblyResponse {
   agenda_items: AgendaItemResponse[];
 }
 
+export interface AssemblyCommentResponse {
+  id: string;
+  assembly_id: string;
+  author_user_id: string;
+  author_label: string;
+  author_role: string;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+}
+
 export const ASSEMBLY_STATUS_LABELS: Record<AssemblyStatus, string> = {
   GEPLANT: "Geplant",
   EINGELADEN: "Eingeladen",

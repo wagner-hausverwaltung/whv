@@ -43,6 +43,7 @@ from app.models import (
     AuditLog,
     EtvAgendaItem,
     EtvAssembly,
+    EtvAssemblyComment,
     EtvDiscussionEntry,
     Property,
     User,
@@ -50,15 +51,18 @@ from app.models import (
 )
 from app.schemas.etv import (
     AgendaItemResponse,
+    AssemblyCommentResponse,
     AssemblyDetailResponse,
     AssemblyResponse,
     CreateAgendaItemRequest,
+    CreateAssemblyCommentRequest,
     CreateAssemblyRequest,
     CreateDiscussionEntryRequest,
     DiscussionEntryResponse,
     InvitationUploadResponse,
     ProtocolUploadResponse,
     UpdateAgendaItemRequest,
+    UpdateAssemblyCommentRequest,
     UpdateAssemblyRequest,
 )
 from app.services import etv as svc
@@ -262,6 +266,162 @@ async def download_my_assembly_protocol(
         media_type="application/pdf",
         filename=f"protokoll-{a.id}.pdf",
     )
+
+
+# ----- Comments (Q&A thread) ------------------------------------------------
+
+
+async def _check_assembly_visible(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    assembly_id: uuid.UUID,
+) -> EtvAssembly:
+    """Loads + scope-checks an assembly for the comment routes.
+
+    Verwalter can always read/write; other roles must be linked to
+    the assembly's property via the standard owner-visibility
+    check. Raises 404 to avoid existence-leaks.
+    """
+    a = await svc.load_assembly_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        assembly_id=assembly_id,
+    )
+    if a is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
+    if current_user.role != UserRole.VERWALTER:
+        if current_user.contact_id_impower is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
+        visible = await session.scalar(
+            _visible_properties_stmt(current_user).where(Property.id == a.property_id)
+        )
+        if visible is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
+    return a
+
+
+def _comment_to_response(c: EtvAssemblyComment, author: User) -> AssemblyCommentResponse:
+    return AssemblyCommentResponse(
+        id=c.id,
+        assembly_id=c.assembly_id,
+        author_user_id=c.author_user_id,
+        author_label=author.email,
+        author_role=author.role.value,
+        body=c.body,
+        created_at=c.created_at,
+        edited_at=c.edited_at,
+    )
+
+
+@me_router.get(
+    "/assemblies/{assembly_id}/comments",
+    response_model=list[AssemblyCommentResponse],
+)
+async def list_assembly_comments(
+    assembly_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AssemblyCommentResponse]:
+    """Q&A thread under an assembly. Chronological."""
+    await _check_assembly_visible(session, current_user=current_user, assembly_id=assembly_id)
+    comments = (
+        (
+            await session.execute(
+                select(EtvAssemblyComment)
+                .where(EtvAssemblyComment.assembly_id == assembly_id)
+                .order_by(EtvAssemblyComment.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not comments:
+        return []
+    author_ids = {c.author_user_id for c in comments}
+    authors = (await session.execute(select(User).where(User.id.in_(author_ids)))).scalars().all()
+    by_id = {a.id: a for a in authors}
+    return [_comment_to_response(c, by_id[c.author_user_id]) for c in comments]
+
+
+@me_router.post(
+    "/assemblies/{assembly_id}/comments",
+    response_model=AssemblyCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_assembly_comment(
+    assembly_id: uuid.UUID,
+    req: CreateAssemblyCommentRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AssemblyCommentResponse:
+    """Post a new comment. Visible to everyone who can see the
+    assembly (Verwalter + Eigentümer/Mieter/Beirat on the property)."""
+    await _check_assembly_visible(session, current_user=current_user, assembly_id=assembly_id)
+    c = EtvAssemblyComment(
+        assembly_id=assembly_id,
+        author_user_id=current_user.id,
+        body=req.body,
+    )
+    session.add(c)
+    await session.commit()
+    await session.refresh(c)
+    return _comment_to_response(c, current_user)
+
+
+@me_router.patch(
+    "/assembly-comments/{comment_id}",
+    response_model=AssemblyCommentResponse,
+)
+async def edit_assembly_comment(
+    comment_id: uuid.UUID,
+    req: UpdateAssemblyCommentRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AssemblyCommentResponse:
+    """Author-only edit. Verwalter cannot edit other users' comments
+    (moderation = hide/delete, not silent rewrite)."""
+    c = await session.get(EtvAssemblyComment, comment_id)
+    if c is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    if c.author_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the author can edit a comment",
+        )
+    await _check_assembly_visible(session, current_user=current_user, assembly_id=c.assembly_id)
+    c.body = req.body
+    c.edited_at = svc._now()
+    await session.commit()
+    await session.refresh(c)
+    return _comment_to_response(c, current_user)
+
+
+@me_router.delete(
+    "/assembly-comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_assembly_comment(
+    comment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """Author OR Verwalter can delete. Hard delete — moderation is
+    out of scope for the Q&A v1; if abuse becomes a thing we'll
+    layer in `is_hidden` like announcement comments."""
+    c = await session.get(EtvAssemblyComment, comment_id)
+    if c is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    is_author = c.author_user_id == current_user.id
+    is_verwalter = current_user.role == UserRole.VERWALTER
+    if not (is_author or is_verwalter):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the author or a Verwalter can delete a comment",
+        )
+    await _check_assembly_visible(session, current_user=current_user, assembly_id=c.assembly_id)
+    await session.delete(c)
+    await session.commit()
 
 
 # =================================================================

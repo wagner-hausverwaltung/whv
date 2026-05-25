@@ -373,6 +373,60 @@ class EtvAgendaItem(TimestampMixin, Base):
     )
 
 
+class EtvAssemblyComment(Base):
+    """Q&A thread under an ETV. Distinct from `EtvDiscussionEntry`
+    (which captures Wortmeldungen *during* the meeting) — these are
+    post-publication questions from Eigentümer + replies from the
+    Verwalter, visible alongside the formal protocol.
+
+    Trimmed shape vs. `announcement_comments`: no moderation flags,
+    no version history table. Body is one of two things:
+
+      1. A question from an Eigentümer.
+      2. A reply from the Verwalter / Beirat.
+
+    Identity comes from `author_user_id`; the rendering layer uses
+    the user's role to badge it visually.
+    """
+
+    __tablename__ = "etv_assembly_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid7_pk,
+    )
+    assembly_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("etv_assemblies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    author_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    # NULL = never edited. Renderer shows "(bearbeitet)" when set.
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
 class EtvDiscussionEntry(Base):
     """A single discussion contribution under one agenda item.
 

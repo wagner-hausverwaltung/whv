@@ -38,6 +38,7 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
+import { AssemblyComments } from "@/pages/AssemblyComments";
 import {
   AGENDA_ITEM_TYPE_LABELS,
   ASSEMBLY_STATUS_LABELS,
@@ -149,6 +150,10 @@ export function AdminAssemblyDetailPage() {
         assembly={assembly}
         onChanged={(a) => setAssembly(a)}
       />
+
+      {/* Verwalter participates in the Q&A from the same surface
+          they edit the assembly on — fewer tabs to bounce between. */}
+      <AssemblyComments assemblyId={assembly.id} />
     </Stack>
   );
 }

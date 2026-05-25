@@ -32,6 +32,7 @@ import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
+import { AssemblyComments } from "@/pages/AssemblyComments";
 import {
   AGENDA_ITEM_TYPE_LABELS,
   VOTING_BASIS_LABELS,
@@ -403,6 +404,10 @@ export function MyAssemblyDetailPage() {
           </Typography>
         )}
       </Box>
+
+      {/* Q&A — post-publication conversation, separate from the
+          in-meeting Diskussion captured per-TOP above. */}
+      <AssemblyComments assemblyId={a.id} />
     </Stack>
   );
 }

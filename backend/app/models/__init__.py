@@ -36,6 +36,7 @@ from app.models.etv import (
     AssemblyStatus,
     EtvAgendaItem,
     EtvAssembly,
+    EtvAssemblyComment,
     EtvDiscussionEntry,
 )
 from app.models.llm_audit import LLMAuditLog
@@ -82,6 +83,7 @@ __all__ = [
     "DocumentVisibility",
     "EtvAgendaItem",
     "EtvAssembly",
+    "EtvAssemblyComment",
     "EtvDiscussionEntry",
     "InviteCode",
     "LLMAuditLog",

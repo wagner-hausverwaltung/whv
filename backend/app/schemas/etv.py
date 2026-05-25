@@ -211,6 +211,34 @@ class AssemblyDetailResponse(AssemblyResponse):
 # ---------- Invitation upload ----------
 
 
+# ---------- Assembly comments (Q&A thread) ----------
+
+
+class AssemblyCommentResponse(BaseModel):
+    """One Q&A entry. `author_role` is denormalised on the response
+    so the portal can badge "Verwalter" replies visually without a
+    separate fetch."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    assembly_id: uuid.UUID
+    author_user_id: uuid.UUID
+    author_label: str  # email or display name
+    author_role: str  # "verwalter" | "eigentuemer" | "mieter" | "beirat" | "dienstleister"
+    body: str
+    created_at: datetime
+    edited_at: datetime | None
+
+
+class CreateAssemblyCommentRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=10_000)
+
+
+class UpdateAssemblyCommentRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=10_000)
+
+
 class InvitationUploadResponse(BaseModel):
     """Echoed after a successful Einladung PDF upload. The extraction
     task is enqueued before the response returns; the admin SPA polls
