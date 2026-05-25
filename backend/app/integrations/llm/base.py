@@ -94,13 +94,13 @@ class NullProvider:
         prompt: str,
         response_schema: type[T],
     ) -> LLMResult[T]:
-        raise LLMProviderUnavailable(
+        raise LLMProviderUnavailableError(
             "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). "
             "Extraction skipped."
         )
 
 
-class LLMProviderUnavailable(RuntimeError):
+class LLMProviderUnavailableError(RuntimeError):
     """Raised by NullProvider when an extraction call hits it. The
     Celery task catches this specifically + writes a "skipped" audit
     row rather than retrying — no amount of retries will conjure a

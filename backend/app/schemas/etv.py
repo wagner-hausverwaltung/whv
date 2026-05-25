@@ -18,7 +18,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models import AgendaItemType, AgendaItemVoteResult, AssemblyStatus
 
-
 # ---------- Agenda items ----------
 
 

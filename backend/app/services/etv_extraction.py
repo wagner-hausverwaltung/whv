@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.integrations.llm import get_llm_provider
 from app.integrations.llm.base import (
     LLMProvider,
-    LLMProviderUnavailable,
+    LLMProviderUnavailableError,
 )
 from app.models import (
     AgendaItemType,
@@ -196,7 +196,7 @@ async def extract_and_apply(
             prompt=_PROMPT,
             response_schema=ExtractedAssembly,
         )
-    except LLMProviderUnavailable as exc:
+    except LLMProviderUnavailableError as exc:
         await llm_audit.record(
             session,
             organization_id=assembly.organization_id,

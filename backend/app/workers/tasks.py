@@ -20,6 +20,7 @@ from app.models import (
     Announcement,
     AnnouncementAttachment,
     CircularResolution,
+    Document,
     Property,
     ResolutionStatus,
     SendAttemptStatus,
@@ -417,7 +418,7 @@ async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
         await engine.dispose()
 
 
-async def _fetch_invitation_pdf_bytes(doc: "Document") -> bytes | None:  # type: ignore[name-defined]
+async def _fetch_invitation_pdf_bytes(doc: Document) -> bytes | None:
     """Best-effort source the PDF bytes for an invitation document.
 
     Order:
@@ -434,9 +435,9 @@ async def _fetch_invitation_pdf_bytes(doc: "Document") -> bytes | None:  # type:
 
     if doc.storage_url:
         p = Path(doc.storage_url)
-        if p.exists():
+        if p.exists():  # noqa: ASYNC240 — Celery task already runs blocking IO
             try:
-                return p.read_bytes()
+                return p.read_bytes()  # noqa: ASYNC240
             except OSError:
                 logger.exception("failed to read local invitation %s", p)
 

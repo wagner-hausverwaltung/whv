@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.models import (
     AssemblyStatus,
@@ -26,7 +26,7 @@ from app.tests._factories import make_org, make_property
 
 
 async def _make_invitation_doc(
-    sm,
+    sm: async_sessionmaker[AsyncSession],
     *,
     org_id: uuid.UUID,
     property_id: uuid.UUID,

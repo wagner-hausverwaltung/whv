@@ -41,7 +41,6 @@ from app.tests._factories import (
     make_user,
 )
 
-
 # --- Fixtures ----------------------------------------------------------------
 
 
@@ -63,7 +62,8 @@ def _login(email: str, password: str) -> str:
     with TestClient(app) as client:
         r = client.post("/auth/login", json={"email": email, "password": password})
     r.raise_for_status()
-    return r.json()["access_token"]
+    token: str = r.json()["access_token"]
+    return token
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -133,7 +133,7 @@ async def _seed(engine: AsyncEngine) -> _Seed:
 
 def _create_assembly(
     token: str, prop_id: str, *, start_offset_min: int = 60 * 24 * 7
-) -> dict:
+) -> dict[str, object]:
     body = {
         "property_id": prop_id,
         "title": "Ordentliche Eigentümerversammlung 2026",
@@ -149,7 +149,8 @@ def _create_assembly(
             headers=_auth(token),
         )
     r.raise_for_status()
-    return r.json()
+    data: dict[str, object] = r.json()
+    return data
 
 
 # --- Admin gating ------------------------------------------------------------
@@ -385,7 +386,11 @@ async def test_agenda_appears_in_detail_with_discussion(test_engine: AsyncEngine
         )
         client.post(
             f"/admin/agenda-items/{item_id}/discussion",
-            json={"position": 1, "speaker_label": "Herr Müller (Wo. 4)", "content": "Bitte um Klarstellung."},
+            json={
+                "position": 1,
+                "speaker_label": "Herr Müller (Wo. 4)",
+                "content": "Bitte um Klarstellung.",
+            },
             headers=_auth(v_token),
         )
 

@@ -54,12 +54,15 @@ from app.models.unit import Unit, UnitType
 from app.models.user import InviteCode, PasswordResetToken, Session, User, UserRole
 
 __all__ = [
+    "AgendaItemType",
+    "AgendaItemVoteResult",
     "Announcement",
     "AnnouncementAttachment",
     "AnnouncementComment",
     "AnnouncementCommentVersion",
     "AnnouncementSendAttempt",
     "AnnouncementUnit",
+    "AssemblyStatus",
     "AuditLog",
     "Building",
     "CircularResolution",
@@ -70,9 +73,6 @@ __all__ = [
     "Contract",
     "ContractContact",
     "ContractType",
-    "AgendaItemType",
-    "AgendaItemVoteResult",
-    "AssemblyStatus",
     "Document",
     "DocumentFolder",
     "DocumentKind",

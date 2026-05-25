@@ -365,7 +365,10 @@ async def admin_update_assembly(
     for field, value in data.items():
         old = getattr(a, field)
         if old != value:
-            diff[field] = {"from": str(old) if old is not None else None, "to": str(value) if value is not None else None}
+            diff[field] = {
+                "from": str(old) if old is not None else None,
+                "to": str(value) if value is not None else None,
+            }
             setattr(a, field, value)
     # Reject scheduled_end <= scheduled_start after the patch lands.
     if a.scheduled_end <= a.scheduled_start:
@@ -450,12 +453,12 @@ async def admin_add_agenda_item(
     session.add(item)
     try:
         await session.flush()
-    except Exception:
+    except Exception as exc:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Another agenda item already exists at this position",
-        )
+        ) from exc
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -514,20 +517,24 @@ async def admin_update_agenda_item(
         setattr(item, field, value)
     # Enforce the same rule the create schema enforces: BESCHLUSS-only
     # fields must be empty on non-BESCHLUSS rows.
-    if item.type != AgendaItemType.BESCHLUSS:
-        if item.beschluss_text is not None or item.vote_required_quorum is not None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="beschluss_text + vote_required_quorum only allowed when type=BESCHLUSS",
-            )
+    if item.type != AgendaItemType.BESCHLUSS and (
+        item.beschluss_text is not None or item.vote_required_quorum is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "beschluss_text + vote_required_quorum only allowed when "
+                "type=BESCHLUSS"
+            ),
+        )
     try:
         await session.commit()
-    except Exception:
+    except Exception as exc:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Another agenda item already exists at this position",
-        )
+        ) from exc
     await session.refresh(item)
     return AgendaItemResponse(
         id=item.id,
@@ -602,12 +609,12 @@ async def admin_add_discussion_entry(
     session.add(entry)
     try:
         await session.flush()
-    except Exception:
+    except Exception as exc:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Another discussion entry already exists at this position",
-        )
+        ) from exc
     await session.commit()
     await session.refresh(entry)
     return DiscussionEntryResponse.model_validate(entry)
@@ -669,7 +676,7 @@ async def admin_upload_protocol(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
 
     upload_root = Path(settings.etv_protocol_dir)
-    upload_root.mkdir(parents=True, exist_ok=True)
+    upload_root.mkdir(parents=True, exist_ok=True)  # noqa: ASYNC240 — file IO at startup of a one-off upload, low-volume route
     target = upload_root / f"{a.id}.pdf"
     # Stream copy to avoid pulling the entire PDF into memory.
     # Enforce the configured size cap as we go — anything over kills

@@ -24,8 +24,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.models._mixins import OrganizationScopedMixin
-from app.models.user import uuid7_pk
+from app.models._mixins import OrganizationScopedMixin, uuid7_pk
 
 
 class LLMAuditLog(OrganizationScopedMixin, Base):

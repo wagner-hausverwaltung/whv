@@ -61,8 +61,8 @@ class GeminiProvider:
         # instance — only Celery actually talks to Gemini).
         import google.generativeai as genai
 
-        genai.configure(api_key=self._api_key)
-        model = genai.GenerativeModel(
+        genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
+        model = genai.GenerativeModel(  # type: ignore[attr-defined]
             self._model_name,
             generation_config={  # type: ignore[arg-type]
                 "response_mime_type": "application/json",

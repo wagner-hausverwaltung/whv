@@ -9,7 +9,6 @@ in the service surface here, not in production.
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -19,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.integrations.llm.base import (
     LLMCallStats,
     LLMParseError,
-    LLMProviderUnavailable,
+    LLMProviderUnavailableError,
     LLMResult,
 )
 from app.models import (
@@ -35,7 +34,6 @@ from app.services.etv_extraction import (
     extract_and_apply,
 )
 from app.tests._factories import make_org, make_property, make_user
-
 
 # ---------------------------------------------------------------------------
 # Mock provider
@@ -94,19 +92,6 @@ def _make_payload(
     )
 
 
-async def _make_assembly(sm) -> tuple[uuid.UUID, uuid.UUID]:
-    """Create a stub assembly + return (assembly_id, org_id)."""
-    return await _make_assembly_in(sm, verified=False)
-
-
-async def _make_assembly_in(sm, *, verified: bool) -> tuple[uuid.UUID, uuid.UUID]:
-    # The engine + org/property are seeded via the public factories
-    # so we get a real organization + property row to FK against.
-    # We have to call factories outside the session because they
-    # open their own connection.
-    raise NotImplementedError  # replaced below per test
-
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -143,7 +128,7 @@ async def test_apply_writes_assembly_fields_and_agenda(
             assembly_id=stub_id,
             pdf_bytes=b"%PDF-fake",
             source_document_id=None,
-            provider=provider,
+            provider=provider,  # type: ignore[arg-type]
         )
         await s.commit()
     assert outcome == "applied"
@@ -211,7 +196,7 @@ async def test_apply_is_noop_when_verified(test_engine: AsyncEngine) -> None:
             assembly_id=stub_id,
             pdf_bytes=b"%PDF-fake",
             source_document_id=None,
-            provider=provider,
+            provider=provider,  # type: ignore[arg-type]
         )
         await s.commit()
     assert outcome == "skipped_verified"
@@ -261,7 +246,7 @@ async def test_apply_records_provider_unavailable(
 
     provider = _MockProvider(
         _make_payload(),
-        raise_with=LLMProviderUnavailable("no key configured"),
+        raise_with=LLMProviderUnavailableError("no key configured"),
     )
 
     async with sm() as s:
@@ -270,7 +255,7 @@ async def test_apply_records_provider_unavailable(
             assembly_id=stub_id,
             pdf_bytes=b"x",
             source_document_id=None,
-            provider=provider,
+            provider=provider,  # type: ignore[arg-type]
         )
         await s.commit()
     assert outcome == "skipped_provider_unavailable"
@@ -328,7 +313,7 @@ async def test_apply_records_parse_error_and_reraises(
                 assembly_id=stub_id,
                 pdf_bytes=b"x",
                 source_document_id=None,
-                provider=provider,
+                provider=provider,  # type: ignore[arg-type]
             )
         # Even with the raise, the audit insert in this session is
         # rolled back unless we commit the audit-only write. The

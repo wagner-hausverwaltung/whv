@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.integrations.llm.base import (
     LLMCallStats,
     LLMParseError,
-    LLMProviderUnavailable,
+    LLMProviderUnavailableError,
 )
 from app.models import LLMAuditLog
 
@@ -73,7 +73,7 @@ async def record(
 def status_for_exception(exc: BaseException) -> AuditStatus:
     """Map a provider exception to the audit `status` column. Used
     by the extraction Celery task to keep the mapping in one place."""
-    if isinstance(exc, LLMProviderUnavailable):
+    if isinstance(exc, LLMProviderUnavailableError):
         return "skipped_provider_unavailable"
     if isinstance(exc, LLMParseError):
         return "parse_error"
