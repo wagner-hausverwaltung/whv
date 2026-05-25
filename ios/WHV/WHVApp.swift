@@ -1,37 +1,59 @@
 // WHV iOS — Phase 2 starter scaffold.
 //
-// Two screens at the root level: the LiegenschaftPickerView (when
-// no Liegenschaft is selected yet) and the main RootTabView (once
-// the user has picked one). Selection persists in UserDefaults via
-// LiegenschaftStore, so a returning user lands straight on the
-// main view; "Liegenschaft wechseln" in Einstellungen clears the
-// selection and sends the user back to the picker.
+// Three-stage startup:
+//   1. Not signed in        → LoginView (mirrors portal /auth/login)
+//   2. Signed in, no prop   → LiegenschaftPickerView
+//   3. Signed in + prop     → RootTabView (the main app)
 //
-// The store is created at the App level so a single instance
-// serves both the picker and the tabs — switching contexts mid-
-// session is a one-line state mutation, no view-tree gymnastics.
+// All three stores live at the App level so a single instance
+// serves the whole view tree — sign-out / picker-clear / settings
+// changes are single-line state mutations, no view-tree gymnastics.
+//
+// SettingsStore drives the appearance + locale environment at the
+// root so any view downstream picks them up automatically.
 
 import SwiftUI
 
 @main
 struct WHVApp: App {
+    @StateObject private var authStore = AuthStore()
     @StateObject private var liegenschaftStore = LiegenschaftStore()
+    @StateObject private var settings = SettingsStore()
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if liegenschaftStore.selected != nil {
-                    RootTabView()
-                } else {
-                    LiegenschaftPickerView()
-                }
-            }
-            .environmentObject(liegenschaftStore)
-            // Cross-fade between picker and main view on selection
-            // change — feels less abrupt than the default opacity
-            // swap, especially on Liegenschaft wechseln (where the
-            // user is consciously triggering the transition).
-            .animation(.easeInOut(duration: 0.25), value: liegenschaftStore.selected)
+            rootView
+                .environmentObject(authStore)
+                .environmentObject(liegenschaftStore)
+                .environmentObject(settings)
+                // .system maps to nil → app follows the device.
+                // .light/.dark force the override on every view in
+                // the tree.
+                .preferredColorScheme(settings.appearance.colorScheme)
+                // Locale override only applies when language !=
+                // System — otherwise SwiftUI uses Locale.current,
+                // which respects device settings.
+                .environment(
+                    \.locale,
+                    settings.language.locale ?? Locale.current
+                )
+                // Cross-fade transitions on the auth + Liegenschaft
+                // gates so the user sees a smooth swap, not a hard
+                // cut, when sign-in completes or "Liegenschaft
+                // wechseln" fires.
+                .animation(.easeInOut(duration: 0.25), value: authStore.signedIn)
+                .animation(.easeInOut(duration: 0.25), value: liegenschaftStore.selected)
+        }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        if !authStore.signedIn {
+            LoginView()
+        } else if liegenschaftStore.selected == nil {
+            LiegenschaftPickerView()
+        } else {
+            RootTabView()
         }
     }
 }

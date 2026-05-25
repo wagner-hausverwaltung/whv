@@ -1,11 +1,11 @@
 // Main app shell — visible only after the user has selected a
-// Liegenschaft. Four tabs: Tickets / Mitteilungen / Fachinfos /
-// Einstellungen. Liegenschaften is *not* a tab — it's the startup
-// screen + a switch action on Einstellungen.
+// Liegenschaft. Four tabs: Mitteilungen / Tickets / News /
+// Einstellungen. Liegenschaft is *not* a tab — it's the startup
+// screen + a switcher row at the top of Einstellungen.
 //
-// Fachinfos is the only tab fully wired up; the other property-
-// scoped ones render `ComingSoonView` placeholders that show the
-// active Liegenschaft as context so the user can see which property
+// News is the only tab fully wired up; the other property-scoped
+// ones render `ComingSoonView` placeholders that show the active
+// Liegenschaft as context so the user can see which property
 // they'd be acting on once Phase 2 fills these in.
 
 import SwiftUI
@@ -16,15 +16,6 @@ struct RootTabView: View {
     var body: some View {
         TabView {
             ComingSoonView(
-                title: "Tickets",
-                subtitle: "Schaden- und Anfrage-Tickets",
-                contextLiegenschaft: store.selected
-            )
-            .tabItem {
-                Label("Tickets", systemImage: "tray.full")
-            }
-
-            ComingSoonView(
                 title: "Mitteilungen",
                 subtitle: "Verwalter-Mitteilungen",
                 contextLiegenschaft: store.selected
@@ -33,9 +24,18 @@ struct RootTabView: View {
                 Label("Mitteilungen", systemImage: "megaphone")
             }
 
-            FachinfosTab()
+            ComingSoonView(
+                title: "Tickets",
+                subtitle: "Schaden- und Anfrage-Tickets",
+                contextLiegenschaft: store.selected
+            )
+            .tabItem {
+                Label("Tickets", systemImage: "tray.full")
+            }
+
+            NewsTab()
                 .tabItem {
-                    Label("Fachinfos", systemImage: "newspaper")
+                    Label("News", systemImage: "newspaper")
                 }
 
             EinstellungenView()
@@ -96,68 +96,96 @@ struct ComingSoonView: View {
     }
 }
 
-/// Settings — minimal v1 shape. Currently exposes only the active
-/// Liegenschaft + a "wechseln" action that drops the selection and
-/// kicks the user back to the picker. Phase 2 grows this into the
-/// full Profile/Sprache/Biometrie/Konto löschen surface from
-/// REQUIREMENTS.md §8.3.
+/// Settings — top row is the active Liegenschaft (compact, no
+/// explainer copy; the user knows what it is). Tapping the
+/// trailing arrow-swap icon clears the selection and bounces back
+/// to the picker. Below: Erscheinungsbild + Sprache (both default
+/// System), then the marketing-site legal links opened in Safari.
 struct EinstellungenView: View {
-    @EnvironmentObject var store: LiegenschaftStore
+    @EnvironmentObject var liegenschaftStore: LiegenschaftStore
+    @EnvironmentObject var settings: SettingsStore
 
     var body: some View {
         NavigationStack {
             List {
-                if let l = store.selected {
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(l.name).font(.headline)
-                            Text(l.address)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            if let type = l.type {
-                                Text(type)
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.top, 2)
+                // Liegenschaft pinned to the top — bare row, no
+                // section header / footer copy. Users rarely
+                // switch; we want a clean tap target rather than a
+                // mini-tutorial.
+                if let l = liegenschaftStore.selected {
+                    Button {
+                        liegenschaftStore.clear()
+                    } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(l.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(l.address)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
+                            Spacer(minLength: 8)
+                            Image(systemName: "arrow.left.arrow.right")
+                                .font(.body)
+                                .foregroundStyle(.tint)
                         }
-                        .padding(.vertical, 4)
-                        Button(role: .destructive) {
-                            store.clear()
-                        } label: {
-                            Label("Liegenschaft wechseln", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    } header: {
-                        Text("Aktive Liegenschaft")
-                    } footer: {
-                        Text(
-                            "Wechseln startet die Liegenschaft-Auswahl neu. "
-                                + "Andere Einstellungen bleiben erhalten."
-                        )
+                        .padding(.vertical, 2)
                     }
                 }
 
-                Section {
-                    placeholderRow("Profil", systemImage: "person.crop.circle")
-                    placeholderRow("Sprache", systemImage: "globe")
-                    placeholderRow("Benachrichtigungen", systemImage: "bell")
-                    placeholderRow("Biometrische Sperre", systemImage: "faceid")
-                } header: {
-                    Text("Folgt in Phase 2")
+                Section("Erscheinungsbild") {
+                    Picker("Modus", selection: $settings.appearance) {
+                        ForEach(AppearancePreference.allCases) { p in
+                            Text(p.label).tag(p)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Sprache") {
+                    Picker("Sprache", selection: $settings.language) {
+                        ForEach(LanguagePreference.allCases) { p in
+                            Text(p.label).tag(p)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Rechtliches") {
+                    legalLink(
+                        "Impressum",
+                        url: "https://wagner-hausverwaltung.com/impressum"
+                    )
+                    legalLink(
+                        "Datenschutzerklärung",
+                        url: "https://wagner-hausverwaltung.com/datenschutz"
+                    )
+                    legalLink(
+                        "Cookie-Richtlinie (EU)",
+                        url: "https://wagner-hausverwaltung.com/cookie"
+                    )
                 }
             }
             .navigationTitle("Einstellungen")
         }
     }
 
-    private func placeholderRow(_ label: String, systemImage: String) -> some View {
-        HStack {
-            Label(label, systemImage: systemImage)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("noch nicht verfügbar")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+    private func legalLink(_ label: String, url: String) -> some View {
+        // Link opens the URL in the system browser (Safari). For an
+        // in-app web view we'd use WKWebView like ArticleDetailView,
+        // but for legal pages the convention is to hand off to
+        // Safari so the user can bookmark / share / read in their
+        // own tab session.
+        Link(destination: URL(string: url)!) {
+            HStack {
+                Text(label)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 }
@@ -169,4 +197,5 @@ struct EinstellungenView: View {
             s.select(Liegenschaft.demo[0])
             return s
         }())
+        .environmentObject(SettingsStore())
 }

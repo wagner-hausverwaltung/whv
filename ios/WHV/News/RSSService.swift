@@ -33,7 +33,7 @@ enum RSSError: Error, LocalizedError {
 /// but URLSession's default caching policy already respects the
 /// HTTP cache headers, so we don't need our own layer.
 struct RSSService {
-    /// The canonical Fachinfos feed.
+    /// The canonical News feed (vermieter1x1.de Fachinfo RSS).
     static let defaultFeedURL = URL(string: "https://www.vermieter1x1.de/Fachinfo/rss/")!
 
     let feedURL: URL

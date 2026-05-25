@@ -1,12 +1,15 @@
-// The Fachinfos tab: a list of cards rendered from the
-// vermieter1x1.de RSS feed. Tapping a card pushes
-// `ArticleDetailView`, which opens the article in a WKWebView (iOS
-// equivalent of an HTML iframe, per the request).
+// The News tab: a list of cards rendered from the vermieter1x1.de
+// RSS feed. Tapping a card pushes `ArticleDetailView`, which opens
+// the article in a WKWebView (iOS equivalent of an HTML iframe,
+// per the original request).
+//
+// No explicit refresh button — pull-to-refresh is the iOS-native
+// gesture and the toolbar button would just duplicate it.
 
 import SwiftUI
 
 @MainActor
-final class FachinfosViewModel: ObservableObject {
+final class NewsViewModel: ObservableObject {
     @Published var items: [RSSItem] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -34,23 +37,13 @@ final class FachinfosViewModel: ObservableObject {
     }
 }
 
-struct FachinfosTab: View {
-    @StateObject private var vm = FachinfosViewModel()
+struct NewsTab: View {
+    @StateObject private var vm = NewsViewModel()
 
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("Fachinfos")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            Task { await vm.load() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .disabled(vm.isLoading)
-                    }
-                }
+                .navigationTitle("News")
                 .task {
                     if vm.items.isEmpty {
                         await vm.load()
@@ -98,7 +91,7 @@ struct FachinfosTab: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 40))
                 .foregroundStyle(.orange)
-            Text("Konnte Fachinfos nicht laden")
+            Text("News konnten nicht geladen werden")
                 .font(.headline)
             Text(message)
                 .font(.subheadline)
@@ -119,7 +112,7 @@ struct FachinfosTab: View {
             Image(systemName: "newspaper")
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
-            Text("Keine Fachinfos verfügbar.")
+            Text("Keine News verfügbar.")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,5 +170,5 @@ struct RSSItemCard: View {
 }
 
 #Preview {
-    FachinfosTab()
+    NewsTab()
 }
