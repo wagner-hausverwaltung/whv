@@ -99,3 +99,52 @@ The full screen list from REQUIREMENTS.md §8.3:
 Plus cross-screen: pull-to-refresh on every list (✅ Fachinfos
 already), skeleton loaders, offline banner, APNs push registration,
 biometric lock, deep links (`whv://invite/CODE`, `whv://ticket/123`).
+
+## Troubleshooting
+
+### "Build succeeded" but nothing opens on my Mac
+
+You probably selected **"My Mac"** as the destination — that's the
+*run-on-Mac-natively* option, not the Simulator. With
+`SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES` enabled (2026-05-25)
+the app will launch as a Mac window when you pick **"My Mac
+(Designed for iPad)"**. Apple Silicon required.
+
+For the **iOS Simulator**, pick a destination that's explicitly an
+iPhone or iPad with a `(Simulator)` suffix — e.g. *iPhone 17* or
+*iPad Pro 13-inch (M4)*. Xcode auto-launches the Simulator on first
+run. If you don't see iOS Simulator entries in the destination
+dropdown, the Simulator runtime isn't installed: Xcode → Settings →
+Platforms → install "iOS 18+".
+
+### "Build succeeded" but nothing opens on my iPad
+
+The build compiles, then Xcode tries to install + launch over USB
+or Wi-Fi. Three things can quietly trip this up:
+
+1. **Developer Mode (iOS 16+)** must be **on** on the iPad. The
+   first install attempt prompts you to enable it: open Settings →
+   Privacy & Security → scroll to **Developer Mode** → toggle on →
+   restart the iPad. Without this the install silently fails.
+
+2. **Trust the personal team certificate.** The free Personal Team
+   signs with an ad-hoc cert your iPad doesn't trust by default.
+   After Xcode says it installed: on the iPad, open Settings →
+   General → **VPN & Device Management** → tap the Apple ID under
+   "Developer App" → Trust.
+
+3. **Personal Team has a 3-bundle-ID / 7-day cap.** If you've been
+   signing other test apps with the same Apple ID you might be at
+   the limit. Either delete an unused app from the Apple ID, or
+   wait. The error shows in Xcode's *Window → Devices and
+   Simulators* console.
+
+Open **Xcode → Window → Devices and Simulators**, click the iPad in
+the sidebar, and look at "View Device Logs" or the inline error.
+Any "couldn't install" / "couldn't launch" message there is the
+actual signal — the build-succeeded toast hides install failures.
+
+### "Untrusted Developer" when tapping the icon
+
+You skipped step 2 above. Settings → General → VPN & Device
+Management → Trust.
