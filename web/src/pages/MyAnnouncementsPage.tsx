@@ -21,7 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 import AttachmentIcon from "@mui/icons-material/AttachFile";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AnnouncementResponse } from "@/api/types";
