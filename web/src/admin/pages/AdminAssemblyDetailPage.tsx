@@ -28,12 +28,15 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Close";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import { api } from "@/api/client";
+import DownloadIcon from "@mui/icons-material/DownloadOutlined";
+import { api, API_BASE_URL } from "@/api/client";
 import {
   AGENDA_ITEM_TYPE_LABELS,
   ASSEMBLY_STATUS_LABELS,
@@ -128,6 +131,11 @@ export function AdminAssemblyDetailPage() {
         assembly={assembly}
         onChanged={(a) => setAssembly(a)}
         onDeleted={() => navigate("/admin/assemblies")}
+      />
+
+      <InvitationSection
+        assembly={assembly}
+        onChanged={(a) => setAssembly(a)}
       />
 
       <AgendaSection
@@ -768,6 +776,268 @@ function NewAgendaItemRow({ assemblyId, nextPosition, onCreated }: NewAgendaItem
     </Box>
   );
 }
+
+// =================================================================
+// Invitation upload + LLM extraction polling
+// =================================================================
+
+interface InvitationSectionProps {
+  assembly: AssemblyDetailResponse;
+  onChanged: (a: AssemblyDetailResponse) => void;
+}
+
+function InvitationSection({ assembly, onChanged }: InvitationSectionProps) {
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  // Polling state: true while we expect auto_extracted_at to flip
+  // after a fresh upload. Cleared once the timestamp lands OR the
+  // user navigates away.
+  const [polling, setPolling] = useState(false);
+
+  // Poll the assembly every 3s after upload until auto_extracted_at
+  // (or verified_at — though that won't happen during this flow)
+  // populates. Single-page, single-purpose effect — clear on unmount.
+  useEffect(() => {
+    if (!polling) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await api.get<AssemblyDetailResponse>(
+          `/admin/assemblies/${assembly.id}`,
+        );
+        if (cancelled) return;
+        if (r.data.auto_extracted_at) {
+          setPolling(false);
+          onChanged(r.data);
+        } else {
+          // Keep refreshing the assembly's invitation_uploaded_at
+          // so the timestamp under the chip stays current even
+          // before extraction finishes.
+          onChanged(r.data);
+        }
+      } catch {
+        /* swallow — try again on next tick */
+      }
+    };
+    const handle = window.setInterval(tick, 3000);
+    void tick();
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+    // assembly.id is the only thing that changes between assemblies;
+    // intentionally NOT depending on the whole assembly so the
+    // interval doesn't get torn down + recreated on each refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polling, assembly.id]);
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      await api.post(`/admin/assemblies/${assembly.id}/invitation`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const r = await api.get<AssemblyDetailResponse>(
+        `/admin/assemblies/${assembly.id}`,
+      );
+      onChanged(r.data);
+      // Auto-extracted gets cleared by the upload endpoint; we now
+      // wait for the Celery task to refill it.
+      setPolling(true);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail ?? "Upload fehlgeschlagen.";
+      setError(msg);
+    } finally {
+      setUploading(false);
+      // Allow re-uploading the same file
+      e.target.value = "";
+    }
+  };
+
+  const onDelete = async () => {
+    if (!confirm("Einladungs-PDF wirklich löschen?")) return;
+    setError(null);
+    try {
+      await api.delete(`/admin/assemblies/${assembly.id}/invitation`);
+      const r = await api.get<AssemblyDetailResponse>(
+        `/admin/assemblies/${assembly.id}`,
+      );
+      onChanged(r.data);
+      setPolling(false);
+    } catch {
+      setError("Löschen fehlgeschlagen.");
+    }
+  };
+
+  const onVerify = async () => {
+    setError(null);
+    setVerifying(true);
+    try {
+      const r = await api.post<AssemblyDetailResponse>(
+        `/admin/assemblies/${assembly.id}/verify`,
+      );
+      onChanged(r.data);
+    } catch {
+      setError("Bestätigung fehlgeschlagen.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const downloadUrl = `${API_BASE_URL}/me/assemblies/${assembly.id}/invitation`;
+  const needsReview = Boolean(
+    assembly.auto_extracted_at && !assembly.verified_at,
+  );
+
+  return (
+    <Paper sx={{ p: 3 }} variant="outlined">
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", mb: 2, flexWrap: "wrap" }}
+      >
+        <Typography variant="h6">Einladung (PDF)</Typography>
+        {needsReview && (
+          <Chip
+            color="warning"
+            size="small"
+            icon={<AutoAwesomeIcon />}
+            label="KI-extrahiert · bitte prüfen"
+          />
+        )}
+        {assembly.verified_at && (
+          <Chip
+            color="success"
+            size="small"
+            icon={<CheckCircleIcon />}
+            label={`Bestätigt am ${new Date(
+              assembly.verified_at,
+            ).toLocaleDateString("de-DE")}`}
+          />
+        )}
+      </Stack>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Stack spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ alignItems: "center", flexWrap: "wrap" }}
+        >
+          {assembly.invitation_pdf_url ? (
+            <Stack spacing={0.5}>
+              <Chip color="success" size="small" label="Hochgeladen" />
+              {assembly.invitation_uploaded_at && (
+                <Typography variant="caption" color="text.secondary">
+                  am{" "}
+                  {new Date(
+                    assembly.invitation_uploaded_at,
+                  ).toLocaleString("de-DE")}
+                </Typography>
+              )}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Noch nicht hochgeladen. Beim Hochladen extrahiert die KI Datum,
+              Ort und Tagesordnung automatisch.
+            </Typography>
+          )}
+          <Button
+            component="label"
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            disabled={uploading}
+          >
+            {uploading
+              ? "Wird hochgeladen…"
+              : assembly.invitation_pdf_url
+                ? "Einladung ersetzen"
+                : "Einladung hochladen"}
+            <input
+              type="file"
+              accept="application/pdf"
+              hidden
+              onChange={onFile}
+            />
+          </Button>
+          {assembly.invitation_pdf_url && (
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                component="a"
+                href={downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                PDF öffnen
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={onDelete}
+              >
+                Löschen
+              </Button>
+            </>
+          )}
+        </Stack>
+
+        {polling && (
+          <Alert severity="info" icon={<AutoAwesomeIcon />}>
+            KI extrahiert die Versammlungsdetails aus der PDF…
+            Sobald sie fertig ist, erscheinen die Felder oben.
+          </Alert>
+        )}
+
+        {needsReview && (
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{
+              alignItems: "center",
+              flexWrap: "wrap",
+              p: 2,
+              bgcolor: "warning.main",
+              borderRadius: 1,
+              color: "warning.contrastText",
+            }}
+          >
+            <Typography variant="body2" sx={{ flex: 1, minWidth: 200 }}>
+              Bitte Datum, Ort und Tagesordnung prüfen, dann bestätigen.
+              Erst danach gilt die Versammlung für Eigentümer als
+              verifiziert.
+            </Typography>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={onVerify}
+              disabled={verifying}
+              startIcon={<CheckCircleIcon />}
+            >
+              {verifying ? "Wird bestätigt…" : "Daten bestätigen"}
+            </Button>
+          </Stack>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
 
 // =================================================================
 // Protocol upload

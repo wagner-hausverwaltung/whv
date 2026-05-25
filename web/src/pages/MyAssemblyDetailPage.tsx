@@ -102,24 +102,31 @@ export function MyAssemblyDetailPage() {
     void load();
   }, [load]);
 
-  const downloadProtocol = async () => {
+  const downloadPdf = async (
+    kind: "protocol" | "invitation",
+  ): Promise<void> => {
     if (!a) return;
     setDownloading(true);
     setError(null);
     try {
-      const r = await api.get(`/me/assemblies/${a.id}/protocol`, {
+      const r = await api.get(`/me/assemblies/${a.id}/${kind}`, {
         responseType: "blob",
       });
       const url = URL.createObjectURL(r.data as Blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `protokoll-${a.id}.pdf`;
+      const stem = kind === "protocol" ? "protokoll" : "einladung";
+      link.download = `${stem}-${a.id}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setError("Protokoll-Download fehlgeschlagen.");
+      setError(
+        kind === "protocol"
+          ? "Protokoll-Download fehlgeschlagen."
+          : "Einladung-Download fehlgeschlagen.",
+      );
     } finally {
       setDownloading(false);
     }
@@ -244,6 +251,54 @@ export function MyAssemblyDetailPage() {
         )}
       </Box>
 
+      {/* Invitation — pre-meeting PDF the Verwalter uploaded */}
+      {a.invitation_pdf_url && (
+        <Box>
+          <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+            Einladung
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              sx={{
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{ alignItems: "center" }}
+              >
+                <PictureAsPdfIcon color="primary" />
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    Einladung als PDF
+                  </Typography>
+                  {a.invitation_uploaded_at && (
+                    <Typography variant="caption" color="text.secondary">
+                      Hochgeladen am{" "}
+                      {new Date(a.invitation_uploaded_at).toLocaleDateString(
+                        "de-DE",
+                      )}
+                    </Typography>
+                  )}
+                </Box>
+              </Stack>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={() => downloadPdf("invitation")}
+                disabled={downloading}
+              >
+                {downloading ? "Wird geladen…" : "Herunterladen"}
+              </Button>
+            </Stack>
+          </Paper>
+        </Box>
+      )}
+
       {/* Protocol */}
       <Box>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
@@ -279,7 +334,7 @@ export function MyAssemblyDetailPage() {
               <Button
                 variant="contained"
                 startIcon={<DownloadIcon />}
-                onClick={downloadProtocol}
+                onClick={() => downloadPdf("protocol")}
                 disabled={downloading}
               >
                 {downloading ? "Wird geladen…" : "Herunterladen"}

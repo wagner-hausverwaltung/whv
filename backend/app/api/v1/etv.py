@@ -725,6 +725,52 @@ async def admin_upload_protocol(
     )
 
 
+# ----- Verify (admin sign-off on auto-extracted data) -----------------------
+
+
+@admin_router.post(
+    "/assemblies/{assembly_id}/verify",
+    response_model=AssemblyDetailResponse,
+)
+async def admin_verify_assembly(
+    assembly_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AssemblyDetailResponse:
+    """Verwalter sign-off on the auto-extracted data. Sets
+    `verified_at` + `verified_by_user_id`; subsequent extraction
+    runs see verified_at and skip per the service-level idempotency
+    guard, so the model can never overwrite a curated row.
+
+    Idempotent: re-verifying a verified row just bumps the
+    timestamp (handy if a Verwalter edits + re-confirms).
+    """
+    a = await svc.load_assembly_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        assembly_id=assembly_id,
+    )
+    if a is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found"
+        )
+    a.verified_at = svc._now()
+    a.verified_by_user_id = current_user.id
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="etv_assembly_verified",
+            target_type="etv_assemblies",
+            target_id=str(a.id),
+            payload_json={},
+        )
+    )
+    await session.commit()
+    await session.refresh(a)
+    return await _assembly_to_detail(session, a)
+
+
 # ----- Invitation PDF -------------------------------------------------------
 
 

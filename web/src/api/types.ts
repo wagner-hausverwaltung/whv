@@ -353,8 +353,12 @@ export interface AssemblyResponse {
   actual_start: string | null;
   actual_end: string | null;
   location: string;
+  invitation_pdf_url: string | null;
+  invitation_uploaded_at: string | null;
   protocol_pdf_url: string | null;
   protocol_uploaded_at: string | null;
+  auto_extracted_at: string | null;
+  verified_at: string | null;
   created_at: string;
 }
 
