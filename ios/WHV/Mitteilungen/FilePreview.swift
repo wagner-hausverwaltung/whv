@@ -1,15 +1,17 @@
-// QuickLook wrapper for the signed-protocol PDF.
+// QuickLook wrapper for any file URL — PDFs, images, Office docs.
 //
-// The detail screen downloads the PDF to a temp path (authed), then
-// presents this sheet. QLPreviewController is the same component
+// Used by AssemblyDetailView (signed protocol) and
+// AnnouncementDetailView (Mitteilungen attachments). Both download
+// the file to a temp URL via an authed APIClient call, then
+// present this sheet. QLPreviewController is the same component
 // Safari + Files use, so the user gets system-grade rendering,
-// share, and print without us shipping a PDF viewer.
+// share, and print without us shipping a viewer.
 
 import QuickLook
 import SwiftUI
 import UIKit
 
-struct ProtocolPreview: UIViewControllerRepresentable {
+struct FilePreview: UIViewControllerRepresentable {
     let url: URL
 
     func makeCoordinator() -> Coordinator { Coordinator(url: url) }

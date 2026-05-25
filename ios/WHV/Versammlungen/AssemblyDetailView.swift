@@ -175,7 +175,7 @@ struct AssemblyDetailView: View {
             )
         ) {
             if let url = store.protocolFileURL {
-                ProtocolPreview(url: url)
+                FilePreview(url: url)
                     .ignoresSafeArea()
             }
         }

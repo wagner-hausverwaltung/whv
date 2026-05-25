@@ -33,15 +33,11 @@ struct RootTabView: View {
 
     private var tabs: some View {
         TabView(selection: $selection) {
-            ComingSoonView(
-                title: "Mitteilungen",
-                subtitle: "Verwalter-Mitteilungen",
-                contextLiegenschaft: store.selected
-            )
-            .tabItem {
-                Label("Mitteilungen", systemImage: "megaphone")
-            }
-            .tag(0)
+            MitteilungenTab()
+                .tabItem {
+                    Label("Mitteilungen", systemImage: "megaphone")
+                }
+                .tag(0)
 
             ComingSoonView(
                 title: "Tickets",

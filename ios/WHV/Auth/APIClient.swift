@@ -76,7 +76,7 @@ struct CreateAssemblyCommentBody: Codable {
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
-struct TicketSummary: Codable, Hashable {
+struct TicketSummary: Codable, Hashable, Identifiable {
     let id: String
     let subject: String
     let status: String  // OFFEN / IN_BEARBEITUNG / GESCHLOSSEN
@@ -86,7 +86,7 @@ struct TicketSummary: Codable, Hashable {
     let property_name: String?
 }
 
-struct AnnouncementSummary: Codable, Hashable {
+struct AnnouncementSummary: Codable, Hashable, Identifiable {
     let id: String
     let property_id: String
     let title: String
@@ -94,6 +94,12 @@ struct AnnouncementSummary: Codable, Hashable {
     let scheduled_publish_at: Date
     let notification_sent_at: Date?
     let property_name: String?
+}
+
+/// POST body for /me/announcements/{id}/comments. Mirrors backend's
+/// AnnouncementCommentCreateRequest.
+struct CreateAnnouncementCommentBody: Codable {
+    let body: String
 }
 
 /// POST body for /auth/refresh. Single field — the backend swaps it
@@ -386,6 +392,45 @@ struct APIClient {
     /// widget to surface the newest published announcement.
     func listMyAnnouncementsForProperty(_ propertyId: String) async throws -> [AnnouncementSummary] {
         try await authedGET("/me/properties/\(propertyId)/announcements")
+    }
+
+    /// GET /me/announcements/{id} — full detail with attachments +
+    /// comments embedded.
+    func getAnnouncementDetail(id: String) async throws -> AnnouncementDetail {
+        try await authedGET("/me/announcements/\(id)")
+    }
+
+    /// POST /me/announcements/{id}/comments — append a comment.
+    /// Server fans out an email notification to Verwalter + thread.
+    func postAnnouncementComment(
+        announcementId: String,
+        body: String
+    ) async throws -> AnnouncementComment {
+        try await authedJSON(
+            "/me/announcements/\(announcementId)/comments",
+            method: "POST",
+            body: CreateAnnouncementCommentBody(body: body)
+        )
+    }
+
+    /// GET /me/announcements/{id}/attachments/{aid}/download → local
+    /// file URL. Same auth-gated streaming path as the protocol PDF.
+    func downloadAnnouncementAttachment(
+        announcementId: String,
+        attachmentId: String,
+        filename: String
+    ) async throws -> URL {
+        // Slug the filename so a "/" or weird character in the
+        // server-provided name doesn't escape the tmp directory.
+        let safe = filename
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+            .replacingOccurrences(of: "..", with: "_")
+        let target = "att-\(attachmentId)-\(safe)"
+        return try await authedDownload(
+            "/me/announcements/\(announcementId)/attachments/\(attachmentId)/download",
+            saveAs: target
+        )
     }
 
     // MARK: - Plumbing
