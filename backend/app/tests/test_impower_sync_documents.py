@@ -108,7 +108,16 @@ async def test_sync_documents_upserts_metadata(test_engine: AsyncEngine) -> None
     assert stats.skipped == 0
 
     async with sm() as session:
-        rows = (await session.scalars(select(Document).order_by(Document.impower_id))).all()
+        # Filter to impower-mirrored rows only — other test files (e.g.
+        # test_documents.py) create Verwalter-uploaded docs with
+        # impower_id=NULL which would otherwise bleed in here.
+        rows = (
+            await session.scalars(
+                select(Document)
+                .where(Document.impower_id.is_not(None))
+                .order_by(Document.impower_id)
+            )
+        ).all()
         assert [r.impower_id for r in rows] == [8001, 8002]
         assert rows[0].kind == DocumentKind.JAHRESABRECHNUNG
         assert rows[0].impower_source_type == "HOUSE_MONEY_SETTLEMENT"
