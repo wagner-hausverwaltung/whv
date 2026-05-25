@@ -49,12 +49,9 @@ export function SettingsPage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      // Drop the default Content-Type so axios derives the multipart
-      // boundary from the FormData payload — sending the bare
-      // "multipart/form-data" without a boundary breaks FastAPI parsing.
-      await api.put<UserResponse>("/me/avatar", form, {
-        headers: { "Content-Type": undefined },
-      });
+      // The api-client interceptor drops Content-Type when the body is
+      // FormData so the browser can attach the correct multipart boundary.
+      await api.put<UserResponse>("/me/avatar", form);
       await refreshMe();
     } catch (err: unknown) {
       const detail = (

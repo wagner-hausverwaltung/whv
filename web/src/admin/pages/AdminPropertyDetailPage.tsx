@@ -65,12 +65,11 @@ function PropertyImageEditor({
     try {
       const form = new FormData();
       form.append("file", file);
+      // The api-client interceptor drops Content-Type when the body is
+      // FormData so the browser attaches the right multipart boundary.
       const r = await api.put<AdminPropertyDetailResponse>(
         `/admin/properties/${property.id}/image`,
         form,
-        // Drop the default JSON content-type so axios derives the
-        // multipart boundary from the FormData payload.
-        { headers: { "Content-Type": undefined } },
       );
       onChanged(r.data);
     } catch (err: unknown) {

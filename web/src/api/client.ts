@@ -42,6 +42,15 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.set("Authorization", `Bearer ${token}`);
   }
+  // FormData uploads need a boundary parameter in the Content-Type header.
+  // Axios + the browser derive that automatically — but only when no
+  // explicit Content-Type is set. Our instance default is `application/json`
+  // (so plain JSON callers don't have to repeat themselves), which without
+  // this guard would stay on FormData requests too and break multipart
+  // parsing on the server.
+  if (config.data instanceof FormData) {
+    config.headers.delete("Content-Type");
+  }
   return config;
 });
 
