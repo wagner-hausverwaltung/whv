@@ -73,11 +73,9 @@ export function MessageTimeline({
       variant="outlined"
       sx={{
         p: 2,
-        // The timeline tracks the thread as the user scrolls. 88px keeps
-        // it clear of the static AppBar (64px Toolbar + a bit of breathing
-        // room).
-        position: "sticky",
-        top: 88,
+        // Sticky positioning is owned by the parent column wrapper now
+        // (we share the sticky frame with the attachments roll-up below
+        // the timeline).
       }}
     >
       <Typography

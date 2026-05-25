@@ -36,6 +36,10 @@ from app.integrations.s3.inbound import (
     fetch_raw_mime as s3_fetch_raw_mime,
 )
 from app.integrations.sns.validator import SignatureError, verify
+from app.integrations.storage.ticket_attachments import (
+    TicketAttachmentStorageError,
+    write_attachment,
+)
 from app.models import (
     AuditLog,
     Contact,
@@ -45,6 +49,7 @@ from app.models import (
     Ticket,
     TicketCategory,
     TicketMessage,
+    TicketMessageAttachment,
     TicketMessageSource,
     TicketStatus,
     Unit,
@@ -399,6 +404,38 @@ async def email_inbound(
     ticket.last_message_at = now
     if not created_new and ticket.status in (TicketStatus.NEU, TicketStatus.WARTET_AUF_KUNDE):
         ticket.status = TicketStatus.OFFEN
+
+    # Persist MIME attachments lifted out of the email — best-effort per
+    # file (skipping unsupported extensions / oversize bytes individually
+    # rather than failing the whole webhook). The message row + ticket
+    # state changes commit in the outer transaction; attachment row IDs
+    # need a flush so the storage helper can name files by id.
+    settings_for_attachments = get_settings()
+    if parsed.attachments:
+        await session.flush()
+        for part in parsed.attachments:
+            if len(part.content) > settings_for_attachments.ticket_attachment_max_bytes:
+                # Outsized MIME parts (rare — email gateways usually cap
+                # before delivery) skipped silently. The text body still
+                # lands so the ticket isn't lost over a 30 MB photo.
+                continue
+            attachment = TicketMessageAttachment(
+                ticket_message_id=message_row.id,
+                filename=part.filename,
+                mime_type=part.mime_type,
+                size_bytes=len(part.content),
+                storage_url="local-disk:.pending",
+                uploaded_by_user_id=author.id if author else None,
+            )
+            session.add(attachment)
+            await session.flush()
+            try:
+                _, suffix = write_attachment(attachment.id, part.filename, part.content)
+            except TicketAttachmentStorageError:
+                # Unsupported extension — drop the row and keep going.
+                await session.delete(attachment)
+                continue
+            attachment.storage_url = f"local-disk:{suffix}"
 
     # Notify Verwalter(s) + creator (if different from sender) + named participants.
     from app.api.v1.tickets import (

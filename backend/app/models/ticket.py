@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Text, func
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -255,4 +255,52 @@ class TicketParticipant(Base):
         # Lookup for "tickets I'm participating in" (future use; today only
         # consulted as a membership-check inside ticket access rules).
         Index("ix_ticket_participants_user", "user_id"),
+    )
+
+
+class TicketMessageAttachment(Base):
+    """File attached to a ticket message — uploaded from the SPA reply
+    form or extracted from an inbound email's MIME tree.
+
+    Always belongs to exactly one message (CASCADE on delete). Org scope
+    rides along via message → ticket → organization_id; we don't store
+    organization_id directly to keep the table thin, and ticket-level
+    queries already join in to filter scope.
+
+    Storage convention matches `documents.storage_url`: `"local-disk:<suffix>"`
+    means the bytes live at `{ticket_attachment_dir}/{id}{suffix}`. Same
+    Hetzner OS migration plan (REQUIREMENTS.md §1.4d iter 2) applies —
+    swapping later only touches the storage helper.
+    """
+
+    __tablename__ = "ticket_message_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    ticket_message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ticket_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Original filename from the upload / MIME Content-Disposition.
+    # Sanitised on read (Path(filename).name) but stored as-is so the
+    # download endpoint can hand the user back what they uploaded.
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # See class docstring for the "local-disk:<suffix>" convention.
+    storage_url: Mapped[str] = mapped_column(Text, nullable=False)
+    # User who uploaded this attachment. NULL when the file arrived via
+    # an inbound email — `external_sender_email` on the parent message
+    # then identifies the sender.
+    uploaded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

@@ -41,18 +41,40 @@ class TicketParticipantResponse(BaseModel):
     added_at: datetime
 
 
+class TicketMessageAttachmentResponse(BaseModel):
+    """One file attached to a ticket message — uploaded via the SPA or
+    extracted from an inbound email's MIME tree. The actual bytes are
+    fetched from `/<scope>/tickets/{ticket_id}/attachments/{id}/file`
+    (authenticated, scope-checked)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    ticket_message_id: uuid.UUID
+    filename: str
+    mime_type: str | None = None
+    size_bytes: int
+    uploaded_by_user_id: uuid.UUID | None = None
+    created_at: datetime
+
+
 class TicketMessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     ticket_id: uuid.UUID
-    author_user_id: uuid.UUID
+    # NULL when the message arrived from a non-registered email sender;
+    # external_sender_email on the parent ticket then identifies them.
+    author_user_id: uuid.UUID | None = None
     # Author email is resolved server-side so the SPA doesn't have to make
     # a second batch lookup. None if the user has been hard-deleted.
     author_email: str | None = None
     body: str
     is_internal_note: bool
     created_at: datetime
+    # Eagerly-loaded per-message attachments. Empty list when the message
+    # had none — keeps the SPA render simple (no null-check on every row).
+    attachments: list[TicketMessageAttachmentResponse] = []
 
 
 class TicketResponse(BaseModel):

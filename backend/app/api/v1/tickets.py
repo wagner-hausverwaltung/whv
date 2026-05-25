@@ -8,15 +8,23 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.tickets import render_ticket_notification_email
+from app.integrations.storage.ticket_attachments import (
+    TicketAttachmentStorageError,
+    attachment_path,
+    delete_attachment,
+    write_attachment,
+)
 from app.models import (
     AuditLog,
     Contact,
@@ -25,6 +33,7 @@ from app.models import (
     Ticket,
     TicketCategory,
     TicketMessage,
+    TicketMessageAttachment,
     TicketParticipant,
     TicketShareScope,
     TicketStatus,
@@ -34,6 +43,7 @@ from app.models import (
 from app.schemas.ticket import (
     TicketCreateRequest,
     TicketDetailResponse,
+    TicketMessageAttachmentResponse,
     TicketMessageCreateRequest,
     TicketMessageResponse,
     TicketParticipantAddRequest,
@@ -169,6 +179,27 @@ async def _load_participants(
     ]
 
 
+async def _load_attachments_for_messages(
+    session: AsyncSession, message_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[TicketMessageAttachment]]:
+    """Batch-fetch all attachments for a set of message ids, indexed by
+    message id. Returns an empty dict for the empty-input case so callers
+    can blindly `attachments.get(m.id, [])` without a guard."""
+    if not message_ids:
+        return {}
+    rows = (
+        await session.scalars(
+            select(TicketMessageAttachment)
+            .where(TicketMessageAttachment.ticket_message_id.in_(message_ids))
+            .order_by(TicketMessageAttachment.created_at)
+        )
+    ).all()
+    out: dict[uuid.UUID, list[TicketMessageAttachment]] = {}
+    for a in rows:
+        out.setdefault(a.ticket_message_id, []).append(a)
+    return out
+
+
 async def _to_detail(
     t: Ticket, messages: list[TicketMessage], session: AsyncSession
 ) -> TicketDetailResponse:
@@ -180,6 +211,8 @@ async def _to_detail(
     if author_ids:
         author_rows = (await session.scalars(select(User).where(User.id.in_(author_ids)))).all()
         author_emails = {u.id: u.email for u in author_rows}
+    # Eager-load attachments for every message in one round-trip.
+    attachments_by_msg = await _load_attachments_for_messages(session, [m.id for m in messages])
     message_resps = [
         TicketMessageResponse(
             id=m.id,
@@ -189,6 +222,10 @@ async def _to_detail(
             body=m.body,
             is_internal_note=m.is_internal_note,
             created_at=m.created_at,
+            attachments=[
+                TicketMessageAttachmentResponse.model_validate(a)
+                for a in attachments_by_msg.get(m.id, [])
+            ],
         )
         for m in messages
     ]
@@ -1035,4 +1072,375 @@ async def remove_admin_participant(
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     await _remove_participant(session=session, ticket=ticket, actor=current_user, user_id=user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Attachments (Item 7) ──────────────────────────────────────────
+
+
+async def _load_ticket_for_caller(
+    *,
+    session: AsyncSession,
+    user: User,
+    ticket_id: uuid.UUID,
+    admin: bool,
+) -> Ticket:
+    """Fetch the ticket, asserting the caller can see it. Admin = trust
+    the role check + org scope; portal callers go through `_owner_can_access`
+    too. Same 404-on-no-access shape used elsewhere — we never leak
+    existence of a ticket the caller can't read."""
+    ticket = await session.scalar(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.organization_id == user.organization_id,
+        )
+    )
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if (
+        not admin
+        and user.role != UserRole.VERWALTER
+        and not await _owner_can_access(session, user, ticket)
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    return ticket
+
+
+async def _load_message_for_ticket(
+    session: AsyncSession,
+    *,
+    message_id: uuid.UUID,
+    ticket_id: uuid.UUID,
+) -> TicketMessage:
+    msg = await session.scalar(
+        select(TicketMessage).where(
+            TicketMessage.id == message_id,
+            TicketMessage.ticket_id == ticket_id,
+        )
+    )
+    if msg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    return msg
+
+
+async def _persist_attachment(
+    *,
+    session: AsyncSession,
+    actor: User,
+    ticket: Ticket,
+    message: TicketMessage,
+    settings: Settings,
+    file: UploadFile,
+) -> TicketMessageAttachment:
+    """Shared upload pipeline used by both `/me` and `/admin` POSTs.
+
+    Reads + validates the upload, writes the bytes to disk, persists the
+    attachment row with a `local-disk:<suffix>` stamp on storage_url,
+    writes an audit row. Caller is expected to have already validated
+    that `actor` can write to this `ticket` (state check, etc.) — this
+    helper deliberately stays narrow.
+    """
+    raw = await file.read()
+    if len(raw) > settings.ticket_attachment_max_bytes:
+        max_mb = settings.ticket_attachment_max_bytes // 1024 // 1024
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Anhang darf höchstens {max_mb} MB groß sein.",
+        )
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Datei-Name fehlt.",
+        )
+
+    attachment = TicketMessageAttachment(
+        ticket_message_id=message.id,
+        filename=file.filename,
+        mime_type=file.content_type,
+        size_bytes=len(raw),
+        storage_url="local-disk:.pending",  # rewritten after write
+        uploaded_by_user_id=actor.id,
+    )
+    session.add(attachment)
+    await session.flush()  # need the id before we can pick a file path
+
+    try:
+        _, suffix = write_attachment(attachment.id, file.filename, raw)
+    except TicketAttachmentStorageError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ungültige Datei: {exc}",
+        ) from exc
+
+    attachment.storage_url = f"local-disk:{suffix}"
+    session.add(
+        AuditLog(
+            organization_id=ticket.organization_id,
+            actor_user_id=actor.id,
+            action="ticket_attachment_uploaded",
+            target_type="ticket_message_attachments",
+            target_id=str(attachment.id),
+            payload_json={
+                "ticket_id": str(ticket.id),
+                "ticket_message_id": str(message.id),
+                "filename": attachment.filename,
+                "size_bytes": attachment.size_bytes,
+                "mime_type": attachment.mime_type,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(attachment)
+    return attachment
+
+
+@me_router.post(
+    "/{ticket_id}/messages/{message_id}/attachments",
+    response_model=TicketMessageAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_my_attachment(
+    ticket_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+) -> TicketMessageAttachmentResponse:
+    """Portal user attaches a file to a message they just posted.
+
+    Scope check matches `/me/tickets/{id}` — caller must own / participate
+    in the ticket. Doesn't gate on authorship of the *message* (we trust
+    the typical flow of "post message, then upload its attachments" and
+    don't want to break the legitimate "send a forgotten doc" use case
+    where the user adds a file to their own earlier reply).
+    """
+    ticket = await _load_ticket_for_caller(
+        session=session, user=current_user, ticket_id=ticket_id, admin=False
+    )
+    msg = await _load_message_for_ticket(session, message_id=message_id, ticket_id=ticket.id)
+    # Non-Verwalter never see internal notes via /me, so they shouldn't
+    # be able to upload to them either — pretend they don't exist.
+    if msg.is_internal_note and current_user.role != UserRole.VERWALTER:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    attachment = await _persist_attachment(
+        session=session,
+        actor=current_user,
+        ticket=ticket,
+        message=msg,
+        settings=settings,
+        file=file,
+    )
+    return TicketMessageAttachmentResponse.model_validate(attachment)
+
+
+@admin_router.post(
+    "/{ticket_id}/messages/{message_id}/attachments",
+    response_model=TicketMessageAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_admin_attachment(
+    ticket_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+) -> TicketMessageAttachmentResponse:
+    ticket = await _load_ticket_for_caller(
+        session=session, user=current_user, ticket_id=ticket_id, admin=True
+    )
+    msg = await _load_message_for_ticket(session, message_id=message_id, ticket_id=ticket.id)
+    attachment = await _persist_attachment(
+        session=session,
+        actor=current_user,
+        ticket=ticket,
+        message=msg,
+        settings=settings,
+        file=file,
+    )
+    return TicketMessageAttachmentResponse.model_validate(attachment)
+
+
+async def _resolve_attachment_for_download(
+    *,
+    session: AsyncSession,
+    user: User,
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    admin: bool,
+) -> tuple[TicketMessageAttachment, TicketMessage]:
+    """Shared resolver for the GET download endpoints. Re-checks scope on
+    every request — UUIDv7 IDs aren't a secret strong enough for
+    invoice scans + photo evidence, so we always require auth + access."""
+    ticket = await _load_ticket_for_caller(
+        session=session, user=user, ticket_id=ticket_id, admin=admin
+    )
+    attachment = await session.scalar(
+        select(TicketMessageAttachment)
+        .join(
+            TicketMessage,
+            TicketMessage.id == TicketMessageAttachment.ticket_message_id,
+        )
+        .where(
+            TicketMessageAttachment.id == attachment_id,
+            TicketMessage.ticket_id == ticket.id,
+        )
+    )
+    if attachment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    msg = await _load_message_for_ticket(
+        session, message_id=attachment.ticket_message_id, ticket_id=ticket.id
+    )
+    # Hide attachments on internal notes from non-Verwalter — same rule
+    # as the message list filter.
+    if msg.is_internal_note and not admin and user.role != UserRole.VERWALTER:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    return attachment, msg
+
+
+def _attachment_file_response(
+    attachment: TicketMessageAttachment,
+) -> FileResponse:
+    """Stream the bytes off disk. Raises 404 when the on-disk file is
+    missing (admin deleted it from /var/lib by hand, or a half-failed
+    upload left the DB row without a body)."""
+    if not attachment.storage_url.startswith("local-disk:"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei ist nicht lokal hinterlegt.",
+        )
+    suffix = attachment.storage_url[len("local-disk:") :]
+    path = attachment_path(attachment.id, suffix)
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei wurde nicht gefunden.",
+        )
+    return FileResponse(
+        path,
+        media_type=attachment.mime_type or "application/octet-stream",
+        filename=attachment.filename,
+    )
+
+
+@me_router.get("/{ticket_id}/attachments/{attachment_id}/file")
+async def download_my_attachment(
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    attachment, _ = await _resolve_attachment_for_download(
+        session=session,
+        user=current_user,
+        ticket_id=ticket_id,
+        attachment_id=attachment_id,
+        admin=False,
+    )
+    return _attachment_file_response(attachment)
+
+
+@admin_router.get("/{ticket_id}/attachments/{attachment_id}/file")
+async def download_admin_attachment(
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    attachment, _ = await _resolve_attachment_for_download(
+        session=session,
+        user=current_user,
+        ticket_id=ticket_id,
+        attachment_id=attachment_id,
+        admin=True,
+    )
+    return _attachment_file_response(attachment)
+
+
+@me_router.delete(
+    "/{ticket_id}/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_my_attachment(
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Portal users can remove an attachment they themselves uploaded.
+    Anyone else's attachment is read-only from the /me/ side — they
+    have to ask the Verwalter to do it via /admin."""
+    attachment, _ = await _resolve_attachment_for_download(
+        session=session,
+        user=current_user,
+        ticket_id=ticket_id,
+        attachment_id=attachment_id,
+        admin=False,
+    )
+    if attachment.uploaded_by_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nur eigene Anhänge können entfernt werden.",
+        )
+    suffix = (
+        attachment.storage_url[len("local-disk:") :]
+        if attachment.storage_url.startswith("local-disk:")
+        else None
+    )
+    await session.delete(attachment)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="ticket_attachment_deleted",
+            target_type="ticket_message_attachments",
+            target_id=str(attachment.id),
+            payload_json={"ticket_id": str(ticket_id)},
+        )
+    )
+    await session.commit()
+    if suffix is not None:
+        delete_attachment(attachment.id, suffix)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@admin_router.delete(
+    "/{ticket_id}/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_admin_attachment(
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Verwalter can remove any attachment in their org."""
+    attachment, _ = await _resolve_attachment_for_download(
+        session=session,
+        user=current_user,
+        ticket_id=ticket_id,
+        attachment_id=attachment_id,
+        admin=True,
+    )
+    suffix = (
+        attachment.storage_url[len("local-disk:") :]
+        if attachment.storage_url.startswith("local-disk:")
+        else None
+    )
+    await session.delete(attachment)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="ticket_attachment_deleted",
+            target_type="ticket_message_attachments",
+            target_id=str(attachment.id),
+            payload_json={"ticket_id": str(ticket_id)},
+        )
+    )
+    await session.commit()
+    if suffix is not None:
+        delete_attachment(attachment.id, suffix)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -72,6 +72,15 @@
     "messageBody": {
       "showMore": "{{count}} weitere Zeilen anzeigen",
       "showLess": "Weniger anzeigen"
+    },
+    "attachments": {
+      "addLabel": "Anhängen",
+      "removeLabel": "Entfernen",
+      "rollupTitle": "Anhänge",
+      "rollupHint": "Klick auf den Namen lädt herunter, Klick auf den Punkt springt zur Nachricht.",
+      "jumpToMessage": "Zur Nachricht springen",
+      "downloadFailed": "Datei konnte nicht heruntergeladen werden.",
+      "uploadFailed": "Datei konnte nicht angehängt werden."
     }
   },
   "resolutions": {

@@ -124,14 +124,30 @@ export type TicketStatus =
 
 export type TicketShareScope = "PRIVATE" | "PARTICIPANTS" | "PROPERTY";
 
+export interface TicketMessageAttachmentResponse {
+  id: string;
+  ticket_message_id: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number;
+  uploaded_by_user_id: string | null;
+  created_at: string;
+}
+
 export interface TicketMessageResponse {
   id: string;
   ticket_id: string;
   author_email?: string | null;
-  author_user_id: string;
+  // Now nullable on the wire — inbound-email messages from non-registered
+  // senders have NULL author_user_id; external_sender_email on the ticket
+  // identifies them.
+  author_user_id: string | null;
   body: string;
   is_internal_note: boolean;
   created_at: string;
+  // Item 7 — per-message file attachments. Always an array; empty when
+  // the message had no files.
+  attachments?: TicketMessageAttachmentResponse[];
 }
 
 export interface TicketParticipantResponse {

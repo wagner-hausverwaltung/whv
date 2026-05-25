@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     # 300 DPI run 10-30 MB; protocols with photo appendices push the rest).
     document_max_bytes: int = 50 * 1024 * 1024
 
+    # Ticket message attachments — Item 7. SPA uploads + inbound-email
+    # MIME parts land here. Smaller cap than documents: most attachments
+    # are phone photos or invoice PDFs and 25 MB matches the SES inbound
+    # limit, so files that arrived via email always fit through the SPA
+    # too. Auth-gated download endpoint (NOT StaticFiles).
+    ticket_attachment_dir: str = "/var/lib/whv/ticket-attachments"
+    ticket_attachment_max_bytes: int = 25 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:

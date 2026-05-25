@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Card,
+  Chip,
   FormControl,
   IconButton,
   InputLabel,
@@ -19,8 +20,10 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AttachFileOutlinedIcon from "@mui/icons-material/AttachFileOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import {
@@ -30,10 +33,13 @@ import {
   type TicketDetailResponse,
   type TicketShareScope,
 } from "@/api/types";
+import { MessageAttachments } from "@/components/MessageAttachments";
 import { MessageBody } from "@/components/MessageBody";
 import { MessageTimeline } from "@/components/MessageTimeline";
+import { TicketAttachmentsRollup } from "@/components/TicketAttachmentsRollup";
 
 export function TicketDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [ticket, setTicket] = useState<TicketDetailResponse | null>(null);
@@ -42,6 +48,10 @@ export function TicketDetailPage() {
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
   const [closing, setClosing] = useState(false);
+  // Files staged for the next reply. Uploaded one by one to
+  // /me/tickets/{id}/messages/{msg_id}/attachments after the message
+  // POST returns (we need its id to attach against).
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
   const [participantError, setParticipantError] = useState<string | null>(null);
@@ -102,11 +112,30 @@ export function TicketDetailPage() {
     setError(null);
     setPosting(true);
     try {
-      await api.post(`/me/tickets/${ticket.id}/messages`, {
-        body: reply.trim(),
-        is_internal_note: false,
-      });
+      const res = await api.post<{ id: string }>(
+        `/me/tickets/${ticket.id}/messages`,
+        { body: reply.trim(), is_internal_note: false },
+      );
+      const newMessageId = res.data.id;
+      // Best-effort attachment upload — failures don't abort the rest.
+      let uploadFailures = 0;
+      for (const file of pendingFiles) {
+        try {
+          const form = new FormData();
+          form.append("file", file);
+          await api.post(
+            `/me/tickets/${ticket.id}/messages/${newMessageId}/attachments`,
+            form,
+          );
+        } catch {
+          uploadFailures += 1;
+        }
+      }
+      if (uploadFailures > 0) {
+        setError(t("tickets.attachments.uploadFailed"));
+      }
       setReply("");
+      setPendingFiles([]);
       await refresh();
     } catch {
       setError("Antwort konnte nicht gesendet werden.");
@@ -425,6 +454,13 @@ export function TicketDetailPage() {
                 </Typography>
               </Stack>
               <MessageBody body={m.body} />
+              {id && (
+                <MessageAttachments
+                  ticketId={id}
+                  attachments={m.attachments ?? []}
+                  scope="portal"
+                />
+              )}
             </Card>
           );
         })}
@@ -455,9 +491,51 @@ export function TicketDetailPage() {
                   slotProps={{ htmlInput: { minLength: 1, maxLength: 10_000 } }}
                   fullWidth
                 />
-                <Stack direction="row" spacing={2}>
+                {pendingFiles.length > 0 && (
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ flexWrap: "wrap", gap: 0.75 }}
+                  >
+                    {pendingFiles.map((f, i) => (
+                      <Chip
+                        key={`${f.name}-${i}`}
+                        size="small"
+                        icon={<AttachFileOutlinedIcon />}
+                        label={f.name}
+                        onDelete={() =>
+                          setPendingFiles((prev) =>
+                            prev.filter((_, idx) => idx !== i),
+                          )
+                        }
+                        sx={{ maxWidth: 320 }}
+                      />
+                    ))}
+                  </Stack>
+                )}
+                <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
                   <Button type="submit" variant="contained" disabled={posting}>
                     {posting ? "Wird gesendet…" : "Antwort senden"}
+                  </Button>
+                  <Button
+                    component="label"
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AttachFileOutlinedIcon />}
+                    disabled={posting}
+                  >
+                    {t("tickets.attachments.addLabel")}
+                    <input
+                      type="file"
+                      hidden
+                      multiple
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        if (picked.length === 0) return;
+                        setPendingFiles((prev) => [...prev, ...picked]);
+                        e.target.value = "";
+                      }}
+                    />
                   </Button>
                   {canClose && (
                     <Button
@@ -475,13 +553,24 @@ export function TicketDetailPage() {
           )}
         </Stack>
 
-        {/* Sticky timeline rail on md+. The component bails on empty
-            arrays, but a ticket always has at least the original message. */}
+        {/* Sticky right rail (md+). Hidden on narrow screens. Wraps the
+            timeline + attachments roll-up so they share one sticky frame. */}
         <Box sx={{ display: { xs: "none", md: "block" } }}>
-          <MessageTimeline
-            messages={ticket.messages}
-            ticketSubject={ticket.subject}
-          />
+          <Box sx={{ position: "sticky", top: 88 }}>
+            <Stack spacing={2}>
+              <MessageTimeline
+                messages={ticket.messages}
+                ticketSubject={ticket.subject}
+              />
+              {id && (
+                <TicketAttachmentsRollup
+                  ticketId={id}
+                  messages={ticket.messages}
+                  scope="portal"
+                />
+              )}
+            </Stack>
+          </Box>
         </Box>
       </Box>
     </Stack>

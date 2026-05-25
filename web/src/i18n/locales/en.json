@@ -72,6 +72,15 @@
     "messageBody": {
       "showMore": "Show {{count}} more lines",
       "showLess": "Show less"
+    },
+    "attachments": {
+      "addLabel": "Attach",
+      "removeLabel": "Remove",
+      "rollupTitle": "Attachments",
+      "rollupHint": "Click the name to download, click the dot to jump to the message.",
+      "jumpToMessage": "Jump to message",
+      "downloadFailed": "File could not be downloaded.",
+      "uploadFailed": "File could not be attached."
     }
   },
   "resolutions": {

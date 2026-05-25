@@ -42,6 +42,21 @@ class S3Ref:
 
 
 @dataclass(frozen=True)
+class ParsedInboundAttachment:
+    """One file lifted from the email's MIME tree.
+
+    Only the bare minimum the persistence layer needs — the upload
+    helper handles extension validation + storage. We don't try to
+    canonicalise filenames here; the webhook hands them to
+    `write_attachment` which is the security boundary.
+    """
+
+    filename: str
+    mime_type: str | None
+    content: bytes
+
+
+@dataclass(frozen=True)
 class ParsedInboundEmail:
     """Result of parsing one SES-published email payload."""
 
@@ -54,6 +69,11 @@ class ParsedInboundEmail:
     body: str  # plaintext body, after multipart/HTML stripping
     spam_pass: bool  # SES spam verdict — false → drop
     virus_pass: bool  # SES virus verdict — false → drop
+    # Files extracted from MIME parts marked `Content-Disposition:
+    # attachment` (or inline images that aren't part of the visible
+    # body). Empty tuple when the message had none — keeps the call site
+    # branch-free.
+    attachments: tuple[ParsedInboundAttachment, ...] = ()
 
 
 class InboundEmailParseError(Exception):
@@ -134,6 +154,59 @@ def _extract_body(message: Message) -> str:
     if html is not None:
         return _html_to_text(html).strip()
     return ""
+
+
+def _extract_attachments(message: Message) -> tuple[ParsedInboundAttachment, ...]:
+    """Walk the MIME tree and pull out everything that looks like a file
+    the user attached: parts with `Content-Disposition: attachment`, plus
+    binary parts (anything non-text) that aren't the main body. Inline
+    images that come bundled in HTML signatures (`Content-Disposition:
+    inline`) are skipped to avoid dumping ten Outlook logo pixels into
+    every ticket; the body extractor already glosses them too.
+
+    Returns a tuple (frozen) of dataclasses so the parse result stays
+    immutable. Bytes can be large — the persistence layer is expected
+    to write them straight through and drop the reference.
+    """
+    if not message.is_multipart():
+        # Single-part bodies aren't attachments. SES sometimes delivers
+        # the whole thing as one text/plain payload, in which case there's
+        # nothing here to pull out.
+        return ()
+
+    out: list[ParsedInboundAttachment] = []
+    for part in message.walk():
+        if part.is_multipart():
+            continue
+        disposition = (part.get("Content-Disposition") or "").lower()
+        ctype = part.get_content_type() or ""
+        is_attachment = disposition.startswith("attachment")
+        # Skip text bodies (the body extractor already handled them);
+        # skip inline images (signature decoration). Everything else that
+        # looks like a real attachment goes through.
+        if not is_attachment:
+            if ctype.startswith("text/"):
+                continue
+            if disposition.startswith("inline"):
+                continue
+        payload = part.get_payload(decode=True)
+        if not payload or not isinstance(payload, bytes):
+            continue
+        filename = part.get_filename()
+        if not filename:
+            # Some clients omit the filename; fall back to a synthetic
+            # name so the upload layer can still validate the extension.
+            # Without a sensible name we'd reject every such part.
+            ext = ctype.split("/")[-1] if "/" in ctype else "bin"
+            filename = f"attachment.{ext}"
+        out.append(
+            ParsedInboundAttachment(
+                filename=filename,
+                mime_type=ctype or None,
+                content=payload,
+            )
+        )
+    return tuple(out)
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -238,6 +311,7 @@ def parse_ses_sns_payload(
     )
     parsed_message = email.message_from_string(raw_content)
     body = _extract_body(parsed_message)
+    attachments = _extract_attachments(parsed_message)
 
     return ParsedInboundEmail(
         sender_email=sender_email,
@@ -249,4 +323,5 @@ def parse_ses_sns_payload(
         body=body,
         spam_pass=_verdict_pass(receipt, "spamVerdict"),
         virus_pass=_verdict_pass(receipt, "virusVerdict"),
+        attachments=attachments,
     )

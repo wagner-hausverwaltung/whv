@@ -22,6 +22,7 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AttachFileOutlinedIcon from "@mui/icons-material/AttachFileOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useTranslation } from "react-i18next";
@@ -34,8 +35,10 @@ import {
   type TicketShareScope,
   type TicketStatus,
 } from "@/api/types";
+import { MessageAttachments } from "@/components/MessageAttachments";
 import { MessageBody } from "@/components/MessageBody";
 import { MessageTimeline } from "@/components/MessageTimeline";
+import { TicketAttachmentsRollup } from "@/components/TicketAttachmentsRollup";
 
 const STATUSES: TicketStatus[] = [
   "NEU",
@@ -159,18 +162,41 @@ export function AdminTicketDetailPage() {
   const [reply, setReply] = useState("");
   const [internal, setInternal] = useState(false);
   const [posting, setPosting] = useState(false);
+  // Pending file picks staged before submit. Files upload after the
+  // message POST returns (we need its id to attach against).
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const sendReply = async (e: FormEvent) => {
     e.preventDefault();
     if (!id || !reply.trim()) return;
     setPosting(true);
     try {
-      await api.post(`/admin/tickets/${id}/messages`, {
-        body: reply,
-        is_internal_note: internal,
-      });
+      const res = await api.post<{ id: string }>(
+        `/admin/tickets/${id}/messages`,
+        { body: reply, is_internal_note: internal },
+      );
+      const newMessageId = res.data.id;
+      // Best-effort: upload each pending file. One failure doesn't abort
+      // the rest — surface a generic toast at the end if any fail.
+      let uploadFailures = 0;
+      for (const file of pendingFiles) {
+        try {
+          const form = new FormData();
+          form.append("file", file);
+          await api.post(
+            `/admin/tickets/${id}/messages/${newMessageId}/attachments`,
+            form,
+          );
+        } catch {
+          uploadFailures += 1;
+        }
+      }
+      if (uploadFailures > 0) {
+        setError(t("tickets.attachments.uploadFailed"));
+      }
       setReply("");
       setInternal(false);
+      setPendingFiles([]);
       await refresh();
     } catch {
       setError(t("admin.ticketDetail.actionFailed"));
@@ -460,6 +486,13 @@ export function AdminTicketDetailPage() {
               </Typography>
             </Stack>
             <MessageBody body={m.body} />
+            {id && (
+              <MessageAttachments
+                ticketId={id}
+                attachments={m.attachments ?? []}
+                scope="admin"
+              />
+            )}
           </Card>
         ))}
       </Stack>
@@ -480,6 +513,28 @@ export function AdminTicketDetailPage() {
               required
               fullWidth
             />
+            {pendingFiles.length > 0 && (
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ flexWrap: "wrap", gap: 0.75 }}
+              >
+                {pendingFiles.map((f, i) => (
+                  <Chip
+                    key={`${f.name}-${i}`}
+                    size="small"
+                    icon={<AttachFileOutlinedIcon />}
+                    label={f.name}
+                    onDelete={() =>
+                      setPendingFiles((prev) =>
+                        prev.filter((_, idx) => idx !== i),
+                      )
+                    }
+                    sx={{ maxWidth: 320 }}
+                  />
+                ))}
+              </Stack>
+            )}
             <FormControlLabel
               control={
                 <Switch
@@ -489,7 +544,7 @@ export function AdminTicketDetailPage() {
               }
               label={t("admin.ticketDetail.internalCheckbox")}
             />
-            <Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <Button
                 type="submit"
                 variant="contained"
@@ -497,18 +552,52 @@ export function AdminTicketDetailPage() {
               >
                 {posting ? t("common.loading") : t("admin.ticketDetail.send")}
               </Button>
-            </Box>
+              <Button
+                component="label"
+                variant="outlined"
+                size="small"
+                startIcon={<AttachFileOutlinedIcon />}
+                disabled={posting}
+              >
+                {t("tickets.attachments.addLabel")}
+                <input
+                  type="file"
+                  hidden
+                  multiple
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    if (picked.length === 0) return;
+                    setPendingFiles((prev) => [...prev, ...picked]);
+                    // Reset so picking the same file again still fires.
+                    e.target.value = "";
+                  }}
+                />
+              </Button>
+            </Stack>
           </Stack>
         </Box>
       </Paper>
         </Stack>
 
-        {/* Sticky message timeline (md+). Hidden on narrow screens. */}
+        {/* Sticky right rail (md+). Hidden on narrow screens. Wraps the
+            timeline + attachments roll-up in a single sticky frame so
+            they scroll together. */}
         <Box sx={{ display: { xs: "none", md: "block" } }}>
-          <MessageTimeline
-            messages={ticket.messages}
-            ticketSubject={ticket.subject}
-          />
+          <Box sx={{ position: "sticky", top: 88 }}>
+            <Stack spacing={2}>
+              <MessageTimeline
+                messages={ticket.messages}
+                ticketSubject={ticket.subject}
+              />
+              {id && (
+                <TicketAttachmentsRollup
+                  ticketId={id}
+                  messages={ticket.messages}
+                  scope="admin"
+                />
+              )}
+            </Stack>
+          </Box>
         </Box>
       </Box>
     </Stack>
