@@ -360,6 +360,7 @@ export interface AssemblyResponse {
   protocol_pdf_url: string | null;
   protocol_uploaded_at: string | null;
   auto_extracted_at: string | null;
+  protocol_extracted_at: string | null;
   verified_at: string | null;
   created_at: string;
 }

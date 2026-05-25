@@ -150,6 +150,7 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
         invitation_pdf_url=a.invitation_pdf_url,
         invitation_uploaded_at=a.invitation_uploaded_at,
         auto_extracted_at=a.auto_extracted_at,
+        protocol_extracted_at=a.protocol_extracted_at,
         verified_at=a.verified_at,
         agenda_pdf_url=a.agenda_pdf_url,
         protocol_pdf_url=a.protocol_pdf_url,
@@ -731,6 +732,13 @@ async def admin_upload_protocol(
     # upload root moves (local → Hetzner OS bucket).
     a.protocol_pdf_url = target.name
     a.protocol_uploaded_at = svc._now()
+    # Re-uploading the protocol clears the prior extraction stamp so
+    # the badge reappears for a fresh review cycle. Verified rows
+    # keep verified_at — the service-level guard short-circuits the
+    # next pass for them.
+    a.protocol_extracted_at = None
+    a.protocol_extracted_raw = None
+    a.protocol_extracted_source_document_id = None
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -746,10 +754,21 @@ async def admin_upload_protocol(
     )
     await session.commit()
     await session.refresh(a)
+
+    extraction_enqueued = False
+    try:
+        from app.workers.tasks import extract_etv_protocol
+
+        extract_etv_protocol.delay(str(a.id))
+        extraction_enqueued = True
+    except Exception:
+        logger.exception("failed to enqueue protocol extraction for assembly %s", a.id)
+
     return ProtocolUploadResponse(
         assembly_id=a.id,
         protocol_pdf_url=a.protocol_pdf_url,
         protocol_uploaded_at=a.protocol_uploaded_at,
+        extraction_enqueued=extraction_enqueued,
     )
 
 

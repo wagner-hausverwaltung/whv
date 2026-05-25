@@ -483,3 +483,72 @@ def extract_etv_metadata(assembly_id: str) -> str:
     """Async LLM extraction for one assembly. Enqueued by the backfill
     helper + (later) the Impower document-sync upsert path."""
     return asyncio.run(_extract_etv_metadata_async(assembly_id))
+
+
+async def _extract_etv_protocol_async(assembly_id_str: str) -> str:
+    """Read the signed Protokoll PDF + merge Beschluss outcomes +
+    Diskussion into the existing agenda.
+
+    Outcomes:
+      - "applied"       — extraction landed
+      - "skipped_*"     — see etv_protocol_extraction.extract_protocol_and_apply
+      - "no_source_pdf" — protocol_pdf_url is null or the file is missing
+      - "assembly_gone" — row deleted between enqueue + run
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.models import EtvAssembly
+    from app.services.etv_protocol_extraction import extract_protocol_and_apply
+
+    assembly_id = uuid.UUID(assembly_id_str)
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            assembly = await session.get(EtvAssembly, assembly_id)
+            if assembly is None or assembly.deleted_at is not None:
+                return "assembly_gone"
+            if not assembly.protocol_pdf_url:
+                logger.info(
+                    "extract_etv_protocol: no protocol uploaded for assembly=%s",
+                    assembly_id,
+                )
+                return "no_source_pdf"
+
+            p = Path(assembly.protocol_pdf_url)
+            if not p.is_absolute():
+                p = Path(settings.etv_protocol_dir) / p.name
+            if not p.exists():
+                logger.info("extract_etv_protocol: protocol file missing at %s", p)
+                return "no_source_pdf"
+            try:
+                pdf_bytes = p.read_bytes()
+            except OSError:
+                logger.exception("failed to read protocol %s", p)
+                return "no_source_pdf"
+
+            outcome = await extract_protocol_and_apply(
+                session,
+                assembly_id=assembly_id,
+                pdf_bytes=pdf_bytes,
+                source_document_id=None,
+            )
+            await session.commit()
+            return outcome
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(
+    name="app.workers.tasks.extract_etv_protocol",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def extract_etv_protocol(assembly_id: str) -> str:
+    """Async LLM extraction of the signed Protokoll. Enqueued by the
+    /admin/assemblies/{id}/protocol upload endpoint immediately after
+    the bytes hit disk."""
+    return asyncio.run(_extract_etv_protocol_async(assembly_id))

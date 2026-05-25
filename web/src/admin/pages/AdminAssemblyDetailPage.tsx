@@ -1087,6 +1087,39 @@ interface ProtocolSectionProps {
 function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Polls /admin/assemblies/:id every 3s after upload until
+  // protocol_extracted_at lands (LLM merges Beschluss outcomes +
+  // Diskussion). Cleared once the timestamp shows up.
+  const [polling, setPolling] = useState(false);
+
+  useEffect(() => {
+    if (!polling) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await api.get<AssemblyDetailResponse>(
+          `/admin/assemblies/${assembly.id}`,
+        );
+        if (cancelled) return;
+        if (r.data.protocol_extracted_at) {
+          setPolling(false);
+        }
+        onChanged(r.data);
+      } catch {
+        /* swallow — try again next tick */
+      }
+    };
+    const handle = window.setInterval(tick, 3000);
+    void tick();
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+    // assembly.id is the only stable dep here; the whole assembly
+    // object updates as the polling refreshes, which would otherwise
+    // tear down + recreate the interval each tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polling, assembly.id]);
 
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1101,6 +1134,7 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
       });
       const r = await api.get<AssemblyDetailResponse>(`/admin/assemblies/${assembly.id}`);
       onChanged(r.data);
+      setPolling(true);
     } catch (err) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
@@ -1115,43 +1149,72 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
 
   return (
     <Paper sx={{ p: 3 }} variant="outlined">
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Signiertes Protokoll
-      </Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-        {assembly.protocol_pdf_url ? (
-          <Stack spacing={0.5}>
-            <Chip color="success" size="small" label="Hochgeladen" />
-            {assembly.protocol_uploaded_at && (
-              <Typography variant="caption" color="text.secondary">
-                am {new Date(assembly.protocol_uploaded_at).toLocaleString("de-DE")}
-              </Typography>
-            )}
-          </Stack>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            Noch nicht hochgeladen.
-          </Typography>
-        )}
-        <Button
-          component="label"
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          disabled={uploading}
-        >
-          {uploading
-            ? "Wird hochgeladen…"
-            : assembly.protocol_pdf_url
-              ? "Protokoll ersetzen"
-              : "Protokoll hochladen"}
-          <input
-            type="file"
-            accept="application/pdf"
-            hidden
-            onChange={onFile}
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", mb: 2, flexWrap: "wrap" }}
+      >
+        <Typography variant="h6">Signiertes Protokoll</Typography>
+        {assembly.protocol_extracted_at && !assembly.verified_at && (
+          <Chip
+            color="warning"
+            size="small"
+            icon={<AutoAwesomeIcon />}
+            label="KI-extrahiert · bitte prüfen"
           />
-        </Button>
+        )}
+      </Stack>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <Stack spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ alignItems: "center", flexWrap: "wrap" }}
+        >
+          {assembly.protocol_pdf_url ? (
+            <Stack spacing={0.5}>
+              <Chip color="success" size="small" label="Hochgeladen" />
+              {assembly.protocol_uploaded_at && (
+                <Typography variant="caption" color="text.secondary">
+                  am {new Date(assembly.protocol_uploaded_at).toLocaleString("de-DE")}
+                </Typography>
+              )}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Noch nicht hochgeladen. Nach dem Upload extrahiert die KI
+              Beschluss-Ergebnisse, Stimm-Tallies und die Diskussion und
+              verschmilzt sie mit der bestehenden Tagesordnung.
+            </Typography>
+          )}
+          <Button
+            component="label"
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            disabled={uploading}
+          >
+            {uploading
+              ? "Wird hochgeladen…"
+              : assembly.protocol_pdf_url
+                ? "Protokoll ersetzen"
+                : "Protokoll hochladen"}
+            <input
+              type="file"
+              accept="application/pdf"
+              hidden
+              onChange={onFile}
+            />
+          </Button>
+        </Stack>
+
+        {polling && (
+          <Alert severity="info" icon={<AutoAwesomeIcon />}>
+            KI extrahiert Beschluss-Ergebnisse + Diskussion aus dem
+            Protokoll… Sobald sie fertig ist, sind die Tally-Felder
+            und die Diskussionseinträge in der Tagesordnung oben
+            befüllt.
+          </Alert>
+        )}
       </Stack>
     </Paper>
   );

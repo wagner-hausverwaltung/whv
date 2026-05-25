@@ -203,6 +203,24 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
         nullable=True,
     )
 
+    # Post-meeting extraction tracked separately from invitation
+    # extraction. The protocol is the source of truth for vote
+    # tallies + final Beschlusstext + discussion — the invitation
+    # only proposes; the meeting may amend.
+    protocol_extracted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    protocol_extracted_source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    protocol_extracted_raw: Mapped[dict[str, object] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
     __table_args__ = (
         # Property-scoped queue: "next ETV on this property" + "past ETVs
         # newest first." Both queries hit this index.

@@ -152,10 +152,13 @@ class AssemblyResponse(BaseModel):
     invitation_uploaded_at: datetime | None = None
     protocol_pdf_url: str | None
     protocol_uploaded_at: datetime | None
-    # LLM extraction tracking (ADR-0008). The admin SPA shows a
-    # "KI-extrahiert · bitte prüfen" badge when auto_extracted_at IS
-    # NOT NULL AND verified_at IS NULL.
+    # LLM extraction tracking (ADR-0008). Two surfaces:
+    #   auto_extracted_at      — Einladung was parsed (pre-meeting)
+    #   protocol_extracted_at  — Protokoll was parsed (post-meeting)
+    # The admin SPA shows a "KI-extrahiert · bitte prüfen" badge while
+    # EITHER stamp is set AND verified_at is null.
     auto_extracted_at: datetime | None = None
+    protocol_extracted_at: datetime | None = None
     verified_at: datetime | None = None
     created_at: datetime
 
@@ -188,10 +191,14 @@ class InvitationUploadResponse(BaseModel):
 
 
 class ProtocolUploadResponse(BaseModel):
-    """Echoed after a successful signed-protocol PDF upload."""
+    """Echoed after a successful signed-protocol PDF upload. The
+    extraction task is enqueued before the response returns; the
+    admin SPA polls `/admin/assemblies/{id}` to see when
+    `protocol_extracted_at` flips."""
 
     model_config = ConfigDict(from_attributes=True)
 
     assembly_id: uuid.UUID
     protocol_pdf_url: str
     protocol_uploaded_at: datetime
+    extraction_enqueued: bool = False
