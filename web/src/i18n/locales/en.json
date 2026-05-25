@@ -96,6 +96,27 @@
     "empty": "No resolutions.",
     "deadline": "Deadline"
   },
+  "portal": {
+    "announcementsPage": {
+      "title": "Announcements",
+      "crumbHome": "Home",
+      "crumbProperty": "Property",
+      "empty": "No announcements for you yet.",
+      "loadFailed": "Couldn’t load announcements.",
+      "edited": "edited"
+    },
+    "announcementDetail": {
+      "loadFailed": "Couldn’t load the announcement.",
+      "editedAt": "edited at {{when}}",
+      "attachmentsTitle": "Attachments",
+      "commentsTitle": "Comments ({{count}})",
+      "commentsEmpty": "No comments yet. Be the first.",
+      "composeLabel": "Write a comment",
+      "composePlaceholder": "Add to the conversation…",
+      "composeSubmit": "Post",
+      "commentFailed": "Couldn’t post the comment."
+    }
+  },
   "admin": {
     "title": "Admin",
     "dashboard": "Dashboard",

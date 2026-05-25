@@ -20,6 +20,8 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
+import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
+import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
 import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
@@ -71,6 +73,26 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <PropertyDocumentsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:id/announcements"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyAnnouncementsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/announcements/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyAnnouncementDetailPage />
                 </Layout>
               </ProtectedRoute>
             }

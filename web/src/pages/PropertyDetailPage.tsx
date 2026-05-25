@@ -164,7 +164,7 @@ export function PropertyDetailPage() {
         )}
       </Box>
 
-      <Box>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
         <Button
           component={RouterLink}
           to={`/properties/${prop.id}/documents`}
@@ -172,7 +172,14 @@ export function PropertyDetailPage() {
         >
           Dokumente ansehen →
         </Button>
-      </Box>
+        <Button
+          component={RouterLink}
+          to={`/properties/${prop.id}/announcements`}
+          variant="outlined"
+        >
+          Mitteilungen ansehen →
+        </Button>
+      </Stack>
     </Stack>
   );
 }

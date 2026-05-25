@@ -96,6 +96,27 @@
     "empty": "Keine Beschlüsse vorhanden.",
     "deadline": "Frist"
   },
+  "portal": {
+    "announcementsPage": {
+      "title": "Mitteilungen",
+      "crumbHome": "Übersicht",
+      "crumbProperty": "Liegenschaft",
+      "empty": "Keine Mitteilungen für Sie vorhanden.",
+      "loadFailed": "Mitteilungen konnten nicht geladen werden.",
+      "edited": "bearbeitet"
+    },
+    "announcementDetail": {
+      "loadFailed": "Mitteilung konnte nicht geladen werden.",
+      "editedAt": "bearbeitet am {{when}}",
+      "attachmentsTitle": "Anhänge",
+      "commentsTitle": "Kommentare ({{count}})",
+      "commentsEmpty": "Noch keine Kommentare. Schreiben Sie den ersten.",
+      "composeLabel": "Kommentar schreiben",
+      "composePlaceholder": "Was möchten Sie zu dieser Mitteilung sagen?",
+      "composeSubmit": "Senden",
+      "commentFailed": "Kommentar konnte nicht gespeichert werden."
+    }
+  },
   "admin": {
     "title": "Admin",
     "dashboard": "Dashboard",
