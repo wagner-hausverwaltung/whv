@@ -20,7 +20,7 @@ struct VersammlungenTab: View {
     @ViewBuilder
     private var content: some View {
         if let l = liegenschaftStore.selected {
-            AssemblyList(assemblies: DemoAssemblies.sample(for: l.id))
+            AssemblyList(assemblies: DemoAssemblies.sample(for: l))
         } else {
             ContentUnavailableView(
                 "Keine Liegenschaft gewählt",
@@ -86,6 +86,17 @@ private struct AssemblyList: View {
                     Text(a.title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(2)
+                    if let propertyLine = propertyLine(for: a) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "building.2")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(propertyLine)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
                     Text(formatDateRange(a.scheduled_start, a.scheduled_end))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -113,6 +124,16 @@ private struct AssemblyList: View {
             }
             .padding(.vertical, 4)
         }
+    }
+
+    /// "WEG Königstr. 42 · STUTTGART_K42" — mirrors the chip on
+    /// admin + portal. Falls back to either part if the other is
+    /// missing, returns nil if neither is present.
+    private func propertyLine(for a: Assembly) -> String? {
+        let parts = [a.property_name, a.property_hr_id]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     @ViewBuilder

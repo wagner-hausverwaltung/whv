@@ -14,6 +14,9 @@ struct AssemblyDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerCard
+                if let url = teamsURL {
+                    teamsJoinButton(url: url)
+                }
                 if !assembly.description.isEmpty {
                     Text(assembly.description)
                         .font(.body)
@@ -22,12 +25,18 @@ struct AssemblyDetailView: View {
                 }
                 agendaSection
                 protocolSection
+                commentsSection
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
         }
         .navigationTitle("Versammlung")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var teamsURL: URL? {
+        guard let raw = assembly.teams_meeting_url, !raw.isEmpty else { return nil }
+        return URL(string: raw)
     }
 
     // MARK: - Header
@@ -50,6 +59,16 @@ struct AssemblyDetailView: View {
                         .background(Color.green.opacity(0.15))
                         .foregroundStyle(.green)
                         .clipShape(Capsule())
+                }
+            }
+            if let propertyLine = propertyHeaderLine {
+                Label {
+                    Text(propertyLine)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "building.2")
+                        .foregroundStyle(.secondary)
                 }
             }
             Text(assembly.title)
@@ -75,6 +94,44 @@ struct AssemblyDetailView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
         )
+    }
+
+    /// "WEG Königstr. 42 · STUTTGART_K42" — both parts are optional;
+    /// we only render the line if at least one is set.
+    private var propertyHeaderLine: String? {
+        let parts = [assembly.property_name, assembly.property_hr_id]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Microsoft Teams purple matches the admin SPA + portal CTA so
+    /// the button reads as "the same Teams thing" across all three
+    /// surfaces.
+    private static let teamsPurple = Color(red: 0.36, green: 0.32, blue: 0.78)
+
+    private func teamsJoinButton(url: URL) -> some View {
+        Link(destination: url) {
+            HStack(spacing: 12) {
+                Image(systemName: "video.fill")
+                    .font(.title3)
+                Text("Teams-Meeting beitreten")
+                    .font(.headline)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right.square")
+                    .font(.subheadline)
+                    .opacity(0.8)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Self.teamsPurple)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var statusBackground: Color {
@@ -120,6 +177,39 @@ struct AssemblyDetailView: View {
                     AgendaItemCard(item: item)
                 }
             }
+        }
+    }
+
+    // MARK: - Comments (Q&A thread)
+
+    @ViewBuilder
+    private var commentsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Fragen & Antworten")
+                .font(.title3.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if assembly.comments.isEmpty {
+                Text(
+                    "Hier können Sie Rückfragen zu dieser Versammlung "
+                    + "stellen. Antworten erscheinen direkt unter der "
+                    + "Frage."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            } else {
+                ForEach(
+                    assembly.comments.sorted(by: { $0.created_at < $1.created_at })
+                ) { c in
+                    CommentRow(comment: c)
+                }
+            }
+            Text(
+                "Kommentare dienen Rückfragen — formale Anfechtungen "
+                + "erfolgen außerhalb des Portals."
+            )
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .padding(.top, 4)
         }
     }
 
@@ -244,6 +334,9 @@ private struct AgendaItemCard: View {
                     alignment: .leading
                 )
             }
+            if item.voting_basis != nil || item.present_count != nil {
+                votingMeta
+            }
             if item.type == .beschluss && item.voteTotal > 0 {
                 voteTally
             }
@@ -256,6 +349,47 @@ private struct AgendaItemCard: View {
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
+        )
+    }
+
+    /// Stimmrecht (KOPF/MEA/OBJEKT) + Anwesend tile. Rendered as a
+    /// pair of small chips above the tally so a glance tells you
+    /// what counting rule applied + how many heads were in the room.
+    @ViewBuilder
+    private var votingMeta: some View {
+        HStack(spacing: 8) {
+            if let basis = item.voting_basis {
+                metaChip(
+                    label: "Stimmrecht",
+                    value: basis.label,
+                    tint: .accentColor
+                )
+            }
+            if let present = item.present_count {
+                metaChip(
+                    label: "Anwesend",
+                    value: "\(present)",
+                    tint: .secondary
+                )
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func metaChip(label: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.tertiarySystemFill))
         )
     }
 
@@ -331,10 +465,73 @@ private struct AgendaItemCard: View {
     }
 }
 
+// MARK: - Comment row
+
+/// One Q&A entry. Matches the portal's AssemblyComments component:
+/// role badge to the right of the author label, body below,
+/// "(bearbeitet)" hint when edited_at is set.
+private struct CommentRow: View {
+    let comment: AssemblyComment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(comment.author_label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                if !comment.author_role.label.isEmpty {
+                    Text(comment.author_role.label)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(roleBackground)
+                        .foregroundStyle(roleForeground)
+                        .clipShape(Capsule())
+                }
+                Spacer(minLength: 0)
+                Text(comment.created_at.formatted(.dateTime.day().month().year().hour().minute()))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(comment.body)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if comment.edited_at != nil {
+                Text("bearbeitet")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+
+    private var roleBackground: Color {
+        switch comment.author_role {
+        case .verwalter: return Color.accentColor
+        case .beirat: return Color.green.opacity(0.18)
+        default: return Color(.tertiarySystemFill)
+        }
+    }
+
+    private var roleForeground: Color {
+        switch comment.author_role {
+        case .verwalter: return .white
+        case .beirat: return .green
+        default: return .secondary
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
         AssemblyDetailView(
-            assembly: DemoAssemblies.sample(for: "demo-prop").first(
+            assembly: DemoAssemblies.sample(for: Liegenschaft.demo[0]).first(
                 where: { $0.status == .abgehalten }
             )!
         )

@@ -14,11 +14,27 @@
 import Foundation
 
 enum DemoAssemblies {
-    /// Returns demo data for the given Liegenschaft id. Same set for
-    /// any property — the iOS scaffold has only two demo properties
-    /// and seeding both with the same agendas keeps the demo
-    /// recognisable when switching between them.
-    static func sample(for propertyId: String) -> [Assembly] {
+    /// Returns demo data tied to the given Liegenschaft. Same shape
+    /// for any property — the iOS scaffold has only two demo
+    /// properties and seeding both with the same agendas keeps the
+    /// demo recognisable when switching between them.
+    static func sample(for property: Liegenschaft) -> [Assembly] {
+        let propertyId = property.id
+        let propertyName = property.name
+        let propertyHrId: String = {
+            // Stable, human-readable shortcode derived from the name —
+            // mirrors the backend's `property_hr_id` so the iOS UI
+            // can render the same chip even before the API is wired.
+            let trimmed = property.name
+                .uppercased()
+                .replacingOccurrences(of: " ", with: "_")
+                .replacingOccurrences(of: "Ä", with: "AE")
+                .replacingOccurrences(of: "Ö", with: "OE")
+                .replacingOccurrences(of: "Ü", with: "UE")
+                .replacingOccurrences(of: "ß", with: "SS")
+            return String(trimmed.prefix(24))
+        }()
+
         let now = Date()
         let cal = Calendar.current
         let pastStart = cal.date(byAdding: .month, value: -3, to: now)!
@@ -32,9 +48,12 @@ enum DemoAssemblies {
         ) ?? plannedStart
         let plannedEndFixed = cal.date(byAdding: .hour, value: 3, to: plannedStartFixed) ?? plannedStartFixed
 
+        let pastAssemblyId = "demo-assembly-past-\(propertyId)"
         let past = Assembly(
-            id: "demo-assembly-past-\(propertyId)",
+            id: pastAssemblyId,
             property_id: propertyId,
+            property_name: propertyName,
+            property_hr_id: propertyHrId,
             title: "Ordentliche Eigentümerversammlung 2025",
             description:
                 "Jährliche Versammlung der Eigentümergemeinschaft mit Beschluss "
@@ -46,6 +65,7 @@ enum DemoAssemblies {
             actual_start: pastStartFixed,
             actual_end: pastEndFixed,
             location: "Vereinsheim Königstraße 42, 70173 Stuttgart",
+            teams_meeting_url: nil,
             agenda_pdf_url: nil,
             protocol_pdf_url: "demo-protokoll-2025.pdf",
             protocol_uploaded_at: cal.date(byAdding: .day, value: 7, to: pastEndFixed),
@@ -63,6 +83,8 @@ enum DemoAssemblies {
                     vote_yes: 0, vote_no: 0, vote_abstain: 0,
                     vote_required_quorum: nil,
                     vote_result: nil,
+                    voting_basis: nil,
+                    present_count: 14,
                     discussion: []
                 ),
                 AgendaItem(
@@ -80,6 +102,8 @@ enum DemoAssemblies {
                     vote_yes: 13, vote_no: 0, vote_abstain: 1,
                     vote_required_quorum: nil,
                     vote_result: .angenommen,
+                    voting_basis: .kopf,
+                    present_count: 14,
                     discussion: [
                         DiscussionEntry(
                             id: "demo-d-2-1",
@@ -118,6 +142,8 @@ enum DemoAssemblies {
                     vote_yes: 10, vote_no: 3, vote_abstain: 1,
                     vote_required_quorum: 10,
                     vote_result: .angenommen,
+                    voting_basis: .mea,
+                    present_count: 14,
                     discussion: [
                         DiscussionEntry(
                             id: "demo-d-3-1",
@@ -141,6 +167,8 @@ enum DemoAssemblies {
                     vote_yes: 0, vote_no: 0, vote_abstain: 0,
                     vote_required_quorum: nil,
                     vote_result: nil,
+                    voting_basis: nil,
+                    present_count: nil,
                     discussion: [
                         DiscussionEntry(
                             id: "demo-d-4-1",
@@ -160,12 +188,54 @@ enum DemoAssemblies {
                         ),
                     ]
                 ),
+            ],
+            comments: [
+                AssemblyComment(
+                    id: "demo-c-1",
+                    assembly_id: pastAssemblyId,
+                    author_user_id: "demo-user-mueller",
+                    author_label: "h.mueller@example.com",
+                    author_role: .eigentuemer,
+                    body:
+                        "Wann werden die beschlossenen Dachsanierungsarbeiten "
+                        + "konkret begonnen? Gibt es schon einen Zeitplan?",
+                    created_at: cal.date(byAdding: .day, value: 9, to: pastEndFixed) ?? pastEndFixed,
+                    edited_at: nil
+                ),
+                AssemblyComment(
+                    id: "demo-c-2",
+                    assembly_id: pastAssemblyId,
+                    author_user_id: "demo-user-wagner",
+                    author_label: "verwaltung@wagner-hausverwaltung.com",
+                    author_role: .verwalter,
+                    body:
+                        "Wir holen aktuell die Detailplanung von der "
+                        + "Dachdeckerei Schwarz ein; Baubeginn ist für "
+                        + "Anfang Mai 2026 angedacht. Sobald der Termin "
+                        + "fix ist, informieren wir per Mitteilung.",
+                    created_at: cal.date(byAdding: .day, value: 10, to: pastEndFixed) ?? pastEndFixed,
+                    edited_at: nil
+                ),
+                AssemblyComment(
+                    id: "demo-c-3",
+                    assembly_id: pastAssemblyId,
+                    author_user_id: "demo-user-schmidt",
+                    author_label: "schmidt.beirat@example.com",
+                    author_role: .beirat,
+                    body:
+                        "Danke für die schnelle Rückmeldung. Der Beirat "
+                        + "begleitet die Vergabe gerne.",
+                    created_at: cal.date(byAdding: .day, value: 11, to: pastEndFixed) ?? pastEndFixed,
+                    edited_at: nil
+                ),
             ]
         )
 
         let planned = Assembly(
             id: "demo-assembly-planned-\(propertyId)",
             property_id: propertyId,
+            property_name: propertyName,
+            property_hr_id: propertyHrId,
             title: "Außerordentliche Eigentümerversammlung 2026",
             description:
                 "Außerordentliche Versammlung zur Klärung der "
@@ -175,7 +245,9 @@ enum DemoAssemblies {
             scheduled_end: plannedEndFixed,
             actual_start: nil,
             actual_end: nil,
-            location: "Online (Zoom) — Link per E-Mail eine Woche vor Termin",
+            location: "Online (Microsoft Teams) — Link siehe Einladung",
+            teams_meeting_url:
+                "https://teams.microsoft.com/l/meetup-join/19%3ameeting_demo%40thread.v2/0",
             agenda_pdf_url: nil,
             protocol_pdf_url: nil,
             protocol_uploaded_at: nil,
@@ -190,6 +262,8 @@ enum DemoAssemblies {
                     vote_yes: 0, vote_no: 0, vote_abstain: 0,
                     vote_required_quorum: nil,
                     vote_result: nil,
+                    voting_basis: nil,
+                    present_count: nil,
                     discussion: []
                 ),
                 AgendaItem(
@@ -209,6 +283,8 @@ enum DemoAssemblies {
                     vote_yes: 0, vote_no: 0, vote_abstain: 0,
                     vote_required_quorum: 10,
                     vote_result: nil,
+                    voting_basis: .mea,
+                    present_count: nil,
                     discussion: []
                 ),
                 AgendaItem(
@@ -221,9 +297,12 @@ enum DemoAssemblies {
                     vote_yes: 0, vote_no: 0, vote_abstain: 0,
                     vote_required_quorum: nil,
                     vote_result: nil,
+                    voting_basis: nil,
+                    present_count: nil,
                     discussion: []
                 ),
-            ]
+            ],
+            comments: []
         )
 
         return [planned, past]
