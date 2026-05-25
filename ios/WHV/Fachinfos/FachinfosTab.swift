@@ -127,43 +127,15 @@ struct FachinfosTab: View {
 }
 
 /// Single-card row. Title + summary (3-line clamp) + date + category
-/// chip. If the entry carries an image URL via `<enclosure>` we
-/// render an AsyncImage hero above the text. Otherwise the card is
-/// text-only — the feed mixes both, which is fine.
+/// chip. Text-only by design — `RSSItem.imageURL` is still parsed
+/// from `<enclosure>` for forward-compat, but we don't render it
+/// (cards stay scannable, AsyncImage doesn't compete with the text,
+/// and load is faster on cellular).
 struct RSSItemCard: View {
     let item: RSSItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let imageURL = item.imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(.quaternary)
-                            .aspectRatio(16 / 9, contentMode: .fit)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity)
-                            .aspectRatio(16 / 9, contentMode: .fit)
-                            .clipped()
-                    case .failure:
-                        // Decode failure: fall back to a placeholder
-                        // tile so the card layout doesn't jump.
-                        Rectangle()
-                            .fill(.quaternary)
-                            .aspectRatio(16 / 9, contentMode: .fit)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
-                            )
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-            }
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .font(.headline)
