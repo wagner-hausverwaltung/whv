@@ -42,6 +42,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Shared upload tree. Mounted on both backend (which writes) and
+    # worker (which reads for the LLM extraction Celery task — without
+    # this mount the worker has its own ephemeral filesystem and
+    # invitation_pdf_url points at a path that doesn't exist on
+    # the worker side → silent no_source_pdf). Also persists uploads
+    # across `compose up -d` redeploys until §1.4d iter 2 swaps in
+    # Hetzner Object Storage.
+    volumes:
+      - whv-uploads:/var/lib/whv
     ports:
       - "8000:8000"
 
@@ -60,6 +69,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - whv-uploads:/var/lib/whv
 
   beat:
     build:
@@ -90,3 +101,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  whv-uploads:
