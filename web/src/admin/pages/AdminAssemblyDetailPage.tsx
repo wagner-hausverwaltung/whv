@@ -233,6 +233,27 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
         <Stack spacing={1.5}>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
             <Box>
+              {assembly.property_name && (
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ letterSpacing: 0.5, display: "block", mb: 0.5 }}
+                >
+                  {assembly.property_name}
+                  {assembly.property_hr_id && (
+                    <Box
+                      component="span"
+                      sx={{
+                        ml: 1,
+                        fontFamily: "ui-monospace, Menlo, monospace",
+                        opacity: 0.7,
+                      }}
+                    >
+                      {assembly.property_hr_id}
+                    </Box>
+                  )}
+                </Typography>
+              )}
               <Typography variant="h4" component="h1">
                 {assembly.title}
               </Typography>

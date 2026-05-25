@@ -27,6 +27,7 @@ import {
 } from "@mui/material";
 import CalendarIcon from "@mui/icons-material/CalendarMonthOutlined";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
+import HomeWorkIcon from "@mui/icons-material/HomeWorkOutlined";
 import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import { api } from "@/api/client";
@@ -202,6 +203,34 @@ export function MyAssemblyDetailPage() {
             {a.title}
           </Typography>
           <Stack spacing={0.5} sx={{ mt: 1 }}>
+            {a.property_name && (
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <HomeWorkIcon
+                  fontSize="small"
+                  sx={{ color: "text.secondary" }}
+                />
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontWeight: 500 }}
+                >
+                  {a.property_name}
+                  {a.property_hr_id && (
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      color="text.disabled"
+                      sx={{
+                        ml: 1,
+                        fontFamily: "ui-monospace, Menlo, monospace",
+                      }}
+                    >
+                      {a.property_hr_id}
+                    </Typography>
+                  )}
+                </Typography>
+              </Stack>
+            )}
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <CalendarIcon
                 fontSize="small"

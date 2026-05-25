@@ -132,6 +132,7 @@ export function AdminAssembliesPage() {
             <TableHead>
               <TableRow>
                 <TableCell>Status</TableCell>
+                <TableCell>Liegenschaft</TableCell>
                 <TableCell>Titel</TableCell>
                 <TableCell>Ort</TableCell>
                 <TableCell>Beginn</TableCell>
@@ -153,6 +154,20 @@ export function AdminAssembliesPage() {
                 >
                   <TableCell>
                     <StatusChip status={a.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {a.property_name ?? "—"}
+                    </Typography>
+                    {a.property_hr_id && (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+                      >
+                        {a.property_hr_id}
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>

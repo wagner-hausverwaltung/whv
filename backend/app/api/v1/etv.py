@@ -74,8 +74,39 @@ _verwalter_only = require_role(UserRole.VERWALTER)
 # ---------- helpers ----------
 
 
-def _assembly_to_list_response(a: EtvAssembly) -> AssemblyResponse:
-    return AssemblyResponse.model_validate(a)
+def _assembly_to_list_response(
+    a: EtvAssembly, prop: Property | None = None
+) -> AssemblyResponse:
+    """List-view builder. `prop` is optional so legacy callers stay
+    valid; new callers pre-fetch in a single batched SELECT and pass
+    it through so the response carries property_name +
+    property_hr_id without a per-row round-trip."""
+    resp = AssemblyResponse.model_validate(a)
+    if prop is not None:
+        resp.property_name = prop.name
+        resp.property_hr_id = prop.property_hr_id
+    return resp
+
+
+async def _props_by_id_for(
+    session: AsyncSession, assemblies: list[EtvAssembly]
+) -> dict[uuid.UUID, Property]:
+    """Batch-fetch the Property rows for a list of assemblies.
+
+    One SELECT in IN(...) keyed by property_id. Returns {} if the
+    input list is empty. Used by every endpoint that returns a list
+    of assemblies — keeps property_name + property_hr_id on the
+    response cheap regardless of list size.
+    """
+    if not assemblies:
+        return {}
+    prop_ids = {a.property_id for a in assemblies}
+    rows = (
+        await session.execute(
+            select(Property).where(Property.id.in_(prop_ids))
+        )
+    ).scalars().all()
+    return {p.id: p for p in rows}
 
 
 async def _assembly_to_detail(
@@ -109,9 +140,12 @@ async def _assembly_to_detail(
         )
         for i in items
     ]
+    prop = await session.get(Property, a.property_id)
     return AssemblyDetailResponse(
         id=a.id,
         property_id=a.property_id,
+        property_name=prop.name if prop else None,
+        property_hr_id=prop.property_hr_id if prop else None,
         title=a.title,
         description=a.description,
         status=a.status,
@@ -165,7 +199,8 @@ async def list_my_property_assemblies(
         property_id=prop.id,
         include_cancelled=False,
     )
-    return [_assembly_to_list_response(a) for a in rows]
+    props = await _props_by_id_for(session, rows)
+    return [_assembly_to_list_response(a, props.get(a.property_id)) for a in rows]
 
 
 @me_router.get("/assemblies/{assembly_id}", response_model=AssemblyDetailResponse)
@@ -261,7 +296,8 @@ async def admin_list_property_assemblies(
         property_id=prop.id,
         include_cancelled=True,
     )
-    return [_assembly_to_list_response(a) for a in rows]
+    props = await _props_by_id_for(session, rows)
+    return [_assembly_to_list_response(a, props.get(a.property_id)) for a in rows]
 
 
 @admin_router.get("/assemblies", response_model=list[AssemblyResponse])
@@ -273,7 +309,8 @@ async def admin_list_all_assemblies(
     rows = await svc.list_assemblies_for_org(
         session, organization_id=current_user.organization_id
     )
-    return [_assembly_to_list_response(a) for a in rows]
+    props = await _props_by_id_for(session, rows)
+    return [_assembly_to_list_response(a, props.get(a.property_id)) for a in rows]
 
 
 @admin_router.post(

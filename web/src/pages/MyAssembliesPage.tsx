@@ -18,6 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import CalendarIcon from "@mui/icons-material/CalendarMonthOutlined";
+import HomeWorkIcon from "@mui/icons-material/HomeWorkOutlined";
 import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import { api } from "@/api/client";
@@ -193,6 +194,25 @@ function AssemblySection({
                   {a.title}
                 </Typography>
                 <Stack spacing={0.5}>
+                  {a.property_name && (
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      sx={{ alignItems: "center" }}
+                    >
+                      <HomeWorkIcon
+                        fontSize="small"
+                        sx={{ color: "text.secondary" }}
+                      />
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ fontWeight: 500 }}
+                      >
+                        {a.property_name}
+                      </Typography>
+                    </Stack>
+                  )}
                   <Stack
                     direction="row"
                     spacing={0.75}

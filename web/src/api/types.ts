@@ -346,6 +346,8 @@ export interface AgendaItemResponse {
 export interface AssemblyResponse {
   id: string;
   property_id: string;
+  property_name: string | null;
+  property_hr_id: string | null;
   title: string;
   status: AssemblyStatus;
   scheduled_start: string;

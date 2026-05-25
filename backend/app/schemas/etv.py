@@ -129,12 +129,22 @@ class UpdateAssemblyRequest(BaseModel):
 
 
 class AssemblyResponse(BaseModel):
-    """List-view summary — header + counts, no nested agenda body."""
+    """List-view summary — header + counts, no nested agenda body.
+
+    `property_name` + `property_hr_id` are denormalised onto the
+    response so every cross-property surface (admin queue, owner
+    list across multiple properties, future iOS list) can render the
+    Liegenschaft without a per-row fetch. Builders that don't have
+    the property to hand (rare; mostly tests + unscoped usage) leave
+    them null.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     property_id: uuid.UUID
+    property_name: str | None = None
+    property_hr_id: str | None = None
     title: str
     status: AssemblyStatus
     scheduled_start: datetime
