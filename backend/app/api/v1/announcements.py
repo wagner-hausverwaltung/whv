@@ -813,21 +813,24 @@ async def admin_list_send_attempts(
 
 
 @admin_router.post(
-    "/announcements/{announcement_id}/resend-failed",
+    "/announcements/{announcement_id}/resend",
     response_model=AnnouncementResendSummary,
 )
-async def admin_resend_failed(
+async def admin_resend(
     announcement_id: uuid.UUID,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
     email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> AnnouncementResendSummary:
-    """Retry every recipient whose latest send attempt is FAILED.
+    """Send the Mitteilung again to the *current* active recipient set.
 
-    Resolves the failed-recipient set at request time. Each retry
-    writes a new attempt row (the original FAILED stays in the
-    audit trail); a successful retry shifts the "latest" outcome
-    for that address to SUCCESS, so it drops out of future retries.
+    Replaces the v1.1 "Erneut senden für fehlgeschlagene" semantics
+    (which only retried FAILED rows). v1.2 sends to every recipient
+    the active set currently resolves to — auto users not in
+    excluded_user_ids, plus extra_emails. Both prior-successful and
+    prior-failed addresses get a fresh attempt row. Admin's mental
+    model is "the audience just changed (excluded/added/edited body),
+    redo the fan-out".
     """
     announcement = await svc.get_admin(
         session,
@@ -840,19 +843,18 @@ async def admin_resend_failed(
             detail="Announcement not found",
         )
 
-    failed_emails = await svc.list_failed_recipients_for_resend(session, announcement.id)
-    if not failed_emails:
+    recipient_pairs = await svc.resolve_active_recipients(session, announcement)
+    if not recipient_pairs:
         return AnnouncementResendSummary(
             attempted=0, succeeded=0, failed=0, error_message_examples=[]
         )
 
     # Rebuild the email body from current state so any post-publish
-    # admin edits land in the retry — that's what the recipient
-    # should see if the original send didn't reach them.
+    # admin edits (title / body / audience / attachments) land in the
+    # resend — that's the whole point of an explicit "send again".
     prop = await session.scalar(select(Property).where(Property.id == announcement.property_id))
     property_name = prop.name if prop else "—"
     attachments = await svc.list_attachments(session, announcement.id)
-    # Reuse the same on-disk → base64 helper the Celery task uses.
     from app.integrations.email.announcements import render_publish_email
     from app.workers.tasks import _read_attachments_for_send
 
@@ -866,15 +868,10 @@ async def admin_resend_failed(
         attachment_count=len(resend_attachments),
     )
 
-    user_by_email: dict[str, User] = {}
-    if failed_emails:
-        users = (await session.scalars(select(User).where(User.email.in_(failed_emails)))).all()
-        user_by_email = {u.email: u for u in users}
-
     succeeded = 0
     failed = 0
     errors: list[str] = []
-    for recipient_email in failed_emails:
+    for recipient_user, recipient_email in recipient_pairs:
         try:
             await email_client.send(
                 to=[recipient_email],
@@ -886,7 +883,7 @@ async def admin_resend_failed(
             svc.record_send_attempt(
                 session,
                 announcement=announcement,
-                recipient_user=user_by_email.get(recipient_email),
+                recipient_user=recipient_user,
                 recipient_email=recipient_email,
                 status=SendAttemptStatus.SUCCESS,
             )
@@ -896,7 +893,7 @@ async def admin_resend_failed(
             svc.record_send_attempt(
                 session,
                 announcement=announcement,
-                recipient_user=user_by_email.get(recipient_email),
+                recipient_user=recipient_user,
                 recipient_email=recipient_email,
                 status=SendAttemptStatus.FAILED,
                 error_message=str(exc),
@@ -907,11 +904,11 @@ async def admin_resend_failed(
         AuditLog(
             organization_id=announcement.organization_id,
             actor_user_id=current_user.id,
-            action="announcement_resend_failed",
+            action="announcement_resend",
             target_type="announcements",
             target_id=str(announcement.id),
             payload_json={
-                "attempted": len(failed_emails),
+                "attempted": len(recipient_pairs),
                 "succeeded": succeeded,
                 "failed": failed,
             },
@@ -930,7 +927,7 @@ async def admin_resend_failed(
             break
 
     return AnnouncementResendSummary(
-        attempted=len(failed_emails),
+        attempted=len(recipient_pairs),
         succeeded=succeeded,
         failed=failed,
         error_message_examples=distinct_errors,

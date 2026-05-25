@@ -220,15 +220,24 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                         skipped += 1
                         continue
 
-                    recipients = await announcements_svc.resolve_recipients(session, fresh)
-                    if not recipients:
-                        # No matching users on this property + audience.
-                        # Still mark published so we don't re-scan it
-                        # forever — admin can see in the audit log
-                        # that fan-out was empty.
+                    # Active recipients = auto-resolved minus excluded
+                    # plus extras. The override columns are applied
+                    # here so a Mitteilung whose audience returns []
+                    # but has manually-added `extra_emails` still
+                    # fans out to those addresses (v1.2 fix for
+                    # "staging property has no portal users").
+                    recipient_pairs = await announcements_svc.resolve_active_recipients(
+                        session, fresh
+                    )
+                    if not recipient_pairs:
+                        # Both auto + extras resolved to nothing. Mark
+                        # published so the row drops out of the
+                        # publish-due index — admin can read the
+                        # WARN in logs + see zero send-attempts as
+                        # the signal.
                         logger.warning(
-                            "announcement %s has no audience-matched recipients; "
-                            "marking published anyway",
+                            "announcement %s has no active recipients "
+                            "(auto + extras = 0); marking published anyway",
                             fresh.id,
                         )
                         announcements_svc.mark_published(fresh)
@@ -270,12 +279,10 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                     # is stamped on announcement_send_attempts so the
                     # admin UI can surface failures + offer a manual
                     # retry button.
-                    for recipient in recipients:
-                        if not recipient.email:
-                            continue
+                    for recipient_user, recipient_email in recipient_pairs:
                         try:
                             await email_client.send(
-                                to=[recipient.email],
+                                to=[recipient_email],
                                 subject=subject,
                                 html=html,
                                 text=text,
@@ -284,8 +291,8 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                             announcements_svc.record_send_attempt(
                                 session,
                                 announcement=fresh,
-                                recipient_user=recipient,
-                                recipient_email=recipient.email,
+                                recipient_user=recipient_user,
+                                recipient_email=recipient_email,
                                 status=SendAttemptStatus.SUCCESS,
                             )
                         except EmailError as exc:
@@ -293,13 +300,13 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                             logger.exception(
                                 "announcement fan-out failed: announcement=%s recipient=%s",
                                 fresh.id,
-                                recipient.email,
+                                recipient_email,
                             )
                             announcements_svc.record_send_attempt(
                                 session,
                                 announcement=fresh,
-                                recipient_user=recipient,
-                                recipient_email=recipient.email,
+                                recipient_user=recipient_user,
+                                recipient_email=recipient_email,
                                 status=SendAttemptStatus.FAILED,
                                 error_message=str(exc),
                             )
@@ -310,7 +317,7 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                     logger.info(
                         "published announcement=%s recipients=%d attachments=%d",
                         fresh.id,
-                        len(recipients),
+                        len(recipient_pairs),
                         len(resend_attachments),
                     )
             except Exception:
