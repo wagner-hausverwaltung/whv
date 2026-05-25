@@ -181,7 +181,11 @@
       "statusPublished": "Published",
       "statusImminent": "imminent",
       "statusInMinutes": "in {{count}} min",
-      "edited": "edited"
+      "edited": "edited",
+      "unitsLabel": "Units (optional)",
+      "unitsPlaceholder": "Pick units…",
+      "unitsHelper": "Leave empty for \"whole property\". Otherwise the Mitteilung goes only to recipients on contracts for the selected units.",
+      "unitsChip": "{{count}} unit(s)"
     },
     "announcementDetail": {
       "loadFailed": "Couldn’t load the announcement.",

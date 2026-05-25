@@ -183,7 +183,11 @@ export function AdminAnnouncementsAllPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ flexWrap: "wrap", gap: 0.5 }}
+                    >
                       {r.audience_eigentuemer && (
                         <Chip size="small" variant="outlined" label="Eig." />
                       )}
@@ -192,6 +196,16 @@ export function AdminAnnouncementsAllPage() {
                       )}
                       {r.audience_beirat && (
                         <Chip size="small" variant="outlined" label="Beirat" />
+                      )}
+                      {r.unit_ids.length > 0 && (
+                        <Chip
+                          size="small"
+                          color="info"
+                          variant="filled"
+                          label={t("admin.announcementsTab.unitsChip", {
+                            count: r.unit_ids.length,
+                          })}
+                        />
                       )}
                     </Stack>
                   </TableCell>

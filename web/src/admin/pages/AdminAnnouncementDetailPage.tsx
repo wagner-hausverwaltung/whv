@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -46,6 +47,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL, api } from "@/api/client";
 import type {
+  AdminUnitListItem,
   AnnouncementDetailResponse,
   AnnouncementResendSummary,
   AnnouncementSendAttemptResponse,
@@ -74,6 +76,8 @@ export function AdminAnnouncementDetailPage() {
   const [audE, setAudE] = useState(true);
   const [audM, setAudM] = useState(true);
   const [audB, setAudB] = useState(true);
+  const [propertyUnits, setPropertyUnits] = useState<AdminUnitListItem[]>([]);
+  const [selectedUnits, setSelectedUnits] = useState<AdminUnitListItem[]>([]);
 
   // Per-recipient send-attempt log (admin-only). Lazy-loaded on
   // demand because most admin sessions never need to inspect it; the
@@ -99,6 +103,22 @@ export function AdminAnnouncementDetailPage() {
       setAudE(r.data.audience_eigentuemer);
       setAudM(r.data.audience_mieter);
       setAudB(r.data.audience_beirat);
+      // Fetch the org-wide unit list once, then filter to this
+      // property. Cheap at v1 scale; revisit if a customer ever
+      // breaks 1000 units / property.
+      try {
+        const u = await api.get<AdminUnitListItem[]>("/admin/units");
+        const propUnits = u.data.filter(
+          (x) => x.property_id === r.data.property_id,
+        );
+        setPropertyUnits(propUnits);
+        setSelectedUnits(
+          propUnits.filter((x) => r.data.unit_ids.includes(x.id)),
+        );
+      } catch {
+        // Leave picker empty if units endpoint fails — user can
+        // still edit title/body/audience.
+      }
     } catch {
       setError(t("admin.announcementDetail.loadFailed"));
     }
@@ -130,6 +150,7 @@ export function AdminAnnouncementDetailPage() {
         audience_eigentuemer: audE,
         audience_mieter: audM,
         audience_beirat: audB,
+        unit_ids: selectedUnits.map((u) => u.id),
       };
       await api.patch(`/admin/announcements/${id}`, payload);
       await load();
@@ -472,6 +493,24 @@ export function AdminAnnouncementDetailPage() {
               />
             </FormGroup>
           </Box>
+          <Autocomplete
+            multiple
+            options={propertyUnits}
+            value={selectedUnits}
+            onChange={(_, next) => setSelectedUnits(next)}
+            getOptionLabel={(o) =>
+              o.unit_hr_id ?? `${o.type} · ${o.floor ?? "—"}`
+            }
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={t("admin.announcementsTab.unitsLabel")}
+                placeholder={t("admin.announcementsTab.unitsPlaceholder")}
+                helperText={t("admin.announcementsTab.unitsHelper")}
+              />
+            )}
+          />
           {editError && <Alert severity="error">{editError}</Alert>}
           <Box>
             <Button

@@ -181,7 +181,11 @@
       "statusPublished": "Veröffentlicht",
       "statusImminent": "in Kürze",
       "statusInMinutes": "in {{count}} Min",
-      "edited": "bearbeitet"
+      "edited": "bearbeitet",
+      "unitsLabel": "Einheiten (optional)",
+      "unitsPlaceholder": "Einheiten auswählen…",
+      "unitsHelper": "Leer lassen für \"ganze Liegenschaft\". Sonst wird die Mitteilung nur an Empfänger:innen auf Verträgen für die ausgewählten Einheiten gesendet.",
+      "unitsChip": "{{count}} Einheit(en)"
     },
     "announcementDetail": {
       "loadFailed": "Mitteilung konnte nicht geladen werden.",

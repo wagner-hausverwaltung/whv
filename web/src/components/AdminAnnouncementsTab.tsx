@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -41,6 +42,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type {
+  AdminUnitListItem,
   AnnouncementCreateRequest,
   AnnouncementResponse,
 } from "@/api/types";
@@ -103,6 +105,31 @@ function ComposeDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-unit targeting — empty list = property-wide-by-role
+  // (default). Picker stays hidden behind the Autocomplete so the
+  // admin only sees a "narrowing" affordance when they want one.
+  const [units, setUnits] = useState<AdminUnitListItem[]>([]);
+  const [selectedUnits, setSelectedUnits] = useState<AdminUnitListItem[]>([]);
+
+  // Load this property's units once when the dialog opens. Filter
+  // server-side would be cleaner but /admin/units returns the whole
+  // org and we just narrow client-side — fine at v1 scale.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await api.get<AdminUnitListItem[]>("/admin/units");
+        if (cancelled) return;
+        setUnits(r.data.filter((u) => u.property_id === propertyId));
+      } catch {
+        // Picker stays empty — the admin can still send property-wide.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, propertyId]);
 
   const reset = () => {
     setTitle("");
@@ -111,6 +138,7 @@ function ComposeDialog({
     setAudMieter(true);
     setAudBeirat(true);
     setFiles([]);
+    setSelectedUnits([]);
     setError(null);
   };
 
@@ -138,6 +166,7 @@ function ComposeDialog({
         audience_eigentuemer: audEigentuemer,
         audience_mieter: audMieter,
         audience_beirat: audBeirat,
+        unit_ids: selectedUnits.map((u) => u.id),
       };
       const r = await api.post<AnnouncementResponse>(
         `/admin/properties/${propertyId}/announcements`,
@@ -238,6 +267,25 @@ function ComposeDialog({
               />
             </FormGroup>
           </Box>
+
+          <Autocomplete
+            multiple
+            options={units}
+            value={selectedUnits}
+            onChange={(_, next) => setSelectedUnits(next)}
+            getOptionLabel={(o) =>
+              o.unit_hr_id ?? `${o.type} · ${o.floor ?? "—"}`
+            }
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={t("admin.announcementsTab.unitsLabel")}
+                placeholder={t("admin.announcementsTab.unitsPlaceholder")}
+                helperText={t("admin.announcementsTab.unitsHelper")}
+              />
+            )}
+          />
 
           <Box>
             <Button
@@ -391,7 +439,11 @@ export function AdminAnnouncementsTab({ propertyId }: Props) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ flexWrap: "wrap", gap: 0.5 }}
+                    >
                       {r.audience_eigentuemer && (
                         <Chip size="small" variant="outlined" label="Eig." />
                       )}
@@ -400,6 +452,16 @@ export function AdminAnnouncementsTab({ propertyId }: Props) {
                       )}
                       {r.audience_beirat && (
                         <Chip size="small" variant="outlined" label="Beirat" />
+                      )}
+                      {r.unit_ids.length > 0 && (
+                        <Chip
+                          size="small"
+                          color="info"
+                          variant="filled"
+                          label={t("admin.announcementsTab.unitsChip", {
+                            count: r.unit_ids.length,
+                          })}
+                        />
                       )}
                     </Stack>
                   </TableCell>
