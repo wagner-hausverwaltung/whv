@@ -137,6 +137,23 @@ struct LoginView: View {
                             }
                             .font(.subheadline.weight(.semibold))
                         }
+
+                        // Demo entry — App Store reviewer / prospect
+                        // sees the app populated without an account.
+                        // Activates DemoStore and flips AuthStore to
+                        // a fake user; APIClient short-circuits to
+                        // the seed data, no network traffic.
+                        Button {
+                            Task { await auth.signInAsDemo() }
+                        } label: {
+                            Label("Demo ansehen", systemImage: "sparkles")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                        .padding(.top, 8)
                     }
 
                     Spacer(minLength: 40)

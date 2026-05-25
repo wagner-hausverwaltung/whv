@@ -174,6 +174,10 @@ enum APIError: Error, LocalizedError {
     case http(status: Int, detail: String?)
     case decoding(Error)
     case unauthorized
+    /// Mutating API call attempted while demo mode is active.
+    /// Surfaces as a friendly message in any composer that tries
+    /// to write (POST comment / new ticket / etc.).
+    case demoReadOnly
 
     var errorDescription: String? {
         switch self {
@@ -190,6 +194,8 @@ enum APIError: Error, LocalizedError {
             return "Antwort konnte nicht ausgewertet werden."
         case .unauthorized:
             return "E-Mail oder Passwort ungültig."
+        case .demoReadOnly:
+            return String(localized: "Im Demo-Modus nicht verfügbar.")
         }
     }
 }
@@ -390,9 +396,13 @@ struct APIClient {
 
     /// GET /me/properties — list properties visible to the signed-in
     /// user. Verwalter sees all org properties; owners see only
-    /// properties they're a contact on.
+    /// properties they're a contact on. Short-circuits to the demo
+    /// seed when demo mode is active.
     func getMyProperties() async throws -> [PropertyResponse] {
-        try await authedGET("/me/properties")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.properties
+        }
+        return try await authedGET("/me/properties")
     }
 
     /// GET /me/export → tmp file URL with the DSGVO Art. 20 JSON
@@ -437,18 +447,30 @@ struct APIClient {
     /// GET /me/properties/{id}/assemblies — list-shape assemblies for
     /// one property. Filters out ABGESAGT server-side.
     func listMyAssemblies(propertyId: String) async throws -> [AssemblySummary] {
-        try await authedGET("/me/properties/\(propertyId)/assemblies")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.assemblies(for: propertyId)
+        }
+        return try await authedGET("/me/properties/\(propertyId)/assemblies")
     }
 
     /// GET /me/assemblies/{id} — full detail with agenda items +
     /// discussion. Comments are a separate endpoint.
     func getAssemblyDetail(id: String) async throws -> Assembly {
-        try await authedGET("/me/assemblies/\(id)")
+        if DemoFlag.isActive {
+            guard let a = await DemoStore.shared.assemblyDetail(id: id) else {
+                throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
+            }
+            return a
+        }
+        return try await authedGET("/me/assemblies/\(id)")
     }
 
     /// GET /me/assemblies/{id}/comments — ordered chronologically.
     func listAssemblyComments(assemblyId: String) async throws -> [AssemblyComment] {
-        try await authedGET("/me/assemblies/\(assemblyId)/comments")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.comments(for: assemblyId)
+        }
+        return try await authedGET("/me/assemblies/\(assemblyId)/comments")
     }
 
     /// POST /me/assemblies/{id}/comments — append a new Q&A entry.
@@ -457,7 +479,8 @@ struct APIClient {
         assemblyId: String,
         body: String
     ) async throws -> AssemblyComment {
-        try await authedJSON(
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
             "/me/assemblies/\(assemblyId)/comments",
             method: "POST",
             body: CreateAssemblyCommentBody(body: body)
@@ -469,19 +492,31 @@ struct APIClient {
     /// GET /me/tickets — every ticket the caller can see. Sorted
     /// newest-active first by the server.
     func listMyTickets() async throws -> [TicketSummary] {
-        try await authedGET("/me/tickets")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.tickets
+        }
+        return try await authedGET("/me/tickets")
     }
 
     /// GET /me/tickets?status=OFFEN — used by the dynamic widget to
     /// surface "X open tickets" + the newest one. Stays separate
     /// from listMyTickets so the widget snapshot is cheap.
     func listMyOpenTickets() async throws -> [TicketSummary] {
-        try await authedGET("/me/tickets?status=OFFEN")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.openTickets()
+        }
+        return try await authedGET("/me/tickets?status=OFFEN")
     }
 
     /// GET /me/tickets/{id} — full thread + participants.
     func getMyTicket(id: String) async throws -> TicketDetail {
-        try await authedGET("/me/tickets/\(id)")
+        if DemoFlag.isActive {
+            guard let t = await DemoStore.shared.ticketDetail(id: id) else {
+                throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
+            }
+            return t
+        }
+        return try await authedGET("/me/tickets/\(id)")
     }
 
     /// POST /me/tickets — open a new ticket. `propertyId` is optional;
@@ -492,7 +527,8 @@ struct APIClient {
         category: TicketCategory,
         propertyId: String?
     ) async throws -> TicketDetail {
-        try await authedJSON(
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
             "/me/tickets",
             method: "POST",
             body: CreateTicketBody(
@@ -510,7 +546,8 @@ struct APIClient {
         ticketId: String,
         body: String
     ) async throws -> TicketMessage {
-        try await authedJSON(
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
             "/me/tickets/\(ticketId)/messages",
             method: "POST",
             body: CreateTicketMessageBody(body: body)
@@ -538,13 +575,22 @@ struct APIClient {
     /// GET /me/properties/{id}/announcements — used by the dynamic
     /// widget to surface the newest published announcement.
     func listMyAnnouncementsForProperty(_ propertyId: String) async throws -> [AnnouncementSummary] {
-        try await authedGET("/me/properties/\(propertyId)/announcements")
+        if DemoFlag.isActive {
+            return await DemoStore.shared.announcements(for: propertyId)
+        }
+        return try await authedGET("/me/properties/\(propertyId)/announcements")
     }
 
     /// GET /me/announcements/{id} — full detail with attachments +
     /// comments embedded.
     func getAnnouncementDetail(id: String) async throws -> AnnouncementDetail {
-        try await authedGET("/me/announcements/\(id)")
+        if DemoFlag.isActive {
+            guard let a = await DemoStore.shared.announcementDetail(id: id) else {
+                throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
+            }
+            return a
+        }
+        return try await authedGET("/me/announcements/\(id)")
     }
 
     /// POST /me/announcements/{id}/comments — append a comment.
@@ -553,7 +599,8 @@ struct APIClient {
         announcementId: String,
         body: String
     ) async throws -> AnnouncementComment {
-        try await authedJSON(
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
             "/me/announcements/\(announcementId)/comments",
             method: "POST",
             body: CreateAnnouncementCommentBody(body: body)

@@ -34,31 +34,28 @@ enum AppearancePreference: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// English localisation isn't shipped on iOS yet — every visible
-/// string in the codebase is hardcoded German. Keeping the cases
-/// reduced to `system` + `de` so the Settings picker doesn't lie
-/// to the user about an English mode that wouldn't change
-/// anything. The full i18n pipeline (Localizable.xcstrings + run
-/// every string through a key) is a separate workstream.
 enum LanguagePreference: String, CaseIterable, Identifiable, Codable {
     case system
     case de
+    case en
 
     var id: String { rawValue }
     var label: String {
         switch self {
         case .system: return "System"
         case .de: return "Deutsch"
+        case .en: return "English"
         }
     }
 
-    /// Map to a SwiftUI `Locale`. `.system` returns nil so we don't
-    /// override — SwiftUI then uses Locale.current via the
-    /// environment.
+    /// Map to a SwiftUI `Locale`. `.system` returns nil so the
+    /// environment uses Locale.current; the manual cases force the
+    /// bundle's localised strings from Localizable.xcstrings.
     var locale: Locale? {
         switch self {
         case .system: return nil
         case .de: return Locale(identifier: "de")
+        case .en: return Locale(identifier: "en")
         }
     }
 }

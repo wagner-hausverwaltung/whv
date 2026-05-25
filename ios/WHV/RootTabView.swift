@@ -14,6 +14,8 @@ import SwiftUI
 struct RootTabView: View {
     @EnvironmentObject var store: LiegenschaftStore
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
+    @EnvironmentObject var authStore: AuthStore
+    @EnvironmentObject var demoStore: DemoStore
     @State private var selection = 2  // start on ETV — the most
                                        // load-bearing tab today
     @State private var newTicketSheetOpen = false
@@ -22,6 +24,16 @@ struct RootTabView: View {
 
     var body: some View {
         tabs
+            // Demo banner pinned at the top — visible on every tab,
+            // above any NavigationStack content underneath. Only
+            // appears while DemoStore.isActive == true.
+            .overlay(alignment: .top) {
+                if demoStore.isActive {
+                    DemoBanner { authStore.signOut() }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: demoStore.isActive)
             // Floating Verwaltung-Hotline button — bottom-right,
             // pinned above the tab bar via .safeAreaInset so it
             // never collides with the tab bar items and never sits

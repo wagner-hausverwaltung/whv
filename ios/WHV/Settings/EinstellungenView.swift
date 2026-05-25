@@ -30,6 +30,7 @@ struct EinstellungenView: View {
             List {
                 liegenschaftSection
                 appearanceSection
+                languageSection
                 sicherheitSection
                 // Konto + Datenschutz cluster together at the
                 // bottom — both are account-action pairs (sign out
@@ -164,6 +165,17 @@ struct EinstellungenView: View {
         Section("Erscheinungsbild") {
             Picker("Modus", selection: $settings.appearance) {
                 ForEach(AppearancePreference.allCases) { p in
+                    Text(p.label).tag(p)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var languageSection: some View {
+        Section("Sprache") {
+            Picker("Sprache", selection: $settings.language) {
+                ForEach(LanguagePreference.allCases) { p in
                     Text(p.label).tag(p)
                 }
             }

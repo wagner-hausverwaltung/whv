@@ -21,6 +21,7 @@ struct WHVApp: App {
     @StateObject private var settings = SettingsStore()
     @StateObject private var deepLinkRouter = DeepLinkRouter()
     @StateObject private var biometricLock = BiometricLockStore()
+    @StateObject private var demoStore = DemoStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -32,6 +33,7 @@ struct WHVApp: App {
                     .environmentObject(settings)
                     .environmentObject(deepLinkRouter)
                     .environmentObject(biometricLock)
+                    .environmentObject(demoStore)
                 // Lock overlay sits on top of the entire tree when
                 // active — covers every tab + every nav stack +
                 // every modal sheet underneath. Sign-in is gated

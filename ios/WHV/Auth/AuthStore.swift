@@ -71,6 +71,18 @@ final class AuthStore: ObservableObject {
         }
     }
 
+    /// Activates demo mode and flips `user` to the fake demo
+    /// identity. No network call, no Keychain write — everything
+    /// downstream consults DemoStore.shared via DemoFlag.isActive
+    /// and short-circuits to seed data.
+    func signInAsDemo() async {
+        DemoStore.shared.activate()
+        user = DemoStore.shared.demoUser
+        // No token writes, no /me/properties fetch — every Store's
+        // call into APIClient short-circuits.
+        await onSignIn?()
+    }
+
     /// Same code path as login — once the backend hands back a token
     /// pair, the user is signed in. The redemption screen can then
     /// dismiss; WHVApp's gate flips because `user` is now set.
@@ -115,15 +127,18 @@ final class AuthStore: ObservableObject {
     /// invalidate the refresh token — Phase 2 hits POST /auth/logout
     /// when the endpoint lands.
     func signOut() {
-        keychain.delete(accessTokenKey)
-        keychain.delete(refreshTokenKey)
-        defaults.removeObject(forKey: cachedUserKey)
+        // Demo mode shuts down cleanly without touching Keychain
+        // (it never wrote there). Live mode wipes both the auth
+        // tokens and the cached user envelope.
+        if DemoStore.shared.isActive {
+            DemoStore.shared.deactivate()
+        } else {
+            keychain.delete(accessTokenKey)
+            keychain.delete(refreshTokenKey)
+            defaults.removeObject(forKey: cachedUserKey)
+        }
         user = nil
-        // Clear the widget snapshot so the next account (or no
-        // account) doesn't show the previous user's next ETV.
         WidgetSync.clear()
-        // Same for the Lock Screen Live Activity — Apple keeps it
-        // alive across signs-out unless we explicitly kill it.
         Task { await LiveActivityManager.endAll() }
         onSignOut?()
     }
