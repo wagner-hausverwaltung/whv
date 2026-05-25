@@ -23,6 +23,10 @@ struct LiegenschaftPickerView: View {
                             row(for: l)
                         }
                         .foregroundStyle(.primary)
+                        // Library backdrop behind every Liegenschaft
+                        // row. Same image for now; per-property
+                        // image_url lands in Phase 2.
+                        .listRowBackground(PropertyBackground())
                     }
                 } header: {
                     Text("Ihre Liegenschaften")

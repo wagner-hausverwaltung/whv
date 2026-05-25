@@ -31,6 +31,15 @@ struct LoginRequest: Codable {
     let password: String
 }
 
+/// Body for POST /auth/invite/redeem — same shape the React portal
+/// sends (see web/src/pages/InviteRedeemPage.tsx), so the same
+/// backend handler can serve both clients.
+struct InviteRedeemRequest: Codable {
+    let code: String
+    let email: String
+    let password: String
+}
+
 // MARK: - Errors
 
 enum APIError: Error, LocalizedError {
@@ -100,6 +109,36 @@ struct APIClient {
         if let http = response as? HTTPURLResponse, http.statusCode == 401 {
             throw APIError.unauthorized
         }
+        try Self.throwIfNotOK(response: response, data: data)
+        return try Self.decode(TokenResponse.self, from: data)
+    }
+
+    /// Redeem an invite code (POST /auth/invite/redeem). Returns the
+    /// same TokenResponse as /auth/login — the backend creates the
+    /// user, sets the password, and issues a fresh JWT pair in one
+    /// step. No separate "activate account" follow-up needed.
+    ///
+    /// 400/409 from the backend bubble up as APIError.http with the
+    /// FastAPI `detail` string so the registration screen can show
+    /// "Einladung abgelaufen", "E-Mail-Adresse passt nicht", etc.
+    /// verbatim — same UX the portal gets.
+    func redeemInvite(
+        code: String,
+        email: String,
+        password: String
+    ) async throws -> TokenResponse {
+        let body = InviteRedeemRequest(
+            code: code.trimmingCharacters(in: .whitespacesAndNewlines),
+            email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            password: password
+        )
+        var request = URLRequest(url: baseURL.appending(path: "/auth/invite/redeem"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await performWithMapping(request)
         try Self.throwIfNotOK(response: response, data: data)
         return try Self.decode(TokenResponse.self, from: data)
     }

@@ -57,17 +57,47 @@ final class AuthStore: ObservableObject {
 
         do {
             let tokens = try await api.login(email: email, password: password)
-            try keychain.write(tokens.access_token, for: accessTokenKey)
-            try keychain.write(tokens.refresh_token, for: refreshTokenKey)
-            if let raw = try? JSONEncoder().encode(tokens.user) {
-                defaults.set(raw, forKey: cachedUserKey)
-            }
-            self.user = tokens.user
+            persist(tokens)
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
             self.lastError = error.localizedDescription
         }
+    }
+
+    /// Same code path as login — once the backend hands back a token
+    /// pair, the user is signed in. The redemption screen can then
+    /// dismiss; WHVApp's gate flips because `user` is now set.
+    func redeemInvite(code: String, email: String, password: String) async {
+        lastError = nil
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        do {
+            let tokens = try await api.redeemInvite(
+                code: code,
+                email: email,
+                password: password
+            )
+            persist(tokens)
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    /// Common write path used by both `login` and `redeemInvite` so
+    /// the Keychain/UserDefaults wiring is defined once. Always called
+    /// on the main actor (the class is @MainActor), so the @Published
+    /// assignment is safe.
+    private func persist(_ tokens: TokenResponse) {
+        try? keychain.write(tokens.access_token, for: accessTokenKey)
+        try? keychain.write(tokens.refresh_token, for: refreshTokenKey)
+        if let raw = try? JSONEncoder().encode(tokens.user) {
+            defaults.set(raw, forKey: cachedUserKey)
+        }
+        self.user = tokens.user
     }
 
     /// Clears tokens + cached user; SwiftUI flips back to the

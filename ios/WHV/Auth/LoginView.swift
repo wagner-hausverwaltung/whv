@@ -14,6 +14,7 @@ struct LoginView: View {
 
     @State private var email = ""
     @State private var password = ""
+    @State private var showRegistration = false
     @FocusState private var focused: Field?
 
     enum Field { case email, password }
@@ -31,12 +32,16 @@ struct LoginView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "lock.shield")
-                            .font(.system(size: 44))
-                            .foregroundStyle(.tint)
-                        Text("Wagner Hausverwaltung")
-                            .font(.title2.bold())
+                    VStack(spacing: 12) {
+                        // WHV transparent wordmark replaces the SF
+                        // lock symbol — the brand mark is recognisable
+                        // and saves vertical space (no need for a
+                        // separate "Wagner Hausverwaltung" title).
+                        Image("Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 280, maxHeight: 110)
+                            .accessibilityLabel("Wagner Hausverwaltung")
                         Text("Bitte mit Ihrem Portal-Konto anmelden.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -115,6 +120,23 @@ struct LoginView: View {
                             destination: URL(string: "https://staging.portal.wagner-hausverwaltung.com/forgot-password")!
                         )
                         .font(.subheadline)
+
+                        // Invite-code path. Sheet (rather than a
+                        // pushed view) so the registration screen
+                        // feels like a self-contained modal flow —
+                        // dismissing it always returns the user to
+                        // the login screen in a known state.
+                        Divider()
+                            .padding(.top, 12)
+                        HStack(spacing: 6) {
+                            Text("Neues Konto?")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Button("Einladungscode einlösen") {
+                                showRegistration = true
+                            }
+                            .font(.subheadline.weight(.semibold))
+                        }
                     }
 
                     Spacer(minLength: 40)
@@ -125,6 +147,10 @@ struct LoginView: View {
             }
         }
         .onAppear { focused = .email }
+        .sheet(isPresented: $showRegistration) {
+            RegistrationView()
+                .environmentObject(auth)
+        }
     }
 
     private var canSubmit: Bool {

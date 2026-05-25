@@ -33,6 +33,11 @@ struct RootTabView: View {
                 Label("Tickets", systemImage: "tray.full")
             }
 
+            VersammlungenTab()
+                .tabItem {
+                    Label("Versammlungen", systemImage: "person.3")
+                }
+
             NewsTab()
                 .tabItem {
                     Label("News", systemImage: "newspaper")
@@ -132,6 +137,10 @@ struct EinstellungenView: View {
                         }
                         .padding(.vertical, 2)
                     }
+                    // Same library backdrop the picker uses — the
+                    // active-Liegenschaft row in Settings should feel
+                    // like the same entity, just compacted.
+                    .listRowBackground(PropertyBackground())
                 }
 
                 Section("Erscheinungsbild") {
