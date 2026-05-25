@@ -2,6 +2,8 @@ from app.models.announcement import (
     Announcement,
     AnnouncementAttachment,
     AnnouncementComment,
+    AnnouncementSendAttempt,
+    SendAttemptStatus,
 )
 from app.models.audit import AuditLog
 from app.models.circular import (
@@ -44,6 +46,7 @@ __all__ = [
     "Announcement",
     "AnnouncementAttachment",
     "AnnouncementComment",
+    "AnnouncementSendAttempt",
     "AuditLog",
     "Building",
     "CircularResolution",
@@ -68,6 +71,7 @@ __all__ = [
     "PropertyType",
     "ResolutionMode",
     "ResolutionStatus",
+    "SendAttemptStatus",
     "Session",
     "Ticket",
     "TicketCategory",

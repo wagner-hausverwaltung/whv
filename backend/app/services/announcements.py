@@ -32,9 +32,11 @@ from app.models import (
     Announcement,
     AnnouncementAttachment,
     AnnouncementComment,
+    AnnouncementSendAttempt,
     Contact,
     Contract,
     ContractContact,
+    SendAttemptStatus,
     User,
     UserRole,
 )
@@ -597,3 +599,71 @@ def mark_published(announcement: Announcement) -> None:
     """Stamp `notification_sent_at = now()` so the row drops out of
     the publish-due partial index. Caller commits."""
     announcement.notification_sent_at = _now()
+
+
+def record_send_attempt(
+    session: AsyncSession,
+    *,
+    announcement: Announcement,
+    recipient_user: User | None,
+    recipient_email: str,
+    status: SendAttemptStatus,
+    error_message: str | None = None,
+) -> AnnouncementSendAttempt:
+    """Append a per-recipient send-attempt row. Caller commits.
+
+    `recipient_user` is the resolved user at send time (or None for
+    a replay where the user was deleted). `recipient_email` is what
+    actually went out. On FAILED, `error_message` carries the
+    truncated EmailError string."""
+    row = AnnouncementSendAttempt(
+        announcement_id=announcement.id,
+        recipient_user_id=recipient_user.id if recipient_user else None,
+        recipient_email=recipient_email,
+        status=status,
+        error_message=error_message[:500] if error_message else None,
+    )
+    session.add(row)
+    return row
+
+
+async def list_send_attempts(
+    session: AsyncSession, announcement_id: uuid.UUID
+) -> list[AnnouncementSendAttempt]:
+    """All attempts for an announcement, newest first."""
+    rows = (
+        await session.scalars(
+            select(AnnouncementSendAttempt)
+            .where(AnnouncementSendAttempt.announcement_id == announcement_id)
+            .order_by(AnnouncementSendAttempt.attempted_at.desc())
+        )
+    ).all()
+    return list(rows)
+
+
+async def list_failed_recipients_for_resend(
+    session: AsyncSession, announcement_id: uuid.UUID
+) -> list[str]:
+    """The set of recipient emails whose latest attempt is FAILED.
+
+    Used by the admin "Erneut senden" button — we only retry the
+    addresses still in failure state (a row that previously failed
+    but later succeeded is left alone).
+    """
+    rows = (
+        await session.scalars(
+            select(AnnouncementSendAttempt)
+            .where(AnnouncementSendAttempt.announcement_id == announcement_id)
+            .order_by(AnnouncementSendAttempt.attempted_at.desc())
+        )
+    ).all()
+
+    latest_by_email: dict[str, SendAttemptStatus] = {}
+    for row in rows:
+        if row.recipient_email not in latest_by_email:
+            latest_by_email[row.recipient_email] = row.status
+    return [
+        email
+        for email, status_value in latest_by_email.items()
+        if status_value == SendAttemptStatus.FAILED
+    ]

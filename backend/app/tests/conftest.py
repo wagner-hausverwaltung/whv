@@ -24,6 +24,7 @@ _ENUM_TYPES = (
     "property_type",
     "resolution_mode",
     "resolution_status",
+    "send_attempt_status",
     "ticket_category",
     "ticket_message_source",
     "ticket_share_scope",

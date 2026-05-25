@@ -610,9 +610,7 @@ async def test_comment_notifies_verwalter_and_prior_commenters(
     """First comment → only Verwalter is pinged.
     Second comment from a different owner → Verwalter + first commenter."""
     org = await make_org(test_engine)
-    v_user, v_email, v_pw = await make_user(
-        test_engine, org=org, role=UserRole.VERWALTER
-    )
+    v_user, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
     prop = await make_property(test_engine, org=org)
     _, a_email, a_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
     _, b_email, b_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
@@ -640,9 +638,7 @@ async def test_comment_notifies_verwalter_and_prior_commenters(
             headers=_auth(a_token),
             json={"body": "first reply from A"},
         )
-        first_round = [
-            entry for entry in stub_email.sent if "Kommentar" in entry["subject"]
-        ]
+        first_round = [entry for entry in stub_email.sent if "Kommentar" in entry["subject"]]
         recipients_first = {to[0] for entry in first_round for to in [entry["to"]]}
         assert recipients_first == {v_user.email}
 
@@ -654,9 +650,7 @@ async def test_comment_notifies_verwalter_and_prior_commenters(
             headers=_auth(b_token),
             json={"body": "second reply from B"},
         )
-        second_round = [
-            entry for entry in stub_email.sent if "Kommentar" in entry["subject"]
-        ]
+        second_round = [entry for entry in stub_email.sent if "Kommentar" in entry["subject"]]
         recipients_second = {to[0] for entry in second_round for to in [entry["to"]]}
         assert v_email in recipients_second
         assert a_email in recipients_second
@@ -855,6 +849,80 @@ async def test_publish_task_fans_out_due_announcements(
         fresh = await s.get(Announcement, ann_id)
         assert fresh is not None
         assert fresh.notification_sent_at is not None
+
+
+async def test_publish_task_records_send_attempts(
+    test_engine: AsyncEngine,
+    tmp_announcement_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each per-recipient send writes a SUCCESS row in
+    announcement_send_attempts. A failing send writes FAILED with
+    error_message populated."""
+    from app.integrations.email.client import EmailError
+    from app.models import AnnouncementSendAttempt, SendAttemptStatus
+
+    class _FlakyEmail(_StubEmailClient):
+        """Same capture surface but raises on the first send."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        async def send(self, **kwargs: Any) -> str:
+            self.calls += 1
+            if self.calls == 1:
+                raise EmailError("simulated bounce")
+            return await super().send(**kwargs)
+
+    stub = _FlakyEmail()
+    monkeypatch.setattr("app.workers.tasks.EmailClient", lambda *_a, **_k: stub)
+
+    org = await make_org(test_engine)
+    _, _, _ = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    a_user, _, _ = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    b_user, _, _ = await _make_eligible_owner(test_engine, org=org, prop=prop)
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        a = Announcement(
+            organization_id=org.id,
+            property_id=prop.id,
+            created_by_user_id=a_user.id,
+            title="Attempts",
+            body="",
+            audience_eigentuemer=True,
+            audience_mieter=True,
+            audience_beirat=True,
+            scheduled_publish_at=datetime.now(UTC) - timedelta(seconds=10),
+        )
+        s.add(a)
+        await s.commit()
+        ann_id = a.id
+
+    from app.workers.tasks import _publish_due_announcements_async
+
+    await _publish_due_announcements_async()
+
+    async with sm() as s:
+        attempts = (
+            await s.scalars(
+                __import__("sqlalchemy", fromlist=["select"])
+                .select(AnnouncementSendAttempt)
+                .where(AnnouncementSendAttempt.announcement_id == ann_id)
+            )
+        ).all()
+    statuses = {a.recipient_email: a.status for a in attempts}
+    error_msgs = {a.recipient_email: a.error_message for a in attempts}
+    # Exactly one row per audience-matched recipient.
+    assert {a_user.email, b_user.email} == set(statuses.keys())
+    # One failed, one succeeded (order depends on resolve_recipients
+    # query but we don't care which one bounced).
+    assert SendAttemptStatus.FAILED in statuses.values()
+    assert SendAttemptStatus.SUCCESS in statuses.values()
+    failed_email = next(e for e, s in statuses.items() if s == SendAttemptStatus.FAILED)
+    assert "simulated bounce" in (error_msgs[failed_email] or "")
 
 
 async def test_publish_task_is_idempotent(

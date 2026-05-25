@@ -22,6 +22,7 @@ from app.models import (
     CircularResolution,
     Property,
     ResolutionStatus,
+    SendAttemptStatus,
 )
 from app.services import announcements as announcements_svc
 from app.services.circular import (
@@ -265,7 +266,10 @@ async def _publish_due_announcements_async() -> dict[str, int]:
 
                     # Per-recipient send — no BCC leak, per-address
                     # bounce tracking, and a single bad address can't
-                    # take down the rest of the fan-out.
+                    # take down the rest of the fan-out. Each outcome
+                    # is stamped on announcement_send_attempts so the
+                    # admin UI can surface failures + offer a manual
+                    # retry button.
                     for recipient in recipients:
                         if not recipient.email:
                             continue
@@ -277,14 +281,31 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                                 text=text,
                                 attachments=resend_attachments or None,
                             )
-                        except EmailError:
+                            announcements_svc.record_send_attempt(
+                                session,
+                                announcement=fresh,
+                                recipient_user=recipient,
+                                recipient_email=recipient.email,
+                                status=SendAttemptStatus.SUCCESS,
+                            )
+                        except EmailError as exc:
                             failed += 1
                             logger.exception(
                                 "announcement fan-out failed: announcement=%s recipient=%s",
                                 fresh.id,
                                 recipient.email,
                             )
+                            announcements_svc.record_send_attempt(
+                                session,
+                                announcement=fresh,
+                                recipient_user=recipient,
+                                recipient_email=recipient.email,
+                                status=SendAttemptStatus.FAILED,
+                                error_message=str(exc),
+                            )
 
+                    # Commit the per-recipient attempt rows in one go.
+                    await session.commit()
                     sent += 1
                     logger.info(
                         "published announcement=%s recipients=%d attachments=%d",

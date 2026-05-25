@@ -1,6 +1,11 @@
 """Announcements (Mitteilungen) — property-scoped messages from Verwalter
 to Eigentümer / Mieter / Beirat.
 
+Also home to the per-recipient send-attempt log (`AnnouncementSendAttempt`).
+The Celery publish task writes one row per recipient (SUCCESS or
+FAILED with an error message); admin SPA reads them to expose a
+manual retry button for failed addresses.
+
 Lifecycle:
   1. Verwalter creates an announcement → `scheduled_publish_at = now() + 10min`,
      `notification_sent_at = NULL`.
@@ -21,6 +26,7 @@ constraint ensures at least one flag is true; the API enforces the
 same at request time so the error message is clean.
 """
 
+import enum
 import uuid
 from datetime import datetime
 
@@ -28,6 +34,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Text,
@@ -38,6 +45,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models._mixins import OrganizationScopedMixin, TimestampMixin, uuid7_pk
+
+
+class SendAttemptStatus(enum.StrEnum):
+    """Outcome of a single per-recipient Resend send attempt."""
+
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
 
 
 class Announcement(OrganizationScopedMixin, TimestampMixin, Base):
@@ -194,5 +208,54 @@ class AnnouncementComment(Base):
             "ix_announcement_comments_thread",
             "announcement_id",
             "created_at",
+        ),
+    )
+
+
+class AnnouncementSendAttempt(Base):
+    """One row per recipient per fan-out attempt.
+
+    Append-only: a retry writes a new row, the original FAILED row
+    stays so the admin can see "this address failed once before but
+    later succeeded". Retry resolution = "for each unique recipient,
+    is the latest attempt FAILED?".
+
+    `recipient_user_id` may be NULL if the user has been hard-deleted
+    between the original attempt and a later read. `recipient_email`
+    is captured at send time and remains the source of truth for
+    "what address actually went out".
+    """
+
+    __tablename__ = "announcement_send_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    announcement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("announcements.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    recipient_email: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    status: Mapped[SendAttemptStatus] = mapped_column(
+        Enum(SendAttemptStatus, name="send_attempt_status"),
+        nullable=False,
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_announcement_send_attempts_status",
+            "announcement_id",
+            "status",
         ),
     )
