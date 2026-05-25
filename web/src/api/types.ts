@@ -304,6 +304,81 @@ export const RESOLUTION_STATUS_LABELS: Record<ResolutionStatus, string> = {
   ABGELEHNT: "Abgelehnt",
 };
 
+// =============================================================
+// Eigentümerversammlung (ETV) — in-person assembly + agenda
+// =============================================================
+
+export type AssemblyStatus =
+  | "GEPLANT"
+  | "EINGELADEN"
+  | "ABGEHALTEN"
+  | "ABGESAGT";
+
+export type AgendaItemType = "INFORMATION" | "BESCHLUSS" | "DISKUSSION";
+
+export type AgendaItemVoteResult = "ANGENOMMEN" | "ABGELEHNT";
+
+export interface DiscussionEntryResponse {
+  id: string;
+  agenda_item_id: string;
+  position: number;
+  speaker_label: string;
+  content: string;
+  created_at: string;
+}
+
+export interface AgendaItemResponse {
+  id: string;
+  assembly_id: string;
+  position: number;
+  type: AgendaItemType;
+  title: string;
+  body: string;
+  beschluss_text: string | null;
+  vote_yes: number;
+  vote_no: number;
+  vote_abstain: number;
+  vote_required_quorum: number | null;
+  vote_result: AgendaItemVoteResult | null;
+  discussion: DiscussionEntryResponse[];
+}
+
+export interface AssemblyResponse {
+  id: string;
+  property_id: string;
+  title: string;
+  status: AssemblyStatus;
+  scheduled_start: string;
+  scheduled_end: string;
+  actual_start: string | null;
+  actual_end: string | null;
+  location: string;
+  protocol_pdf_url: string | null;
+  protocol_uploaded_at: string | null;
+  created_at: string;
+}
+
+export interface AssemblyDetailResponse extends AssemblyResponse {
+  description: string;
+  agenda_pdf_url: string | null;
+  agenda_items: AgendaItemResponse[];
+}
+
+export const ASSEMBLY_STATUS_LABELS: Record<AssemblyStatus, string> = {
+  GEPLANT: "Geplant",
+  EINGELADEN: "Eingeladen",
+  ABGEHALTEN: "Abgehalten",
+  ABGESAGT: "Abgesagt",
+};
+
+export const AGENDA_ITEM_TYPE_LABELS: Record<AgendaItemType, string> = {
+  INFORMATION: "Information",
+  BESCHLUSS: "Beschluss",
+  DISKUSSION: "Diskussion",
+};
+
+// =============================================================
+
 export const RESOLUTION_MODE_LABELS: Record<ResolutionMode, string> = {
   KLASSISCH: "Allstimmigkeit (§23 Abs. 3)",
   MEHRHEITS: "Mehrheits-Umlaufbeschluss",

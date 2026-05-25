@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
 import { AdminAnnouncementDetailPage } from "@/admin/pages/AdminAnnouncementDetailPage";
 import { AdminAnnouncementsAllPage } from "@/admin/pages/AdminAnnouncementsAllPage";
+import { AdminAssembliesPage } from "@/admin/pages/AdminAssembliesPage";
+import { AdminAssemblyDetailPage } from "@/admin/pages/AdminAssemblyDetailPage";
 import { AdminAuditPage } from "@/admin/pages/AdminAuditPage";
 import { AdminContactsPage } from "@/admin/pages/AdminContactsPage";
 import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
@@ -217,6 +219,26 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminResolutionDetailPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assemblies"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminAssembliesPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assemblies/:id"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminAssemblyDetailPage />
                 </AdminLayout>
               </AdminRoute>
             }

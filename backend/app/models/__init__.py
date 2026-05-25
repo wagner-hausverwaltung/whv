@@ -29,6 +29,14 @@ from app.models.document import (
     DocumentState,
     DocumentVisibility,
 )
+from app.models.etv import (
+    AgendaItemType,
+    AgendaItemVoteResult,
+    AssemblyStatus,
+    EtvAgendaItem,
+    EtvAssembly,
+    EtvDiscussionEntry,
+)
 from app.models.organization import Organization
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.ticket import (
@@ -61,11 +69,17 @@ __all__ = [
     "Contract",
     "ContractContact",
     "ContractType",
+    "AgendaItemType",
+    "AgendaItemVoteResult",
+    "AssemblyStatus",
     "Document",
     "DocumentFolder",
     "DocumentKind",
     "DocumentState",
     "DocumentVisibility",
+    "EtvAgendaItem",
+    "EtvAssembly",
+    "EtvDiscussionEntry",
     "InviteCode",
     "Organization",
     "PasswordResetToken",

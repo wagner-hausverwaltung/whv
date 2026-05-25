@@ -11,6 +11,7 @@ from app.api.v1 import admin as admin_router
 from app.api.v1 import announcements as announcements_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import circular as circular_router
+from app.api.v1 import etv as etv_router
 from app.api.v1 import me as me_router
 from app.api.v1 import tickets as tickets_router
 from app.api.v1 import webhooks as webhooks_router
@@ -66,6 +67,8 @@ app.include_router(circular_router.me_router)
 app.include_router(circular_router.admin_router)
 app.include_router(announcements_router.me_router)
 app.include_router(announcements_router.admin_router)
+app.include_router(etv_router.me_router)
+app.include_router(etv_router.admin_router)
 
 # User-uploaded avatars. StaticFiles wants the directory to exist at mount
 # time; we attempt to create it but tolerate a permission failure (common

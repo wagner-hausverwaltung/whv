@@ -124,6 +124,16 @@ class Settings(BaseSettings):
     announcement_attachment_dir: str = "/var/lib/whv/announcement-attachments"
     announcement_attachment_max_bytes: int = 25 * 1024 * 1024
 
+    # Signed Eigentümerversammlung protocol PDFs — one per assembly,
+    # named {assembly_id}.pdf so re-uploads cleanly overwrite. Auth-
+    # gated download via /me/assemblies/{id}/protocol; storage moves
+    # to Hetzner OS on the same wave as the other dirs.
+    etv_protocol_dir: str = "/var/lib/whv/etv-protocols"
+    # Protocols can run long (multi-MB if photos + sketch appendices
+    # are inlined), so we use the document cap rather than the
+    # attachment one.
+    etv_protocol_max_bytes: int = 50 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:
