@@ -23,6 +23,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
@@ -148,16 +149,34 @@ export function Layout({ children }: { children: ReactNode }) {
                 sx={{ height: 40, width: "auto" }}
               />
               {addressLine && (
-                <Stack spacing={0} sx={{ lineHeight: 1.2 }}>
-                  {activeProperty?.name && isWide && (
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {activeProperty.name}
+                <>
+                  <Avatar
+                    src={
+                      activeProperty?.image_url
+                        ? `${API_BASE_URL}${activeProperty.image_url}`
+                        : undefined
+                    }
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      bgcolor: "action.hover",
+                      color: "text.disabled",
+                      ml: 0.5,
+                    }}
+                  >
+                    <HomeWorkOutlinedIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                  <Stack spacing={0} sx={{ lineHeight: 1.2 }}>
+                    {activeProperty?.name && isWide && (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {activeProperty.name}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" color="text.secondary">
+                      {addressLine}
                     </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary">
-                    {addressLine}
-                  </Typography>
-                </Stack>
+                  </Stack>
+                </>
               )}
             </Box>
 

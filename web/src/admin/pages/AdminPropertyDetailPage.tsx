@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type SyntheticEvent,
+} from "react";
 import {
   Link as RouterLink,
   useNavigate,
@@ -8,6 +15,7 @@ import {
 import {
   Alert,
   Box,
+  Button,
   Link,
   Paper,
   Stack,
@@ -21,8 +29,10 @@ import {
   Tabs,
   Typography,
 } from "@mui/material";
+import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
+import PhotoCameraOutlined from "@mui/icons-material/PhotoCameraOutlined";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, API_BASE_URL } from "@/api/client";
 import type {
   AdminPropertyCompanyResponse,
   AdminPropertyDetailResponse,
@@ -31,7 +41,153 @@ import { AdminTicketsPage } from "./AdminTicketsPage";
 
 type TabKey = "overview" | "tickets" | "companies";
 
-function OverviewTab({ p }: { p: AdminPropertyDetailResponse }) {
+interface PropertyImageEditorProps {
+  property: AdminPropertyDetailResponse;
+  onChanged: (next: AdminPropertyDetailResponse) => void;
+}
+
+function PropertyImageEditor({
+  property,
+  onChanged,
+}: PropertyImageEditorProps) {
+  const { t } = useTranslation();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = () => fileRef.current?.click();
+
+  const onChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await api.put<AdminPropertyDetailResponse>(
+        `/admin/properties/${property.id}/image`,
+        form,
+        // Drop the default JSON content-type so axios derives the
+        // multipart boundary from the FormData payload.
+        { headers: { "Content-Type": undefined } },
+      );
+      onChanged(r.data);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        .response?.data?.detail;
+      setError(detail ?? t("admin.propertyDetail.imageUploadFailed"));
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const onRemove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.delete<AdminPropertyDetailResponse>(
+        `/admin/properties/${property.id}/image`,
+      );
+      onChanged(r.data);
+    } catch {
+      setError(t("admin.propertyDetail.imageDeleteFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+      <Box
+        sx={{
+          aspectRatio: "4 / 3",
+          maxHeight: 320,
+          width: "100%",
+          bgcolor: "action.hover",
+          backgroundImage: property.image_url
+            ? `url(${API_BASE_URL}${property.image_url})`
+            : undefined,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {!property.image_url && (
+          <HomeWorkOutlinedIcon
+            sx={{ fontSize: 64, color: "text.disabled" }}
+          />
+        )}
+      </Box>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{
+          p: 1.5,
+          borderTop: 1,
+          borderColor: "divider",
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<PhotoCameraOutlined />}
+          onClick={pick}
+          disabled={busy}
+        >
+          {busy
+            ? t("common.loading")
+            : property.image_url
+              ? t("admin.propertyDetail.imageReplace")
+              : t("admin.propertyDetail.imageUpload")}
+        </Button>
+        {property.image_url && (
+          <Button
+            variant="text"
+            size="small"
+            color="inherit"
+            onClick={onRemove}
+            disabled={busy}
+          >
+            {t("admin.propertyDetail.imageRemove")}
+          </Button>
+        )}
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ ml: "auto" }}
+        >
+          {t("admin.propertyDetail.imageHint")}
+        </Typography>
+      </Stack>
+      {error && (
+        <Alert severity="error" sx={{ borderRadius: 0 }}>
+          {error}
+        </Alert>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
+        hidden
+        onChange={onChange}
+      />
+    </Paper>
+  );
+}
+
+function OverviewTab({
+  p,
+  onChanged,
+}: {
+  p: AdminPropertyDetailResponse;
+  onChanged: (next: AdminPropertyDetailResponse) => void;
+}) {
   const { t } = useTranslation();
   const street = [p.street, p.number].filter(Boolean).join(" ");
   const zipCity = [p.postal_code, p.city].filter(Boolean).join(" ");
@@ -47,6 +203,7 @@ function OverviewTab({ p }: { p: AdminPropertyDetailResponse }) {
 
   return (
     <Stack spacing={3}>
+      <PropertyImageEditor property={p} onChanged={onChanged} />
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableBody>
@@ -314,7 +471,9 @@ export function AdminPropertyDetailPage() {
         />
       </Tabs>
 
-      {activeTab === "overview" && <OverviewTab p={detail} />}
+      {activeTab === "overview" && (
+        <OverviewTab p={detail} onChanged={setDetail} />
+      )}
       {activeTab === "tickets" && id && (
         <AdminTicketsPage filterPropertyId={id} showHeader={false} />
       )}

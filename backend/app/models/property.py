@@ -51,6 +51,12 @@ class Property(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     raw_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Verwalter-uploaded hero photo of the building/property. None until the
+    # admin uploads one; served by the static mount at /admin/property-images/.
+    # Pillow normalises every upload to a PNG under settings.property_image_dir,
+    # keyed by property id. Same pattern as user avatars.
+    image_url: Mapped[str | None] = mapped_column(nullable=True)
+
     __table_args__ = (Index("ix_properties_org_state", "organization_id", "state"),)
 
 

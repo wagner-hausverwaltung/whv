@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # photo; we resize down to 256x256 anyway before saving.
     avatar_max_bytes: int = 4 * 1024 * 1024
 
+    # Verwalter-uploaded property hero photos. PNG, fit into a 1280x960 box
+    # so they look sharp on retina but don't waste 4K pixels for what's at
+    # most a 600px card. Local disk for v1; Hetzner OS later.
+    property_image_dir: str = "/var/lib/whv/property-images"
+    property_image_max_bytes: int = 10 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -161,7 +161,13 @@
       "totalAmount": "Gesamtsumme (€)",
       "lastInvoice": "Letzte Rechnung",
       "loadFailed": "Liegenschaft konnte nicht geladen werden.",
-      "notFound": "Liegenschaft nicht gefunden."
+      "notFound": "Liegenschaft nicht gefunden.",
+      "imageUpload": "Bild hochladen",
+      "imageReplace": "Bild ändern",
+      "imageRemove": "Entfernen",
+      "imageHint": "JPEG, PNG oder WebP, max. 10 MB. Wird auf 1280×960 verkleinert.",
+      "imageUploadFailed": "Bild konnte nicht hochgeladen werden.",
+      "imageDeleteFailed": "Bild konnte nicht entfernt werden."
     },
     "auditPage": {
       "title": "Audit-Log",

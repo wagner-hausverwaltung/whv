@@ -2,15 +2,21 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.bootstrap import generate_invite_code
 from app.auth.dependencies import require_role
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.invites import render_invite_email
+from app.integrations.storage.property_images import (
+    PropertyImageError,
+    delete_property_image,
+    write_property_image,
+)
 from app.models import (
     AuditLog,
     CircularResolution,
@@ -567,6 +573,7 @@ async def admin_property_detail(
         number=prop.number,
         postal_code=prop.postal_code,
         country=prop.country,
+        image_url=prop.image_url,
         units_count=units_count,
         contracts_count=contracts_count,
         contacts_count=contacts_count,
@@ -574,6 +581,94 @@ async def admin_property_detail(
         open_resolutions_count=open_resolutions_count,
         invoice_companies_count=invoice_companies_count,
     )
+
+
+@router.put("/properties/{property_id}/image", response_model=AdminPropertyDetailResponse)
+async def upload_property_image(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+) -> AdminPropertyDetailResponse:
+    """Verwalter uploads (or replaces) a property hero photo.
+
+    Pillow normalises any JPEG/PNG/WebP/GIF/BMP to a 1280x960 PNG. The
+    URL stored on properties.image_url carries a cache-bust query so the
+    SPA refetches when the photo changes.
+    """
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    raw = await file.read()
+    if len(raw) > settings.property_image_max_bytes:
+        max_mb = settings.property_image_max_bytes // 1024 // 1024
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Bild darf höchstens {max_mb} MB groß sein.",
+        )
+    try:
+        url = write_property_image(prop.id, raw)
+    except PropertyImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ungültige Bilddatei: {exc}",
+        ) from exc
+
+    prop.image_url = url
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="property_image_updated",
+            target_type="properties",
+            target_id=str(prop.id),
+            payload_json={"size_bytes": len(raw)},
+        )
+    )
+    await session.commit()
+    # Re-fetch via the detail endpoint so the SPA gets the count fields
+    # populated too — saves a follow-up request after upload.
+    return await admin_property_detail(prop.id, current_user, session)
+
+
+@router.delete("/properties/{property_id}/image", response_model=AdminPropertyDetailResponse)
+async def remove_property_image(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminPropertyDetailResponse:
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    delete_property_image(prop.id)
+    prop.image_url = None
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="property_image_deleted",
+            target_type="properties",
+            target_id=str(prop.id),
+            payload_json={},
+        )
+    )
+    await session.commit()
+    return await admin_property_detail(prop.id, current_user, session)
 
 
 @router.get(
@@ -692,6 +787,7 @@ async def list_properties(
             street=p.street,
             number=p.number,
             postal_code=p.postal_code,
+            image_url=p.image_url,
         )
         for p in rows
     ]

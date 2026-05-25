@@ -36,6 +36,7 @@ export interface PropertyResponse {
   number: string | null;
   postal_code: string | null;
   country: string | null;
+  image_url: string | null;
 }
 
 export interface UnitResponse {
@@ -339,6 +340,7 @@ export interface AdminPropertyDetailResponse {
   number: string | null;
   postal_code: string | null;
   country: string | null;
+  image_url: string | null;
   units_count: number;
   contracts_count: number;
   contacts_count: number;
@@ -368,6 +370,7 @@ export interface AdminPropertyListItem {
   street: string | null;
   number: string | null;
   postal_code: string | null;
+  image_url: string | null;
 }
 
 export interface AdminUnitListItem {

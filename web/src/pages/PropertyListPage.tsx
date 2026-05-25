@@ -2,19 +2,22 @@ import { useEffect, useState } from "react";
 import { Link as RouterLink, Navigate } from "react-router-dom";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Link,
   List,
   ListItem,
+  ListItemAvatar,
   ListItemButton,
   ListItemText,
   Stack,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, API_BASE_URL } from "@/api/client";
 import type { PropertyResponse } from "@/api/types";
 import { useAuth } from "@/auth/AuthContext";
 
@@ -123,6 +126,23 @@ export function PropertyListPage() {
               }
             >
               <ListItemButton component={RouterLink} to={`/properties/${p.id}`}>
+                <ListItemAvatar>
+                  <Avatar
+                    variant="rounded"
+                    src={
+                      p.image_url ? `${API_BASE_URL}${p.image_url}` : undefined
+                    }
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      bgcolor: "action.hover",
+                      color: "text.disabled",
+                      mr: 2,
+                    }}
+                  >
+                    <HomeWorkOutlinedIcon />
+                  </Avatar>
+                </ListItemAvatar>
                 <ListItemText
                   primary={
                     <Typography variant="body1" sx={{ fontWeight: 500 }}>

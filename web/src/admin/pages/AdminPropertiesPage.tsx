@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
   Alert,
+  Avatar,
   Paper,
   Stack,
   Table,
@@ -12,8 +13,9 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, API_BASE_URL } from "@/api/client";
 import type { AdminPropertyListItem } from "@/api/types";
 
 export function AdminPropertiesPage() {
@@ -53,6 +55,7 @@ export function AdminPropertiesPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell sx={{ width: 64 }} />
                 <TableCell>{t("admin.propertiesPage.name")}</TableCell>
                 <TableCell>{t("admin.propertiesPage.type")}</TableCell>
                 <TableCell>{t("admin.propertiesPage.address")}</TableCell>
@@ -79,6 +82,24 @@ export function AdminPropertiesPage() {
                       "& td": { color: "text.primary" },
                     }}
                   >
+                    <TableCell sx={{ width: 64 }}>
+                      <Avatar
+                        variant="rounded"
+                        src={
+                          p.image_url
+                            ? `${API_BASE_URL}${p.image_url}`
+                            : undefined
+                        }
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          bgcolor: "action.hover",
+                          color: "text.disabled",
+                        }}
+                      >
+                        <HomeWorkOutlinedIcon fontSize="small" />
+                      </Avatar>
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {p.name}

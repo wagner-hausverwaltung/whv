@@ -102,6 +102,7 @@ class AdminPropertyDetailResponse(BaseModel):
     number: str | None = None
     postal_code: str | None = None
     country: str | None = None
+    image_url: str | None = None
     units_count: int
     contracts_count: int
     contacts_count: int
@@ -141,6 +142,7 @@ class AdminPropertyListItem(BaseModel):
     street: str | None = None
     number: str | None = None
     postal_code: str | None = None
+    image_url: str | None = None
 
 
 class AdminUnitListItem(BaseModel):

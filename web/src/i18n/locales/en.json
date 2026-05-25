@@ -161,7 +161,13 @@
       "totalAmount": "Total amount (€)",
       "lastInvoice": "Last invoice",
       "loadFailed": "Could not load property.",
-      "notFound": "Property not found."
+      "notFound": "Property not found.",
+      "imageUpload": "Upload image",
+      "imageReplace": "Change image",
+      "imageRemove": "Remove",
+      "imageHint": "JPEG, PNG or WebP, max. 10 MB. Resized to 1280×960.",
+      "imageUploadFailed": "Image could not be uploaded.",
+      "imageDeleteFailed": "Image could not be removed."
     },
     "auditPage": {
       "title": "Audit log",
