@@ -1,3 +1,8 @@
+from app.models.announcement import (
+    Announcement,
+    AnnouncementAttachment,
+    AnnouncementComment,
+)
 from app.models.audit import AuditLog
 from app.models.circular import (
     CircularResolution,
@@ -36,6 +41,9 @@ from app.models.unit import Unit, UnitType
 from app.models.user import InviteCode, PasswordResetToken, Session, User, UserRole
 
 __all__ = [
+    "Announcement",
+    "AnnouncementAttachment",
+    "AnnouncementComment",
     "AuditLog",
     "Building",
     "CircularResolution",
