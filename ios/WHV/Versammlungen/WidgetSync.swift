@@ -140,7 +140,7 @@ enum WidgetSync {
                 WidgetTicketPayload(
                     id: t.id,
                     subject: t.subject,
-                    category: t.category,
+                    category: t.category.label,
                     lastMessageAt: t.last_message_at,
                     propertyName: t.property_name
                 )

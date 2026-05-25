@@ -76,14 +76,56 @@ struct CreateAssemblyCommentBody: Codable {
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
+/// Wire shape for /me/tickets list rows. Status / category use the
+/// real Swift enums so consumers don't deal with stringly-typed
+/// values. Unknown status decodes to .neu defensively; unknown
+/// category to .sonstigesOther (forward-compat with future server
+/// additions). Both decoders surface on this list endpoint.
 struct TicketSummary: Codable, Hashable, Identifiable {
     let id: String
+    let property_id: String?
     let subject: String
-    let status: String  // OFFEN / IN_BEARBEITUNG / GESCHLOSSEN
-    let category: String
+    let status: TicketStatus
+    let category: TicketCategory
     let last_message_at: Date
     let created_at: Date
+    let closed_at: Date?
     let property_name: String?
+    let property_address: String?
+    let creator_email: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        property_id = try c.decodeIfPresent(String.self, forKey: .property_id)
+        subject = try c.decode(String.self, forKey: .subject)
+        // Tolerate unknown status — backend may add NEU/OFFEN-style
+        // values we don't know yet.
+        if let raw = try? c.decode(String.self, forKey: .status),
+           let s = TicketStatus(rawValue: raw) {
+            status = s
+        } else {
+            status = .neu
+        }
+        if let raw = try? c.decode(String.self, forKey: .category),
+           let cat = TicketCategory(rawValue: raw) {
+            category = cat
+        } else {
+            category = .sonstigesOther
+        }
+        last_message_at = try c.decode(Date.self, forKey: .last_message_at)
+        created_at = try c.decode(Date.self, forKey: .created_at)
+        closed_at = try c.decodeIfPresent(Date.self, forKey: .closed_at)
+        property_name = try c.decodeIfPresent(String.self, forKey: .property_name)
+        property_address = try c.decodeIfPresent(String.self, forKey: .property_address)
+        creator_email = try c.decodeIfPresent(String.self, forKey: .creator_email)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, property_id, subject, status, category
+        case last_message_at, created_at, closed_at
+        case property_name, property_address, creator_email
+    }
 }
 
 struct AnnouncementSummary: Codable, Hashable, Identifiable {
@@ -99,6 +141,22 @@ struct AnnouncementSummary: Codable, Hashable, Identifiable {
 /// POST body for /me/announcements/{id}/comments. Mirrors backend's
 /// AnnouncementCommentCreateRequest.
 struct CreateAnnouncementCommentBody: Codable {
+    let body: String
+}
+
+/// POST body for /me/tickets. Mirrors backend's TicketCreateRequest.
+struct CreateTicketBody: Codable {
+    let subject: String
+    let body: String
+    let category: String
+    let property_id: String?
+    let share_scope: String
+}
+
+/// POST body for /me/tickets/{id}/messages. Only the body field is
+/// surfaced today — owners can't post internal notes (the server
+/// silently coerces is_internal_note to false on /me/*).
+struct CreateTicketMessageBody: Codable {
     let body: String
 }
 
@@ -380,12 +438,75 @@ struct APIClient {
         )
     }
 
-    // MARK: - Tickets / Mitteilungen (widget data sources)
+    // MARK: - Tickets
+
+    /// GET /me/tickets — every ticket the caller can see. Sorted
+    /// newest-active first by the server.
+    func listMyTickets() async throws -> [TicketSummary] {
+        try await authedGET("/me/tickets")
+    }
 
     /// GET /me/tickets?status=OFFEN — used by the dynamic widget to
-    /// surface "X open tickets" + the newest one.
+    /// surface "X open tickets" + the newest one. Stays separate
+    /// from listMyTickets so the widget snapshot is cheap.
     func listMyOpenTickets() async throws -> [TicketSummary] {
         try await authedGET("/me/tickets?status=OFFEN")
+    }
+
+    /// GET /me/tickets/{id} — full thread + participants.
+    func getMyTicket(id: String) async throws -> TicketDetail {
+        try await authedGET("/me/tickets/\(id)")
+    }
+
+    /// POST /me/tickets — open a new ticket. `propertyId` is optional;
+    /// `share_scope` defaults to PRIVATE matching the backend.
+    func createMyTicket(
+        subject: String,
+        body: String,
+        category: TicketCategory,
+        propertyId: String?
+    ) async throws -> TicketDetail {
+        try await authedJSON(
+            "/me/tickets",
+            method: "POST",
+            body: CreateTicketBody(
+                subject: subject,
+                body: body,
+                category: category.rawValue,
+                property_id: propertyId,
+                share_scope: "PRIVATE"
+            )
+        )
+    }
+
+    /// POST /me/tickets/{id}/messages — append a reply to the thread.
+    func postMyTicketMessage(
+        ticketId: String,
+        body: String
+    ) async throws -> TicketMessage {
+        try await authedJSON(
+            "/me/tickets/\(ticketId)/messages",
+            method: "POST",
+            body: CreateTicketMessageBody(body: body)
+        )
+    }
+
+    /// GET /me/tickets/{id}/attachments/{aid}/file → local file URL
+    /// suitable for QuickLook. Same authed-binary pattern as
+    /// announcement attachments + protocol PDFs.
+    func downloadTicketAttachment(
+        ticketId: String,
+        attachmentId: String,
+        filename: String
+    ) async throws -> URL {
+        let safe = filename
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+            .replacingOccurrences(of: "..", with: "_")
+        return try await authedDownload(
+            "/me/tickets/\(ticketId)/attachments/\(attachmentId)/file",
+            saveAs: "ticket-att-\(attachmentId)-\(safe)"
+        )
     }
 
     /// GET /me/properties/{id}/announcements — used by the dynamic

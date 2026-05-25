@@ -39,15 +39,11 @@ struct RootTabView: View {
                 }
                 .tag(0)
 
-            ComingSoonView(
-                title: "Tickets",
-                subtitle: "Schaden- und Anfrage-Tickets",
-                contextLiegenschaft: store.selected
-            )
-            .tabItem {
-                Label("Tickets", systemImage: "tray.full")
-            }
-            .tag(1)
+            TicketsTab()
+                .tabItem {
+                    Label("Tickets", systemImage: "tray.full")
+                }
+                .tag(1)
 
             VersammlungenTab()
                 .tabItem {
