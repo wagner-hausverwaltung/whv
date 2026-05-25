@@ -129,6 +129,13 @@ private struct TicketsList: View {
     let tickets: [TicketSummary]
     let onReload: () -> Void
 
+    /// Closed tickets are noise once they're done — start collapsed
+    /// so the user lands on the active queue. Tap the header to
+    /// expand. Tickets that close while the screen is open stay
+    /// hidden until the user opts in, which is the right default
+    /// for an "Aktuell" focused list.
+    @State private var closedExpanded = false
+
     private var active: [TicketSummary] {
         tickets
             .filter { $0.status.isActive }
@@ -148,12 +155,35 @@ private struct TicketsList: View {
                 }
             }
             if !closed.isEmpty {
-                Section("Geschlossen") {
-                    ForEach(closed) { row(for: $0) }
+                Section {
+                    if closedExpanded {
+                        ForEach(closed) { row(for: $0) }
+                    }
+                } header: {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            closedExpanded.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("Geschlossen (\(closed.count))")
+                                .font(.subheadline.weight(.semibold))
+                                .textCase(nil)  // override the SwiftUI uppercase default
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(closedExpanded ? 90 : 0))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(20)  // a bit more breathing room between Aktuell + Geschlossen
         .refreshable { onReload() }
     }
 
