@@ -1,9 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Alert, Box, Button, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Link, Stack, TextField, Typography } from "@mui/material";
 import { api, setTokens } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { AuthShell } from "@/components/AuthShell";
+
+interface InviteInfoResponse {
+  email: string;
+  role: string;
+  organization_name: string;
+  expires_at: string;
+}
 
 export function InviteRedeemPage() {
   const [params] = useSearchParams();
@@ -11,6 +18,14 @@ export function InviteRedeemPage() {
   const { refreshMe } = useAuth();
   const code = params.get("code") ?? "";
 
+  // Three states for the invite lookup:
+  //   undefined → still loading
+  //   null      → lookup failed (no code, 404, expired, consumed)
+  //   InviteInfo → success, email pre-filled + locked
+  const [info, setInfo] = useState<InviteInfoResponse | null | undefined>(
+    code ? undefined : null,
+  );
+  const [emailEditable, setEmailEditable] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -18,6 +33,37 @@ export function InviteRedeemPage() {
     code ? null : "Kein Einladungscode in der URL.",
   );
   const [submitting, setSubmitting] = useState(false);
+
+  // Look up the invite once on mount so we can pre-fill the email
+  // field. Mirrors the iOS RegistrationView flow — the user shouldn't
+  // be asked to re-type something already in their inbox; doing so
+  // invites typo-induced "Einladung ungültig" failures.
+  useEffect(() => {
+    if (!code) {
+      setInfo(null);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .get<InviteInfoResponse>(`/auth/invite/${encodeURIComponent(code)}`)
+      .then((r) => {
+        if (cancelled) return;
+        setInfo(r.data);
+        setEmail(r.data.email);
+        setError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInfo(null);
+        setError(
+          "Diese Einladung ist nicht (mehr) gültig. Bitte wenden Sie sich "
+            + "an Ihre Hausverwaltung für eine neue Einladung.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -49,22 +95,41 @@ export function InviteRedeemPage() {
     }
   };
 
+  // No code in URL or invite lookup failed → terminal error state.
+  // Don't render the form; the user has nothing to do here.
+  if (info === null) {
+    return (
+      <AuthShell
+        title="Einladung einlösen"
+        subtitle="Bitte verwenden Sie den Link aus Ihrer Einladungs-E-Mail."
+      >
+        <Alert severity="error" role="alert">
+          {error}
+        </Alert>
+      </AuthShell>
+    );
+  }
+
+  // Lookup pending — show a quiet placeholder so the form doesn't
+  // flicker between "blank email" and "pre-filled email".
+  if (info === undefined) {
+    return (
+      <AuthShell
+        title="Einladung einlösen"
+        subtitle="Einladung wird geprüft…"
+      >
+        <Typography variant="body2" color="text.secondary">
+          Einen Moment bitte.
+        </Typography>
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell
       title="Einladung einlösen"
-      subtitle="Legen Sie Ihr Passwort fest, um sich künftig im WHV-Portal anzumelden."
+      subtitle={`Legen Sie Ihr Passwort fest, um sich künftig im WHV-Portal anzumelden. Einladung von ${info.organization_name}.`}
     >
-      {code && (
-        <Alert severity="info" icon={false}>
-          <Typography
-            variant="caption"
-            sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
-          >
-            Code: <strong>{code}</strong>
-          </Typography>
-        </Alert>
-      )}
-
       {error && (
         <Alert severity="error" role="alert">
           {error}
@@ -78,18 +143,35 @@ export function InviteRedeemPage() {
             type="email"
             label="E-Mail-Adresse"
             required
-            autoFocus
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            helperText="Muss mit der E-Mail-Adresse aus der Einladung übereinstimmen."
+            disabled={!emailEditable}
+            helperText={
+              emailEditable
+                ? "Achtung: Die Adresse muss mit jener aus der Einladung übereinstimmen."
+                : "Aus der Einladung übernommen."
+            }
             fullWidth
           />
+          {!emailEditable && (
+            <Box sx={{ mt: -1 }}>
+              <Link
+                component="button"
+                type="button"
+                variant="caption"
+                onClick={() => setEmailEditable(true)}
+              >
+                Andere E-Mail verwenden?
+              </Link>
+            </Box>
+          )}
           <TextField
             id="password"
             type="password"
             label="Neues Passwort"
             required
+            autoFocus
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

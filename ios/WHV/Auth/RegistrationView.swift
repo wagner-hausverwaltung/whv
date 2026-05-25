@@ -1,14 +1,20 @@
 // Invite-code redemption — mirrors the portal's InviteRedeemPage
 // (web/src/pages/InviteRedeemPage.tsx). The user lands here from
-// LoginView's "Einladungscode einlösen?" link. They paste the code
-// from the email + enter their email + pick a password, and the same
-// /auth/invite/redeem endpoint hands back a TokenResponse — at which
-// point WHVApp's gate sees `authStore.signedIn` flip true and pushes
-// them to the Liegenschaft picker.
+// LoginView's "Einladungscode einlösen?" link.
 //
-// We deliberately mirror the portal's validation (≥8 chars + match)
-// + error verbatim, so the same invitation can be redeemed on
-// either client with the same UX.
+// Flow:
+//   1. User types/pastes the code.
+//   2. When focus leaves the code field, we hit GET /auth/invite/{code}
+//      and pre-fill the email as read-only — typing it manually is the
+//      #1 cause of "Einladung ungültig" failures (typo vs. the address
+//      the Verwalter sent the invite to).
+//   3. User sets a password (min 10 chars; backend enforces).
+//   4. POST /auth/invite/redeem returns tokens; AuthStore.persist drops
+//      them into Keychain and the WHVApp gate flips to the picker.
+//
+// Server-side: the email is still required + validated on /redeem,
+// so the second-factor stays intact — we just pre-fill it for the
+// legitimate path.
 
 import SwiftUI
 
@@ -20,17 +26,21 @@ struct RegistrationView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirm = ""
+
+    @State private var inviteInfo: InviteInfoResponse?
+    @State private var inviteLookupState: LookupState = .idle
+    @State private var emailEditable = false
+
     @State private var localError: String?
 
     @FocusState private var focused: Field?
 
     enum Field { case code, email, password, confirm }
+    enum LookupState { case idle, loading, success, failed }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Same subtle WHV-blue accent the login screen uses
-                // so the two flows feel like one experience.
                 LinearGradient(
                     colors: [
                         Color(.systemBackground),
@@ -50,13 +60,10 @@ struct RegistrationView: View {
                                 .accessibilityLabel("Wagner Hausverwaltung")
                             Text("Einladung einlösen")
                                 .font(.title3.bold())
-                            Text(
-                                "Legen Sie Ihr Passwort fest, um sich künftig "
-                                    + "in der App und im Portal anzumelden."
-                            )
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                            Text(subtitleCopy)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
                         }
                         .padding(.top, 16)
 
@@ -65,57 +72,10 @@ struct RegistrationView: View {
                         }
 
                         VStack(spacing: 14) {
-                            field(
-                                label: "Einladungscode",
-                                placeholder: "z. B. ABC123-XYZ",
-                                text: $code,
-                                content: .none,
-                                keyboard: .default,
-                                capitalization: .characters,
-                                submit: .next,
-                                focus: .code,
-                                next: .email
-                            )
-                            .font(.body.monospaced())
-
-                            field(
-                                label: "E-Mail-Adresse",
-                                placeholder: "name@example.com",
-                                text: $email,
-                                content: .username,
-                                keyboard: .emailAddress,
-                                capitalization: .never,
-                                submit: .next,
-                                focus: .email,
-                                next: .password
-                            )
-
-                            field(
-                                label: "Neues Passwort",
-                                placeholder: "min. 8 Zeichen",
-                                text: $password,
-                                content: .newPassword,
-                                keyboard: .default,
-                                capitalization: .never,
-                                submit: .next,
-                                focus: .password,
-                                next: .confirm,
-                                secure: true
-                            )
-
-                            field(
-                                label: "Passwort bestätigen",
-                                placeholder: "Passwort wiederholen",
-                                text: $confirm,
-                                content: .newPassword,
-                                keyboard: .default,
-                                capitalization: .never,
-                                submit: .go,
-                                focus: .confirm,
-                                next: nil,
-                                secure: true,
-                                onSubmit: submit
-                            )
+                            codeField
+                            emailField
+                            passwordField
+                            confirmField
 
                             Button(action: submit) {
                                 HStack {
@@ -137,15 +97,6 @@ struct RegistrationView: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                             .disabled(!canSubmit)
-
-                            Text(
-                                "Die E-Mail-Adresse muss mit jener aus "
-                                    + "der Einladung übereinstimmen."
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 4)
                         }
 
                         Spacer(minLength: 40)
@@ -163,7 +114,30 @@ struct RegistrationView: View {
                 }
             }
             .onAppear { focused = .code }
+            .onChange(of: focused) { _, newValue in
+                // Trigger the invite lookup when focus moves *off* the
+                // code field (after the user has typed/pasted it).
+                // Skips repeat lookups for the same code.
+                if newValue != .code && !code.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if inviteInfo?.email == nil || inviteLookupState == .failed {
+                        Task { await lookupInvite() }
+                    }
+                }
+            }
         }
+    }
+
+    // MARK: - Copy
+
+    private var subtitleCopy: String {
+        if let info = inviteInfo {
+            return
+                "Legen Sie Ihr Passwort fest. "
+                + "Einladung von \(info.organization_name)."
+        }
+        return
+            "Legen Sie Ihr Passwort fest, um sich künftig in der App "
+            + "und im Portal anzumelden."
     }
 
     // MARK: - Pieces
@@ -185,70 +159,162 @@ struct RegistrationView: View {
         )
     }
 
-    @ViewBuilder
-    private func field(
-        label: String,
-        placeholder: String,
-        text: Binding<String>,
-        content: UITextContentType?,
-        keyboard: UIKeyboardType,
-        capitalization: TextInputAutocapitalization,
-        submit: SubmitLabel,
-        focus: Field,
-        next: Field?,
-        secure: Bool = false,
-        onSubmit: (() -> Void)? = nil
-    ) -> some View {
+    private var codeField: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Group {
-                if secure {
-                    SecureField(placeholder, text: text)
-                } else {
-                    TextField(placeholder, text: text)
+            HStack {
+                Text("Einladungscode")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if inviteLookupState == .loading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else if inviteLookupState == .success {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
                 }
             }
-            .textContentType(content)
-            .keyboardType(keyboard)
-            .textInputAutocapitalization(capitalization)
-            .autocorrectionDisabled()
-            .focused($focused, equals: focus)
-            .submitLabel(submit)
-            .onSubmit {
-                if let onSubmit { onSubmit() }
-                else if let next { focused = next }
-            }
-            .padding(12)
-            .background(.background, in: RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 0.5)
-            )
+            TextField("z. B. ABC123-XYZ", text: $code)
+                .textContentType(.oneTimeCode)
+                .keyboardType(.default)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .focused($focused, equals: .code)
+                .submitLabel(.next)
+                .onSubmit { focused = .email }
+                .padding(12)
+                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 0.5)
+                )
+                .font(.body.monospaced())
         }
     }
 
-    // MARK: - Validation + submit
+    private var emailField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("E-Mail-Adresse")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if inviteLookupState == .success && !emailEditable {
+                    Button("Andere E-Mail?") { emailEditable = true }
+                        .font(.caption)
+                }
+            }
+            TextField("name@example.com", text: $email)
+                .textContentType(.username)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focused, equals: .email)
+                .submitLabel(.next)
+                .onSubmit { focused = .password }
+                .disabled(inviteLookupState == .success && !emailEditable)
+                .padding(12)
+                .background(
+                    (inviteLookupState == .success && !emailEditable
+                        ? Color(.tertiarySystemFill)
+                        : Color(.systemBackground)),
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 0.5)
+                )
+            if inviteLookupState == .success && !emailEditable {
+                Text("Aus der Einladung übernommen.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 2)
+            }
+        }
+    }
+
+    private var passwordField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Neues Passwort")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            SecureField("min. 10 Zeichen", text: $password)
+                .textContentType(.newPassword)
+                .focused($focused, equals: .password)
+                .submitLabel(.next)
+                .onSubmit { focused = .confirm }
+                .padding(12)
+                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 0.5)
+                )
+        }
+    }
+
+    private var confirmField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Passwort bestätigen")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            SecureField("Passwort wiederholen", text: $confirm)
+                .textContentType(.newPassword)
+                .focused($focused, equals: .confirm)
+                .submitLabel(.go)
+                .onSubmit(submit)
+                .padding(12)
+                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 0.5)
+                )
+        }
+    }
+
+    // MARK: - Lookup
+
+    private func lookupInvite() async {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        inviteLookupState = .loading
+        localError = nil
+        do {
+            let info = try await APIClient().fetchInviteInfo(code: trimmed)
+            self.inviteInfo = info
+            self.email = info.email
+            self.emailEditable = false
+            self.inviteLookupState = .success
+        } catch {
+            self.inviteInfo = nil
+            self.emailEditable = true
+            self.inviteLookupState = .failed
+            self.localError =
+                "Diese Einladung ist nicht (mehr) gültig. "
+                + "Bitte wenden Sie sich an Ihre Hausverwaltung."
+        }
+    }
+
+    // MARK: - Submit
 
     private var canSubmit: Bool {
         !code.trimmingCharacters(in: .whitespaces).isEmpty
             && !email.trimmingCharacters(in: .whitespaces).isEmpty
-            && password.count >= 8
-            && confirm.count >= 8
+            && password.count >= 10
+            && confirm.count >= 10
             && !auth.isAuthenticating
     }
 
     private func submit() {
-        // Same client-side gates the portal applies, mirrored
-        // verbatim so the error copy matches across both clients.
         localError = nil
         if password != confirm {
             localError = "Passwörter stimmen nicht überein."
             return
         }
-        if password.count < 8 {
-            localError = "Passwort muss mindestens 8 Zeichen lang sein."
+        if password.count < 10 {
+            // Match the backend's min_length=10 rather than the
+            // portal's 8 — backend rejects 8 with a useless 422.
+            localError = "Passwort muss mindestens 10 Zeichen lang sein."
             return
         }
         guard canSubmit else { return }
@@ -259,9 +325,6 @@ struct RegistrationView: View {
                 email: email,
                 password: password
             )
-            // If signedIn flipped, the parent's gate will swap us to
-            // the picker — no explicit dismiss needed. If it failed,
-            // auth.lastError now holds the backend's detail string.
         }
     }
 }

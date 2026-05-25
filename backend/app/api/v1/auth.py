@@ -19,9 +19,17 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.password_reset import render_password_reset_email
-from app.models import AuditLog, InviteCode, PasswordResetToken, Session, User
+from app.models import (
+    AuditLog,
+    InviteCode,
+    Organization,
+    PasswordResetToken,
+    Session,
+    User,
+)
 from app.schemas.auth import (
     ForgotPasswordRequest,
+    InviteInfoResponse,
     InviteRedeemRequest,
     LoginRequest,
     LogoutRequest,
@@ -69,6 +77,45 @@ def _issue_tokens(settings: Settings, user: User, session: AsyncSession) -> Toke
             contact_id_impower=user.contact_id_impower,
             avatar_url=user.avatar_url,
         ),
+    )
+
+
+@router.get("/invite/{code}", response_model=InviteInfoResponse)
+async def get_invite_info(
+    code: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> InviteInfoResponse:
+    """Pre-fill the redemption form on portal + iOS.
+
+    Returns the invite's email + role + org name + expiry so the
+    client can lock the email field rather than asking the user to
+    re-type something already in their inbox (avoids the "typo →
+    Einladung ungültig" failure mode).
+
+    Defense-in-depth: 404 on any of {not found, already consumed,
+    expired}. The redeem POST still validates email match, so the
+    second-factor stays intact — this endpoint just removes the
+    typing risk for the legitimate path. Anyone holding the code
+    presumably has the email it was sent to anyway.
+    """
+    invite = await session.scalar(
+        select(InviteCode).where(
+            InviteCode.code == code,
+            InviteCode.consumed_at.is_(None),
+            InviteCode.expires_at > datetime.now(UTC),
+        )
+    )
+    if invite is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invite not found, expired, or already used",
+        )
+    org = await session.get(Organization, invite.organization_id)
+    return InviteInfoResponse(
+        email=invite.email,
+        role=str(invite.role.value if hasattr(invite.role, "value") else invite.role),
+        organization_name=org.name if org else "",
+        expires_at=invite.expires_at.isoformat(),
     )
 
 

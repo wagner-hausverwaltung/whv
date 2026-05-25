@@ -40,6 +40,18 @@ struct InviteRedeemRequest: Codable {
     let password: String
 }
 
+/// Response from GET /auth/invite/{code} — lets the registration
+/// screen pre-fill the email so the user doesn't have to retype an
+/// address already in their inbox. Returning a different email than
+/// the invite is the most common cause of "Einladung ungültig" errors;
+/// pre-filling eliminates the typo failure mode.
+struct InviteInfoResponse: Codable {
+    let email: String
+    let role: String
+    let organization_name: String
+    let expires_at: String
+}
+
 // MARK: - Errors
 
 enum APIError: Error, LocalizedError {
@@ -111,6 +123,30 @@ struct APIClient {
         }
         try Self.throwIfNotOK(response: response, data: data)
         return try Self.decode(TokenResponse.self, from: data)
+    }
+
+    /// Look up an invite by code so the registration screen can
+    /// pre-fill the email field as read-only. 404 covers
+    /// not-found / expired / consumed — the client just shows the
+    /// same "invite no longer valid" error in all three cases.
+    func fetchInviteInfo(code: String) async throws -> InviteInfoResponse {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Path-component encoding for safety with stray characters.
+        var components = URLComponents(
+            url: baseURL.appending(path: "/auth/invite/").appending(path: trimmed),
+            resolvingAgainstBaseURL: false
+        )
+        // appending(path:) already percent-encodes; URLComponents wrap
+        // is just for symmetry with other helpers. Build the URL
+        // directly to avoid a nil-unwrap.
+        components?.path = "/auth/invite/\(trimmed)"
+        let url = components?.url(relativeTo: baseURL) ?? baseURL.appending(path: "/auth/invite/\(trimmed)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+        return try Self.decode(InviteInfoResponse.self, from: data)
     }
 
     /// Redeem an invite code (POST /auth/invite/redeem). Returns the

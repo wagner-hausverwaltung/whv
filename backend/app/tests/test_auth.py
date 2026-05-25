@@ -66,6 +66,40 @@ async def test_invite_redeem_expired(test_engine: AsyncEngine) -> None:
     assert response.status_code == 400
 
 
+async def test_invite_info_happy_path(test_engine: AsyncEngine) -> None:
+    invite, _ = await make_invite(test_engine)
+    with TestClient(app) as client:
+        response = client.get(f"/auth/invite/{invite.code}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == invite.email
+    assert body["role"] == invite.role.value
+    assert body["organization_name"]  # non-empty
+    assert "expires_at" in body
+
+
+async def test_invite_info_unknown_returns_404(test_engine: AsyncEngine) -> None:
+    with TestClient(app) as client:
+        response = client.get("/auth/invite/NOSUCHCODE")
+    assert response.status_code == 404
+
+
+async def test_invite_info_consumed_returns_404(test_engine: AsyncEngine) -> None:
+    """Consumed invites must look identical to never-existed ones over
+    the wire — anything else would leak that the code was real once."""
+    invite, _ = await make_invite(test_engine, consumed=True)
+    with TestClient(app) as client:
+        response = client.get(f"/auth/invite/{invite.code}")
+    assert response.status_code == 404
+
+
+async def test_invite_info_expired_returns_404(test_engine: AsyncEngine) -> None:
+    invite, _ = await make_invite(test_engine, expires_in_days=-1)
+    with TestClient(app) as client:
+        response = client.get(f"/auth/invite/{invite.code}")
+    assert response.status_code == 404
+
+
 async def test_login_happy_path(test_engine: AsyncEngine) -> None:
     _, email, password = await make_user(test_engine)
     with TestClient(app) as client:
