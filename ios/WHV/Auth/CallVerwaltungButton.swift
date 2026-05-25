@@ -12,14 +12,17 @@
 
 import SwiftUI
 
-/// The Verwaltung-Hotline number. One source of truth — if it ever
-/// changes, the display string + the tel: URL update together.
+/// The Verwaltung-Hotline contact. One source of truth — change
+/// the number here and the tel: URL follows automatically.
 enum WHVContact {
-    static let displayNumber = "+49 15679 062409"
+    /// Shown on the floating button.
+    static let displayName = "Dirk Ullrich"
+    /// Dialed when the user taps the button. Not shown.
+    static let phoneNumber = "+49 15679 062409"
     /// tel:-scheme variant. Only digits + the leading `+` survive,
     /// per RFC 3966; iOS otherwise rejects the URL silently.
     static let telURL: URL = {
-        let digits = displayNumber.filter { "0123456789+".contains($0) }
+        let digits = phoneNumber.filter { "0123456789+".contains($0) }
         return URL(string: "tel:\(digits)")!
     }()
 }
@@ -30,7 +33,7 @@ struct CallVerwaltungButton: View {
             HStack(spacing: 8) {
                 Image(systemName: "phone.fill")
                     .font(.subheadline.weight(.bold))
-                Text(WHVContact.displayNumber)
+                Text(WHVContact.displayName)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
             }
@@ -44,7 +47,7 @@ struct CallVerwaltungButton: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Verwaltung anrufen")
+        .accessibilityLabel("Dirk Ullrich anrufen")
         .accessibilityHint("Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung")
     }
 }
