@@ -78,7 +78,7 @@ The fan-out task issues one Resend `POST /emails` per audience-matched user. BCC
 
 In production on staging from 2026-05-25. 19 backend tests (lifecycle, scope, audience, moderation, fan-out idempotency) all passing. Admin SPA tab + detail page live on `staging.admin.wagner-hausverwaltung.com`; portal list + detail on `staging.portal.wagner-hausverwaltung.com`.
 
-**Still not in v1.1, follow-ups if real-world usage demands**:
+**Still not in v1.2, follow-ups if real-world usage demands**:
 
 - Per-comment edit history (currently only `edited_at` is captured; the prior body is lost). Add an `announcement_comment_versions` table if we ever need to argue with an author about "what they actually wrote".
 - Comment-thread digest emails. Currently every comment fires its own notification — sufficient at the v1 volume we expect, but a noisy thread could spam Verwalter. Trivially solvable by switching the per-comment send to a Celery debounce that batches every 10 min.
@@ -100,6 +100,29 @@ Five extensions landed the same day as v1.0:
 - **Resend retry mode**: manual button, not auto-backoff. Auto-retry on transient failures sounds appealing but the failure mode we actually see (invalid recipient address, bounced domain) is permanent — auto-retry on those is throwing requests into a void. Manual gives the admin a chance to fix the address or drop the recipient before retrying.
 - **Per-unit targeting model**: rows in a junction table, not a denormalised array column on the announcement. Junction makes the SQL trivially-correct (`Contract.unit_id IN subquery`) and gives us a future-friendly model if we need per-unit visibility checks on the portal side too. Costs one extra INSERT-per-unit on save; negligible at v1 scale.
 - **Send-attempt log is append-only**: Each retry writes a new row, the original FAILED stays. "Latest attempt per recipient" resolves via timestamp. Simpler than mutating rows, and the audit trail captures the sequence ("failed at 9:00, retried at 9:05, succeeded at 9:30") — useful for figuring out whether a slow bounce is from a transient outage or a permanent block.
+
+## v1.2 follow-ups (shipped 2026-05-25)
+
+One extension landed shortly after v1.1, prompted by a real-world bug: a Mitteilung composed for `MV Hohewartstraße 13, 70469 Stuttgart` published correctly but reached zero recipients, because the staging DB had only one user account (the Verwalter) and zero portal accounts attached to the property's contracts. `resolve_recipients` returned `[]`, the Celery task marked the row published with a WARN, and there was no admin surface that made the empty audience visible. The user reported "I don't see the Mitteilung on the property in the end-user portal" — by design (Verwalter is excluded from the audience), but the deeper issue is that there were no eligible portal users to receive it.
+
+The fix is a **per-Mitteilung recipient editor** that lets the admin both see the resolved set and override it. Three pieces shipped:
+
+1. **`excluded_user_ids` + `extra_emails` columns** on `announcements`. Both Postgres array columns, default `'{}'`, NOT NULL. The auto-resolved set (audience role + per-unit filter) stays the baseline; `excluded_user_ids` is a deny-list against it, `extra_emails` is a free-text add-list for non-portal recipients. The final send set on every fan-out = `(auto_users − excluded) ∪ extras`, re-resolved on every send so new portal users joining the property automatically get future fan-outs.
+
+2. **Recipient-preview endpoint** `GET /admin/announcements/{id}/recipient-preview` returns the auto-resolved users (with each row flagged as `excluded=true/false`) + the extra emails + the resolved `active_emails` list the next send would actually fan out to. Admin SPA renders this as a checkbox list (auto-resolved) + a chip list with an add-form (extras) + a Save button that PATCHes both arrays.
+
+3. **General `/resend` replaces `/resend-failed`**. The v1.1 button retried only addresses whose latest attempt was FAILED; v1.2 sends to the *current active set* regardless of prior outcome. The mental model shifts from "retry transient failures" to "the audience just changed (or I just typed a new email), redo the fan-out". An admin who's hit Resend's 100-email free-tier cap can throttle by unchecking most recipients, saving, then resending to just the few they care about.
+
+**Decisions made during v1.2**:
+
+- **Override model**: auto + excludes + extras, not full manual override. New portal users joining the property after the Mitteilung publishes should automatically be in the next resend; a full manual override would freeze the recipient list at the moment of first edit and require admin re-touch every time the property changes. The few-extras-on-top-of-auto model handles the realistic case (a Hausmeister or external contractor with no portal account who needs the notice).
+- **`/resend` semantics**: replaces failed-only-retry, doesn't coexist with it. Two buttons for "subset retry" and "full resend" is admin-cognitive-load we don't need at v1 volume. If "retry failed only" becomes a real need later (high-volume Hausverwaltung sending Mitteilungen to thousands), bring back a `?failed_only=true` query param.
+- **No "preview as owner" affordance**: the admin sees the active recipient list directly. We considered a "see what an Eigentümer of unit 3a would see" toggle but rejected it — the active-emails count + per-row check states already answer "did I reach the right people?".
+
+**Still not in v1.2**:
+
+- Same three carry-overs as before (per-comment edit history, comment-thread digest, iOS Messages screen).
+- Rate-limit feedback in the SPA. When Resend rejects with 429 (free tier 100/day), the per-recipient FAILED row captures it but the toast doesn't distinguish "rate-limited" from "permanent failure". A v1.3 polish would parse the error code and show "Tageslimit erreicht — bitte Plan upgraden" with a doc link.
 
 ## Consequences
 

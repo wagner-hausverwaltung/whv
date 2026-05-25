@@ -584,6 +584,12 @@ Property-scoped messages from Verwalter to Eigentümer / Mieter / Beirat, with a
 - **Per-recipient send-attempt log + manual resend** — append-only `announcement_send_attempts` table, "Zustellprotokoll" panel on the admin detail page, "Erneut senden (N)" button that retries every recipient whose latest attempt is FAILED.
 - **Per-unit recipient narrowing** — optional `announcement_units` junction. Empty = property-wide-by-role (default). Non-empty = the audience role filter is intersected with users on contracts for the listed units. Admin Autocomplete picker in compose + edit forms; `n Einheit(en)` chip on list rows.
 
+**v1.2 follow-up (shipped 2026-05-25)** — recipient editor; fixes the "no portal users on a real property = silently zero recipients" trap:
+
+- `announcements.excluded_user_ids UUID[]` + `extra_emails TEXT[]` columns. Active recipient set = `(auto_users − excluded) ∪ extras`, re-resolved on every send so new portal users joining the property automatically get future fan-outs.
+- `GET /admin/announcements/{id}/recipient-preview` returns auto-resolved users (with per-row `excluded` flag) + extras + `active_emails`. Admin SPA renders a Switch-per-row list + chip list with add-form, between the edit form and the Zustellprotokoll panel.
+- `POST /admin/announcements/{id}/resend-failed` renamed to `/resend` with general semantics — sends to the current active set regardless of prior outcome, so the admin can edit the audience and re-fire in one workflow.
+
 ### 10.9 Definition of Done (Phase 4)
 - All four channels (portal, email, WhatsApp, ePost) live and routed via dispatcher
 - At least one Umlaufbeschluss successfully run end-to-end with a real WEG
