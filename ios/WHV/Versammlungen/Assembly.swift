@@ -1,12 +1,12 @@
 // Eigentümerversammlung models — mirror the backend's Pydantic
-// AssemblyResponse + AgendaItemResponse + DiscussionEntryResponse
+// AssemblyResponse + AssemblyDetailResponse + AssemblyCommentResponse
 // shapes (backend/app/schemas/etv.py).
 //
-// Decoding from the live API is wired up in EtvService; for now the
-// VersammlungenTab consumes baked-in demo data so the iOS app
-// renders something meaningful even before a real account is signed
-// in. Phase 2.1 flips VersammlungenStore from demo to live without
-// changing the views.
+// Two structs, not one: the list endpoint returns the summary
+// (AssemblyResponse), the detail endpoint returns the full tree
+// (AssemblyDetailResponse). Comments are a separate endpoint
+// (AssemblyCommentResponse) and are fetched alongside detail by
+// view-level state.
 
 import Foundation
 
@@ -133,6 +133,8 @@ struct AgendaItem: Codable, Identifiable, Hashable {
     var voteTotal: Int { vote_yes + vote_no + vote_abstain }
 }
 
+/// One Q&A entry under an assembly. Lives on its own endpoint:
+/// GET/POST /me/assemblies/{id}/comments.
 struct AssemblyComment: Codable, Identifiable, Hashable {
     let id: String
     let assembly_id: String
@@ -144,12 +146,31 @@ struct AssemblyComment: Codable, Identifiable, Hashable {
     let edited_at: Date?
 }
 
+/// Header-only summary returned by GET /me/properties/{id}/assemblies.
+/// Used to render the list. Distinct from `Assembly` so the list
+/// row code can't accidentally rely on agenda data it doesn't have.
+struct AssemblySummary: Codable, Identifiable, Hashable {
+    let id: String
+    let property_id: String
+    let property_name: String?
+    let property_hr_id: String?
+    let title: String
+    let status: AssemblyStatus
+    let scheduled_start: Date
+    let scheduled_end: Date
+    let actual_start: Date?
+    let actual_end: Date?
+    let location: String
+    let teams_meeting_url: String?
+    let protocol_pdf_url: String?
+    let protocol_uploaded_at: Date?
+}
+
+/// Full detail returned by GET /me/assemblies/{id}. Comments are
+/// fetched separately by the view that renders this.
 struct Assembly: Codable, Identifiable, Hashable {
     let id: String
     let property_id: String
-    /// Denormalised property identity so every ETV surface can render
-    /// the Liegenschaft without a per-row fetch. Backend leaves these
-    /// null only in unscoped/test contexts.
     let property_name: String?
     let property_hr_id: String?
     let title: String
@@ -160,13 +181,9 @@ struct Assembly: Codable, Identifiable, Hashable {
     let actual_start: Date?
     let actual_end: Date?
     let location: String
-    /// Optional Microsoft Teams meetup-join URL. When set, the detail
-    /// view renders a prominent purple "Teams-Meeting beitreten"
-    /// button at the top — mirrors the portal treatment.
     let teams_meeting_url: String?
     let agenda_pdf_url: String?
     let protocol_pdf_url: String?
     let protocol_uploaded_at: Date?
     let agenda_items: [AgendaItem]
-    let comments: [AssemblyComment]
 }

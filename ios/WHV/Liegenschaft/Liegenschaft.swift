@@ -20,14 +20,9 @@ struct Liegenschaft: Identifiable, Hashable, Codable {
 }
 
 extension Liegenschaft {
-    /// Demo data for the Phase 2 scaffold. Replaced at the
-    /// `LiegenschaftStore` boundary once the `/me/properties` API
-    /// is wired up — no other call sites should touch this.
-    ///
-    /// Includes the real Hohewartstraße property from staging so
-    /// the scaffold is recognisable when the dev wires the same
-    /// backend up later; the second entry is a stub WEG to make
-    /// the picker actually feel like a picker.
+    /// Demo data for SwiftUI #Preview blocks only. The live flow
+    /// hydrates `LiegenschaftStore.available` from /me/properties at
+    /// sign-in — production users never see this set.
     static let demo: [Liegenschaft] = [
         Liegenschaft(
             id: "019e5f2a-ad1c-7c90-b7d1-3fe2f670136f",
@@ -42,4 +37,19 @@ extension Liegenschaft {
             type: "WEG-Verwaltung"
         ),
     ]
+
+    /// Map a backend PropertyResponse to the iOS picker row shape.
+    /// We collapse the address into a single line because that's how
+    /// the picker actually presents it.
+    init(from p: PropertyResponse) {
+        self.id = p.id
+        self.name = p.name
+        self.type = p.type
+        let streetLine = [p.street, p.number].compactMap { $0 }.joined(separator: " ")
+        let cityLine = [p.postal_code, p.city].compactMap { $0 }.joined(separator: " ")
+        let combined = [streetLine, cityLine]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+        self.address = combined.isEmpty ? "—" : combined
+    }
 }

@@ -1,26 +1,78 @@
 // Eigentümerversammlungen — list view grouped into Geplant + Vergangen.
 //
-// The list reads from a per-property demo dataset; Phase 2.1 swaps
-// the source for /me/properties/{id}/assemblies + /me/assemblies/{id}
-// via EtvService (already drafted in Assembly.swift). The grouped
-// shape + row layout stays the same.
+// Live source: GET /me/properties/{id}/assemblies. A small
+// per-tab ObservableObject owns the fetch + loading/error state and
+// reloads when the active Liegenschaft changes.
 
 import SwiftUI
 
+@MainActor
+final class AssemblyListStore: ObservableObject {
+    @Published private(set) var assemblies: [AssemblySummary] = []
+    @Published private(set) var isLoading = false
+    @Published var lastError: String?
+
+    /// Tracks which property id is currently loaded so a switch back
+    /// to a previously-viewed property shows its cached set instantly
+    /// while we refresh in the background.
+    private(set) var loadedPropertyId: String?
+    private let api: APIClient
+
+    init(api: APIClient = APIClient()) {
+        self.api = api
+    }
+
+    func load(propertyId: String, force: Bool = false) async {
+        if loadedPropertyId == propertyId, !assemblies.isEmpty, !force {
+            return
+        }
+        lastError = nil
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let rows = try await api.listMyAssemblies(propertyId: propertyId)
+            self.assemblies = rows
+            self.loadedPropertyId = propertyId
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+}
+
 struct VersammlungenTab: View {
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
+    @StateObject private var store = AssemblyListStore()
 
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Versammlungen")
+                .toolbar {
+                    if let l = liegenschaftStore.selected {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                Task { await store.load(propertyId: l.id, force: true) }
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .disabled(store.isLoading)
+                        }
+                    }
+                }
         }
     }
 
     @ViewBuilder
     private var content: some View {
         if let l = liegenschaftStore.selected {
-            AssemblyList(assemblies: DemoAssemblies.sample(for: l))
+            AssemblyList(assemblies: store.assemblies, isLoading: store.isLoading, error: store.lastError) {
+                Task { await store.load(propertyId: l.id, force: true) }
+            }
+            .task(id: l.id) {
+                await store.load(propertyId: l.id)
+            }
         } else {
             ContentUnavailableView(
                 "Keine Liegenschaft gewählt",
@@ -34,14 +86,17 @@ struct VersammlungenTab: View {
 }
 
 private struct AssemblyList: View {
-    let assemblies: [Assembly]
+    let assemblies: [AssemblySummary]
+    let isLoading: Bool
+    let error: String?
+    let onReload: () -> Void
 
-    private var upcoming: [Assembly] {
+    private var upcoming: [AssemblySummary] {
         assemblies
             .filter { $0.status.isUpcoming }
             .sorted { $0.scheduled_start < $1.scheduled_start }
     }
-    private var past: [Assembly] {
+    private var past: [AssemblySummary] {
         assemblies
             .filter { !$0.status.isUpcoming }
             .sorted { $0.scheduled_start > $1.scheduled_start }
@@ -49,7 +104,17 @@ private struct AssemblyList: View {
 
     var body: some View {
         Group {
-            if assemblies.isEmpty {
+            if isLoading && assemblies.isEmpty {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Versammlungen werden geladen …")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let err = error, assemblies.isEmpty {
+                errorView(err)
+            } else if assemblies.isEmpty {
                 ContentUnavailableView(
                     "Keine Versammlungen",
                     systemImage: "calendar.badge.exclamationmark",
@@ -72,13 +137,32 @@ private struct AssemblyList: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .refreshable { onReload() }
             }
         }
     }
 
-    private func row(for a: Assembly) -> some View {
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundStyle(.tertiary)
+            Text("Versammlungen konnten nicht geladen werden.")
+                .font(.headline)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Erneut versuchen", action: onReload)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func row(for a: AssemblySummary) -> some View {
         NavigationLink {
-            AssemblyDetailView(assembly: a)
+            AssemblyDetailView(assemblyId: a.id, fallback: a)
         } label: {
             HStack(alignment: .center, spacing: 12) {
                 statusBadge(for: a.status)
@@ -129,7 +213,7 @@ private struct AssemblyList: View {
     /// "WEG Königstr. 42 · STUTTGART_K42" — mirrors the chip on
     /// admin + portal. Falls back to either part if the other is
     /// missing, returns nil if neither is present.
-    private func propertyLine(for a: Assembly) -> String? {
+    private func propertyLine(for a: AssemblySummary) -> String? {
         let parts = [a.property_name, a.property_hr_id]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
@@ -191,7 +275,6 @@ private func formatDateRange(_ start: Date, _ end: Date) -> String {
     VersammlungenTab()
         .environmentObject({
             let s = LiegenschaftStore()
-            s.select(Liegenschaft.demo[0])
             return s
         }())
 }

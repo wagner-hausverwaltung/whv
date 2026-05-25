@@ -1,14 +1,99 @@
 // Single-screen ETV detail: header → agenda items → per-item
-// Beschluss tally + Diskussion → signed-protocol PDF link.
+// Beschluss tally + Diskussion → signed-protocol PDF link → Fragen
+// & Antworten thread.
 //
-// One screen rather than a tabbed sub-navigation because the
-// document the Verwalter actually produces (protocol) is read top
-// to bottom in one pass — the iOS layout mirrors that reading flow.
+// Fetches detail + comments live from
+// GET /me/assemblies/{id} + GET /me/assemblies/{id}/comments. While
+// the detail call is in flight we render the summary we already
+// have (passed in by VersammlungenTab) so the user sees something
+// immediately rather than a spinner.
 
 import SwiftUI
 
+@MainActor
+final class AssemblyDetailStore: ObservableObject {
+    @Published private(set) var detail: Assembly?
+    @Published private(set) var comments: [AssemblyComment] = []
+    @Published private(set) var isLoadingDetail = false
+    @Published private(set) var isLoadingComments = false
+    @Published private(set) var isPosting = false
+    @Published var lastError: String?
+
+    private let api: APIClient
+
+    init(api: APIClient = APIClient()) {
+        self.api = api
+    }
+
+    func loadAll(assemblyId: String) async {
+        await loadDetail(assemblyId: assemblyId)
+        await loadComments(assemblyId: assemblyId)
+    }
+
+    func loadDetail(assemblyId: String) async {
+        isLoadingDetail = true
+        defer { isLoadingDetail = false }
+        do {
+            self.detail = try await api.getAssemblyDetail(id: assemblyId)
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    func loadComments(assemblyId: String) async {
+        isLoadingComments = true
+        defer { isLoadingComments = false }
+        do {
+            self.comments = try await api.listAssemblyComments(assemblyId: assemblyId)
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    /// Posts the comment and appends the server-returned row to the
+    /// thread. Returns true on success so the input field can clear.
+    @discardableResult
+    func postComment(assemblyId: String, body: String) async -> Bool {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        isPosting = true
+        defer { isPosting = false }
+        do {
+            let created = try await api.postAssemblyComment(
+                assemblyId: assemblyId,
+                body: trimmed
+            )
+            self.comments.append(created)
+            return true
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+            return false
+        } catch {
+            self.lastError = error.localizedDescription
+            return false
+        }
+    }
+}
+
 struct AssemblyDetailView: View {
-    let assembly: Assembly
+    let assemblyId: String
+    /// List-row summary passed in so we can render the header
+    /// instantly while the detail call is in flight. Optional so the
+    /// view also works from a Preview or push-notification
+    /// deep-link where no summary is available.
+    let fallback: AssemblySummary?
+
+    @StateObject private var store = AssemblyDetailStore()
+    @State private var commentDraft = ""
+
+    init(assemblyId: String, fallback: AssemblySummary? = nil) {
+        self.assemblyId = assemblyId
+        self.fallback = fallback
+    }
 
     var body: some View {
         ScrollView {
@@ -17,8 +102,8 @@ struct AssemblyDetailView: View {
                 if let url = teamsURL {
                     teamsJoinButton(url: url)
                 }
-                if !assembly.description.isEmpty {
-                    Text(assembly.description)
+                if let detail = store.detail, !detail.description.isEmpty {
+                    Text(detail.description)
                         .font(.body)
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,10 +117,49 @@ struct AssemblyDetailView: View {
         }
         .navigationTitle("Versammlung")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: assemblyId) {
+            await store.loadAll(assemblyId: assemblyId)
+        }
+        .refreshable {
+            await store.loadAll(assemblyId: assemblyId)
+        }
     }
 
+    // MARK: - Convenience views over the merged summary+detail
+
+    /// Header fields come from detail when available, else fall back
+    /// to the summary the list row passed in. Keeps the screen useful
+    /// during the brief detail-fetch flight.
+    private var displayTitle: String {
+        store.detail?.title ?? fallback?.title ?? "—"
+    }
+    private var displayStatus: AssemblyStatus? {
+        store.detail?.status ?? fallback?.status
+    }
+    private var displayLocation: String {
+        store.detail?.location ?? fallback?.location ?? "—"
+    }
+    private var displayStart: Date? {
+        store.detail?.scheduled_start ?? fallback?.scheduled_start
+    }
+    private var displayEnd: Date? {
+        store.detail?.scheduled_end ?? fallback?.scheduled_end
+    }
+    private var displayPropertyName: String? {
+        store.detail?.property_name ?? fallback?.property_name
+    }
+    private var displayPropertyHrId: String? {
+        store.detail?.property_hr_id ?? fallback?.property_hr_id
+    }
+    private var displayProtocolUploaded: Date? {
+        store.detail?.protocol_uploaded_at ?? fallback?.protocol_uploaded_at
+    }
+    private var hasProtocol: Bool {
+        (store.detail?.protocol_pdf_url ?? fallback?.protocol_pdf_url) != nil
+    }
     private var teamsURL: URL? {
-        guard let raw = assembly.teams_meeting_url, !raw.isEmpty else { return nil }
+        let raw = store.detail?.teams_meeting_url ?? fallback?.teams_meeting_url
+        guard let raw, !raw.isEmpty else { return nil }
         return URL(string: raw)
     }
 
@@ -44,14 +168,16 @@ struct AssemblyDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text(assembly.status.label)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(statusBackground)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                if assembly.protocol_pdf_url != nil {
+                if let s = displayStatus {
+                    Text(s.label)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(statusBackground(s))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+                if hasProtocol {
                     Text("Protokoll vorhanden")
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 10)
@@ -59,6 +185,9 @@ struct AssemblyDetailView: View {
                         .background(Color.green.opacity(0.15))
                         .foregroundStyle(.green)
                         .clipShape(Capsule())
+                }
+                if store.isLoadingDetail {
+                    ProgressView().controlSize(.small)
                 }
             }
             if let propertyLine = propertyHeaderLine {
@@ -71,17 +200,19 @@ struct AssemblyDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text(assembly.title)
+            Text(displayTitle)
                 .font(.title3.bold())
             VStack(alignment: .leading, spacing: 6) {
-                Label {
-                    Text(dateRange)
-                        .font(.subheadline)
-                } icon: {
-                    Image(systemName: "calendar")
+                if let start = displayStart, let end = displayEnd {
+                    Label {
+                        Text(dateRange(start: start, end: end))
+                            .font(.subheadline)
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
                 }
                 Label {
-                    Text(assembly.location)
+                    Text(displayLocation)
                         .font(.subheadline)
                 } icon: {
                     Image(systemName: "mappin.and.ellipse")
@@ -96,18 +227,24 @@ struct AssemblyDetailView: View {
         )
     }
 
-    /// "WEG Königstr. 42 · STUTTGART_K42" — both parts are optional;
-    /// we only render the line if at least one is set.
+    private func statusBackground(_ s: AssemblyStatus) -> Color {
+        switch s {
+        case .geplant: return .gray
+        case .eingeladen: return .blue
+        case .abgehalten: return .green
+        case .abgesagt: return .red
+        }
+    }
+
     private var propertyHeaderLine: String? {
-        let parts = [assembly.property_name, assembly.property_hr_id]
+        let parts = [displayPropertyName, displayPropertyHrId]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// Microsoft Teams purple matches the admin SPA + portal CTA so
-    /// the button reads as "the same Teams thing" across all three
-    /// surfaces.
+    /// Microsoft Teams purple — matches the admin SPA + portal CTA
+    /// so the button reads as the same "Teams thing" across surfaces.
     private static let teamsPurple = Color(red: 0.36, green: 0.32, blue: 0.78)
 
     private func teamsJoinButton(url: URL) -> some View {
@@ -134,21 +271,9 @@ struct AssemblyDetailView: View {
         .buttonStyle(.plain)
     }
 
-    private var statusBackground: Color {
-        switch assembly.status {
-        case .geplant: return .gray
-        case .eingeladen: return .blue
-        case .abgehalten: return .green
-        case .abgesagt: return .red
-        }
-    }
-
-    private var dateRange: String {
+    private func dateRange(start: Date, end: Date) -> String {
         let cal = Calendar.current
-        let sameDay = cal.isDate(
-            assembly.scheduled_start,
-            inSameDayAs: assembly.scheduled_end
-        )
+        let sameDay = cal.isDate(start, inSameDayAs: end)
         let date = DateFormatter()
         date.locale = Locale(identifier: "de_DE")
         date.dateFormat = "EEEE, d. MMMM yyyy"
@@ -156,9 +281,9 @@ struct AssemblyDetailView: View {
         time.locale = Locale(identifier: "de_DE")
         time.dateFormat = "HH:mm"
         if sameDay {
-            return "\(date.string(from: assembly.scheduled_start)), \(time.string(from: assembly.scheduled_start))–\(time.string(from: assembly.scheduled_end)) Uhr"
+            return "\(date.string(from: start)), \(time.string(from: start))–\(time.string(from: end)) Uhr"
         }
-        return "\(date.string(from: assembly.scheduled_start)) – \(date.string(from: assembly.scheduled_end))"
+        return "\(date.string(from: start)) – \(date.string(from: end))"
     }
 
     // MARK: - Agenda
@@ -168,14 +293,18 @@ struct AssemblyDetailView: View {
             Text("Tagesordnung")
                 .font(.title3.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if assembly.agenda_items.isEmpty {
+            if store.isLoadingDetail && store.detail == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if let detail = store.detail, !detail.agenda_items.isEmpty {
+                ForEach(detail.agenda_items.sorted(by: { $0.position < $1.position })) { item in
+                    AgendaItemCard(item: item)
+                }
+            } else {
                 Text("Tagesordnung wird vom Verwalter ergänzt.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            } else {
-                ForEach(assembly.agenda_items.sorted(by: { $0.position < $1.position })) { item in
-                    AgendaItemCard(item: item)
-                }
             }
         }
     }
@@ -188,7 +317,12 @@ struct AssemblyDetailView: View {
             Text("Fragen & Antworten")
                 .font(.title3.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if assembly.comments.isEmpty {
+
+            if store.isLoadingComments && store.comments.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else if store.comments.isEmpty {
                 Text(
                     "Hier können Sie Rückfragen zu dieser Versammlung "
                     + "stellen. Antworten erscheinen direkt unter der "
@@ -198,11 +332,14 @@ struct AssemblyDetailView: View {
                 .foregroundStyle(.secondary)
             } else {
                 ForEach(
-                    assembly.comments.sorted(by: { $0.created_at < $1.created_at })
+                    store.comments.sorted(by: { $0.created_at < $1.created_at })
                 ) { c in
                     CommentRow(comment: c)
                 }
             }
+
+            commentComposer
+
             Text(
                 "Kommentare dienen Rückfragen — formale Anfechtungen "
                 + "erfolgen außerhalb des Portals."
@@ -213,6 +350,48 @@ struct AssemblyDetailView: View {
         }
     }
 
+    private var commentComposer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(
+                "Frage oder Antwort verfassen …",
+                text: $commentDraft,
+                axis: .vertical
+            )
+            .lineLimit(2...6)
+            .textFieldStyle(.roundedBorder)
+            HStack {
+                if let err = store.lastError {
+                    Text(err)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    Task {
+                        let ok = await store.postComment(
+                            assemblyId: assemblyId,
+                            body: commentDraft
+                        )
+                        if ok { commentDraft = "" }
+                    }
+                } label: {
+                    if store.isPosting {
+                        ProgressView()
+                    } else {
+                        Label("Senden", systemImage: "paperplane.fill")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(
+                    store.isPosting
+                    || commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+
     // MARK: - Protocol
 
     @ViewBuilder
@@ -221,14 +400,12 @@ struct AssemblyDetailView: View {
             Text("Signiertes Protokoll")
                 .font(.title3.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let url = assembly.protocol_pdf_url {
+            if hasProtocol {
                 Button {
-                    // Phase 2.1 wires the authenticated GET
-                    // /me/assemblies/{id}/protocol and opens the
-                    // returned PDF via UIDocumentInteractionController
-                    // (or QuickLook). For the scaffold we render a
-                    // stub so the layout is testable.
-                    print("Would open protocol: \(url)")
+                    // Authenticated download lands in a follow-up
+                    // task; for now we surface that the file is on
+                    // the server and the portal/admin can serve it.
+                    print("Would open protocol for assembly \(assemblyId)")
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "doc.text.fill")
@@ -241,7 +418,7 @@ struct AssemblyDetailView: View {
                             Text("Protokoll als PDF öffnen")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.primary)
-                            if let uploaded = assembly.protocol_uploaded_at {
+                            if let uploaded = displayProtocolUploaded {
                                 Text("Hochgeladen am \(uploaded.formatted(.dateTime.day().month().year()))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -278,7 +455,6 @@ private struct AgendaItemCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Top row: TOP number + type chip + (optional) result chip
             HStack(spacing: 8) {
                 Text("TOP \(item.position)")
                     .font(.caption.weight(.semibold))
@@ -352,25 +528,14 @@ private struct AgendaItemCard: View {
         )
     }
 
-    /// Stimmrecht (KOPF/MEA/OBJEKT) + Anwesend tile. Rendered as a
-    /// pair of small chips above the tally so a glance tells you
-    /// what counting rule applied + how many heads were in the room.
     @ViewBuilder
     private var votingMeta: some View {
         HStack(spacing: 8) {
             if let basis = item.voting_basis {
-                metaChip(
-                    label: "Stimmrecht",
-                    value: basis.label,
-                    tint: .accentColor
-                )
+                metaChip(label: "Stimmrecht", value: basis.label, tint: .accentColor)
             }
             if let present = item.present_count {
-                metaChip(
-                    label: "Anwesend",
-                    value: "\(present)",
-                    tint: .secondary
-                )
+                metaChip(label: "Anwesend", value: "\(present)", tint: .secondary)
             }
             Spacer(minLength: 0)
         }
@@ -467,9 +632,6 @@ private struct AgendaItemCard: View {
 
 // MARK: - Comment row
 
-/// One Q&A entry. Matches the portal's AssemblyComments component:
-/// role badge to the right of the author label, body below,
-/// "(bearbeitet)" hint when edited_at is set.
 private struct CommentRow: View {
     let comment: AssemblyComment
 
@@ -530,10 +692,6 @@ private struct CommentRow: View {
 
 #Preview {
     NavigationStack {
-        AssemblyDetailView(
-            assembly: DemoAssemblies.sample(for: Liegenschaft.demo[0]).first(
-                where: { $0.status == .abgehalten }
-            )!
-        )
+        AssemblyDetailView(assemblyId: "demo-assembly-past-x")
     }
 }

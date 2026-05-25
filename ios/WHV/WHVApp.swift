@@ -26,6 +26,24 @@ struct WHVApp: App {
                 .environmentObject(authStore)
                 .environmentObject(liegenschaftStore)
                 .environmentObject(settings)
+                .task {
+                    // Wire AuthStore → LiegenschaftStore transitions.
+                    // Sign-in pre-loads /me/properties so the picker
+                    // renders immediately; sign-out wipes the
+                    // catalogue + selection so the next user doesn't
+                    // see the previous account's data.
+                    authStore.onSignIn = { [weak liegenschaftStore] in
+                        await liegenschaftStore?.load()
+                    }
+                    authStore.onSignOut = { [weak liegenschaftStore] in
+                        liegenschaftStore?.reset()
+                    }
+                    // Already-signed-in launch: hydrate the catalogue
+                    // so the picker isn't blank on cold start.
+                    if authStore.signedIn, liegenschaftStore.available.isEmpty {
+                        await liegenschaftStore.load()
+                    }
+                }
                 // .system maps to nil → app follows the device.
                 // .light/.dark force the override on every view in
                 // the tree.

@@ -52,6 +52,27 @@ struct InviteInfoResponse: Codable {
     let expires_at: String
 }
 
+/// Mirror of backend PropertyResponse. Only the fields the iOS UI
+/// actually reads — leaving impower_id/state/etc. out keeps the
+/// decoder forward-compatible.
+struct PropertyResponse: Codable, Hashable {
+    let id: String
+    let property_hr_id: String?
+    let name: String
+    let type: String
+    let city: String?
+    let street: String?
+    let number: String?
+    let postal_code: String?
+    let image_url: String?
+}
+
+/// POST body for /me/assemblies/{id}/comments. Mirrors
+/// CreateAssemblyCommentRequest.
+struct CreateAssemblyCommentBody: Codable {
+    let body: String
+}
+
 // MARK: - Errors
 
 enum APIError: Error, LocalizedError {
@@ -92,11 +113,52 @@ struct APIClient {
 
     let baseURL: URL
     let session: URLSession
+    /// Pulls the current access token at request time (not init time)
+    /// so a fresh sign-in is picked up by long-lived APIClient
+    /// instances without rebuilding them. Returns nil when no user
+    /// is signed in; authed endpoints surface that as `.unauthorized`.
+    let tokenProvider: () -> String?
 
-    init(baseURL: URL = APIClient.stagingBaseURL, session: URLSession = .shared) {
+    init(
+        baseURL: URL = APIClient.stagingBaseURL,
+        session: URLSession = .shared,
+        tokenProvider: @escaping () -> String? = APIClient.defaultTokenProvider
+    ) {
         self.baseURL = baseURL
         self.session = session
+        self.tokenProvider = tokenProvider
     }
+
+    /// Default: read `access_token` out of the shared Keychain. Same
+    /// key AuthStore writes to. Keeping this static so the type can
+    /// be constructed without dependency injection — picks up the
+    /// token at call time.
+    static func defaultTokenProvider() -> String? {
+        Keychain().read("access_token")
+    }
+
+    /// JSONDecoder used by every authenticated GET. Backend serialises
+    /// timestamps as ISO8601 with timezone, sometimes with fractional
+    /// seconds (Pydantic v2 includes microseconds). Fall through both
+    /// formats so we don't fail to decode microsecond-bearing rows.
+    static let jsonDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let str = try container.decode(String.self)
+            if let d = withFractional.date(from: str) { return d }
+            if let d = plain.date(from: str) { return d }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO8601 date: \(str)"
+            )
+        }
+        return decoder
+    }()
 
     // MARK: Auth
 
@@ -179,7 +241,91 @@ struct APIClient {
         return try Self.decode(TokenResponse.self, from: data)
     }
 
+    // MARK: - /me (authed)
+
+    /// GET /me/properties — list properties visible to the signed-in
+    /// user. Verwalter sees all org properties; owners see only
+    /// properties they're a contact on.
+    func getMyProperties() async throws -> [PropertyResponse] {
+        try await authedGET("/me/properties")
+    }
+
+    // MARK: - ETV (authed)
+
+    /// GET /me/properties/{id}/assemblies — list-shape assemblies for
+    /// one property. Filters out ABGESAGT server-side.
+    func listMyAssemblies(propertyId: String) async throws -> [AssemblySummary] {
+        try await authedGET("/me/properties/\(propertyId)/assemblies")
+    }
+
+    /// GET /me/assemblies/{id} — full detail with agenda items +
+    /// discussion. Comments are a separate endpoint.
+    func getAssemblyDetail(id: String) async throws -> Assembly {
+        try await authedGET("/me/assemblies/\(id)")
+    }
+
+    /// GET /me/assemblies/{id}/comments — ordered chronologically.
+    func listAssemblyComments(assemblyId: String) async throws -> [AssemblyComment] {
+        try await authedGET("/me/assemblies/\(assemblyId)/comments")
+    }
+
+    /// POST /me/assemblies/{id}/comments — append a new Q&A entry.
+    /// Server fans out an email to every Verwalter + prior commenter.
+    func postAssemblyComment(
+        assemblyId: String,
+        body: String
+    ) async throws -> AssemblyComment {
+        try await authedJSON(
+            "/me/assemblies/\(assemblyId)/comments",
+            method: "POST",
+            body: CreateAssemblyCommentBody(body: body)
+        )
+    }
+
     // MARK: - Plumbing
+
+    /// Generic authed JSON GET. The path is relative to baseURL and
+    /// must already be URL-encoded. Returns a decoded T or throws an
+    /// APIError that the caller surfaces to the UI verbatim.
+    private func authedGET<T: Decodable>(_ path: String) async throws -> T {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+        return try Self.decodeAuthed(T.self, from: data)
+    }
+
+    /// Generic authed JSON POST/PATCH with a Codable body.
+    private func authedJSON<T: Decodable, B: Encodable>(
+        _ path: String,
+        method: String,
+        body: B
+    ) async throws -> T {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+        return try Self.decodeAuthed(T.self, from: data)
+    }
+
+    /// Same as `decode` but routes through the ISO8601-aware decoder
+    /// so datetime fields round-trip correctly. Login/refresh don't
+    /// need it — their bodies are plain strings + ints.
+    private static func decodeAuthed<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try Self.jsonDecoder.decode(type, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
 
     private func performWithMapping(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
@@ -192,6 +338,13 @@ struct APIClient {
     private static func throwIfNotOK(response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard !(200...299).contains(http.statusCode) else { return }
+        // 401 collapses to a single error case so the UI can react
+        // generically (sign-out + bounce to LoginView). 403 stays a
+        // generic .http for now — same screens shouldn't usually
+        // see one once auth is correct.
+        if http.statusCode == 401 {
+            throw APIError.unauthorized
+        }
         // Backend uses FastAPI's `{detail: "..."}` for 4xx. Pull
         // the human-readable message out so the UI can surface it
         // verbatim — easier debugging than a numeric status code.

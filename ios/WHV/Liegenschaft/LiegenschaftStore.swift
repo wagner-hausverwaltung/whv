@@ -3,8 +3,9 @@
 // install lands on the picker, a returning user lands on the last
 // selection's main view.
 //
-// MainActor-bound so SwiftUI views can `@EnvironmentObject` it
-// without worrying about thread hops.
+// `available` hydrates from /me/properties after sign-in. Until
+// `load()` runs (or if it fails), it stays at `[]` and the picker
+// shows a loading / empty state.
 
 import Foundation
 
@@ -16,32 +17,23 @@ final class LiegenschaftStore: ObservableObject {
     /// to the picker via WHVApp's branch.
     @Published private(set) var selected: Liegenschaft?
 
-    /// Catalogue the user can pick from. Demo today; in Phase 2
-    /// this comes from `/me/properties` (an env-injected service).
-    let available: [Liegenschaft]
+    /// Catalogue the user can pick from. Populated by `load()` from
+    /// /me/properties; starts empty so SwiftUI can show a loading
+    /// state until the call completes.
+    @Published private(set) var available: [Liegenschaft] = []
+    @Published private(set) var isLoading = false
+    @Published var lastError: String?
 
     private let storageKey = "WHV.selectedLiegenschaftId"
     private let defaults: UserDefaults
+    private let api: APIClient
 
     init(
-        available: [Liegenschaft] = Liegenschaft.demo,
+        api: APIClient = APIClient(),
         defaults: UserDefaults = .standard
     ) {
-        self.available = available
+        self.api = api
         self.defaults = defaults
-        if let savedId = defaults.string(forKey: storageKey),
-           let match = available.first(where: { $0.id == savedId })
-        {
-            // Persisted ID resolves to a still-present row — restore
-            // the selection so the user lands on the main view.
-            self.selected = match
-        } else if let saved = defaults.string(forKey: storageKey) {
-            // Persisted ID points at a Liegenschaft no longer in the
-            // catalogue (deleted / unassigned). Clear the dangling
-            // pointer so we re-prompt cleanly.
-            _ = saved
-            defaults.removeObject(forKey: storageKey)
-        }
     }
 
     func select(_ l: Liegenschaft) {
@@ -54,5 +46,44 @@ final class LiegenschaftStore: ObservableObject {
     func clear() {
         selected = nil
         defaults.removeObject(forKey: storageKey)
+    }
+
+    /// Fetch the live catalogue from /me/properties. Idempotent: safe
+    /// to call repeatedly (e.g. on sign-in + on Liegenschaft-picker
+    /// appear). Restores the previously-selected Liegenschaft if it's
+    /// still in the fetched list — otherwise clears the dangling
+    /// pointer so the picker presents cleanly.
+    func load() async {
+        lastError = nil
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let rows = try await api.getMyProperties()
+            let mapped = rows.map(Liegenschaft.init(from:))
+            self.available = mapped
+            if let savedId = defaults.string(forKey: storageKey),
+               let match = mapped.first(where: { $0.id == savedId })
+            {
+                self.selected = match
+            } else if self.selected != nil,
+                      !mapped.contains(where: { $0.id == self.selected?.id })
+            {
+                self.selected = nil
+                defaults.removeObject(forKey: storageKey)
+            }
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    /// Drop loaded properties — used on sign-out so the next user
+    /// doesn't briefly see the previous account's list.
+    func reset() {
+        available = []
+        selected = nil
+        defaults.removeObject(forKey: storageKey)
+        lastError = nil
     }
 }

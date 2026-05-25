@@ -21,6 +21,12 @@ final class AuthStore: ObservableObject {
 
     var signedIn: Bool { user != nil }
 
+    /// Hooks the App wires up to refresh / wipe downstream stores
+    /// (today: LiegenschaftStore) on auth transitions. Optional so
+    /// the store can still be used in #Preview without ceremony.
+    var onSignIn: (() async -> Void)?
+    var onSignOut: (() -> Void)?
+
     private let api: APIClient
     private let keychain: Keychain
     private let defaults: UserDefaults
@@ -57,7 +63,7 @@ final class AuthStore: ObservableObject {
 
         do {
             let tokens = try await api.login(email: email, password: password)
-            persist(tokens)
+            await persist(tokens)
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
@@ -79,7 +85,7 @@ final class AuthStore: ObservableObject {
                 email: email,
                 password: password
             )
-            persist(tokens)
+            await persist(tokens)
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
@@ -91,13 +97,17 @@ final class AuthStore: ObservableObject {
     /// the Keychain/UserDefaults wiring is defined once. Always called
     /// on the main actor (the class is @MainActor), so the @Published
     /// assignment is safe.
-    private func persist(_ tokens: TokenResponse) {
+    private func persist(_ tokens: TokenResponse) async {
         try? keychain.write(tokens.access_token, for: accessTokenKey)
         try? keychain.write(tokens.refresh_token, for: refreshTokenKey)
         if let raw = try? JSONEncoder().encode(tokens.user) {
             defaults.set(raw, forKey: cachedUserKey)
         }
         self.user = tokens.user
+        // Refresh downstream stores (Liegenschaften) before the App
+        // root flips to the picker, so the user sees real data on
+        // first render rather than a flash of empty.
+        await onSignIn?()
     }
 
     /// Clears tokens + cached user; SwiftUI flips back to the
@@ -109,5 +119,6 @@ final class AuthStore: ObservableObject {
         keychain.delete(refreshTokenKey)
         defaults.removeObject(forKey: cachedUserKey)
         user = nil
+        onSignOut?()
     }
 }

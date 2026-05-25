@@ -14,6 +14,65 @@ struct LiegenschaftPickerView: View {
 
     var body: some View {
         NavigationStack {
+            content
+                .navigationTitle("Liegenschaft wählen")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            Task { await store.load() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .disabled(store.isLoading)
+                    }
+                }
+                .task {
+                    if store.available.isEmpty {
+                        await store.load()
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if store.isLoading && store.available.isEmpty {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Liegenschaften werden geladen …")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let err = store.lastError, store.available.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.tertiary)
+                Text("Liegenschaften konnten nicht geladen werden.")
+                    .font(.headline)
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Erneut versuchen") {
+                    Task { await store.load() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if store.available.isEmpty {
+            ContentUnavailableView(
+                "Keine Liegenschaften",
+                systemImage: "building.2",
+                description: Text(
+                    "Ihr Konto ist noch nicht mit einer Liegenschaft "
+                    + "verknüpft. Bitte wenden Sie sich an die Verwaltung."
+                )
+            )
+        } else {
             List {
                 Section {
                     ForEach(store.available) { l in
@@ -23,22 +82,12 @@ struct LiegenschaftPickerView: View {
                             row(for: l)
                         }
                         .foregroundStyle(.primary)
-                        // Library backdrop behind every Liegenschaft
-                        // row. Same image for now; per-property
-                        // image_url lands in Phase 2.
                         .listRowBackground(PropertyBackground())
                     }
                 } header: {
                     Text("Ihre Liegenschaften")
-                } footer: {
-                    Text(
-                        "Demo-Daten. In Phase 2 verbindet diese Liste sich "
-                            + "automatisch mit Ihrem Konto."
-                    )
                 }
             }
-            .navigationTitle("Liegenschaft wählen")
-            .navigationBarTitleDisplayMode(.large)
         }
     }
 
