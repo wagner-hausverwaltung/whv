@@ -217,26 +217,41 @@ class ImpowerClient:
         mirrored locally yet (§1.4d iter 2 will eventually cache them
         in Hetzner OS — until then we hit Impower on demand).
 
-        Returns None when Impower says "no file" (404 or the
-        500/Cannot-download-file response we see on rows where the
-        invitation hasn't been rendered yet) so the caller can record
-        the row as "PDF unavailable" without try/except gymnastics.
-        Any other failure (network, 5xx unrelated to file presence)
-        raises so retries can kick in.
+        Returns None when Impower says "no file" — either 404 with
+        "File is not available" or 500 with "Cannot download file" /
+        "File loading failed". The 500 case is what we mostly hit on
+        the prod-replica: the document row exists but the PDF was
+        never rendered (or has expired off Impower's blob store).
+        Treating both as "no file" is correct because retrying won't
+        materialise the file; recording "no_source_pdf" in the audit
+        log is the right outcome.
+
+        Bypasses the shared `_request()` retry+raise wrapper so we can
+        inspect the body BEFORE the wrapper escalates 5xx into an
+        ImpowerError — that wrapper exists for genuine server-side
+        outages where retrying helps, and is wrong for this endpoint.
         """
-        response = await self._request(
+        # Direct call: no retry, no auto-raise on 5xx. Network errors
+        # still bubble up as httpx exceptions; the Celery wrapper
+        # treats those as retryable.
+        response = await self._client.request(
             "GET", f"/documents/{document_id}/download"
         )
-        if response.status_code == 404:
-            return None
-        # Impower returns 500 with detail "Cannot download file" /
-        # "File loading failed" when the document row exists but has
-        # no rendered PDF. Treat that specific case as "no file"; any
-        # other 5xx is a real failure worth retrying.
-        if response.status_code == 500:
+        if response.status_code in (200, 201):
+            return response.content
+        if response.status_code in (404, 500):
             body_lower = response.text.lower()
-            if "cannot download" in body_lower or "file loading failed" in body_lower:
+            no_file_hints = (
+                "cannot download",
+                "file loading failed",
+                "file is not available",
+                "file couldn't be loaded",
+                "file could not be loaded",
+            )
+            if any(h in body_lower for h in no_file_hints):
                 return None
+        # Anything else (real 5xx, auth, etc.) — let the Celery task
+        # retry on it.
         response.raise_for_status()
         return response.content
 
