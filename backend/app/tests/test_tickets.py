@@ -37,7 +37,7 @@ class _StubEmailClient:
     async def send(
         self,
         *,
-        to: str,
+        to: str | list[str],
         subject: str,
         html: str,
         text: str,
@@ -325,7 +325,7 @@ async def test_create_succeeds_even_when_email_send_fails(
 
     async def _fail(
         *,
-        to: str,
+        to: str | list[str],
         subject: str,
         html: str,
         text: str,

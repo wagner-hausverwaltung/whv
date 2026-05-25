@@ -38,7 +38,7 @@ class EmailClient:
     async def send(
         self,
         *,
-        to: str,
+        to: str | list[str],
         subject: str,
         html: str,
         text: str,
@@ -68,9 +68,16 @@ class EmailClient:
             raise EmailError("RESEND_API_KEY is not configured")
 
         from_value = f"{self._settings.email_from_name} <{self._settings.email_from_address}>"
+        # Resend's `to` field accepts a list of valid `email@host` (or
+        # `Name <email@host>`) strings — NOT a single comma-joined
+        # string. We used to do `",".join(recipients)` upstream which
+        # Resend rejected with a 422 validation error ("Invalid `to`
+        # field"). Normalising to a list here lets callers pass either
+        # a bare string or a list without thinking about the wire shape.
+        to_list = [to] if isinstance(to, str) else list(to)
         body: dict[str, Any] = {
             "from": from_value,
-            "to": [to],
+            "to": to_list,
             "subject": subject,
             "html": html,
             "text": text,

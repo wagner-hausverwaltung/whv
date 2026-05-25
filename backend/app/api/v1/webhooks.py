@@ -478,7 +478,9 @@ async def email_inbound(
                 is_new_ticket=created_new,
             )
             await email_client.send(
-                to=",".join(recipients),
+                # List, not comma-joined string — Resend rejects the
+                # latter with a 422 validation error.
+                to=recipients,
                 subject=subject_line,
                 html=html,
                 text=text,

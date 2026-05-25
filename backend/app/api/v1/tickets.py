@@ -454,7 +454,9 @@ async def _send_message_notification(
         )
         settings = get_settings()
         msg_id = await email_client.send(
-            to=",".join(recipients),
+            # Pass the list directly — Resend rejects a single
+            # comma-joined string as 422 "Invalid `to` field".
+            to=recipients,
             subject=subject,
             html=html,
             text=text,
