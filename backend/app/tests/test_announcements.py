@@ -627,9 +627,7 @@ async def test_author_can_edit_own_comment(
         assert edit.json()["body"] == "v2 ohne Tippfehler"
         assert edit.json()["edited_at"] is not None
         # Reload the detail — same body, edited_at carries through.
-        d = client.get(
-            f"/me/announcements/{ann['id']}", headers=_auth(o_token)
-        )
+        d = client.get(f"/me/announcements/{ann['id']}", headers=_auth(o_token))
         assert d.json()["comments"][0]["body"] == "v2 ohne Tippfehler"
         assert d.json()["comments"][0]["edited_at"] is not None
 

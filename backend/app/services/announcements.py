@@ -245,6 +245,33 @@ async def list_for_property_admin(
     return list(rows), int(total or 0)
 
 
+async def list_for_org_admin(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[list[Announcement], int]:
+    """Cross-property admin queue.
+
+    Same shape as `list_for_property_admin` but doesn't constrain by
+    property_id. Used by the org-wide /admin/announcements page so a
+    Verwalter can see every Mitteilung they've ever sent without
+    drilling into each property.
+    """
+    base = select(Announcement).where(
+        Announcement.organization_id == organization_id,
+        Announcement.deleted_at.is_(None),
+    )
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = (
+        await session.scalars(
+            base.order_by(Announcement.scheduled_publish_at.desc()).limit(limit).offset(offset)
+        )
+    ).all()
+    return list(rows), int(total or 0)
+
+
 async def list_for_property_owner(
     session: AsyncSession,
     *,

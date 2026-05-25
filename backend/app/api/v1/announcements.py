@@ -327,6 +327,35 @@ async def admin_list_announcements(
 
 
 @admin_router.get(
+    "/announcements",
+    response_model=list[AnnouncementResponse],
+)
+async def admin_list_all_announcements(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    status_filter: Annotated[
+        Literal["all", "scheduled", "published"], Query(alias="status")
+    ] = "all",
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[AnnouncementResponse]:
+    """Cross-property org-wide queue. Same filter semantics as the
+    per-property endpoint; rows ordered by `scheduled_publish_at`
+    descending so the most recent / next-due Mitteilung lands first."""
+    rows, _ = await svc.list_for_org_admin(
+        session,
+        organization_id=current_user.organization_id,
+        limit=limit,
+        offset=offset,
+    )
+    if status_filter == "scheduled":
+        rows = [r for r in rows if r.notification_sent_at is None]
+    elif status_filter == "published":
+        rows = [r for r in rows if r.notification_sent_at is not None]
+    return await _enrich_summaries(session, rows)
+
+
+@admin_router.get(
     "/announcements/{announcement_id}",
     response_model=AnnouncementDetailResponse,
 )

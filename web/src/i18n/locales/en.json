@@ -125,6 +125,7 @@
     "dashboard": "Dashboard",
     "tickets": "Tickets",
     "resolutions": "Resolutions",
+    "announcements": "Announcements",
     "invites": "Invitations",
     "audit": "Audit log",
     "subtitle": "Overview of invitations, master data, and active workflows.",
@@ -140,6 +141,18 @@
     },
     "loadFailed": "Failed to load dashboard data.",
     "notVerwalter": "You do not have access to the admin area.",
+    "announcementsAll": {
+      "title": "Announcements",
+      "subtitle": "All announcements across every property in this organisation. New announcements are still composed per-property via the property’s Mitteilungen tab.",
+      "loadFailed": "Couldn’t load announcements.",
+      "empty": "No announcements on any property yet.",
+      "colProperty": "Property",
+      "filter": {
+        "all": "All",
+        "scheduled": "Scheduled",
+        "published": "Published"
+      }
+    },
     "announcementsTab": {
       "title": "Announcements",
       "newButton": "New announcement",

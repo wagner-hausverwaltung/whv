@@ -125,6 +125,7 @@
     "dashboard": "Dashboard",
     "tickets": "Tickets",
     "resolutions": "Beschlüsse",
+    "announcements": "Mitteilungen",
     "invites": "Einladungen",
     "audit": "Audit-Log",
     "subtitle": "Übersicht zu Einladungen, Stammdaten und laufenden Vorgängen.",
@@ -140,6 +141,18 @@
     },
     "loadFailed": "Daten konnten nicht geladen werden.",
     "notVerwalter": "Sie haben keinen Zugriff auf den Admin-Bereich.",
+    "announcementsAll": {
+      "title": "Mitteilungen",
+      "subtitle": "Alle Mitteilungen aller Liegenschaften in dieser Organisation. Neue Mitteilungen werden weiterhin pro Liegenschaft im Reiter \"Mitteilungen\" angelegt.",
+      "loadFailed": "Mitteilungen konnten nicht geladen werden.",
+      "empty": "Noch keine Mitteilungen für irgendeine Liegenschaft.",
+      "colProperty": "Liegenschaft",
+      "filter": {
+        "all": "Alle",
+        "scheduled": "Geplant",
+        "published": "Veröffentlicht"
+      }
+    },
     "announcementsTab": {
       "title": "Mitteilungen",
       "newButton": "Neue Mitteilung",
