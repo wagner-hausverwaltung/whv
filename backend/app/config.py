@@ -27,7 +27,14 @@ class Settings(BaseSettings):
         description="Redis connection URL",
     )
 
-    impower_api_base: str = "https://api.app.impower.de/v2/d"
+    # Default points at the prod-replica dev instance Impower gave us
+    # for staging — that's the only URL we have verified to respond to
+    # our test JWT. Production cutover will replace this with whatever
+    # Impower hands over on go-live; staging's .env override stays the
+    # source of truth either way. `api.app.impower.de/v2/d` (the
+    # original placeholder) does not exist + 404s on every path; do
+    # not put it back.
+    impower_api_base: str = "https://api.prod-replica.develop.impower.de/v2"
     impower_api_token: str = ""
     # Shared secret for verifying inbound POST /webhooks/impower payloads.
     # Impower signs the raw request body with HMAC-SHA256 and sends the

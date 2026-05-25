@@ -53,18 +53,13 @@ jobs:
           grep -q '"postgres":[[:space:]]*true' /tmp/readyz.body
           grep -q '"redis":[[:space:]]*true' /tmp/readyz.body
 
-      - name: Impower upstream (advisory)
-        # GH Actions forbids `secrets.X` inside `if:` expressions for
-        # security reasons. Pipe via env var instead.
-        #
-        # `continue-on-error: true` because the Impower test instance's
-        # path layout has been observed to drift (404 on /v2/d/properties
-        # at 2026-05-25 even though the sync client uses the same path).
-        # Our own stack (healthz/readyz above) drives workflow status;
-        # the Impower probe is informational — failure here surfaces in
-        # the run log without failing the build. Re-tighten once we have
-        # a stable upstream URL.
-        continue-on-error: true
+      - name: Impower upstream
+        # The working URL is the prod-replica dev instance Impower gave
+        # us for staging — `api.app.impower.de` (the original
+        # placeholder) returns 404 on every path. Verified 200 on
+        # 2026-05-25 with the staging .env's IMPOWER_API_TOKEN.
+        # GH Actions forbids `secrets.X` inside `if:` expressions, so
+        # we pipe the token via env var and gate inside the script.
         env:
           IMPOWER_TOKEN: ${{ secrets.IMPOWER_API_TOKEN }}
         run: |
@@ -76,7 +71,7 @@ jobs:
           status=$(curl -sS -o /tmp/impower.body -w '%{http_code}' \
             --max-time 15 \
             -H "Authorization: Bearer $IMPOWER_TOKEN" \
-            'https://api.app.impower.de/v2/d/properties?size=1')
+            'https://api.prod-replica.develop.impower.de/v2/properties?size=1')
           echo "HTTP $status"
           # First 200 chars of body for diagnostic, never the auth header.
           head -c 200 /tmp/impower.body || true
