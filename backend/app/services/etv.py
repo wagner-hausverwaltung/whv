@@ -108,9 +108,7 @@ async def load_discussion_for_items(
             )
         )
     ).all()
-    bucket: dict[uuid.UUID, list[EtvDiscussionEntry]] = {
-        aid: [] for aid in agenda_item_ids
-    }
+    bucket: dict[uuid.UUID, list[EtvDiscussionEntry]] = {aid: [] for aid in agenda_item_ids}
     for r in rows:
         bucket[r.agenda_item_id].append(r)
     return bucket
@@ -239,12 +237,9 @@ async def backfill_assemblies_from_invitations(
     # circuit groups that already have one. Using just (property_id,
     # date(scheduled_start)) as the dedup key — same fuzz as the
     # docstring promises.
-    existing_stmt = (
-        select(EtvAssembly.property_id, func.date(EtvAssembly.scheduled_start))
-        .where(
-            EtvAssembly.organization_id == organization_id,
-            EtvAssembly.deleted_at.is_(None),
-        )
+    existing_stmt = select(EtvAssembly.property_id, func.date(EtvAssembly.scheduled_start)).where(
+        EtvAssembly.organization_id == organization_id,
+        EtvAssembly.deleted_at.is_(None),
     )
     existing_keys: set[tuple[uuid.UUID, date]] = set()
     for prop_id, dt in (await session.execute(existing_stmt)).all():
@@ -292,8 +287,7 @@ async def backfill_assemblies_from_invitations(
             property_id=property_id,
             title=f"Eigentümerversammlung {issued_date.year}",
             description=(
-                "Automatisch aus Bestand übernommen. "
-                "Bitte Datum, Ort und Tagesordnung prüfen."
+                "Automatisch aus Bestand übernommen. Bitte Datum, Ort und Tagesordnung prüfen."
             ),
             location="(noch nicht erfasst)",
             scheduled_start=start_berlin.astimezone(UTC),

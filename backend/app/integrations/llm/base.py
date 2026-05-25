@@ -95,8 +95,7 @@ class NullProvider:
         response_schema: type[T],
     ) -> LLMResult[T]:
         raise LLMProviderUnavailableError(
-            "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). "
-            "Extraction skipped."
+            "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Extraction skipped."
         )
 
 

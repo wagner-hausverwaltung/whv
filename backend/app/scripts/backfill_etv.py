@@ -54,9 +54,7 @@ async def amain(*, extract: bool, reextract_all: bool) -> None:
             created, skipped, ids = await backfill_assemblies_from_invitations(
                 session, organization_id=org_id
             )
-            print(
-                f"org={org.name!r:40s} created={created:3d} skipped={skipped:3d}"
-            )
+            print(f"org={org.name!r:40s} created={created:3d} skipped={skipped:3d}")
             backfill_ids.extend(ids)
         await session.commit()
 
@@ -88,10 +86,7 @@ async def amain(*, extract: bool, reextract_all: bool) -> None:
         for aid in all_created_ids:
             extract_etv_metadata.delay(str(aid))
         flag = "--reextract-all" if reextract_all else "--extract"
-        print(
-            f"{flag}: enqueued {len(all_created_ids)} extraction tasks "
-            f"on the 'celery' queue."
-        )
+        print(f"{flag}: enqueued {len(all_created_ids)} extraction tasks on the 'celery' queue.")
 
 
 def main() -> None:

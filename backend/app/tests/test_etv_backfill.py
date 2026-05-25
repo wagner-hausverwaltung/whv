@@ -56,9 +56,7 @@ async def test_backfill_one_assembly_per_invitation_date(
     # 3 personalized PDFs on 2024-08-01, 2 on 2024-11-15 → two
     # distinct meetings, expect 2 assemblies after backfill.
     for _ in range(3):
-        await _make_invitation_doc(
-            sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1)
-        )
+        await _make_invitation_doc(sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1))
     for _ in range(2):
         await _make_invitation_doc(
             sm, org_id=org.id, property_id=prop.id, issued=date(2024, 11, 15)
@@ -75,12 +73,16 @@ async def test_backfill_one_assembly_per_invitation_date(
 
     async with sm() as s:
         rows = (
-            await s.execute(
-                select(EtvAssembly)
-                .where(EtvAssembly.property_id == prop.id)
-                .order_by(EtvAssembly.scheduled_start)
+            (
+                await s.execute(
+                    select(EtvAssembly)
+                    .where(EtvAssembly.property_id == prop.id)
+                    .order_by(EtvAssembly.scheduled_start)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     assert len(rows) == 2
     # Both are old enough that the heuristic stamps ABGEHALTEN.
@@ -101,9 +103,7 @@ async def test_backfill_is_idempotent(test_engine: AsyncEngine) -> None:
     prop = await make_property(test_engine, org=org)
     sm = async_sessionmaker(test_engine, expire_on_commit=False)
 
-    await _make_invitation_doc(
-        sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1)
-    )
+    await _make_invitation_doc(sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1))
 
     async with sm() as s:
         c1, s1, _ = await backfill_assemblies_from_invitations(
@@ -146,9 +146,7 @@ async def test_backfill_respects_existing_within_one_day(
         s.add(existing)
         await s.commit()
 
-    await _make_invitation_doc(
-        sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1)
-    )
+    await _make_invitation_doc(sm, org_id=org.id, property_id=prop.id, issued=date(2024, 8, 1))
 
     async with sm() as s:
         created, skipped, _ = await backfill_assemblies_from_invitations(
@@ -167,28 +165,34 @@ async def test_backfill_status_heuristic(test_engine: AsyncEngine) -> None:
     today = date(2026, 5, 25)
     # Older than 60d → ABGEHALTEN; recent → EINGELADEN.
     await _make_invitation_doc(
-        sm, org_id=org.id, property_id=prop.id,
+        sm,
+        org_id=org.id,
+        property_id=prop.id,
         issued=today - timedelta(days=100),
     )
     await _make_invitation_doc(
-        sm, org_id=org.id, property_id=prop.id,
+        sm,
+        org_id=org.id,
+        property_id=prop.id,
         issued=today - timedelta(days=10),
     )
 
     async with sm() as s:
-        await backfill_assemblies_from_invitations(
-            s, organization_id=org.id, today=today
-        )
+        await backfill_assemblies_from_invitations(s, organization_id=org.id, today=today)
         await s.commit()
 
     async with sm() as s:
         rows = (
-            await s.execute(
-                select(EtvAssembly)
-                .where(EtvAssembly.property_id == prop.id)
-                .order_by(EtvAssembly.scheduled_start)
+            (
+                await s.execute(
+                    select(EtvAssembly)
+                    .where(EtvAssembly.property_id == prop.id)
+                    .order_by(EtvAssembly.scheduled_start)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert [r.status for r in rows] == [
         AssemblyStatus.ABGEHALTEN,
         AssemblyStatus.EINGELADEN,

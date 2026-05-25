@@ -35,13 +35,9 @@ class CreateAgendaItemRequest(BaseModel):
         # rejecting them at the schema keeps the data model honest.
         if self.type != AgendaItemType.BESCHLUSS:
             if self.beschluss_text is not None:
-                raise ValueError(
-                    "beschluss_text is only allowed when type=BESCHLUSS"
-                )
+                raise ValueError("beschluss_text is only allowed when type=BESCHLUSS")
             if self.vote_required_quorum is not None:
-                raise ValueError(
-                    "vote_required_quorum is only allowed when type=BESCHLUSS"
-                )
+                raise ValueError("vote_required_quorum is only allowed when type=BESCHLUSS")
         return self
 
 

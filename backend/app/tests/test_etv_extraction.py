@@ -64,9 +64,7 @@ class _MockProvider:
         )
 
 
-def _make_payload(
-    *, agenda_count: int = 3, with_beschluss: bool = True
-) -> ExtractedAssembly:
+def _make_payload(*, agenda_count: int = 3, with_beschluss: bool = True) -> ExtractedAssembly:
     items = []
     for i in range(1, agenda_count + 1):
         items.append(
@@ -76,9 +74,7 @@ def _make_payload(
                 "title": f"TOP {i}",
                 "body": f"Erläuterung {i}",
                 "beschluss_text": (
-                    "Die Eigentümergemeinschaft beschließt …"
-                    if with_beschluss and i == 2
-                    else None
+                    "Die Eigentümergemeinschaft beschließt …" if with_beschluss and i == 2 else None
                 ),
             }
         )
@@ -145,12 +141,16 @@ async def test_apply_writes_assembly_fields_and_agenda(
         assert row.verified_at is None  # extraction != verification
 
         agenda = (
-            await s.execute(
-                select(EtvAgendaItem)
-                .where(EtvAgendaItem.assembly_id == stub_id)
-                .order_by(EtvAgendaItem.position)
+            (
+                await s.execute(
+                    select(EtvAgendaItem)
+                    .where(EtvAgendaItem.assembly_id == stub_id)
+                    .order_by(EtvAgendaItem.position)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert [a.position for a in agenda] == [1, 2, 3]
     assert agenda[1].type == AgendaItemType.BESCHLUSS
     assert agenda[1].beschluss_text and agenda[1].beschluss_text.startswith(
@@ -208,17 +208,15 @@ async def test_apply_is_noop_when_verified(test_engine: AsyncEngine) -> None:
         assert row.location == "Bereits geprüft"
         # No agenda items created.
         n = (
-            await s.execute(
-                select(EtvAgendaItem).where(EtvAgendaItem.assembly_id == stub_id)
-            )
+            await s.execute(select(EtvAgendaItem).where(EtvAgendaItem.assembly_id == stub_id))
         ).all()
         assert n == []
         # Audit row still logged the no-op.
         audit = (
-            await s.execute(
-                select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)
-            )
-        ).scalars().all()
+            (await s.execute(select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)))
+            .scalars()
+            .all()
+        )
     assert any(a.status == "ok" and "skipped" in (a.error or "") for a in audit)
 
 
@@ -267,13 +265,11 @@ async def test_apply_records_provider_unavailable(
         assert row.auto_extracted_at is None
         # Audit log captured the skip with a recognisable status.
         audit = (
-            await s.execute(
-                select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)
-            )
-        ).scalars().all()
-    assert any(
-        a.status == "skipped_provider_unavailable" for a in audit
-    )
+            (await s.execute(select(LLMAuditLog).where(LLMAuditLog.subject_id == stub_id)))
+            .scalars()
+            .all()
+        )
+    assert any(a.status == "skipped_provider_unavailable" for a in audit)
 
 
 async def test_apply_records_parse_error_and_reraises(

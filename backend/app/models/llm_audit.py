@@ -31,7 +31,9 @@ class LLMAuditLog(OrganizationScopedMixin, Base):
     __tablename__ = "llm_audit_log"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7_pk,
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid7_pk,
     )
 
     # Feature tag — e.g. "etv.extract_metadata", later "chat.message"
@@ -55,10 +57,13 @@ class LLMAuditLog(OrganizationScopedMixin, Base):
     # tie to a single domain row.
     subject_kind: Mapped[str | None] = mapped_column(Text, nullable=True)
     subject_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True,
+        UUID(as_uuid=True),
+        nullable=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )

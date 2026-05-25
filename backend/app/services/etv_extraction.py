@@ -90,10 +90,7 @@ class ExtractedAssembly(BaseModel):
         )
     )
     meeting_end: datetime = Field(
-        description=(
-            "Meeting end timestamp. If not stated, set to meeting_date "
-            "+ 3 hours."
-        )
+        description=("Meeting end timestamp. If not stated, set to meeting_date + 3 hours.")
     )
     location: str = Field(
         max_length=500,
@@ -239,9 +236,7 @@ async def extract_and_apply(
     # also removes attached discussion entries — fine for the auto-
     # extracted path because we don't extract discussion from the
     # invitation; discussion is only filled post-meeting.
-    await session.execute(
-        delete(EtvAgendaItem).where(EtvAgendaItem.assembly_id == assembly_id)
-    )
+    await session.execute(delete(EtvAgendaItem).where(EtvAgendaItem.assembly_id == assembly_id))
     for idx, item in enumerate(payload.agenda_items, start=1):
         position = item.position if item.position >= 1 else idx
         session.add(

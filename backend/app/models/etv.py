@@ -53,10 +53,10 @@ class AssemblyStatus(enum.StrEnum):
     view (the cancelled ones aren't useful to owners).
     """
 
-    GEPLANT = "GEPLANT"        # date scheduled, invitations not yet sent
+    GEPLANT = "GEPLANT"  # date scheduled, invitations not yet sent
     EINGELADEN = "EINGELADEN"  # invitations dispatched, agenda locked
     ABGEHALTEN = "ABGEHALTEN"  # assembly happened, protocol on the way / uploaded
-    ABGESAGT = "ABGESAGT"      # cancelled before it took place
+    ABGESAGT = "ABGESAGT"  # cancelled before it took place
 
 
 class AgendaItemType(enum.StrEnum):
@@ -91,7 +91,9 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
     __tablename__ = "etv_assemblies"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7_pk,
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid7_pk,
     )
     property_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -102,7 +104,10 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
 
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", server_default="",
+        Text,
+        nullable=False,
+        default="",
+        server_default="",
     )
     status: Mapped[AssemblyStatus] = mapped_column(
         Enum(AssemblyStatus, name="assembly_status"),
@@ -113,17 +118,21 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
 
     # When the assembly is *planned* to start / end. Always set on create.
     scheduled_start: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False,
+        DateTime(timezone=True),
+        nullable=False,
     )
     scheduled_end: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False,
+        DateTime(timezone=True),
+        nullable=False,
     )
     # Filled when the Verwalter marks the assembly as ABGEHALTEN.
     actual_start: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     actual_end: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     location: Mapped[str] = mapped_column(Text, nullable=False)
@@ -142,11 +151,13 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
     agenda_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     invitation_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     invitation_uploaded_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     protocol_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     protocol_uploaded_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(
@@ -163,7 +174,8 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
     # SPA renders a "KI-extrahiert · bitte prüfen" badge when
     # auto_extracted_at IS NOT NULL AND verified_at IS NULL.
     auto_extracted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     # Which document we actually read to derive the extraction.
     # Lets us re-run extraction on the same source for A/B-ing prompt
@@ -178,10 +190,12 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
     # (≤ a few KB per row); enables future "what did the model see
     # before we corrected it" debugging without re-calling the API.
     auto_extracted_raw: Mapped[dict[str, object] | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
     )
     verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -194,12 +208,16 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
         # newest first." Both queries hit this index.
         Index(
             "ix_etv_assemblies_property_status_start",
-            "property_id", "status", "scheduled_start",
+            "property_id",
+            "status",
+            "scheduled_start",
         ),
         # Admin cross-property queue: "all upcoming ETVs across the org."
         Index(
             "ix_etv_assemblies_org_status_start",
-            "organization_id", "status", "scheduled_start",
+            "organization_id",
+            "status",
+            "scheduled_start",
         ),
     )
 
@@ -214,7 +232,9 @@ class EtvAgendaItem(TimestampMixin, Base):
     __tablename__ = "etv_agenda_items"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7_pk,
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid7_pk,
     )
     assembly_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -224,12 +244,16 @@ class EtvAgendaItem(TimestampMixin, Base):
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     type: Mapped[AgendaItemType] = mapped_column(
-        Enum(AgendaItemType, name="agenda_item_type"), nullable=False,
+        Enum(AgendaItemType, name="agenda_item_type"),
+        nullable=False,
     )
 
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", server_default="",
+        Text,
+        nullable=False,
+        default="",
+        server_default="",
     )
 
     # Resolution text for BESCHLUSS items. NULL for INFORMATION /
@@ -240,18 +264,28 @@ class EtvAgendaItem(TimestampMixin, Base):
     # Vote tally — transcribed by the Verwalter from the signed
     # protocol. Defaults to zeros; only filled for BESCHLUSS rows.
     vote_yes: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0",
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
     )
     vote_no: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0",
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
     )
     vote_abstain: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0",
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
     )
     # NULL = no quorum threshold; else result is automatically
     # ABGELEHNT if (yes + no + abstain) < required.
     vote_required_quorum: Mapped[int | None] = mapped_column(
-        Integer, nullable=True,
+        Integer,
+        nullable=True,
     )
     vote_result: Mapped[AgendaItemVoteResult | None] = mapped_column(
         Enum(AgendaItemVoteResult, name="agenda_item_vote_result"),
@@ -260,7 +294,8 @@ class EtvAgendaItem(TimestampMixin, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "assembly_id", "position",
+            "assembly_id",
+            "position",
             name="uq_etv_agenda_items_assembly_position",
         ),
     )
@@ -277,7 +312,9 @@ class EtvDiscussionEntry(Base):
     __tablename__ = "etv_discussion_entries"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7_pk,
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid7_pk,
     )
     agenda_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -289,12 +326,15 @@ class EtvDiscussionEntry(Base):
     speaker_label: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
 
     __table_args__ = (
         UniqueConstraint(
-            "agenda_item_id", "position",
+            "agenda_item_id",
+            "position",
             name="uq_etv_discussion_entries_agenda_item_position",
         ),
     )

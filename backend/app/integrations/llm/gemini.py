@@ -109,7 +109,5 @@ def _coerce_usage(meta: Any) -> dict[str, int]:
     quirk); we coerce to 0 so the audit row always has numeric values."""
     return {
         "prompt_token_count": int(getattr(meta, "prompt_token_count", 0) or 0),
-        "candidates_token_count": int(
-            getattr(meta, "candidates_token_count", 0) or 0
-        ),
+        "candidates_token_count": int(getattr(meta, "candidates_token_count", 0) or 0),
     }

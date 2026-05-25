@@ -101,9 +101,7 @@ async def _seed(engine: AsyncEngine) -> _Seed:
     prop = await make_property(engine, org=org)
     other_prop = await make_property(engine, org=org)
 
-    verwalter, _v_email, verwalter_pw = await make_user(
-        engine, org=org, role=UserRole.VERWALTER
-    )
+    verwalter, _v_email, verwalter_pw = await make_user(engine, org=org, role=UserRole.VERWALTER)
     impower_owner = _fresh_impower_id()
     owner, _o_email, owner_pw = await make_user(
         engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_owner
@@ -193,12 +191,8 @@ async def test_outsider_cannot_see_assembly(test_engine: AsyncEngine) -> None:
 
     o_token = _login(seed.outsider.email, seed.outsider_pw)
     with TestClient(app) as client:
-        r_list = client.get(
-            f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token)
-        )
-        r_get = client.get(
-            f"/me/assemblies/{created['id']}", headers=_auth(o_token)
-        )
+        r_list = client.get(f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token))
+        r_get = client.get(f"/me/assemblies/{created['id']}", headers=_auth(o_token))
     assert r_list.status_code == 404
     assert r_get.status_code == 404
 
@@ -211,12 +205,8 @@ async def test_owner_sees_their_property_assembly(test_engine: AsyncEngine) -> N
 
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_list = client.get(
-            f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token)
-        )
-        r_get = client.get(
-            f"/me/assemblies/{created['id']}", headers=_auth(o_token)
-        )
+        r_list = client.get(f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token))
+        r_get = client.get(f"/me/assemblies/{created['id']}", headers=_auth(o_token))
     assert r_list.status_code == 200
     assert any(a["id"] == created["id"] for a in r_list.json())
     assert r_get.status_code == 200
@@ -279,16 +269,12 @@ async def test_cancelled_assembly_hidden_from_owner(test_engine: AsyncEngine) ->
 
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_list = client.get(
-            f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token)
-        )
+        r_list = client.get(f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token))
     assert r_list.status_code == 200
     assert all(a["id"] != created["id"] for a in r_list.json())
     # Admin still sees it
     with TestClient(app) as client:
-        r_admin = client.get(
-            f"/admin/properties/{seed.prop.id}/assemblies", headers=_auth(v_token)
-        )
+        r_admin = client.get(f"/admin/properties/{seed.prop.id}/assemblies", headers=_auth(v_token))
     assert any(a["id"] == created["id"] for a in r_admin.json())
 
 
@@ -299,19 +285,13 @@ async def test_soft_delete_hides_assembly(test_engine: AsyncEngine) -> None:
     created = _create_assembly(v_token, str(seed.prop.id))
 
     with TestClient(app) as client:
-        r = client.delete(
-            f"/admin/assemblies/{created['id']}", headers=_auth(v_token)
-        )
+        r = client.delete(f"/admin/assemblies/{created['id']}", headers=_auth(v_token))
     assert r.status_code == 204
 
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_list = client.get(
-            f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token)
-        )
-        r_get = client.get(
-            f"/me/assemblies/{created['id']}", headers=_auth(o_token)
-        )
+        r_list = client.get(f"/me/properties/{seed.prop.id}/assemblies", headers=_auth(o_token))
+        r_get = client.get(f"/me/assemblies/{created['id']}", headers=_auth(o_token))
     assert r_get.status_code == 404
     assert all(a["id"] != created["id"] for a in r_list.json())
 
@@ -402,9 +382,7 @@ async def test_agenda_appears_in_detail_with_discussion(test_engine: AsyncEngine
     # Owner reads detail — sees the resolution wording, the tally + the discussion.
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_detail = client.get(
-            f"/me/assemblies/{a['id']}", headers=_auth(o_token)
-        )
+        r_detail = client.get(f"/me/assemblies/{a['id']}", headers=_auth(o_token))
     assert r_detail.status_code == 200
     detail = r_detail.json()
     assert len(detail["agenda_items"]) == 1
@@ -420,9 +398,7 @@ async def test_agenda_appears_in_detail_with_discussion(test_engine: AsyncEngine
 
 
 @pytest.mark.asyncio
-async def test_protocol_upload_and_download(
-    test_engine: AsyncEngine, etv_tmp_dir: Path
-) -> None:
+async def test_protocol_upload_and_download(test_engine: AsyncEngine, etv_tmp_dir: Path) -> None:
     seed = await _seed(test_engine)
     v_token = _login(seed.verwalter.email, seed.verwalter_pw)
     a = _create_assembly(v_token, str(seed.prop.id))
@@ -440,18 +416,14 @@ async def test_protocol_upload_and_download(
     # Owner can download
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_dl = client.get(
-            f"/me/assemblies/{a['id']}/protocol", headers=_auth(o_token)
-        )
+        r_dl = client.get(f"/me/assemblies/{a['id']}/protocol", headers=_auth(o_token))
     assert r_dl.status_code == 200
     assert r_dl.content == pdf_bytes
     assert r_dl.headers["content-type"].startswith("application/pdf")
 
 
 @pytest.mark.asyncio
-async def test_protocol_upload_rejects_non_pdf(
-    test_engine: AsyncEngine, etv_tmp_dir: Path
-) -> None:
+async def test_protocol_upload_rejects_non_pdf(test_engine: AsyncEngine, etv_tmp_dir: Path) -> None:
     seed = await _seed(test_engine)
     v_token = _login(seed.verwalter.email, seed.verwalter_pw)
     a = _create_assembly(v_token, str(seed.prop.id))
@@ -512,9 +484,7 @@ async def test_invitation_upload_and_download(
     # Owner downloads.
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_dl = client.get(
-            f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token)
-        )
+        r_dl = client.get(f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token))
     assert r_dl.status_code == 200
     assert r_dl.content == pdf_bytes
     assert r_dl.headers["content-type"].startswith("application/pdf")
@@ -557,9 +527,7 @@ async def test_invitation_delete_clears_url(
 
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
-        r_dl = client.get(
-            f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token)
-        )
+        r_dl = client.get(f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token))
     assert r_dl.status_code == 404
 
 
@@ -580,7 +548,5 @@ async def test_outsider_cannot_download_protocol(
 
     x_token = _login(seed.outsider.email, seed.outsider_pw)
     with TestClient(app) as client:
-        r_dl = client.get(
-            f"/me/assemblies/{a['id']}/protocol", headers=_auth(x_token)
-        )
+        r_dl = client.get(f"/me/assemblies/{a['id']}/protocol", headers=_auth(x_token))
     assert r_dl.status_code == 404

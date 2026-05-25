@@ -234,9 +234,7 @@ class ImpowerClient:
         # Direct call: no retry, no auto-raise on 5xx. Network errors
         # still bubble up as httpx exceptions; the Celery wrapper
         # treats those as retryable.
-        response = await self._client.request(
-            "GET", f"/documents/{document_id}/download"
-        )
+        response = await self._client.request("GET", f"/documents/{document_id}/download")
         if response.status_code in (200, 201):
             return response.content
         if response.status_code in (404, 500):

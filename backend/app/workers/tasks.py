@@ -392,20 +392,19 @@ async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
                     try:
                         pdf_bytes = inv_path.read_bytes()
                     except OSError:
-                        logger.exception(
-                            "failed to read uploaded invitation %s", inv_path
-                        )
+                        logger.exception("failed to read uploaded invitation %s", inv_path)
 
             if pdf_bytes is None:
                 day = assembly.scheduled_start.date()
                 doc = await session.scalar(
-                    select(Document).where(
+                    select(Document)
+                    .where(
                         Document.property_id == assembly.property_id,
-                        Document.impower_source_type
-                        == "OWNERS_MEETING_INVITATION",
+                        Document.impower_source_type == "OWNERS_MEETING_INVITATION",
                         Document.deleted_at.is_(None),
                         Document.issued_date == day,
-                    ).limit(1)
+                    )
+                    .limit(1)
                 )
                 if doc is not None:
                     pdf_bytes = await _fetch_invitation_pdf_bytes(doc)
@@ -459,9 +458,7 @@ async def _fetch_invitation_pdf_bytes(doc: Document) -> bytes | None:
     settings = get_settings()
     if not settings.impower_api_token:
         return None
-    async with ImpowerClient(
-        settings.impower_api_base, settings.impower_api_token
-    ) as client:
+    async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
         return await client.download_document_content(int(doc.impower_id))
 
 

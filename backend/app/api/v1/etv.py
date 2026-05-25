@@ -74,9 +74,7 @@ _verwalter_only = require_role(UserRole.VERWALTER)
 # ---------- helpers ----------
 
 
-def _assembly_to_list_response(
-    a: EtvAssembly, prop: Property | None = None
-) -> AssemblyResponse:
+def _assembly_to_list_response(a: EtvAssembly, prop: Property | None = None) -> AssemblyResponse:
     """List-view builder. `prop` is optional so legacy callers stay
     valid; new callers pre-fetch in a single batched SELECT and pass
     it through so the response carries property_name +
@@ -102,16 +100,12 @@ async def _props_by_id_for(
         return {}
     prop_ids = {a.property_id for a in assemblies}
     rows = (
-        await session.execute(
-            select(Property).where(Property.id.in_(prop_ids))
-        )
-    ).scalars().all()
+        (await session.execute(select(Property).where(Property.id.in_(prop_ids)))).scalars().all()
+    )
     return {p.id: p for p in rows}
 
 
-async def _assembly_to_detail(
-    session: AsyncSession, a: EtvAssembly
-) -> AssemblyDetailResponse:
+async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> AssemblyDetailResponse:
     """Compose the full nested tree for one assembly in two extra
     queries (items, then a single batched discussion fetch keyed by
     item id). Used by both `/me/assemblies/{id}` + the admin variant."""
@@ -134,8 +128,7 @@ async def _assembly_to_detail(
             vote_required_quorum=i.vote_required_quorum,
             vote_result=i.vote_result,
             discussion=[
-                DiscussionEntryResponse.model_validate(d)
-                for d in disc_by_item.get(i.id, [])
+                DiscussionEntryResponse.model_validate(d) for d in disc_by_item.get(i.id, [])
             ],
         )
         for i in items
@@ -306,9 +299,7 @@ async def admin_list_all_assemblies(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[AssemblyResponse]:
     """Cross-property queue for the admin SPA's top-level overview."""
-    rows = await svc.list_assemblies_for_org(
-        session, organization_id=current_user.organization_id
-    )
+    rows = await svc.list_assemblies_for_org(session, organization_id=current_user.organization_id)
     props = await _props_by_id_for(session, rows)
     return [_assembly_to_list_response(a, props.get(a.property_id)) for a in rows]
 
@@ -536,7 +527,8 @@ async def admin_add_agenda_item(
 
 
 @admin_router.patch(
-    "/agenda-items/{item_id}", response_model=AgendaItemResponse,
+    "/agenda-items/{item_id}",
+    response_model=AgendaItemResponse,
 )
 async def admin_update_agenda_item(
     item_id: uuid.UUID,
@@ -564,10 +556,7 @@ async def admin_update_agenda_item(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "beschluss_text + vote_required_quorum only allowed when "
-                "type=BESCHLUSS"
-            ),
+            detail=("beschluss_text + vote_required_quorum only allowed when type=BESCHLUSS"),
         )
     try:
         await session.commit()
@@ -596,7 +585,8 @@ async def admin_update_agenda_item(
 
 
 @admin_router.delete(
-    "/agenda-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT,
+    "/agenda-items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def admin_delete_agenda_item(
     item_id: uuid.UUID,
@@ -663,7 +653,8 @@ async def admin_add_discussion_entry(
 
 
 @admin_router.delete(
-    "/discussion/{entry_id}", status_code=status.HTTP_204_NO_CONTENT,
+    "/discussion/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def admin_delete_discussion_entry(
     entry_id: uuid.UUID,
@@ -788,9 +779,7 @@ async def admin_verify_assembly(
         assembly_id=assembly_id,
     )
     if a is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
     a.verified_at = svc._now()
     a.verified_by_user_id = current_user.id
     session.add(
@@ -830,9 +819,7 @@ async def download_my_assembly_invitation(
         assembly_id=assembly_id,
     )
     if a is None or a.invitation_pdf_url is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
     if current_user.role != UserRole.VERWALTER:
         if current_user.contact_id_impower is None:
             raise HTTPException(
@@ -849,9 +836,7 @@ async def download_my_assembly_invitation(
     if not path.is_absolute():
         path = Path(settings.etv_invitation_dir) / path.name
     if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation file missing"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation file missing")
     return FileResponse(
         str(path),
         media_type="application/pdf",
@@ -888,9 +873,7 @@ async def admin_upload_invitation(
         assembly_id=assembly_id,
     )
     if a is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
 
     upload_root = Path(settings.etv_invitation_dir)
     upload_root.mkdir(parents=True, exist_ok=True)  # noqa: ASYNC240 — one-off route
@@ -975,9 +958,7 @@ async def admin_delete_invitation(
         assembly_id=assembly_id,
     )
     if a is None or a.invitation_pdf_url is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
     path = Path(a.invitation_pdf_url)
     if not path.is_absolute():
         path = Path(settings.etv_invitation_dir) / path.name
