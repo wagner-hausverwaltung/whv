@@ -16,6 +16,7 @@ final class AssemblyListStore: ObservableObject {
     /// to a previously-viewed property shows its cached set instantly
     /// while we refresh in the background.
     private(set) var loadedPropertyId: String?
+    var onUnauthorized: (() -> Void)?
     private let api: APIClient
 
     init(api: APIClient = APIClient()) {
@@ -33,6 +34,8 @@ final class AssemblyListStore: ObservableObject {
             let rows = try await api.listMyAssemblies(propertyId: propertyId)
             self.assemblies = rows
             self.loadedPropertyId = propertyId
+        } catch APIError.unauthorized {
+            onUnauthorized?()
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
@@ -43,6 +46,7 @@ final class AssemblyListStore: ObservableObject {
 
 struct VersammlungenTab: View {
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
+    @EnvironmentObject var authStore: AuthStore
     @StateObject private var store = AssemblyListStore()
 
     var body: some View {
@@ -59,6 +63,11 @@ struct VersammlungenTab: View {
                             }
                             .disabled(store.isLoading)
                         }
+                    }
+                }
+                .onAppear {
+                    store.onUnauthorized = { [weak authStore] in
+                        authStore?.signOut()
                     }
                 }
         }

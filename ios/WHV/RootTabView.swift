@@ -1,20 +1,25 @@
 // Main app shell — visible only after the user has selected a
-// Liegenschaft. Four tabs: Mitteilungen / Tickets / News /
+// Liegenschaft. Five tabs: Mitteilungen / Tickets / ETV / News /
 // Einstellungen. Liegenschaft is *not* a tab — it's the startup
 // screen + a switcher row at the top of Einstellungen.
 //
-// News is the only tab fully wired up; the other property-scoped
-// ones render `ComingSoonView` placeholders that show the active
-// Liegenschaft as context so the user can see which property
-// they'd be acting on once Phase 2 fills these in.
+// Tab swipe: the user can swipe left/right anywhere on the screen
+// to move between tabs. SwiftUI's TabView retains child views even
+// when not selected, so the gesture only changes `selection` —
+// per-tab state (scroll positions, open detail screens, in-flight
+// fetches, draft comment text) carries over for free.
 
 import SwiftUI
 
 struct RootTabView: View {
     @EnvironmentObject var store: LiegenschaftStore
+    @State private var selection = 2  // start on ETV — the most
+                                       // load-bearing tab today
+
+    private let tabCount = 5
 
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             ComingSoonView(
                 title: "Mitteilungen",
                 subtitle: "Verwalter-Mitteilungen",
@@ -23,6 +28,7 @@ struct RootTabView: View {
             .tabItem {
                 Label("Mitteilungen", systemImage: "megaphone")
             }
+            .tag(0)
 
             ComingSoonView(
                 title: "Tickets",
@@ -32,22 +38,46 @@ struct RootTabView: View {
             .tabItem {
                 Label("Tickets", systemImage: "tray.full")
             }
+            .tag(1)
 
             VersammlungenTab()
                 .tabItem {
-                    Label("Versammlungen", systemImage: "person.3")
+                    Label("ETV", systemImage: "person.3")
                 }
+                .tag(2)
 
             NewsTab()
                 .tabItem {
                     Label("News", systemImage: "newspaper")
                 }
+                .tag(3)
 
             EinstellungenView()
                 .tabItem {
                     Label("Einstellungen", systemImage: "gear")
                 }
+                .tag(4)
         }
+        // Horizontal swipe → flip selection. simultaneousGesture so
+        // it cohabits with vertical ScrollViews inside each tab; the
+        // axis filter (horizontal-dominant motion + 60pt threshold)
+        // keeps it from interfering with reading-direction scroll.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    let h = value.translation.width
+                    let v = value.translation.height
+                    let threshold: CGFloat = 60
+                    guard abs(h) > abs(v) * 1.5, abs(h) > threshold else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if h < 0, selection < tabCount - 1 {
+                            selection += 1
+                        } else if h > 0, selection > 0 {
+                            selection -= 1
+                        }
+                    }
+                }
+        )
     }
 }
 

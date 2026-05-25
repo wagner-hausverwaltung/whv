@@ -17,8 +17,11 @@ final class AssemblyDetailStore: ObservableObject {
     @Published private(set) var isLoadingDetail = false
     @Published private(set) var isLoadingComments = false
     @Published private(set) var isPosting = false
+    @Published private(set) var isDownloadingProtocol = false
+    @Published private(set) var protocolFileURL: URL?
     @Published var lastError: String?
 
+    var onUnauthorized: (() -> Void)?
     private let api: APIClient
 
     init(api: APIClient = APIClient()) {
@@ -35,6 +38,8 @@ final class AssemblyDetailStore: ObservableObject {
         defer { isLoadingDetail = false }
         do {
             self.detail = try await api.getAssemblyDetail(id: assemblyId)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
@@ -47,11 +52,42 @@ final class AssemblyDetailStore: ObservableObject {
         defer { isLoadingComments = false }
         do {
             self.comments = try await api.listAssemblyComments(assemblyId: assemblyId)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {
             self.lastError = error.localizedDescription
         }
+    }
+
+    /// Downloads the signed-protocol PDF to a temp file and surfaces
+    /// the URL for QuickLook. No-op if a copy already exists for
+    /// this session — re-pressing the button just re-opens the same
+    /// file.
+    func openProtocol(assemblyId: String) async {
+        if protocolFileURL != nil { return }
+        isDownloadingProtocol = true
+        defer { isDownloadingProtocol = false }
+        do {
+            self.protocolFileURL = try await api.downloadAssemblyProtocol(id: assemblyId)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    /// Clears the preview URL — bound to the sheet's onDismiss so a
+    /// second open of the protocol triggers a fresh fetch (useful if
+    /// the Verwalter has uploaded a corrected copy in the meantime).
+    func dismissProtocol() {
+        if let url = protocolFileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        protocolFileURL = nil
     }
 
     /// Posts the comment and appends the server-returned row to the
@@ -69,6 +105,9 @@ final class AssemblyDetailStore: ObservableObject {
             )
             self.comments.append(created)
             return true
+        } catch APIError.unauthorized {
+            onUnauthorized?()
+            return false
         } catch let error as APIError {
             self.lastError = error.errorDescription
             return false
@@ -89,6 +128,7 @@ struct AssemblyDetailView: View {
 
     @StateObject private var store = AssemblyDetailStore()
     @State private var commentDraft = ""
+    @EnvironmentObject var authStore: AuthStore
 
     init(assemblyId: String, fallback: AssemblySummary? = nil) {
         self.assemblyId = assemblyId
@@ -117,11 +157,27 @@ struct AssemblyDetailView: View {
         }
         .navigationTitle("Versammlung")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            store.onUnauthorized = { [weak authStore] in
+                authStore?.signOut()
+            }
+        }
         .task(id: assemblyId) {
             await store.loadAll(assemblyId: assemblyId)
         }
         .refreshable {
             await store.loadAll(assemblyId: assemblyId)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { store.protocolFileURL != nil },
+                set: { open in if !open { store.dismissProtocol() } }
+            )
+        ) {
+            if let url = store.protocolFileURL {
+                ProtocolPreview(url: url)
+                    .ignoresSafeArea()
+            }
         }
     }
 
@@ -402,10 +458,7 @@ struct AssemblyDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if hasProtocol {
                 Button {
-                    // Authenticated download lands in a follow-up
-                    // task; for now we surface that the file is on
-                    // the server and the portal/admin can serve it.
-                    print("Would open protocol for assembly \(assemblyId)")
+                    Task { await store.openProtocol(assemblyId: assemblyId) }
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "doc.text.fill")
@@ -425,9 +478,13 @@ struct AssemblyDetailView: View {
                             }
                         }
                         Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        if store.isDownloadingProtocol {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     .padding(12)
                     .background(
@@ -436,6 +493,7 @@ struct AssemblyDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .disabled(store.isDownloadingProtocol)
             } else {
                 Text(
                     "Das Protokoll wird in der Regel innerhalb von "

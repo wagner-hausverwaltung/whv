@@ -24,6 +24,11 @@ final class LiegenschaftStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
+    /// Fired when the API surface returns 401 even after a token
+    /// refresh attempt — the App routes this to AuthStore.signOut().
+    /// Optional so unit tests + #Preview can ignore it.
+    var onUnauthorized: (() -> Void)?
+
     private let storageKey = "WHV.selectedLiegenschaftId"
     private let defaults: UserDefaults
     private let api: APIClient
@@ -71,6 +76,8 @@ final class LiegenschaftStore: ObservableObject {
                 self.selected = nil
                 defaults.removeObject(forKey: storageKey)
             }
+        } catch APIError.unauthorized {
+            onUnauthorized?()
         } catch let error as APIError {
             self.lastError = error.errorDescription
         } catch {

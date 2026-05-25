@@ -73,6 +73,12 @@ struct CreateAssemblyCommentBody: Codable {
     let body: String
 }
 
+/// POST body for /auth/refresh. Single field — the backend swaps it
+/// for a new access+refresh pair plus the user envelope.
+struct RefreshRequest: Codable {
+    let refresh_token: String
+}
+
 // MARK: - Errors
 
 enum APIError: Error, LocalizedError {
@@ -118,15 +124,28 @@ struct APIClient {
     /// instances without rebuilding them. Returns nil when no user
     /// is signed in; authed endpoints surface that as `.unauthorized`.
     let tokenProvider: () -> String?
+    /// Reads the refresh token (same lifetime as the access token,
+    /// also in Keychain). Used by the 401 retry path to swap an
+    /// expired access token for a fresh one before bouncing the user
+    /// to LoginView.
+    let refreshTokenProvider: () -> String?
+    /// Called when /auth/refresh returns a new token pair so the
+    /// AuthStore-backed Keychain entries stay in lockstep with what
+    /// the client is using on retried requests.
+    let onTokenRefreshed: ((TokenResponse) -> Void)?
 
     init(
         baseURL: URL = APIClient.stagingBaseURL,
         session: URLSession = .shared,
-        tokenProvider: @escaping () -> String? = APIClient.defaultTokenProvider
+        tokenProvider: @escaping () -> String? = APIClient.defaultTokenProvider,
+        refreshTokenProvider: @escaping () -> String? = APIClient.defaultRefreshTokenProvider,
+        onTokenRefreshed: ((TokenResponse) -> Void)? = APIClient.defaultOnTokenRefreshed
     ) {
         self.baseURL = baseURL
         self.session = session
         self.tokenProvider = tokenProvider
+        self.refreshTokenProvider = refreshTokenProvider
+        self.onTokenRefreshed = onTokenRefreshed
     }
 
     /// Default: read `access_token` out of the shared Keychain. Same
@@ -135,6 +154,20 @@ struct APIClient {
     /// token at call time.
     static func defaultTokenProvider() -> String? {
         Keychain().read("access_token")
+    }
+
+    static func defaultRefreshTokenProvider() -> String? {
+        Keychain().read("refresh_token")
+    }
+
+    /// Default: persist the refreshed pair to Keychain so every
+    /// subsequent request (across stores, across APIClient instances)
+    /// picks up the new access token without a second refresh.
+    /// AuthStore wraps this to also update its @Published `user`.
+    static func defaultOnTokenRefreshed(_ tokens: TokenResponse) {
+        let kc = Keychain()
+        try? kc.write(tokens.access_token, for: "access_token")
+        try? kc.write(tokens.refresh_token, for: "refresh_token")
     }
 
     /// JSONDecoder used by every authenticated GET. Backend serialises
@@ -241,13 +274,49 @@ struct APIClient {
         return try Self.decode(TokenResponse.self, from: data)
     }
 
+    /// Trade a refresh token for a fresh access+refresh pair. Called
+    /// by the 401 retry path, AND by AuthStore on cold start when it
+    /// wants to revalidate stale credentials before the user starts
+    /// tapping. 401 here means "refresh token has been revoked or
+    /// is too old" — the caller should sign out.
+    func refresh(refreshToken: String) async throws -> TokenResponse {
+        var request = URLRequest(url: baseURL.appending(path: "/auth/refresh"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(RefreshRequest(refresh_token: refreshToken))
+        let (data, response) = try await performWithMapping(request)
+        if let http = response as? HTTPURLResponse, http.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        try Self.throwIfNotOK(response: response, data: data)
+        return try Self.decode(TokenResponse.self, from: data)
+    }
+
     // MARK: - /me (authed)
+
+    /// GET /me — the current user envelope. AuthStore hits this on
+    /// cold start to detect a server-revoked session.
+    func getMe() async throws -> UserResponse {
+        try await authedGET("/me")
+    }
 
     /// GET /me/properties — list properties visible to the signed-in
     /// user. Verwalter sees all org properties; owners see only
     /// properties they're a contact on.
     func getMyProperties() async throws -> [PropertyResponse] {
         try await authedGET("/me/properties")
+    }
+
+    /// GET /me/assemblies/{id}/protocol → local file URL. Streams the
+    /// PDF into the caller's temporary directory under a stable name
+    /// (one file per assembly) so re-opens hit the same path. The
+    /// returned URL is suitable for QLPreviewController.
+    func downloadAssemblyProtocol(id: String) async throws -> URL {
+        try await authedDownload(
+            "/me/assemblies/\(id)/protocol",
+            saveAs: "protokoll-\(id).pdf"
+        )
     }
 
     // MARK: - ETV (authed)
@@ -287,33 +356,110 @@ struct APIClient {
     /// Generic authed JSON GET. The path is relative to baseURL and
     /// must already be URL-encoded. Returns a decoded T or throws an
     /// APIError that the caller surfaces to the UI verbatim.
+    ///
+    /// One-shot 401 retry: if the access token has expired but the
+    /// refresh token is still valid, /auth/refresh trades it for a
+    /// new pair and we replay the original request. A second 401
+    /// (or a refresh-side 401) bubbles up as `.unauthorized` so the
+    /// app can sign out.
     private func authedGET<T: Decodable>(_ path: String) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        var request = URLRequest(url: baseURL.appending(path: path))
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await performWithMapping(request)
-        try Self.throwIfNotOK(response: response, data: data)
-        return try Self.decodeAuthed(T.self, from: data)
+        let url = baseURL.appending(path: path)
+        do {
+            let (data, response) = try await sendAuthed(url: url, method: "GET", body: nil, token: token)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let (data, response) = try await sendAuthed(url: url, method: "GET", body: nil, token: fresh)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        }
     }
 
-    /// Generic authed JSON POST/PATCH with a Codable body.
+    /// Generic authed JSON POST/PATCH with a Codable body. Same
+    /// one-shot 401 retry semantics as `authedGET`.
     private func authedJSON<T: Decodable, B: Encodable>(
         _ path: String,
         method: String,
         body: B
     ) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        var request = URLRequest(url: baseURL.appending(path: path))
+        let url = baseURL.appending(path: path)
+        let encoded = try JSONEncoder().encode(body)
+        do {
+            let (data, response) = try await sendAuthed(url: url, method: method, body: encoded, token: token)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let (data, response) = try await sendAuthed(url: url, method: method, body: encoded, token: fresh)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        }
+    }
+
+    /// Authenticated binary download. Writes the body to
+    /// `tmp/{saveAs}` and returns the URL. Same 401-refresh-retry
+    /// path as the JSON helpers — QuickLook surfaces the file the
+    /// user finally sees.
+    private func authedDownload(_ path: String, saveAs filename: String) async throws -> URL {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        let url = baseURL.appending(path: path)
+        let result: (Data, URLResponse)
+        do {
+            let r = try await sendAuthed(url: url, method: "GET", body: nil, token: token)
+            try Self.throwIfNotOK(response: r.1, data: r.0)
+            result = r
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let r = try await sendAuthed(url: url, method: "GET", body: nil, token: fresh)
+            try Self.throwIfNotOK(response: r.1, data: r.0)
+            result = r
+        }
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        // Replace any older copy — same assembly id reuses the path,
+        // and a stale file is worse than re-downloading.
+        try? FileManager.default.removeItem(at: dest)
+        try result.0.write(to: dest)
+        return dest
+    }
+
+    /// Send a single authed request. Returns body+response or throws
+    /// `.unauthorized` immediately on 401 (so the caller can decide
+    /// whether to refresh). Other non-2xx statuses leave the
+    /// status-code check to the caller (so download paths can
+    /// reuse this helper without double-throwing).
+    private func sendAuthed(
+        url: URL,
+        method: String,
+        body: Data?,
+        token: String
+    ) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(body)
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         let (data, response) = try await performWithMapping(request)
-        try Self.throwIfNotOK(response: response, data: data)
-        return try Self.decodeAuthed(T.self, from: data)
+        if let http = response as? HTTPURLResponse, http.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        return (data, response)
+    }
+
+    /// Pull the refresh token, hit /auth/refresh, persist the new
+    /// pair via `onTokenRefreshed`, and hand back the new access
+    /// token. Any failure bubbles up as `.unauthorized` so the
+    /// caller can give up and sign out.
+    private func refreshOrThrow() async throws -> String {
+        guard let rt = refreshTokenProvider() else { throw APIError.unauthorized }
+        let pair = try await refresh(refreshToken: rt)
+        onTokenRefreshed?(pair)
+        return pair.access_token
     }
 
     /// Same as `decode` but routes through the ISO8601-aware decoder

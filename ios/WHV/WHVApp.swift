@@ -38,8 +38,23 @@ struct WHVApp: App {
                     authStore.onSignOut = { [weak liegenschaftStore] in
                         liegenschaftStore?.reset()
                     }
-                    // Already-signed-in launch: hydrate the catalogue
-                    // so the picker isn't blank on cold start.
+                    // Any 401 from a downstream call (after one
+                    // refresh attempt) bounces the user to the login
+                    // screen — same path as a manual sign-out. We
+                    // route through AuthStore so the cached user
+                    // gets cleared too.
+                    liegenschaftStore.onUnauthorized = { [weak authStore] in
+                        authStore?.signOut()
+                    }
+                    // Already-signed-in launch: revalidate against
+                    // /me first (catches a server-side revocation
+                    // BEFORE the user starts tapping) and only then
+                    // hydrate the catalogue. revalidate() will
+                    // signOut() on a hard 401 — guard for that so we
+                    // don't fire a redundant /me/properties call.
+                    if authStore.signedIn {
+                        await authStore.revalidate()
+                    }
                     if authStore.signedIn, liegenschaftStore.available.isEmpty {
                         await liegenschaftStore.load()
                     }

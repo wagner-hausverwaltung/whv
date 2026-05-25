@@ -454,6 +454,36 @@ A self-contained "kick the tires" mode that runs the app against an in-memory da
 - Zero outbound network calls verified — Charles/Instruments on iOS, DevTools Network on portal.
 - Demo data is randomised slightly per session so screenshots aren't identical across reviewers.
 
+### 8.9 iOS Home / Lock Screen widgets + Dynamic Island — planned
+
+A priority-focused widget surface so the most time-sensitive piece of WHV reaches the user without opening the app. Mirrors how iOS Calendar / Reminders / Wallet surface the *next* thing rather than a full feed.
+
+**What's surfaced (priority order, picked dynamically):**
+1. **Next upcoming ETV** within the next 14 days — title, date, "Beitreten" CTA when a `teams_meeting_url` is set, location otherwise. Highest priority because attendance is time-bound.
+2. **Open tickets** count + the single highest-severity OFFEN ticket title. Tapping deep-links to the ticket.
+3. **Latest Mitteilung** unread, if newer than 48h. Falls off to position 3 once read.
+
+If none of the above is "live", the widget falls back to a quiet "Alles ruhig" state with the active Liegenschaft name and address.
+
+**Widget families (one widget bundle, three sizes):**
+- **Lock Screen** (iOS 17+ `accessoryRectangular`, `accessoryInline`, `accessoryCircular`): condensed — "ETV in 3 Tagen · 28.04.18:00".
+- **Home Screen** small + medium: full priority card with icon + body + CTA.
+- **Dynamic Island** (iPhone 14 Pro+): compact / expanded views for an ongoing ETV — joins the ActivityKit Live Activity once the meeting starts, with the Teams join link in the expanded leading area. Auto-dismisses when the assembly's `actual_end` is set.
+
+**Data plumbing:**
+- New `widget/` Xcode target sharing `Assembly` + `Liegenschaft` models via an App Group container.
+- `WidgetTimelineProvider` fetches `/me/properties/{id}/assemblies` (top of the upcoming queue), `/me/tickets?status=OFFEN` (Phase 4 once Tickets ship), `/me/announcements?since=…` via the same JWT the app uses (Keychain access group `group.com.wagner-hausverwaltung.WHV`).
+- Refresh budget: every 30 min on Home Screen widgets, on-demand via `WidgetCenter.shared.reloadAllTimelines()` after app-side mutations (e.g. comment posted → background refresh).
+- DSGVO: same Auftragsverarbeitung gates as the app; no third-party SDKs in the widget target.
+
+**Demo mode handshake:**
+When the host app is in `DemoStore.isActive = true`, the widget surfaces the seeded demo ETV / tickets so the App Store reviewer sees a populated widget too. Toggled via App Group flag the widget reads each timeline rebuild.
+
+**Definition of Done:**
+- Three widget sizes + Dynamic Island Live Activity working against staging.
+- Tapping any widget surface deep-links into the correct screen (assembly detail, ticket detail, Mitteilung).
+- Widget never shows stale data > 60 min when the device is online.
+
 ---
 
 ## 9. Phase 3 — Web Portal MVP (2–3 weeks)

@@ -121,4 +121,29 @@ final class AuthStore: ObservableObject {
         user = nil
         onSignOut?()
     }
+
+    /// Cold-start credential check. Hits /me with the cached token;
+    /// if the server has revoked the session (or both tokens have
+    /// expired past the refresh window) the APIClient throws
+    /// `.unauthorized` even after one refresh attempt — that's our
+    /// signal to drop the cached user and bounce to LoginView.
+    /// Successful round-trip silently refreshes the cached user envelope
+    /// so role/email updates land without a re-login.
+    func revalidate() async {
+        guard signedIn else { return }
+        do {
+            let fresh = try await api.getMe()
+            self.user = fresh
+            if let raw = try? JSONEncoder().encode(fresh) {
+                defaults.set(raw, forKey: cachedUserKey)
+            }
+        } catch APIError.unauthorized {
+            // Both tokens unusable. Wipe and bounce.
+            signOut()
+        } catch {
+            // Network blip — leave the cached user in place so the
+            // user can still scroll around the app, downstream calls
+            // will surface their own errors.
+        }
+    }
 }
