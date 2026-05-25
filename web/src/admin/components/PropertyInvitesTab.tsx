@@ -27,7 +27,7 @@ import {
   Typography,
 } from "@mui/material";
 import GroupAddIcon from "@mui/icons-material/GroupAdd";
-import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import MailOutlineIcon from "@mui/icons-material/MailOutlined";
 import { api } from "@/api/client";
 
 interface AdminPropertyContactInviteInfo {
@@ -218,7 +218,13 @@ export function PropertyInvitesTab({ propertyId }: PropertyInvitesTabProps) {
         </Button>
       </Stack>
 
-      <TableContainer component={Box} variant="outlined" sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
+      <TableContainer
+        sx={{
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 1,
+        }}
+      >
         <Table size="small">
           <TableHead>
             <TableRow>
