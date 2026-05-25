@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     ticket_attachment_dir: str = "/var/lib/whv/ticket-attachments"
     ticket_attachment_max_bytes: int = 25 * 1024 * 1024
 
+    # Announcement (Mitteilung) attachments — typically a meeting
+    # protocol PDF or a photo of an outage / damage notice. Same 25 MB
+    # cap and storage convention as ticket attachments; auth-gated
+    # download via the admin + owner API.
+    announcement_attachment_dir: str = "/var/lib/whv/announcement-attachments"
+    announcement_attachment_max_bytes: int = 25 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:
