@@ -147,6 +147,7 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
         actual_start=a.actual_start,
         actual_end=a.actual_end,
         location=a.location,
+        teams_meeting_url=a.teams_meeting_url,
         invitation_pdf_url=a.invitation_pdf_url,
         invitation_uploaded_at=a.invitation_uploaded_at,
         auto_extracted_at=a.auto_extracted_at,
@@ -339,6 +340,7 @@ async def admin_create_assembly(
         scheduled_start=payload.scheduled_start,
         scheduled_end=payload.scheduled_end,
         location=payload.location,
+        teams_meeting_url=payload.teams_meeting_url or None,
         created_by=current_user.id,
     )
     session.add(assembly)

@@ -30,6 +30,7 @@ import DownloadIcon from "@mui/icons-material/DownloadOutlined";
 import HomeWorkIcon from "@mui/icons-material/HomeWorkOutlined";
 import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
+import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import {
   AGENDA_ITEM_TYPE_LABELS,
@@ -179,6 +180,30 @@ export function MyAssemblyDetailPage() {
       </Breadcrumbs>
 
       {error && <Alert severity="error">{error}</Alert>}
+
+      {/* Teams join CTA — pinned above the header so it's the first
+          actionable affordance the owner sees. Microsoft Teams brand
+          purple (#4B53BC), camera glyph, opens in a new tab. */}
+      {a.teams_meeting_url && (
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={<VideocamIcon />}
+          component="a"
+          href={a.teams_meeting_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{
+            bgcolor: "#4B53BC",
+            color: "#fff",
+            fontWeight: 600,
+            py: 1.5,
+            "&:hover": { bgcolor: "#3D44A6" },
+          }}
+        >
+          Teams-Meeting beitreten
+        </Button>
+      )}
 
       {/* Header card */}
       <Paper variant="outlined" sx={{ p: 3 }}>

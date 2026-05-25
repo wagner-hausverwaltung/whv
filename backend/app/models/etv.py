@@ -137,6 +137,13 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
 
     location: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Microsoft Teams meet-up URL for hybrid ETVs. Auto-extracted from
+    # the invitation PDF when present; editable by Verwalter. Surfaced
+    # as a "Teams-Meeting beitreten" CTA on the portal + iOS detail
+    # views so attending owners can join from any device without
+    # hunting through the PDF.
+    teams_meeting_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Verwalter-uploaded PDFs.
     # `agenda_pdf_url` is retained for a potential separate "Tagesordnung
     # als Anhang" upload — in practice Verwalter ship a single combined

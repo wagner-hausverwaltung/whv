@@ -99,6 +99,17 @@ class ExtractedAssembly(BaseModel):
             "(e.g. 'Vereinsheim, Hasenbergstr. 32, 70176 Stuttgart')."
         ),
     )
+    teams_meeting_url: str | None = Field(
+        default=None,
+        max_length=2000,
+        description=(
+            "Microsoft Teams join URL if the invitation announces a "
+            "hybrid meeting. Typically begins with "
+            "'https://teams.microsoft.com/l/meetup-join/' or "
+            "'https://teams.live.com/meet/'. Null when no Teams link "
+            "is included."
+        ),
+    )
     agenda_items: list[_ExtractedAgendaItem] = Field(
         description="Tagesordnungspunkte in printed order.",
     )
@@ -126,6 +137,14 @@ Schema:
   meeting_date + 3 Stunden.
 
 - location: Vollständiger Versammlungsort (Räumlichkeit + Adresse).
+
+- teams_meeting_url: Falls die Einladung einen Microsoft-Teams-Link \
+  für hybride Teilnahme enthält, geben Sie die vollständige URL \
+  zurück. Erkennen Sie sie an Präfixen wie \
+  `https://teams.microsoft.com/l/meetup-join/` oder \
+  `https://teams.live.com/meet/`. Falls die Einladung KEINEN Teams-\
+  Link erwähnt (klassische Präsenzversammlung), geben Sie null \
+  zurück — raten Sie nicht.
 
 - agenda_items: Alle Tagesordnungspunkte in der gedruckten Reihenfolge. \
   position startet bei 1. type ist:
@@ -227,6 +246,11 @@ async def extract_and_apply(
     assembly.scheduled_start = _to_utc(payload.meeting_date)
     assembly.scheduled_end = _to_utc(payload.meeting_end)
     assembly.location = payload.location
+    # Only overwrite teams_meeting_url if the model found something —
+    # otherwise leave the existing value (the Verwalter may have
+    # pasted one manually before re-running extraction).
+    if payload.teams_meeting_url:
+        assembly.teams_meeting_url = payload.teams_meeting_url
     assembly.auto_extracted_at = datetime.now(UTC)
     assembly.auto_extracted_source_document_id = source_document_id
     assembly.auto_extracted_raw = payload.model_dump(mode="json")

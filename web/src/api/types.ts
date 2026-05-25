@@ -355,6 +355,7 @@ export interface AssemblyResponse {
   actual_start: string | null;
   actual_end: string | null;
   location: string;
+  teams_meeting_url: string | null;
   invitation_pdf_url: string | null;
   invitation_uploaded_at: string | null;
   protocol_pdf_url: string | null;

@@ -14,7 +14,7 @@ payload tight. Detail views fetch the full tree in a single request.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import AgendaItemType, AgendaItemVoteResult, AssemblyStatus
 
@@ -102,6 +102,17 @@ class CreateAssemblyRequest(BaseModel):
     scheduled_start: datetime
     scheduled_end: datetime
     location: str = Field(..., min_length=1, max_length=500)
+    teams_meeting_url: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("teams_meeting_url", mode="before")
+    @classmethod
+    def _empty_string_is_null(cls, v: object) -> object:
+        # Form clients (the admin SPA) PATCH "" to clear the field;
+        # null-on-empty avoids storing a meaningless empty string and
+        # keeps the "is link set?" check in views simple.
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     @model_validator(mode="after")
     def end_after_start(self) -> "CreateAssemblyRequest":
@@ -122,6 +133,18 @@ class UpdateAssemblyRequest(BaseModel):
     actual_end: datetime | None = None
     location: str | None = Field(None, min_length=1, max_length=500)
     agenda_pdf_url: str | None = None
+    # Empty string is the sentinel for "clear it" so a Verwalter can
+    # remove a stale link via the same PATCH that updates other
+    # header fields. Real URLs run a couple hundred characters
+    # (Teams meetup-join URLs encode tenant + conversation IDs).
+    teams_meeting_url: str | None = Field(None, max_length=2000)
+
+    @field_validator("teams_meeting_url", mode="before")
+    @classmethod
+    def _empty_string_is_null(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class AssemblyResponse(BaseModel):
@@ -148,6 +171,7 @@ class AssemblyResponse(BaseModel):
     actual_start: datetime | None
     actual_end: datetime | None
     location: str
+    teams_meeting_url: str | None = None
     invitation_pdf_url: str | None = None
     invitation_uploaded_at: datetime | None = None
     protocol_pdf_url: str | None

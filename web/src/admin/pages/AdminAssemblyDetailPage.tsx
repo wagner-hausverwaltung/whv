@@ -36,6 +36,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Close";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
+import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import {
   AGENDA_ITEM_TYPE_LABELS,
@@ -167,6 +168,7 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
   const [description, setDescription] = useState(assembly.description);
   const [status, setStatus] = useState<AssemblyStatus>(assembly.status);
   const [location, setLocation] = useState(assembly.location);
+  const [teamsUrl, setTeamsUrl] = useState(assembly.teams_meeting_url ?? "");
   const [start, setStart] = useState(toDtLocal(assembly.scheduled_start));
   const [end, setEnd] = useState(toDtLocal(assembly.scheduled_end));
   const [submitting, setSubmitting] = useState(false);
@@ -177,6 +179,7 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
     setDescription(assembly.description);
     setStatus(assembly.status);
     setLocation(assembly.location);
+    setTeamsUrl(assembly.teams_meeting_url ?? "");
     setStart(toDtLocal(assembly.scheduled_start));
     setEnd(toDtLocal(assembly.scheduled_end));
     setEditing(true);
@@ -194,6 +197,8 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
           description,
           status,
           location,
+          // Empty string clears the URL via the backend's validator.
+          teams_meeting_url: teamsUrl.trim(),
           scheduled_start: new Date(start).toISOString(),
           scheduled_end: new Date(end).toISOString(),
         },
@@ -257,13 +262,30 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
               <Typography variant="h4" component="h1">
                 {assembly.title}
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mt: 1, flexWrap: "wrap", rowGap: 1 }}
+              >
                 <StatusChip status={assembly.status} />
                 <Chip
                   size="small"
                   variant="outlined"
                   label={`Ort: ${assembly.location}`}
                 />
+                {assembly.teams_meeting_url && (
+                  <Chip
+                    size="small"
+                    variant="filled"
+                    icon={<VideocamIcon />}
+                    label="Teams-Link gesetzt"
+                    sx={{
+                      bgcolor: "#4B53BC",
+                      color: "#fff",
+                      "& .MuiChip-icon": { color: "#fff" },
+                    }}
+                  />
+                )}
               </Stack>
             </Box>
             <Stack direction="row" spacing={1}>
@@ -318,6 +340,18 @@ function AssemblyHeader({ assembly, onChanged, onDeleted }: HeaderProps) {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             required
+            fullWidth
+          />
+          <TextField
+            label="Microsoft-Teams-Link"
+            value={teamsUrl}
+            onChange={(e) => setTeamsUrl(e.target.value)}
+            helperText={
+              teamsUrl
+                ? "Eigentümer sehen einen 'Teams-Meeting beitreten'-Button auf der Versammlungs-Detailseite."
+                : "Wenn die Versammlung hybrid stattfindet, hier den Teams-Link einfügen. Leer lassen für reine Präsenzversammlung."
+            }
+            placeholder="https://teams.microsoft.com/l/meetup-join/…"
             fullWidth
           />
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
