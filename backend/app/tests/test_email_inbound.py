@@ -57,11 +57,13 @@ class _StubEmailClient:
     async def send(
         self,
         *,
-        to: str,
+        to: str | list[str],
         subject: str,
         html: str,
         text: str,
         headers: dict[str, str] | None = None,
+        reply_to: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> str:
         msg_id = f"sim-{uuid.uuid4()}"
         self.sent.append(
@@ -71,6 +73,8 @@ class _StubEmailClient:
                 "html": html,
                 "text": text,
                 "headers": headers or {},
+                "reply_to": reply_to,
+                "attachments": attachments or [],
                 "id": msg_id,
             }
         )

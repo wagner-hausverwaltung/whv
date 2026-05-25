@@ -477,6 +477,26 @@ async def email_inbound(
                 # "Neue Nachricht zu Ticket #…" headline.
                 is_new_ticket=created_new,
             )
+            # Forward the inbound email's attachments along too — the
+            # Verwalter's inbox should carry the same binary the customer
+            # sent, not just a portal-side reference. Reuse the
+            # already-tested helper from tickets.py so the disk-read +
+            # base64-encode logic stays in one place.
+            from app.api.v1.tickets import _attachments_for_resend
+
+            forwarded_attachments = _attachments_for_resend(
+                [
+                    att
+                    for att in (
+                        await session.scalars(
+                            select(TicketMessageAttachment).where(
+                                TicketMessageAttachment.ticket_message_id
+                                == message_row.id
+                            )
+                        )
+                    ).all()
+                ]
+            )
             await email_client.send(
                 # List, not comma-joined string — Resend rejects the
                 # latter with a 422 validation error.
@@ -485,6 +505,7 @@ async def email_inbound(
                 html=html,
                 text=text,
                 headers=_threading_headers(parsed),
+                attachments=forwarded_attachments or None,
             )
         except Exception as exc:
             logger.warning("email_inbound: notify failed: %s", exc)
