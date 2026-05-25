@@ -42,6 +42,7 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.integrations.email.etv import render_assembly_comment_notification_email
 from app.models import (
     AgendaItemType,
+    AssemblyStatus,
     AuditLog,
     EtvAgendaItem,
     EtvAssembly,
@@ -962,6 +963,14 @@ async def admin_upload_protocol(
     a.protocol_extracted_at = None
     a.protocol_extracted_raw = None
     a.protocol_extracted_source_document_id = None
+    # Uploading a protocol means the meeting has happened. Flip
+    # status → ABGEHALTEN unless the assembly is ABGESAGT
+    # (cancelled is a deliberate state; the Verwalter wouldn't
+    # normally upload a protocol for one, but if they do we don't
+    # silently overwrite their decision).
+    prior_status = a.status
+    if a.status != AssemblyStatus.ABGESAGT:
+        a.status = AssemblyStatus.ABGEHALTEN
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -972,6 +981,8 @@ async def admin_upload_protocol(
             payload_json={
                 "filename": file.filename,
                 "protocol_pdf_url": a.protocol_pdf_url,
+                "status_before": prior_status.value,
+                "status_after": a.status.value,
             },
         )
     )
@@ -1152,6 +1163,14 @@ async def admin_upload_invitation(
     a.auto_extracted_at = None
     a.auto_extracted_raw = None
     a.auto_extracted_source_document_id = None
+    # An invitation upload means "this meeting is on the books".
+    # Flip status → GEPLANT unless it's already past (ABGEHALTEN)
+    # or cancelled — those are deliberate end-states the Verwalter
+    # set, we don't quietly revert them just because they pinned a
+    # new copy of the invitation PDF.
+    prior_status = a.status
+    if a.status not in (AssemblyStatus.ABGEHALTEN, AssemblyStatus.ABGESAGT):
+        a.status = AssemblyStatus.GEPLANT
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -1162,6 +1181,8 @@ async def admin_upload_invitation(
             payload_json={
                 "filename": file.filename,
                 "invitation_pdf_url": a.invitation_pdf_url,
+                "status_before": prior_status.value,
+                "status_after": a.status.value,
             },
         )
     )

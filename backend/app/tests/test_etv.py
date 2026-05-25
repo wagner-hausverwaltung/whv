@@ -413,6 +413,12 @@ async def test_protocol_upload_and_download(test_engine: AsyncEngine, etv_tmp_di
     assert r_up.status_code == 200, r_up.text
     body = r_up.json()
     assert body["protocol_pdf_url"].endswith(".pdf")
+    # Uploading a protocol = the meeting happened. Status auto-flips
+    # to ABGEHALTEN so the owner queue + iOS list group the row under
+    # "Vergangen" without the Verwalter manually editing it.
+    with TestClient(app) as client:
+        r_after = client.get(f"/admin/assemblies/{a['id']}", headers=_auth(v_token))
+    assert r_after.json()["status"] == "ABGEHALTEN"
     # Owner can download
     o_token = _login(seed.owner.email, seed.owner_pw)
     with TestClient(app) as client:
@@ -462,6 +468,17 @@ async def test_invitation_upload_and_download(
         _StubTask(),
     )
 
+    # Start the assembly at EINGELADEN so the post-upload assertion
+    # below actually proves the GEPLANT flip — the freshly-created
+    # row defaults to GEPLANT, making the check trivially pass
+    # otherwise.
+    with TestClient(app) as client:
+        client.patch(
+            f"/admin/assemblies/{a['id']}",
+            json={"status": "EINGELADEN"},
+            headers=_auth(v_token),
+        )
+
     pdf_bytes = b"%PDF-1.4\n% fake invitation body\n%%EOF\n"
     with TestClient(app) as client:
         r_up = client.post(
@@ -480,6 +497,10 @@ async def test_invitation_upload_and_download(
     assert body["invitation_pdf_url"].endswith(".pdf")
     assert body["extraction_enqueued"] is True
     assert enqueued == [a["id"]]
+    # Status flipped EINGELADEN → GEPLANT on the invitation upload.
+    with TestClient(app) as client:
+        r_after = client.get(f"/admin/assemblies/{a['id']}", headers=_auth(v_token))
+    assert r_after.json()["status"] == "GEPLANT"
 
     # Owner downloads.
     o_token = _login(seed.owner.email, seed.owner_pw)
