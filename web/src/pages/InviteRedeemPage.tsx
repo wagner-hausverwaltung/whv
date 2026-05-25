@@ -38,11 +38,13 @@ export function InviteRedeemPage() {
   // field. Mirrors the iOS RegistrationView flow — the user shouldn't
   // be asked to re-type something already in their inbox; doing so
   // invites typo-induced "Einladung ungültig" failures.
+  //
+  // The no-code path is handled by the initial state above
+  // (`code ? undefined : null`) so this effect doesn't need to call
+  // setInfo synchronously — keeps the react-hooks/set-state-in-effect
+  // lint happy.
   useEffect(() => {
-    if (!code) {
-      setInfo(null);
-      return;
-    }
+    if (!code) return;
     let cancelled = false;
     void api
       .get<InviteInfoResponse>(`/auth/invite/${encodeURIComponent(code)}`)
