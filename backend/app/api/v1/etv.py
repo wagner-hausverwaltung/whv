@@ -56,6 +56,7 @@ from app.schemas.etv import (
     CreateAssemblyRequest,
     CreateDiscussionEntryRequest,
     DiscussionEntryResponse,
+    InvitationUploadResponse,
     ProtocolUploadResponse,
     UpdateAgendaItemRequest,
     UpdateAssemblyRequest,
@@ -119,6 +120,10 @@ async def _assembly_to_detail(
         actual_start=a.actual_start,
         actual_end=a.actual_end,
         location=a.location,
+        invitation_pdf_url=a.invitation_pdf_url,
+        invitation_uploaded_at=a.invitation_uploaded_at,
+        auto_extracted_at=a.auto_extracted_at,
+        verified_at=a.verified_at,
         agenda_pdf_url=a.agenda_pdf_url,
         protocol_pdf_url=a.protocol_pdf_url,
         protocol_uploaded_at=a.protocol_uploaded_at,
@@ -718,3 +723,192 @@ async def admin_upload_protocol(
         protocol_pdf_url=a.protocol_pdf_url,
         protocol_uploaded_at=a.protocol_uploaded_at,
     )
+
+
+# ----- Invitation PDF -------------------------------------------------------
+
+
+@me_router.get("/assemblies/{assembly_id}/invitation")
+async def download_my_assembly_invitation(
+    assembly_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileResponse:
+    """Auth-gated download for the Einladung PDF.
+
+    Same scope check as the protocol download — Verwalter sees all
+    org assemblies; owner only those tied to a property they have a
+    contract on.
+    """
+    a = await svc.load_assembly_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        assembly_id=assembly_id,
+    )
+    if a is None or a.invitation_pdf_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
+        )
+    if current_user.role != UserRole.VERWALTER:
+        if current_user.contact_id_impower is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
+            )
+        visible = await session.scalar(
+            _visible_properties_stmt(current_user).where(Property.id == a.property_id)
+        )
+        if visible is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
+            )
+    path = Path(a.invitation_pdf_url)
+    if not path.is_absolute():
+        path = Path(settings.etv_invitation_dir) / path.name
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation file missing"
+        )
+    return FileResponse(
+        str(path),
+        media_type="application/pdf",
+        filename=f"einladung-{a.id}.pdf",
+    )
+
+
+@admin_router.post(
+    "/assemblies/{assembly_id}/invitation",
+    response_model=InvitationUploadResponse,
+)
+async def admin_upload_invitation(
+    assembly_id: uuid.UUID,
+    file: UploadFile,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InvitationUploadResponse:
+    """Upload the Einladung PDF + trigger LLM extraction.
+
+    The new PDF overwrites the previous one on disk. The associated
+    extraction task is enqueued on the celery queue and runs against
+    the freshly-uploaded bytes; the SPA polls
+    `/admin/assemblies/{id}` to see when `auto_extracted_at` flips.
+    """
+    if file.content_type not in ("application/pdf", "application/octet-stream"):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Only PDF uploads accepted",
+        )
+    a = await svc.load_assembly_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        assembly_id=assembly_id,
+    )
+    if a is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found"
+        )
+
+    upload_root = Path(settings.etv_invitation_dir)
+    upload_root.mkdir(parents=True, exist_ok=True)  # noqa: ASYNC240 — one-off route
+    target = upload_root / f"{a.id}.pdf"
+    written = 0
+    cap = settings.etv_invitation_max_bytes
+    with target.open("wb") as out:
+        while chunk := await file.read(64 * 1024):
+            written += len(chunk)
+            if written > cap:
+                out.close()
+                target.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Invitation exceeds {cap // (1024 * 1024)} MB cap",
+                )
+            out.write(chunk)
+    a.invitation_pdf_url = target.name
+    a.invitation_uploaded_at = svc._now()
+    # Re-uploading clears the prior extraction stamp so the SPA badge
+    # ("KI-extrahiert · bitte prüfen") reappears until the new pass
+    # lands. Verified rows keep their verified_at — the next
+    # extraction will see verified_at and skip per the
+    # service-level idempotency guard.
+    a.auto_extracted_at = None
+    a.auto_extracted_raw = None
+    a.auto_extracted_source_document_id = None
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="etv_invitation_uploaded",
+            target_type="etv_assemblies",
+            target_id=str(a.id),
+            payload_json={
+                "filename": file.filename,
+                "invitation_pdf_url": a.invitation_pdf_url,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(a)
+
+    # Enqueue extraction *after* commit so the Celery worker sees the
+    # freshly-persisted invitation_pdf_url. Failure here doesn't roll
+    # back the upload — the Verwalter can re-trigger from the SPA.
+    extraction_enqueued = False
+    try:
+        from app.workers.tasks import extract_etv_metadata
+
+        extract_etv_metadata.delay(str(a.id))
+        extraction_enqueued = True
+    except Exception:
+        logger.exception("failed to enqueue extraction for assembly %s", a.id)
+
+    return InvitationUploadResponse(
+        assembly_id=a.id,
+        invitation_pdf_url=a.invitation_pdf_url,
+        invitation_uploaded_at=a.invitation_uploaded_at,
+        extraction_enqueued=extraction_enqueued,
+    )
+
+
+@admin_router.delete(
+    "/assemblies/{assembly_id}/invitation",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def admin_delete_invitation(
+    assembly_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    """Remove the invitation file + clear the row pointers.
+
+    Auto-extracted data stays — the Verwalter may want to keep the
+    parsed agenda even if they pulled the source PDF for re-upload.
+    """
+    a = await svc.load_assembly_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        assembly_id=assembly_id,
+    )
+    if a is None or a.invitation_pdf_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found"
+        )
+    path = Path(a.invitation_pdf_url)
+    if not path.is_absolute():
+        path = Path(settings.etv_invitation_dir) / path.name
+    path.unlink(missing_ok=True)
+    a.invitation_pdf_url = None
+    a.invitation_uploaded_at = None
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="etv_invitation_deleted",
+            target_type="etv_assemblies",
+            target_id=str(a.id),
+            payload_json={},
+        )
+    )
+    await session.commit()

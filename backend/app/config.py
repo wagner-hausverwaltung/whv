@@ -134,6 +134,19 @@ class Settings(BaseSettings):
     # attachment one.
     etv_protocol_max_bytes: int = 50 * 1024 * 1024
 
+    # Verwalter-uploaded ETV invitation PDFs — one per assembly,
+    # named {assembly_id}.pdf so re-uploads cleanly overwrite. Drives
+    # the LLM extraction (ADR-0008): on upload the assembly's
+    # `invitation_pdf_url` flips + an extract_etv_metadata task is
+    # enqueued. Auth-gated download via /me/assemblies/{id}/invitation
+    # so owners + iOS can fetch it too. Same Hetzner OS migration as
+    # the protocol dir.
+    etv_invitation_dir: str = "/var/lib/whv/etv-invitations"
+    # Same envelope as protocols — invitations sometimes pack the
+    # Tagesordnung + Anlagen + Hausordnung-Auszüge into one file and
+    # can run into the tens of MB.
+    etv_invitation_max_bytes: int = 50 * 1024 * 1024
+
     # LLM extraction pipeline (ADR-0008). One API key per provider,
     # selected by `llm_provider`. Empty key → factory raises rather
     # than silently no-op — extraction tasks then short-circuit with

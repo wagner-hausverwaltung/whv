@@ -46,16 +46,21 @@ from app.tests._factories import (
 
 @pytest_asyncio.fixture
 async def etv_tmp_dir() -> AsyncIterator[Path]:
-    """Redirect the protocol storage dir so test uploads don't touch
-    the real /var/lib path."""
+    """Redirect the protocol + invitation storage dirs so test uploads
+    don't touch the real /var/lib path. Both share the same scratch
+    dir because their filenames don't collide ({assembly_id}.pdf in
+    different subtrees)."""
     with tempfile.TemporaryDirectory(prefix="whv-etv-") as d:
         settings = get_settings()
-        original = settings.etv_protocol_dir
+        original_protocol = settings.etv_protocol_dir
+        original_invitation = settings.etv_invitation_dir
         settings.etv_protocol_dir = d
+        settings.etv_invitation_dir = d
         try:
             yield Path(d)
         finally:
-            settings.etv_protocol_dir = original
+            settings.etv_protocol_dir = original_protocol
+            settings.etv_invitation_dir = original_invitation
 
 
 def _login(email: str, password: str) -> str:
@@ -458,6 +463,104 @@ async def test_protocol_upload_rejects_non_pdf(
             headers=_auth(v_token),
         )
     assert r.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_invitation_upload_and_download(
+    test_engine: AsyncEngine,
+    etv_tmp_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verwalter uploads → row stamps url + uploaded_at + extraction
+    enqueued; owner downloads via the auth-gated /me endpoint."""
+    seed = await _seed(test_engine)
+    v_token = _login(seed.verwalter.email, seed.verwalter_pw)
+    a = _create_assembly(v_token, str(seed.prop.id))
+
+    # Stub the Celery .delay() so we don't need a worker running.
+    # Captures the assembly_id the upload endpoint enqueued for.
+    enqueued: list[str] = []
+
+    class _StubTask:
+        def delay(self, aid: str) -> None:
+            enqueued.append(aid)
+
+    monkeypatch.setattr(
+        "app.workers.tasks.extract_etv_metadata",
+        _StubTask(),
+    )
+
+    pdf_bytes = b"%PDF-1.4\n% fake invitation body\n%%EOF\n"
+    with TestClient(app) as client:
+        r_up = client.post(
+            f"/admin/assemblies/{a['id']}/invitation",
+            files={
+                "file": (
+                    "einladung.pdf",
+                    io.BytesIO(pdf_bytes),
+                    "application/pdf",
+                ),
+            },
+            headers=_auth(v_token),
+        )
+    assert r_up.status_code == 200, r_up.text
+    body = r_up.json()
+    assert body["invitation_pdf_url"].endswith(".pdf")
+    assert body["extraction_enqueued"] is True
+    assert enqueued == [a["id"]]
+
+    # Owner downloads.
+    o_token = _login(seed.owner.email, seed.owner_pw)
+    with TestClient(app) as client:
+        r_dl = client.get(
+            f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token)
+        )
+    assert r_dl.status_code == 200
+    assert r_dl.content == pdf_bytes
+    assert r_dl.headers["content-type"].startswith("application/pdf")
+
+
+@pytest.mark.asyncio
+async def test_invitation_delete_clears_url(
+    test_engine: AsyncEngine,
+    etv_tmp_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verwalter deletes uploaded PDF → file gone + row pointers
+    cleared; subsequent download is 404."""
+    seed = await _seed(test_engine)
+    v_token = _login(seed.verwalter.email, seed.verwalter_pw)
+    a = _create_assembly(v_token, str(seed.prop.id))
+
+    monkeypatch.setattr(
+        "app.workers.tasks.extract_etv_metadata",
+        type("S", (), {"delay": staticmethod(lambda _: None)})(),
+    )
+
+    with TestClient(app) as client:
+        client.post(
+            f"/admin/assemblies/{a['id']}/invitation",
+            files={
+                "file": (
+                    "einladung.pdf",
+                    io.BytesIO(b"%PDF-1.4\n%%EOF\n"),
+                    "application/pdf",
+                )
+            },
+            headers=_auth(v_token),
+        )
+        r_del = client.delete(
+            f"/admin/assemblies/{a['id']}/invitation",
+            headers=_auth(v_token),
+        )
+    assert r_del.status_code == 204
+
+    o_token = _login(seed.owner.email, seed.owner_pw)
+    with TestClient(app) as client:
+        r_dl = client.get(
+            f"/me/assemblies/{a['id']}/invitation", headers=_auth(o_token)
+        )
+    assert r_dl.status_code == 404
 
 
 @pytest.mark.asyncio

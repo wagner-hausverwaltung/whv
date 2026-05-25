@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import uuid
+from pathlib import Path
 
 from celery.utils.log import get_task_logger
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -353,8 +355,6 @@ async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
     (recorded in audit log). Only real failures (DB error,
     misconfigured provider after env reload) raise + retry.
     """
-    import uuid as _uuid
-
     from sqlalchemy import select
 
     from app.models import (
@@ -363,7 +363,7 @@ async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
     )
     from app.services.etv_extraction import extract_and_apply
 
-    assembly_id = _uuid.UUID(assembly_id_str)
+    assembly_id = uuid.UUID(assembly_id_str)
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -373,44 +373,59 @@ async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
             if assembly is None or assembly.deleted_at is not None:
                 return "assembly_gone"
 
-            # Find one OWNERS_MEETING_INVITATION document for this
-            # property whose issued_date matches (or is within 1 day
-            # of) the assembly's scheduled_start. Multiple PDFs per
-            # meeting (one per Eigentümer) — any of them works.
-            day = assembly.scheduled_start.date()
-            doc = await session.scalar(
-                select(Document).where(
-                    Document.property_id == assembly.property_id,
-                    Document.impower_source_type == "OWNERS_MEETING_INVITATION",
-                    Document.deleted_at.is_(None),
-                    Document.issued_date == day,
-                ).limit(1)
-            )
-            if doc is None:
-                logger.info(
-                    "extract_etv_metadata: no invitation document for "
-                    "assembly=%s property=%s day=%s",
-                    assembly_id, assembly.property_id, day,
-                )
-                return "no_source_pdf"
+            # Source order for PDF bytes:
+            #   1. Admin-uploaded invitation PDF on the assembly row
+            #      (the canonical path now that Verwalter drives ETV
+            #      data entry — pivoted away from Impower-pulling).
+            #   2. Impower OWNERS_MEETING_INVITATION document for
+            #      this property+date — kept as a fallback so future
+            #      production Impower instances that DO serve PDFs
+            #      "just work" without re-wiring.
+            pdf_bytes: bytes | None = None
+            source_doc_id: uuid.UUID | None = None
 
-            # Try local storage first; fall back to a one-shot Impower
-            # download. Both paths can return None for "no bytes
-            # available", in which case we record + give up.
-            pdf_bytes = await _fetch_invitation_pdf_bytes(doc)
+            if assembly.invitation_pdf_url:
+                inv_path = Path(assembly.invitation_pdf_url)
+                if not inv_path.is_absolute():
+                    inv_path = Path(settings.etv_invitation_dir) / inv_path.name
+                if inv_path.exists():
+                    try:
+                        pdf_bytes = inv_path.read_bytes()
+                    except OSError:
+                        logger.exception(
+                            "failed to read uploaded invitation %s", inv_path
+                        )
+
             if pdf_bytes is None:
-                logger.info(
-                    "extract_etv_metadata: no PDF bytes available for "
-                    "document=%s (impower_id=%s)",
-                    doc.id, doc.impower_id,
+                day = assembly.scheduled_start.date()
+                doc = await session.scalar(
+                    select(Document).where(
+                        Document.property_id == assembly.property_id,
+                        Document.impower_source_type
+                        == "OWNERS_MEETING_INVITATION",
+                        Document.deleted_at.is_(None),
+                        Document.issued_date == day,
+                    ).limit(1)
                 )
+                if doc is not None:
+                    pdf_bytes = await _fetch_invitation_pdf_bytes(doc)
+                    if pdf_bytes is not None:
+                        source_doc_id = doc.id
+                else:
+                    logger.info(
+                        "extract_etv_metadata: no invitation source "
+                        "(neither uploaded nor Impower) for assembly=%s",
+                        assembly_id,
+                    )
+
+            if pdf_bytes is None:
                 return "no_source_pdf"
 
             outcome = await extract_and_apply(
                 session,
                 assembly_id=assembly_id,
                 pdf_bytes=pdf_bytes,
-                source_document_id=doc.id,
+                source_document_id=source_doc_id,
             )
             await session.commit()
             return outcome
@@ -429,8 +444,6 @@ async def _fetch_invitation_pdf_bytes(doc: Document) -> bytes | None:
     Returns None if neither source produces bytes; the Celery task
     short-circuits and records "no_source_pdf" in the audit log.
     """
-    from pathlib import Path
-
     from app.integrations.impower.client import ImpowerClient
 
     if doc.storage_url:
@@ -450,6 +463,16 @@ async def _fetch_invitation_pdf_bytes(doc: Document) -> bytes | None:
         settings.impower_api_base, settings.impower_api_token
     ) as client:
         return await client.download_document_content(int(doc.impower_id))
+
+
+async def _read_local_invitation(p: Path) -> bytes | None:
+    """Read an admin-uploaded invitation PDF from local disk. Celery's
+    already-blocking model makes the sync IO acceptable here."""
+    try:
+        return p.read_bytes()  # noqa: ASYNC240
+    except OSError:
+        logger.exception("failed to read uploaded invitation %s", p)
+        return None
 
 
 @celery_app.task(

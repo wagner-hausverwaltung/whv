@@ -128,12 +128,22 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
 
     location: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Verwalter-uploaded PDFs. agenda is the Einladung-Anhang
-    # ("Tagesordnung als PDF"); protocol is the *signed* minutes that
-    # confirm what happened. Storage path semantics match the existing
-    # circular_resolutions.pdf_url field — Hetzner Object Storage once
-    # §1.4d iter 2 lands; for v1 a local /uploads path is acceptable.
+    # Verwalter-uploaded PDFs.
+    # `agenda_pdf_url` is retained for a potential separate "Tagesordnung
+    # als Anhang" upload — in practice Verwalter ship a single combined
+    # Einladung PDF and use `invitation_pdf_url`.
+    # `invitation_pdf_url` is the Einladung PDF — drives the LLM
+    # extraction (ADR-0008) and is served to owners as the "Einladung
+    # herunterladen" affordance on the assembly detail page.
+    # `protocol_pdf_url` is the *signed* minutes confirming what
+    # happened. Always uploaded after the assembly.
+    # Storage path semantics: relative filename under settings.{etv_invitation_dir,
+    # etv_protocol_dir}; Hetzner Object Storage once §1.4d iter 2 lands.
     agenda_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invitation_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invitation_uploaded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
     protocol_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     protocol_uploaded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
