@@ -200,6 +200,7 @@
       "backToProperty": "Zurück zur Liegenschaft",
       "publishNow": "Sofort veröffentlichen",
       "publishNowTooltip": "Statt 10 Min Vorlauf sofort an alle Empfänger versenden.",
+      "publishAlready": "Bereits veröffentlicht — keine Aktion nötig.",
       "delete": "Löschen",
       "deleteConfirmTitle": "Mitteilung löschen?",
       "deleteConfirmBody": "Die Mitteilung wird in den Papierkorb verschoben und Kommentare werden mit ausgeblendet. Dieser Schritt kann derzeit nicht über die Oberfläche rückgängig gemacht werden.",

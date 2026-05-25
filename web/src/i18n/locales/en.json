@@ -200,6 +200,7 @@
       "backToProperty": "Back to property",
       "publishNow": "Publish now",
       "publishNowTooltip": "Skip the 10-minute buffer and notify recipients immediately.",
+      "publishAlready": "Already published — no action needed.",
       "delete": "Delete",
       "deleteConfirmTitle": "Delete announcement?",
       "deleteConfirmBody": "The announcement and its comments will be hidden. This action is not yet reversible via the UI.",

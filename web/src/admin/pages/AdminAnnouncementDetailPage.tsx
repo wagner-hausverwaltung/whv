@@ -65,6 +65,9 @@ export function AdminAnnouncementDetailPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<AnnouncementDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Soft-success / informational toast (e.g. 409 publish-now race
+  // → "Bereits veröffentlicht" instead of red error).
+  const [info, setInfo] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -192,11 +195,24 @@ export function AdminAnnouncementDetailPage() {
   const publishNow = async () => {
     if (!id) return;
     setPublishing(true);
+    setInfo(null);
     try {
       await api.post(`/admin/announcements/${id}/publish-now`);
       await load();
-    } catch {
-      setError(t("admin.announcementDetail.publishFailed"));
+    } catch (err: unknown) {
+      // 409 "Announcement already published" can race with the
+      // 10-minute auto-publish: admin clicks Sofort veröffentlichen
+      // a moment after Celery beat picked the row up. The DB state
+      // is correct (published), so treat as soft success — info
+      // toast + reload — rather than an alarming red error.
+      const status = (err as { response?: { status?: number } }).response
+        ?.status;
+      if (status === 409) {
+        setInfo(t("admin.announcementDetail.publishAlready"));
+        await load();
+      } else {
+        setError(t("admin.announcementDetail.publishFailed"));
+      }
     } finally {
       setPublishing(false);
     }
@@ -466,6 +482,11 @@ export function AdminAnnouncementDetailPage() {
       </Box>
 
       {error && <Alert severity="error">{error}</Alert>}
+      {info && (
+        <Alert severity="info" onClose={() => setInfo(null)}>
+          {info}
+        </Alert>
+      )}
 
       {/* Status line */}
       <Paper variant="outlined" sx={{ p: 2 }}>
