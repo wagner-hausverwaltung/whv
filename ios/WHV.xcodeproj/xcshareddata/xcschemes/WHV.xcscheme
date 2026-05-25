@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2A0000010000000000000050"
-               BuildableName = "WHV.app"
+               BuildableName = "WHV"
                BlueprintName = "WHV"
                ReferencedContainer = "container:WHV.xcodeproj">
             </BuildableReference>
@@ -44,7 +44,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2A0000010000000000000050"
-            BuildableName = "WHV.app"
+            BuildableName = "WHV"
             BlueprintName = "WHV"
             ReferencedContainer = "container:WHV.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2A0000010000000000000050"
-            BuildableName = "WHV.app"
+            BuildableName = "WHV"
             BlueprintName = "WHV"
             ReferencedContainer = "container:WHV.xcodeproj">
          </BuildableReference>
