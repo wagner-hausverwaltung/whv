@@ -513,13 +513,14 @@ private struct AgendaItemCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Text(item.title)
+                .font(.subheadline.weight(.semibold))
+            // Type + result chips live UNDER the title — the title
+            // already carries the TOP number ("TOP 1: Begrüßung …")
+            // so a separate position chip is redundant. Hiding it
+            // also stops the row from wrapping awkwardly on small
+            // widths.
             HStack(spacing: 8) {
-                Text("TOP \(item.position)")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color(.tertiarySystemFill))
-                    .clipShape(Capsule())
                 Text(item.type.label)
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 8)
@@ -538,8 +539,6 @@ private struct AgendaItemCard: View {
                 }
                 Spacer(minLength: 0)
             }
-            Text(item.title)
-                .font(.subheadline.weight(.semibold))
             if !item.body.isEmpty {
                 Text(item.body)
                     .font(.callout)

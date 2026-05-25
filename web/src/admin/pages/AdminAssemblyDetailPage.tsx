@@ -511,12 +511,12 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
     >
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
         <Box sx={{ cursor: "pointer", flexGrow: 1 }} onClick={() => setExpanded((v) => !v)}>
-          <Stack direction="row" spacing={1} sx={{ mb: 0.5, alignItems: "center" }}>
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`TOP ${item.position}`}
-            />
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            {item.title}
+          </Typography>
+          {/* Chips under the heading — title already carries the
+              TOP number, so a separate position chip is redundant. */}
+          <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: "center" }}>
             <Chip
               size="small"
               label={AGENDA_ITEM_TYPE_LABELS[item.type]}
@@ -531,9 +531,6 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
               />
             )}
           </Stack>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            {item.title}
-          </Typography>
         </Box>
         <IconButton color="error" onClick={remove} aria-label="TOP löschen">
           <DeleteIcon />

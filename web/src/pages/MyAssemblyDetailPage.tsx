@@ -427,12 +427,13 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
   return (
     <Paper variant="outlined" sx={{ p: 2.5 }}>
       <Stack spacing={1.5}>
+        <Typography variant="h6" component="h3">
+          {item.title}
+        </Typography>
+        {/* Type + result chips sit UNDER the heading — the title
+            itself carries the TOP number, so a separate position
+            chip is redundant. */}
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-          <Chip
-            size="small"
-            label={`TOP ${item.position}`}
-            variant="outlined"
-          />
           <Chip
             size="small"
             label={AGENDA_ITEM_TYPE_LABELS[item.type]}
@@ -447,9 +448,6 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
             />
           )}
         </Stack>
-        <Typography variant="h6" component="h3">
-          {item.title}
-        </Typography>
         {item.body && (
           <Typography
             variant="body2"
