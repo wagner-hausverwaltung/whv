@@ -219,9 +219,20 @@
       "attemptsTitle": "Delivery log",
       "attemptsEmpty": "No delivery attempts recorded yet.",
       "attemptsLoadFailed": "Couldn’t load the delivery log.",
-      "resendFailedButton": "Resend ({{count}})",
+      "resendButton": "Resend ({{count}})",
       "resendFailed": "Resend failed.",
-      "resendSummary": "Resent {{attempted}} — {{succeeded}} OK, {{failed}} failed."
+      "resendSummary": "Sent {{attempted}} — {{succeeded}} OK, {{failed}} failed.",
+      "recipientsTitle": "Recipients",
+      "recipientsActiveCount": "{{count}} active recipient(s)",
+      "recipientsAutoLabel": "Auto-resolved",
+      "recipientsAutoEmpty": "No portal users on this property yet. You can still add email addresses manually below.",
+      "recipientsExtraLabel": "Additional email addresses",
+      "recipientsExtraEmpty": "No extra addresses.",
+      "recipientsExtraPlaceholder": "name@example.com",
+      "recipientsAddButton": "Add",
+      "recipientsSaveButton": "Save recipients",
+      "recipientSaveFailed": "Couldn’t save the recipient list.",
+      "recipientEmailInvalid": "Please enter a valid email address."
     },
     "invitesPage": {
       "title": "Invitations",

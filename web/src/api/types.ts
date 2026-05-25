@@ -508,6 +508,9 @@ export interface AnnouncementResponse {
   // (default). Non-empty = recipients are intersected with users
   // on contracts for these units.
   unit_ids: string[];
+  // Per-Mitteilung recipient overrides. Empty = pure auto-resolution.
+  excluded_user_ids: string[];
+  extra_emails: string[];
 }
 
 export interface AnnouncementDetailResponse extends AnnouncementResponse {
@@ -534,6 +537,9 @@ export interface AnnouncementUpdateRequest {
   // null = leave existing unit rows alone; explicit list (incl. [])
   // replaces the entire set (PUT-style on the collection).
   unit_ids?: string[];
+  // Recipient overrides — same PUT-style semantics.
+  excluded_user_ids?: string[];
+  extra_emails?: string[];
 }
 
 export interface AnnouncementSendAttemptResponse {
@@ -545,6 +551,23 @@ export interface AnnouncementSendAttemptResponse {
   status: string;
   error_message: string | null;
   attempted_at: string;
+}
+
+export interface RecipientPreviewItem {
+  // "AUTO_USER" — resolved via audience + unit filter
+  // "EXTRA_EMAIL" — admin-added free-text email (no user account)
+  kind: string;
+  email: string;
+  user_id: string | null;
+  user_role: string | null;
+  // True only for AUTO_USER rows the admin has unchecked.
+  // EXTRA_EMAIL rows are always included by definition.
+  excluded: boolean;
+}
+
+export interface RecipientPreviewResponse {
+  items: RecipientPreviewItem[];
+  active_emails: string[];
 }
 
 export interface AnnouncementResendSummary {

@@ -52,6 +52,7 @@ import type {
   AnnouncementResendSummary,
   AnnouncementSendAttemptResponse,
   AnnouncementUpdateRequest,
+  RecipientPreviewResponse,
 } from "@/api/types";
 
 function downloadUrl(announcementId: string, attachmentId: string): string {
@@ -78,6 +79,20 @@ export function AdminAnnouncementDetailPage() {
   const [audB, setAudB] = useState(true);
   const [propertyUnits, setPropertyUnits] = useState<AdminUnitListItem[]>([]);
   const [selectedUnits, setSelectedUnits] = useState<AdminUnitListItem[]>([]);
+
+  // Recipient editor state. `excludedUserIds` is the deny-list against
+  // auto-resolved users; `extraEmails` is the add-list of free-text
+  // addresses without a portal account. Both initialised from
+  // data.excluded_user_ids / data.extra_emails on load, then mutated
+  // locally and PATCHed on Save.
+  const [preview, setPreview] = useState<RecipientPreviewResponse | null>(null);
+  const [excludedUserIds, setExcludedUserIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [extraEmails, setExtraEmails] = useState<string[]>([]);
+  const [extraDraft, setExtraDraft] = useState("");
+  const [savingRecipients, setSavingRecipients] = useState(false);
+  const [recipientError, setRecipientError] = useState<string | null>(null);
 
   // Per-recipient send-attempt log (admin-only). Lazy-loaded on
   // demand because most admin sessions never need to inspect it; the
@@ -118,6 +133,17 @@ export function AdminAnnouncementDetailPage() {
       } catch {
         // Leave picker empty if units endpoint fails — user can
         // still edit title/body/audience.
+      }
+      // Seed recipient-editor local state from the persisted columns.
+      setExcludedUserIds(new Set(r.data.excluded_user_ids));
+      setExtraEmails([...r.data.extra_emails]);
+      try {
+        const p = await api.get<RecipientPreviewResponse>(
+          `/admin/announcements/${id}/recipient-preview`,
+        );
+        setPreview(p.data);
+      } catch {
+        // Leave preview empty — admin can still edit + save.
       }
     } catch {
       setError(t("admin.announcementDetail.loadFailed"));
@@ -267,20 +293,89 @@ export function AdminAnnouncementDetailPage() {
     return failed;
   })();
 
-  const resendFailed = async () => {
+  const resendAll = async () => {
     if (!id) return;
     setResending(true);
     setResendSummary(null);
     try {
       const r = await api.post<AnnouncementResendSummary>(
-        `/admin/announcements/${id}/resend-failed`,
+        `/admin/announcements/${id}/resend`,
       );
       setResendSummary(r.data);
       await loadAttempts();
+      // Also reload the preview — if the admin tweaked excludes
+      // before resending, the active_emails count reflects the
+      // current set.
+      try {
+        const p = await api.get<RecipientPreviewResponse>(
+          `/admin/announcements/${id}/recipient-preview`,
+        );
+        setPreview(p.data);
+      } catch {
+        // best-effort
+      }
     } catch {
       setAttemptsError(t("admin.announcementDetail.resendFailed"));
     } finally {
       setResending(false);
+    }
+  };
+
+  const toggleExcluded = (userId: string) => {
+    setExcludedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const addExtraEmail = () => {
+    const value = extraDraft.trim();
+    if (!value) return;
+    // Quick-and-cheerful email shape check; backend will also
+    // normalise. Don't block on a regex — RFC-5321 hates regexes.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setRecipientError(t("admin.announcementDetail.recipientEmailInvalid"));
+      return;
+    }
+    if (extraEmails.includes(value)) {
+      setExtraDraft("");
+      return;
+    }
+    setExtraEmails((prev) => [...prev, value]);
+    setExtraDraft("");
+    setRecipientError(null);
+  };
+
+  const removeExtraEmail = (email: string) => {
+    setExtraEmails((prev) => prev.filter((e) => e !== email));
+  };
+
+  const saveRecipients = async () => {
+    if (!id) return;
+    setSavingRecipients(true);
+    setRecipientError(null);
+    try {
+      await api.patch(`/admin/announcements/${id}`, {
+        excluded_user_ids: Array.from(excludedUserIds),
+        extra_emails: extraEmails,
+      });
+      // Reload preview so the SPA reflects the just-persisted state
+      // (and recovers from any backend normalisation: de-dupes,
+      // empty-string drops).
+      try {
+        const p = await api.get<RecipientPreviewResponse>(
+          `/admin/announcements/${id}/recipient-preview`,
+        );
+        setPreview(p.data);
+      } catch {
+        // ignore
+      }
+    } catch {
+      setRecipientError(t("admin.announcementDetail.recipientSaveFailed"));
+    } finally {
+      setSavingRecipients(false);
     }
   };
 
@@ -613,6 +708,204 @@ export function AdminAnnouncementDetailPage() {
         </Stack>
       </Paper>
 
+      {/* Recipient editor — always visible, since admin may want to
+          configure the audience before publish too. */}
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 1,
+            }}
+          >
+            <Typography variant="h6">
+              {t("admin.announcementDetail.recipientsTitle")}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {t("admin.announcementDetail.recipientsActiveCount", {
+                count: preview?.active_emails.length ?? 0,
+              })}
+            </Typography>
+          </Box>
+
+          {preview === null ? (
+            <Typography variant="body2" color="text.secondary">
+              {t("common.loading")}
+            </Typography>
+          ) : (
+            <>
+              {preview.items.filter((i) => i.kind === "AUTO_USER").length ===
+              0 ? (
+                <Alert severity="info" variant="outlined">
+                  {t("admin.announcementDetail.recipientsAutoEmpty")}
+                </Alert>
+              ) : (
+                <Stack spacing={0.5}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}
+                  >
+                    {t("admin.announcementDetail.recipientsAutoLabel")}
+                  </Typography>
+                  {preview.items
+                    .filter((i) => i.kind === "AUTO_USER")
+                    .map((item) => {
+                      const checked = !excludedUserIds.has(
+                        item.user_id ?? "",
+                      );
+                      return (
+                        <Box
+                          key={item.user_id ?? item.email}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            px: 1,
+                            py: 0.25,
+                          }}
+                        >
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                size="small"
+                                checked={checked}
+                                onChange={() =>
+                                  toggleExcluded(item.user_id ?? "")
+                                }
+                              />
+                            }
+                            label={
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: "baseline" }}
+                              >
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontFamily:
+                                      "ui-monospace, Menlo, monospace",
+                                    fontSize: "0.85rem",
+                                    textDecoration: checked
+                                      ? "none"
+                                      : "line-through",
+                                    color: checked
+                                      ? "text.primary"
+                                      : "text.disabled",
+                                  }}
+                                >
+                                  {item.email}
+                                </Typography>
+                                {item.user_role && (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={item.user_role}
+                                  />
+                                )}
+                              </Stack>
+                            }
+                          />
+                        </Box>
+                      );
+                    })}
+                </Stack>
+              )}
+
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}
+                >
+                  {t("admin.announcementDetail.recipientsExtraLabel")}
+                </Typography>
+                {extraEmails.length === 0 ? (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                  >
+                    {t("admin.announcementDetail.recipientsExtraEmpty")}
+                  </Typography>
+                ) : (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}
+                  >
+                    {extraEmails.map((e) => (
+                      <Chip
+                        key={e}
+                        label={e}
+                        variant="filled"
+                        color="info"
+                        onDelete={() => removeExtraEmail(e)}
+                        sx={{
+                          fontFamily: "ui-monospace, Menlo, monospace",
+                          fontSize: "0.8rem",
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                )}
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  <TextField
+                    size="small"
+                    value={extraDraft}
+                    onChange={(e) => setExtraDraft(e.target.value)}
+                    placeholder={t(
+                      "admin.announcementDetail.recipientsExtraPlaceholder",
+                    )}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addExtraEmail();
+                      }
+                    }}
+                    sx={{ flex: 1, maxWidth: 400 }}
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={addExtraEmail}
+                    disabled={!extraDraft.trim()}
+                  >
+                    {t("admin.announcementDetail.recipientsAddButton")}
+                  </Button>
+                </Box>
+              </Box>
+
+              {recipientError && (
+                <Alert severity="error">{recipientError}</Alert>
+              )}
+              <Box>
+                <Button
+                  variant="contained"
+                  onClick={saveRecipients}
+                  disabled={savingRecipients}
+                >
+                  {savingRecipients
+                    ? t("common.loading")
+                    : t("admin.announcementDetail.recipientsSaveButton")}
+                </Button>
+              </Box>
+            </>
+          )}
+        </Stack>
+      </Paper>
+
       {/* Send-attempt log (visible only post-publish) */}
       {isPublished && (
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -629,21 +922,23 @@ export function AdminAnnouncementDetailPage() {
               <Typography variant="h6">
                 {t("admin.announcementDetail.attemptsTitle")}
               </Typography>
-              {failedAttemptsByEmail.size > 0 && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="warning"
-                  onClick={resendFailed}
-                  disabled={resending}
-                >
-                  {resending
-                    ? t("common.loading")
-                    : t("admin.announcementDetail.resendFailedButton", {
-                        count: failedAttemptsByEmail.size,
-                      })}
-                </Button>
-              )}
+              <Button
+                size="small"
+                variant="outlined"
+                color={
+                  failedAttemptsByEmail.size > 0 ? "warning" : "primary"
+                }
+                onClick={resendAll}
+                disabled={
+                  resending || (preview?.active_emails.length ?? 0) === 0
+                }
+              >
+                {resending
+                  ? t("common.loading")
+                  : t("admin.announcementDetail.resendButton", {
+                      count: preview?.active_emails.length ?? 0,
+                    })}
+              </Button>
             </Box>
             {attemptsError && <Alert severity="error">{attemptsError}</Alert>}
             {resendSummary && (

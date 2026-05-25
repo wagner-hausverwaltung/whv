@@ -219,9 +219,20 @@
       "attemptsTitle": "Zustellprotokoll",
       "attemptsEmpty": "Noch keine Zustellungen protokolliert.",
       "attemptsLoadFailed": "Zustellprotokoll konnte nicht geladen werden.",
-      "resendFailedButton": "Erneut senden ({{count}})",
+      "resendButton": "Erneut senden ({{count}})",
       "resendFailed": "Erneut senden fehlgeschlagen.",
-      "resendSummary": "{{attempted}} erneut versandt — {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen."
+      "resendSummary": "{{attempted}} versandt — {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen.",
+      "recipientsTitle": "Empfänger",
+      "recipientsActiveCount": "{{count}} aktive Empfänger:in(nen)",
+      "recipientsAutoLabel": "Automatisch ermittelt",
+      "recipientsAutoEmpty": "Keine Portal-Nutzer auf dieser Liegenschaft erfasst. Sie können trotzdem manuell E-Mail-Adressen unten hinzufügen.",
+      "recipientsExtraLabel": "Zusätzliche E-Mail-Adressen",
+      "recipientsExtraEmpty": "Keine zusätzlichen Adressen.",
+      "recipientsExtraPlaceholder": "name@example.com",
+      "recipientsAddButton": "Hinzufügen",
+      "recipientsSaveButton": "Empfänger speichern",
+      "recipientSaveFailed": "Empfänger konnten nicht gespeichert werden.",
+      "recipientEmailInvalid": "Bitte eine gültige E-Mail-Adresse eingeben."
     },
     "invitesPage": {
       "title": "Einladungen",
