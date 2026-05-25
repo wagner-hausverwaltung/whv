@@ -17,6 +17,45 @@ from app.models._mixins import (
 )
 
 
+class DocumentFolder(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
+    """Verwalter-managed folder tree for property documents.
+
+    Scope decision (locked in 2026-05-25): every folder belongs to exactly
+    one Liegenschaft — there's no org-wide tree. Eigentümer / Mieter come
+    at documents through their property, and Verwalter doesn't need a
+    "shared library" for v1. parent_folder_id forms the tree (NULL =
+    property root); the tree is unbounded in depth (Dropbox-style).
+    """
+
+    __tablename__ = "document_folders"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    property_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("properties.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    parent_folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        # SET NULL on the parent so a deletion turns descendants into
+        # property-root folders rather than orphaning them. We also
+        # soft-delete cascades manually in the admin endpoint.
+        ForeignKey("document_folders.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(nullable=False)
+
+    __table_args__ = (
+        Index(
+            "ix_document_folders_property_parent",
+            "property_id",
+            "parent_folder_id",
+        ),
+    )
+
+
 class DocumentKind(enum.StrEnum):
     JAHRESABRECHNUNG = "JAHRESABRECHNUNG"
     WIRTSCHAFTSPLAN = "WIRTSCHAFTSPLAN"
@@ -79,6 +118,15 @@ class Document(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("contacts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Verwalter-managed folder. NULL = lives directly under the property
+    # root (the implicit unnamed folder). Older Impower-imported docs are
+    # all NULL until a Verwalter files them.
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("document_folders.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

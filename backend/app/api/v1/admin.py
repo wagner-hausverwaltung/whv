@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,14 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.invites import render_invite_email
+from app.integrations.storage.documents import (
+    DocumentStorageError,
+    document_path,
+    write_document,
+)
+from app.integrations.storage.documents import (
+    delete_document as storage_delete_document,
+)
 from app.integrations.storage.property_images import (
     PropertyImageError,
     delete_property_image,
@@ -25,7 +34,9 @@ from app.models import (
     Contract,
     ContractContact,
     Document,
+    DocumentFolder,
     DocumentKind,
+    DocumentVisibility,
     InviteCode,
     Property,
     ResolutionStatus,
@@ -49,6 +60,13 @@ from app.schemas.admin import (
     AdminUnitListItem,
     CreateInviteRequest,
     InviteStatus,
+)
+from app.schemas.document import (
+    DocumentFolderCreateRequest,
+    DocumentFolderResponse,
+    DocumentFolderUpdateRequest,
+    DocumentResponse,
+    DocumentUpdateRequest,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -892,3 +910,541 @@ async def list_contacts(
         )
         for c in rows
     ]
+
+
+# ── Documents (Item 6: folders + uploads + downloads) ─────────────
+
+
+async def _load_property_for_org(
+    session: AsyncSession, organization_id: uuid.UUID, property_id: uuid.UUID
+) -> Property:
+    """Fetch the property + verify org scope, or 404. Used by every
+    document/folder endpoint as the first scope gate."""
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == organization_id,
+            Property.deleted_at.is_(None),
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    return prop
+
+
+async def _load_folder_for_property(
+    session: AsyncSession,
+    folder_id: uuid.UUID,
+    property_id: uuid.UUID,
+    organization_id: uuid.UUID,
+) -> DocumentFolder:
+    """Load a folder, asserting it belongs to the given property + org.
+    Same shape as `_load_property_for_org` so callers compose cleanly."""
+    folder = await session.scalar(
+        select(DocumentFolder).where(
+            DocumentFolder.id == folder_id,
+            DocumentFolder.property_id == property_id,
+            DocumentFolder.organization_id == organization_id,
+            DocumentFolder.deleted_at.is_(None),
+        )
+    )
+    if folder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+    return folder
+
+
+@router.get(
+    "/properties/{property_id}/folders",
+    response_model=list[DocumentFolderResponse],
+)
+async def list_property_folders(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[DocumentFolderResponse]:
+    """Flat list of all folders for one property. The SPA recomposes the
+    tree client-side — easier to render incrementally on mutation and
+    avoids a recursive payload."""
+    await _load_property_for_org(session, current_user.organization_id, property_id)
+    rows = (
+        await session.scalars(
+            select(DocumentFolder)
+            .where(
+                DocumentFolder.property_id == property_id,
+                DocumentFolder.organization_id == current_user.organization_id,
+                DocumentFolder.deleted_at.is_(None),
+            )
+            .order_by(DocumentFolder.name)
+        )
+    ).all()
+    return [DocumentFolderResponse.model_validate(f) for f in rows]
+
+
+@router.post(
+    "/properties/{property_id}/folders",
+    response_model=DocumentFolderResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_folder(
+    property_id: uuid.UUID,
+    req: DocumentFolderCreateRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentFolderResponse:
+    await _load_property_for_org(session, current_user.organization_id, property_id)
+    if req.parent_folder_id is not None:
+        # Validate the parent belongs to the same property — silently
+        # accepting a cross-property parent would leak / scramble trees.
+        await _load_folder_for_property(
+            session,
+            req.parent_folder_id,
+            property_id,
+            current_user.organization_id,
+        )
+    folder = DocumentFolder(
+        organization_id=current_user.organization_id,
+        property_id=property_id,
+        parent_folder_id=req.parent_folder_id,
+        name=req.name.strip(),
+    )
+    session.add(folder)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="document_folder_created",
+            target_type="document_folders",
+            target_id=str(folder.id),
+            payload_json={
+                "property_id": str(property_id),
+                "parent_folder_id": str(req.parent_folder_id) if req.parent_folder_id else None,
+                "name": folder.name,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(folder)
+    return DocumentFolderResponse.model_validate(folder)
+
+
+@router.patch("/folders/{folder_id}", response_model=DocumentFolderResponse)
+async def update_folder(
+    folder_id: uuid.UUID,
+    req: DocumentFolderUpdateRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentFolderResponse:
+    """Rename and/or re-parent a folder. `parent_folder_id` is honoured
+    only when explicitly present in the request body — Pydantic v2's
+    `model_fields_set` lets us tell "omitted" from "explicit null"."""
+    folder = await session.scalar(
+        select(DocumentFolder).where(
+            DocumentFolder.id == folder_id,
+            DocumentFolder.organization_id == current_user.organization_id,
+            DocumentFolder.deleted_at.is_(None),
+        )
+    )
+    if folder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    changed: dict[str, Any] = {}
+    if req.name is not None:
+        folder.name = req.name.strip()
+        changed["name"] = folder.name
+    if "parent_folder_id" in req.model_fields_set:
+        new_parent = req.parent_folder_id
+        if new_parent == folder.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ordner kann nicht sich selbst übergeordnet sein.",
+            )
+        if new_parent is not None:
+            # Cycle check: walk the new-parent's ancestor chain and reject
+            # if `folder.id` shows up. Worst-case O(depth) — trees stay
+            # small in practice.
+            cursor: uuid.UUID | None = new_parent
+            visited: set[uuid.UUID] = set()
+            while cursor is not None:
+                if cursor == folder.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Verschiebung würde einen Zyklus erzeugen.",
+                    )
+                if cursor in visited:
+                    break  # defensive — DB shouldn't already have a cycle
+                visited.add(cursor)
+                parent_row = await session.scalar(
+                    select(DocumentFolder).where(
+                        DocumentFolder.id == cursor,
+                        DocumentFolder.organization_id == current_user.organization_id,
+                        DocumentFolder.deleted_at.is_(None),
+                    )
+                )
+                if parent_row is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Übergeordneter Ordner nicht gefunden.",
+                    )
+                if parent_row.property_id != folder.property_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            "Ordner kann nur innerhalb derselben Liegenschaft verschoben werden."
+                        ),
+                    )
+                cursor = parent_row.parent_folder_id
+        folder.parent_folder_id = new_parent
+        changed["parent_folder_id"] = str(new_parent) if new_parent else None
+
+    if changed:
+        session.add(
+            AuditLog(
+                organization_id=current_user.organization_id,
+                actor_user_id=current_user.id,
+                action="document_folder_updated",
+                target_type="document_folders",
+                target_id=str(folder.id),
+                payload_json=changed,
+            )
+        )
+        await session.commit()
+        await session.refresh(folder)
+    return DocumentFolderResponse.model_validate(folder)
+
+
+@router.delete("/folders/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_folder(
+    folder_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Soft-delete a folder. Refuses to delete non-empty folders so
+    Verwalter has to consciously move contents first — protects against
+    a careless click wiping a year of protocols."""
+    folder = await session.scalar(
+        select(DocumentFolder).where(
+            DocumentFolder.id == folder_id,
+            DocumentFolder.organization_id == current_user.organization_id,
+            DocumentFolder.deleted_at.is_(None),
+        )
+    )
+    if folder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    child_folder_count = await session.scalar(
+        select(func.count(DocumentFolder.id)).where(
+            DocumentFolder.parent_folder_id == folder.id,
+            DocumentFolder.deleted_at.is_(None),
+        )
+    )
+    doc_count = await session.scalar(
+        select(func.count(Document.id)).where(
+            Document.folder_id == folder.id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    if (child_folder_count or 0) > 0 or (doc_count or 0) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ordner ist nicht leer.",
+        )
+
+    folder.deleted_at = datetime.now(UTC)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="document_folder_deleted",
+            target_type="document_folders",
+            target_id=str(folder.id),
+            payload_json={"property_id": str(folder.property_id)},
+        )
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/properties/{property_id}/documents",
+    response_model=list[DocumentResponse],
+)
+async def list_property_documents(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[DocumentResponse]:
+    """All non-deleted docs for the property, regardless of folder.
+    SPA filters by folder_id client-side from the same payload — keeps
+    folder navigation snappy without per-folder round-trips."""
+    await _load_property_for_org(session, current_user.organization_id, property_id)
+    rows = (
+        await session.scalars(
+            select(Document)
+            .where(
+                Document.property_id == property_id,
+                Document.organization_id == current_user.organization_id,
+                Document.deleted_at.is_(None),
+            )
+            .order_by(Document.issued_date.desc().nulls_last(), Document.name)
+        )
+    ).all()
+    return [DocumentResponse.model_validate(d) for d in rows]
+
+
+@router.post(
+    "/properties/{property_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+    name: Annotated[str | None, Query()] = None,
+    folder_id: Annotated[uuid.UUID | None, Query()] = None,
+    kind: Annotated[str, Query()] = DocumentKind.SONSTIGES.value,
+    visibility: Annotated[str, Query()] = DocumentVisibility.ALL.value,
+) -> DocumentResponse:
+    """Verwalter uploads a PDF / Office doc into the property tree.
+
+    Query-string metadata keeps the multipart body simple (just the
+    file). Defaults give a working upload with one click: kind goes
+    SONSTIGES, visibility goes ALL so portal users see it immediately,
+    no folder (root) unless one was picked in the UI.
+    """
+    prop = await _load_property_for_org(session, current_user.organization_id, property_id)
+    if folder_id is not None:
+        await _load_folder_for_property(
+            session, folder_id, property_id, current_user.organization_id
+        )
+
+    raw = await file.read()
+    if len(raw) > settings.document_max_bytes:
+        max_mb = settings.document_max_bytes // 1024 // 1024
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Datei darf höchstens {max_mb} MB groß sein.",
+        )
+
+    # Validate the enum strings the caller passed before we spend disk I/O.
+    try:
+        kind_enum = DocumentKind(kind)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unbekannte Dokument-Art: {kind}",
+        ) from exc
+    try:
+        visibility_enum = DocumentVisibility(visibility)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unbekannte Sichtbarkeit: {visibility}",
+        ) from exc
+
+    display_name = (name or file.filename or "Dokument").strip()
+    doc = Document(
+        organization_id=current_user.organization_id,
+        property_id=prop.id,
+        folder_id=folder_id,
+        name=display_name,
+        kind=kind_enum,
+        visibility=visibility_enum,
+        mime_type=file.content_type,
+        size_bytes=len(raw),
+        uploaded_at=datetime.now(UTC),
+    )
+    session.add(doc)
+    await session.flush()  # need the id before we can pick a file path
+
+    try:
+        _, suffix = write_document(doc.id, file.filename or "upload.pdf", raw)
+    except DocumentStorageError as exc:
+        # No commit yet — the orphan Document row is just rolled back.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ungültige Datei: {exc}",
+        ) from exc
+
+    # `local-disk:<suffix>` marks rows whose bytes live in our document
+    # directory. Pre-existing Impower-imported rows have a remote URL
+    # here (or NULL) — the download endpoint switches on this prefix.
+    doc.storage_url = f"local-disk:{suffix}"
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="document_uploaded",
+            target_type="documents",
+            target_id=str(doc.id),
+            payload_json={
+                "property_id": str(prop.id),
+                "folder_id": str(folder_id) if folder_id else None,
+                "size_bytes": len(raw),
+                "mime_type": file.content_type,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(doc)
+    return DocumentResponse.model_validate(doc)
+
+
+@router.patch("/documents/{document_id}", response_model=DocumentResponse)
+async def update_document(
+    document_id: uuid.UUID,
+    req: DocumentUpdateRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentResponse:
+    """Rename, re-file, or re-tag a document. Same `model_fields_set`
+    trick on folder_id so callers can explicitly send `null` to move
+    a doc back to the property root."""
+    doc = await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.organization_id == current_user.organization_id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    changed: dict[str, Any] = {}
+    if req.name is not None:
+        doc.name = req.name.strip()
+        changed["name"] = doc.name
+    if "folder_id" in req.model_fields_set:
+        if req.folder_id is not None:
+            if doc.property_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Dokument hat keine Liegenschaft.",
+                )
+            await _load_folder_for_property(
+                session,
+                req.folder_id,
+                doc.property_id,
+                current_user.organization_id,
+            )
+        doc.folder_id = req.folder_id
+        changed["folder_id"] = str(req.folder_id) if req.folder_id else None
+    if req.visibility is not None:
+        try:
+            doc.visibility = DocumentVisibility(req.visibility)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unbekannte Sichtbarkeit: {req.visibility}",
+            ) from exc
+        changed["visibility"] = doc.visibility.value
+    if req.kind is not None:
+        try:
+            doc.kind = DocumentKind(req.kind)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unbekannte Dokument-Art: {req.kind}",
+            ) from exc
+        changed["kind"] = doc.kind.value
+    if req.issued_date is not None:
+        doc.issued_date = req.issued_date
+        changed["issued_date"] = req.issued_date.isoformat()
+
+    if changed:
+        session.add(
+            AuditLog(
+                organization_id=current_user.organization_id,
+                actor_user_id=current_user.id,
+                action="document_updated",
+                target_type="documents",
+                target_id=str(doc.id),
+                payload_json=changed,
+            )
+        )
+        await session.commit()
+        await session.refresh(doc)
+    return DocumentResponse.model_validate(doc)
+
+
+@router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Soft-delete a document. On-disk bytes go too — there's no
+    "trash" recovery for v1 and keeping them around just costs storage."""
+    doc = await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.organization_id == current_user.organization_id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Only wipe disk bytes for docs we actually own on disk.
+    if doc.storage_url and doc.storage_url.startswith("local-disk:"):
+        suffix = doc.storage_url[len("local-disk:") :]
+        storage_delete_document(doc.id, suffix)
+
+    doc.deleted_at = datetime.now(UTC)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="document_deleted",
+            target_type="documents",
+            target_id=str(doc.id),
+            payload_json={"property_id": str(doc.property_id) if doc.property_id else None},
+        )
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/documents/{document_id}/file")
+async def download_document(
+    document_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Authenticated download of a Verwalter-uploaded doc.
+
+    Not a StaticFiles mount because documents carry visibility scopes —
+    even with a UUIDv7 path, we want every read to re-prove the caller
+    is allowed to see it. Verwalter can see anything in their org.
+    """
+    doc = await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.organization_id == current_user.organization_id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if not doc.storage_url or not doc.storage_url.startswith("local-disk:"):
+        # Impower-imported rows don't have on-disk bytes yet — surface a
+        # clean 404 instead of trying to FileResponse a non-existent path.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei ist nicht lokal hinterlegt.",
+        )
+    suffix = doc.storage_url[len("local-disk:") :]
+    path = document_path(doc.id, suffix)
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei wurde nicht gefunden.",
+        )
+    return FileResponse(
+        path,
+        media_type=doc.mime_type or "application/octet-stream",
+        filename=f"{doc.name}{suffix}",
+    )

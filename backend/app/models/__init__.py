@@ -15,6 +15,7 @@ from app.models.contact import (
 from app.models.contract import Contract, ContractContact, ContractType
 from app.models.document import (
     Document,
+    DocumentFolder,
     DocumentKind,
     DocumentState,
     DocumentVisibility,
@@ -45,6 +46,7 @@ __all__ = [
     "ContractContact",
     "ContractType",
     "Document",
+    "DocumentFolder",
     "DocumentKind",
     "DocumentState",
     "DocumentVisibility",

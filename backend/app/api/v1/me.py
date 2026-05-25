@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,12 +12,14 @@ from app.auth.dependencies import get_current_user
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.storage.avatars import AvatarError, delete_avatar, write_avatar
+from app.integrations.storage.documents import document_path
 from app.models import (
     AuditLog,
     Contact,
     Contract,
     ContractContact,
     Document,
+    DocumentFolder,
     Property,
     Unit,
     User,
@@ -27,7 +29,7 @@ from app.models import (
     Session as DbSession,
 )
 from app.schemas.auth import UserResponse
-from app.schemas.document import DocumentResponse
+from app.schemas.document import DocumentFolderResponse, DocumentResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
 
@@ -203,6 +205,90 @@ async def get_my_property_documents(
     ).all()
 
     return [DocumentResponse.model_validate(d) for d in doc_rows]
+
+
+@router.get(
+    "/properties/{property_id}/folders",
+    response_model=list[DocumentFolderResponse],
+)
+async def get_my_property_folders(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[DocumentFolderResponse]:
+    """Read-only folder tree for the portal. Same 404-on-no-access
+    behaviour as `/me/properties/{id}/documents` so we don't leak
+    existence of a folder under a property the caller can't see."""
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    rows = (
+        await session.scalars(
+            select(DocumentFolder)
+            .where(
+                DocumentFolder.property_id == prop.id,
+                DocumentFolder.deleted_at.is_(None),
+            )
+            .order_by(DocumentFolder.name)
+        )
+    ).all()
+    return [DocumentFolderResponse.model_validate(f) for f in rows]
+
+
+@router.get("/documents/{document_id}/file")
+async def download_my_document(
+    document_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Authenticated PDF download for portal users.
+
+    Scope: the document must belong to a property the caller can see
+    (same `_visible_properties_stmt` rule used elsewhere). Verwalter
+    sees everything; other roles are filtered to their contracts.
+
+    Visibility on the document is not yet gated here — current behaviour
+    matches `/me/properties/{id}/documents` which surfaces every non-
+    deleted doc for the property. Tightening to per-role visibility is
+    deliberately deferred until the portal has UI for it.
+    """
+    doc = await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.organization_id == current_user.organization_id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Property-scope check (skipped for Verwalter — they see everything).
+    if current_user.role != UserRole.VERWALTER and doc.property_id is not None:
+        prop_stmt = _visible_properties_stmt(current_user).where(Property.id == doc.property_id)
+        prop = await session.scalar(prop_stmt)
+        if prop is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if not doc.storage_url or not doc.storage_url.startswith("local-disk:"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei ist nicht lokal hinterlegt.",
+        )
+    suffix = doc.storage_url[len("local-disk:") :]
+    path = document_path(doc.id, suffix)
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Datei wurde nicht gefunden.",
+        )
+    return FileResponse(
+        path,
+        media_type=doc.mime_type or "application/octet-stream",
+        filename=f"{doc.name}{suffix}",
+    )
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)

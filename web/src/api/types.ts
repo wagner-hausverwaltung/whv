@@ -61,6 +61,20 @@ export interface DocumentResponse {
   size_bytes: number | null;
   issued_date: string | null;
   amount: string | null;
+  // Verwalter-managed tree (Item 6). NULL = sits at the property root
+  // (Impower-imported docs and pre-folder uploads land there).
+  folder_id?: string | null;
+  uploaded_at?: string | null;
+  visibility?: string;
+}
+
+export interface DocumentFolderResponse {
+  id: string;
+  property_id: string;
+  parent_folder_id: string | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // 32 ticket categories grouped into 7 buckets — see

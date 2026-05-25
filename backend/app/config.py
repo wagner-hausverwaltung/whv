@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     property_image_dir: str = "/var/lib/whv/property-images"
     property_image_max_bytes: int = 10 * 1024 * 1024
 
+    # Verwalter-uploaded property documents (PDFs etc.) — Item 6. Stored
+    # under {document_dir}/{document_id}.{ext}, served via an authenticated
+    # FileResponse endpoint (NOT StaticFiles — visibility scope matters,
+    # and a UUIDv7 path is guessable enough that we don't want public reads).
+    document_dir: str = "/var/lib/whv/documents"
+    # 50 MB is the practical cap for PDFs (Jahresabrechnungen scanned at
+    # 300 DPI run 10-30 MB; protocols with photo appendices push the rest).
+    document_max_bytes: int = 50 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:
