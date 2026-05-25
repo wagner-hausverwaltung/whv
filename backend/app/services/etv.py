@@ -286,9 +286,11 @@ async def backfill_assemblies_from_invitations(
             organization_id=organization_id,
             property_id=property_id,
             title=f"Eigentümerversammlung {issued_date.year}",
-            description=(
-                "Automatisch aus Bestand übernommen. Bitte Datum, Ort und Tagesordnung prüfen."
-            ),
+            # Backfill creates a stub the Verwalter fills in via the
+            # admin UI or LLM extraction; we leave description empty
+            # so the owner portal doesn't show admin-noise like
+            # "Automatisch aus Bestand übernommen …" to end users.
+            description="",
             location="(noch nicht erfasst)",
             scheduled_start=start_berlin.astimezone(UTC),
             scheduled_end=end_berlin.astimezone(UTC),
