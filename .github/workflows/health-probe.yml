@@ -1,0 +1,70 @@
+# Recurring health probe for the staging stack — spec §15.1 #1.
+#
+# Runs every 30 min on GitHub Actions. Probes:
+#   • staging.api.* /healthz       (FastAPI liveness)
+#   • staging.api.* /readyz        (Postgres + Redis dep checks)
+#   • Impower /properties?size=1   (upstream API still answering)
+#
+# Failure modes:
+#   - Any probe returns non-200 → workflow fails → GitHub sends the
+#     standard "Workflow failed" email to the repo admins.
+#   - For broader notification (Slack, PagerDuty), wire an
+#     `on: workflow_run` follow-up later.
+#
+# Manual run: gh workflow run health-probe.yml --ref main
+
+name: health-probe
+
+on:
+  schedule:
+    # Every 30 minutes. GH cron is UTC. "Every 30 min" is intentionally
+    # loose — actual runs drift a few minutes during low-priority windows.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: API healthz
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/healthz.body -w '%{http_code}' \
+            --max-time 10 \
+            https://staging.api.wagner-hausverwaltung.com/healthz)
+          echo "HTTP $status"
+          cat /tmp/healthz.body
+          test "$status" = "200"
+
+      - name: API readyz (deps)
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/readyz.body -w '%{http_code}' \
+            --max-time 15 \
+            https://staging.api.wagner-hausverwaltung.com/readyz)
+          echo "HTTP $status"
+          cat /tmp/readyz.body
+          test "$status" = "200"
+          # Both deps must report healthy.
+          grep -q '"postgres":[[:space:]]*true' /tmp/readyz.body
+          grep -q '"redis":[[:space:]]*true' /tmp/readyz.body
+
+      - name: Impower upstream
+        # Only run when the repo has the token configured — keeps forks
+        # / contributors from breaking on a missing secret.
+        if: ${{ secrets.IMPOWER_API_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/impower.body -w '%{http_code}' \
+            --max-time 15 \
+            -H "Authorization: Bearer ${{ secrets.IMPOWER_API_TOKEN }}" \
+            'https://api.app.impower.de/v2/d/properties?size=1')
+          echo "HTTP $status"
+          # First 200 chars of body for diagnostic, never the auth header.
+          head -c 200 /tmp/impower.body || true
+          echo
+          test "$status" = "200"
