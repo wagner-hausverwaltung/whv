@@ -54,14 +54,20 @@ jobs:
           grep -q '"redis":[[:space:]]*true' /tmp/readyz.body
 
       - name: Impower upstream
-        # Only run when the repo has the token configured — keeps forks
-        # / contributors from breaking on a missing secret.
-        if: ${{ secrets.IMPOWER_API_TOKEN != '' }}
+        # GH Actions forbids `secrets.X` inside `if:` expressions for
+        # security reasons (would leak whether a secret is set). Read
+        # the secret into an env var first and gate inside the script.
+        env:
+          IMPOWER_TOKEN: ${{ secrets.IMPOWER_API_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${IMPOWER_TOKEN:-}" ]; then
+            echo "IMPOWER_API_TOKEN not configured — skipping"
+            exit 0
+          fi
           status=$(curl -sS -o /tmp/impower.body -w '%{http_code}' \
             --max-time 15 \
-            -H "Authorization: Bearer ${{ secrets.IMPOWER_API_TOKEN }}" \
+            -H "Authorization: Bearer $IMPOWER_TOKEN" \
             'https://api.app.impower.de/v2/d/properties?size=1')
           echo "HTTP $status"
           # First 200 chars of body for diagnostic, never the auth header.
