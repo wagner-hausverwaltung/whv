@@ -62,7 +62,6 @@ class _ExtractedDiscussionEntry(BaseModel):
     """One Wortmeldung in the protocol's Diskussion section."""
 
     speaker_label: str = Field(
-        max_length=200,
         description=(
             "Speaker identifier as printed in the protocol. Examples: "
             "'Herr Müller (Wohnung 4)', 'Verwalter', 'Beirat Frau Schmidt'. "
@@ -89,7 +88,7 @@ class _ExtractedProtocolAgendaItem(BaseModel):
             "printed position; service code handles appending."
         ),
     )
-    title: str = Field(max_length=500)
+    title: str
     type: Literal["INFORMATION", "BESCHLUSS", "DISKUSSION"]
     final_beschluss_text: str | None = Field(
         default=None,
@@ -133,9 +132,10 @@ class ExtractedProtocol(BaseModel):
         default=None,
         description=("Did the protocol declare the meeting beschlussfähig? Null if not stated."),
     )
+    # NOTE: no `max_length=…` on any Field below — Gemini's
+    # response_schema rejects JSON Schema's `maxLength`.
     attendance_summary: str | None = Field(
         default=None,
-        max_length=500,
         description=(
             "Free-text snippet about who attended / MEA represented "
             "(e.g. '12 von 18 Eigentümern, 67% MEA'). Null if not "

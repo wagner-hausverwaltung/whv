@@ -61,7 +61,6 @@ class _ExtractedAgendaItem(BaseModel):
         ),
     )
     title: str = Field(
-        max_length=500,
         description="The TOP heading verbatim from the invitation.",
     )
     body: str | None = Field(
@@ -92,8 +91,12 @@ class ExtractedAssembly(BaseModel):
     meeting_end: datetime = Field(
         description=("Meeting end timestamp. If not stated, set to meeting_date + 3 hours.")
     )
+    # NOTE: do NOT use Pydantic `max_length=…` on any Field below.
+    # Gemini's response_schema (google-generativeai) rejects JSON
+    # Schema's `maxLength` with "Protocol message Schema has no
+    # 'maxLength' field" — extraction fails immediately. Truncation
+    # happens server-side after parse if ever needed.
     location: str = Field(
-        max_length=500,
         description=(
             "Where the meeting takes place. Full address or named room "
             "(e.g. 'Vereinsheim, Hasenbergstr. 32, 70176 Stuttgart')."
@@ -101,7 +104,6 @@ class ExtractedAssembly(BaseModel):
     )
     teams_meeting_url: str | None = Field(
         default=None,
-        max_length=2000,
         description=(
             "Microsoft Teams join URL if the invitation announces a "
             "hybrid meeting. Typically begins with "
