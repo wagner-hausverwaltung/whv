@@ -38,6 +38,8 @@ from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.integrations.email.client import EmailClient, EmailError, get_email_client
+from app.integrations.email.etv import render_assembly_comment_notification_email
 from app.models import (
     AgendaItemType,
     AuditLog,
@@ -354,10 +356,17 @@ async def create_assembly_comment(
     req: CreateAssemblyCommentRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> AssemblyCommentResponse:
     """Post a new comment. Visible to everyone who can see the
-    assembly (Verwalter + Eigentümer/Mieter/Beirat on the property)."""
-    await _check_assembly_visible(session, current_user=current_user, assembly_id=assembly_id)
+    assembly (Verwalter + Eigentümer/Mieter/Beirat on the property).
+
+    On commit, fans out a notification email to every Verwalter in
+    the org + every prior commenter on the same assembly (minus the
+    new author). Without this, Verwalter would never see questions —
+    they don't poll each assembly individually.
+    """
+    a = await _check_assembly_visible(session, current_user=current_user, assembly_id=assembly_id)
     c = EtvAssemblyComment(
         assembly_id=assembly_id,
         author_user_id=current_user.id,
@@ -366,6 +375,51 @@ async def create_assembly_comment(
     session.add(c)
     await session.commit()
     await session.refresh(c)
+
+    # Best-effort notification fan-out. A Resend hiccup doesn't
+    # reverse the commit — the user already saw their comment land.
+    # Per-recipient send so a single bad address doesn't sink the
+    # whole batch.
+    try:
+        recipients = await svc.resolve_assembly_comment_notification_recipients(
+            session,
+            assembly=a,
+            new_comment_id=c.id,
+            new_author_user_id=current_user.id,
+        )
+        if recipients:
+            prop = await session.get(Property, a.property_id)
+            property_name = prop.name if prop else "—"
+            subject, html_body, text_body = render_assembly_comment_notification_email(
+                assembly_id=str(a.id),
+                assembly_title=a.title,
+                property_name=property_name,
+                commenter_label=current_user.email,
+                comment_body=req.body,
+                commented_at=c.created_at,
+            )
+            for r in recipients:
+                if not r.email:
+                    continue
+                try:
+                    await email_client.send(
+                        to=r.email,
+                        subject=subject,
+                        html=html_body,
+                        text=text_body,
+                    )
+                except EmailError:
+                    logger.warning(
+                        "Failed to send assembly comment notification to %s",
+                        r.email,
+                    )
+    except Exception:
+        # Notification path must never break the comment write.
+        logger.exception(
+            "Assembly comment notification fan-out failed for assembly=%s",
+            assembly_id,
+        )
+
     return _comment_to_response(c, current_user)
 
 

@@ -302,6 +302,74 @@ async def backfill_assemblies_from_invitations(
     return created, skipped, created_ids
 
 
+async def resolve_assembly_comment_notification_recipients(
+    session: AsyncSession,
+    *,
+    assembly: EtvAssembly,
+    new_comment_id: uuid.UUID,
+    new_author_user_id: uuid.UUID,
+) -> list[User]:
+    """Recipients for the "new comment on Versammlung X" email.
+
+    Two sets, unioned + de-duped + minus the new commenter:
+      - Every active VERWALTER in the assembly's org (always — the
+        admin team owns the conversation; without this email the
+        Verwalter would never notice new comments).
+      - Every distinct prior commenter on the same assembly (thread
+        participants — same reply-notification semantics as a forum
+        thread).
+    """
+    from app.models import EtvAssemblyComment
+
+    verwalter = (
+        await session.scalars(
+            select(User).where(
+                User.organization_id == assembly.organization_id,
+                User.role == UserRole.VERWALTER,
+                User.deleted_at.is_(None),
+                User.id != new_author_user_id,
+            )
+        )
+    ).all()
+
+    prior_author_ids = [
+        row[0]
+        for row in (
+            await session.execute(
+                select(EtvAssemblyComment.author_user_id)
+                .where(
+                    EtvAssemblyComment.assembly_id == assembly.id,
+                    EtvAssemblyComment.id != new_comment_id,
+                    EtvAssemblyComment.author_user_id != new_author_user_id,
+                )
+                .distinct()
+            )
+        ).all()
+    ]
+
+    prior_users: list[User] = []
+    if prior_author_ids:
+        prior_users = list(
+            (
+                await session.scalars(
+                    select(User).where(
+                        User.id.in_(prior_author_ids),
+                        User.deleted_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+
+    seen: set[uuid.UUID] = set()
+    merged: list[User] = []
+    for u in [*verwalter, *prior_users]:
+        if u.id in seen:
+            continue
+        seen.add(u.id)
+        merged.append(u)
+    return merged
+
+
 def require_verwalter(user: User) -> None:
     """Raise ValueError if the user isn't a Verwalter. Endpoints catch
     this and translate to HTTP 403 — keeping the check in a helper
