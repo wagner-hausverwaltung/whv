@@ -25,6 +25,8 @@ import { Layout } from "@/components/Layout";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
 import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
+import { MyAssembliesPage } from "@/pages/MyAssembliesPage";
+import { MyAssemblyDetailPage } from "@/pages/MyAssemblyDetailPage";
 import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
@@ -96,6 +98,26 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <MyAnnouncementDetailPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:id/assemblies"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyAssembliesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assemblies/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyAssemblyDetailPage />
                 </Layout>
               </ProtectedRoute>
             }

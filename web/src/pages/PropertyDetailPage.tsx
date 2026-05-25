@@ -179,6 +179,13 @@ export function PropertyDetailPage() {
         >
           Mitteilungen ansehen →
         </Button>
+        <Button
+          component={RouterLink}
+          to={`/properties/${prop.id}/assemblies`}
+          variant="outlined"
+        >
+          Versammlungen ansehen →
+        </Button>
       </Stack>
     </Stack>
   );
