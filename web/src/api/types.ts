@@ -160,7 +160,9 @@ export interface TicketParticipantResponse {
 export interface TicketResponse {
   id: string;
   property_id: string | null;
-  created_by_user_id: string;
+  // Nullable: inbound-email tickets from unknown senders have NULL
+  // here and identify the sender via `external_sender_email` instead.
+  created_by_user_id: string | null;
   assignee_user_id: string | null;
   category: TicketCategory;
   status: TicketStatus;

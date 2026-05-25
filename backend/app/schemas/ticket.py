@@ -112,7 +112,13 @@ class TicketResponse(BaseModel):
 
     id: uuid.UUID
     property_id: uuid.UUID | None
-    created_by_user_id: uuid.UUID
+    # Nullable on the wire to match the DB column: inbound-email tickets
+    # from a sender we don't have a portal account for land with
+    # created_by_user_id=NULL and external_sender_email set. Without
+    # this widening, any list that happened to include such a ticket
+    # 500'd with "ValidationError: 1 validation error for
+    # TicketResponse … uuid_type".
+    created_by_user_id: uuid.UUID | None
     assignee_user_id: uuid.UUID | None
     category: TicketCategory
     status: TicketStatus
