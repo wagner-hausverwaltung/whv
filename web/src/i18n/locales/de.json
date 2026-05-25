@@ -35,8 +35,6 @@
   },
   "properties": {
     "title": "Meine Objekte",
-    "verwalterNote": "Sie sind als Verwalter angemeldet und sehen alle Objekte der Organisation.",
-    "adminLink": "Verwaltungsfunktionen →",
     "empty": "Keine Objekte gefunden.",
     "unbound": "Ihr Konto ist noch nicht mit einem Impower-Kontakt verknüpft. Bitte wenden Sie sich an die Hausverwaltung.",
     "loadFailed": "Objekte konnten nicht geladen werden."

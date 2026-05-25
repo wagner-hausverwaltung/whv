@@ -35,8 +35,6 @@
   },
   "properties": {
     "title": "My properties",
-    "verwalterNote": "You are signed in as a Verwalter and see all properties in the organisation.",
-    "adminLink": "Admin functions →",
     "empty": "No properties found.",
     "unbound": "Your account is not yet linked to an Impower contact. Please contact the property manager.",
     "loadFailed": "Properties could not be loaded."
