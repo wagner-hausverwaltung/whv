@@ -36,7 +36,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Close";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
-import { api, API_BASE_URL } from "@/api/client";
+import { api } from "@/api/client";
 import {
   AGENDA_ITEM_TYPE_LABELS,
   ASSEMBLY_STATUS_LABELS,
@@ -913,7 +913,25 @@ function InvitationSection({ assembly, onChanged }: InvitationSectionProps) {
     }
   };
 
-  const downloadUrl = `${API_BASE_URL}/me/assemblies/${assembly.id}/invitation`;
+  const openPdf = async () => {
+    // Fetch + blob + window.open. A plain <a href> would silently
+    // 401 because /me/assemblies/{id}/invitation requires the JWT
+    // from the Authorization header — the browser doesn't attach
+    // it to anchor clicks. Revoke after a minute so the new tab
+    // has time to load the bytes.
+    setError(null);
+    try {
+      const r = await api.get(`/me/assemblies/${assembly.id}/invitation`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data as Blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("PDF konnte nicht geöffnet werden.");
+    }
+  };
+
   const needsReview = Boolean(
     assembly.auto_extracted_at && !assembly.verified_at,
   );
@@ -999,10 +1017,7 @@ function InvitationSection({ assembly, onChanged }: InvitationSectionProps) {
               <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
-                component="a"
-                href={downloadUrl}
-                target="_blank"
-                rel="noreferrer"
+                onClick={openPdf}
               >
                 PDF öffnen
               </Button>
