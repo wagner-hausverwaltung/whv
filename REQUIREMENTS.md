@@ -413,38 +413,46 @@ Server-rendered Jinja2 + Pico.css (D10 → Jinja2). Mounted at `/admin-ui/*` on 
 - Crash-free sessions ≥ 99.5% in TestFlight
 - App approved by Apple and live on the App Store (unlisted or public — Luis's choice)
 
-### 8.8 Demo mode (V3 iOS) — planned
+### 8.8 Demo mode (V3, iOS + Portal) — planned
 
-A self-contained "kick the tires" mode that runs the iOS app against an in-memory dataset, with no network calls and no real account. Two audiences:
+A self-contained "kick the tires" mode that runs the app against an in-memory dataset, with no network calls and no real account. Implemented on **both** iOS and the web portal so prospects can preview the product from whichever surface they land on first.
 
-1. **App Store Reviewer / prospective customer**: opens the app cold, taps "Demo ansehen" on LoginView, sees a believable property + tickets + Mitteilungen + ETVs, no email required.
+**Two audiences:**
+1. **App Store Reviewer / prospective customer**: opens iOS app or portal cold, taps "Demo ansehen" on LoginView, sees a believable property + tickets + Mitteilungen + ETVs, no email required.
 2. **Existing user** wanting to preview a feature against safe data before doing it for real.
 
-**UX shape:**
-- Entry: secondary button on LoginView, below "Einladungscode einlösen" — "Demo ansehen". Tapping it sets `DemoStore.isActive = true` and seeds the in-memory dataset.
-- Banner: a persistent yellow strip across the top of every tab reading "Demo-Modus — keine echten Daten" with a "Beenden" affordance that wipes the demo state and returns to LoginView.
-- Settings work normally: the user can flip light/dark, switch language, enable biometric lock — these are real prefs that persist (they're the device's settings, not the demo data).
-- Network: every `APIClient` call is short-circuited to read from `DemoStore`; no traffic leaves the device.
-- Push: disabled. No APNs token requested in demo mode.
-
-**Seeded sample data (lives in `ios/WHV/Demo/`):**
+**Shared seeded dataset (lives in `ios/WHV/Demo/` and `web/src/demo/`):**
 - 2 Liegenschaften: one WEG ("WEG Königstraße 42, Stuttgart"), one MV ("MV Hohewartstraße 13, Stuttgart"). Both reference the existing `library-5641389` placeholder image.
 - 4–6 Tickets per Liegenschaft, mix of OFFEN / IN_BEARBEITUNG / GESCHLOSSEN, with category icons.
 - 3–4 Mitteilungen with realistic Wasserabstellung / Hausreinigung copy + one with a fake PDF attachment.
-- 1 vergangene + 1 geplante Eigentümerversammlung (full agenda incl. Beschluss tallies + Diskussion + signed protocol stub).
+- 1 vergangene + 1 geplante Eigentümerversammlung (full agenda incl. Beschluss tallies + Diskussion + signed protocol stub + a fake Teams join link).
 - 1 fake user: "Demo Beirat, demo@example.com" — role beirat (highest read scope so the demo shows all the surfaces).
 
-**Toggles available in demo mode (Settings):**
+**iOS UX:**
+- Entry: secondary button on LoginView, below "Einladungscode einlösen" — "Demo ansehen". Tapping it sets `DemoStore.isActive = true` and seeds the in-memory dataset.
+- Banner: a persistent yellow strip across the top of every tab reading "Demo-Modus — keine echten Daten" with a "Beenden" affordance that wipes the demo state and returns to LoginView.
+- Settings work normally: light/dark, language, Face ID lock — those are real device prefs that persist (they're the device's settings, not the demo data).
+- Network: every `APIClient` call is short-circuited to read from `DemoStore`; no traffic leaves the device.
+- Push: disabled. No APNs token requested in demo mode.
+
+**Portal UX (mirror, with web equivalents):**
+- Entry: "Demo ansehen" link on `LoginPage` next to "Einladung einlösen".
+- Banner: same persistent yellow strip in the AppBar, "Demo-Modus — keine echten Daten" + "Beenden" → returns to login.
+- All API requests intercepted at the `api` client level (`web/src/api/client.ts`) — when `demoMode.isActive`, return canned promises from `web/src/demo/` instead of hitting the backend. Zero network requests verified via DevTools Network tab.
+- Same property workspace / tabs / detail views render against the demo data; switcher works between the two demo Liegenschaften.
+- Settings stays editable: appearance (light/dark/system), language (DE/EN), and a placeholder for browser-equivalent of FaceID (WebAuthn). These prefs persist beyond demo because they're user-device settings.
+
+**Toggles available in demo mode (both clients):**
 - [x] Light / Dark / System
 - [x] Sprache: System / Deutsch / English
-- [x] Face ID lock (real device biometric prompt against the demo session)
+- [x] Face ID lock (iOS) / WebAuthn passkey (portal — placeholder)
 - [x] Demo verlassen (clears state, returns to LoginView)
 
-**Definition of Done (V3 demo):**
-- Cold-launch to LoginView → "Demo ansehen" → fully interactive shell in < 1 s.
-- Every visible action either works (e.g. switching tabs, opening a ticket detail) or is disabled with "im Demo nicht verfügbar" (e.g. creating a new ticket, replying).
-- Zero outbound network calls verified via Charles / Instruments while demo mode is active.
-- Demo data is randomised slightly on each session so screenshots aren't identical across reviewers.
+**Definition of Done (V3 demo, both clients):**
+- Cold-launch to LoginView → "Demo ansehen" → fully interactive shell in < 1 s on both surfaces.
+- Every visible action either works (switch tabs, open ticket detail) or is disabled with "im Demo nicht verfügbar" (create ticket, reply, sign Beschluss).
+- Zero outbound network calls verified — Charles/Instruments on iOS, DevTools Network on portal.
+- Demo data is randomised slightly per session so screenshots aren't identical across reviewers.
 
 ---
 
