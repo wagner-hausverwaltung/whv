@@ -209,6 +209,37 @@ class ImpowerClient:
                 yield doc
             page += 1
 
+    async def download_document_content(self, document_id: int) -> bytes | None:
+        """Fetch the raw bytes for one Impower document.
+
+        Endpoint: `GET /documents/{id}/download`. Used by the LLM
+        extraction pipeline to source invitation PDFs that haven't been
+        mirrored locally yet (§1.4d iter 2 will eventually cache them
+        in Hetzner OS — until then we hit Impower on demand).
+
+        Returns None when Impower says "no file" (404 or the
+        500/Cannot-download-file response we see on rows where the
+        invitation hasn't been rendered yet) so the caller can record
+        the row as "PDF unavailable" without try/except gymnastics.
+        Any other failure (network, 5xx unrelated to file presence)
+        raises so retries can kick in.
+        """
+        response = await self._request(
+            "GET", f"/documents/{document_id}/download"
+        )
+        if response.status_code == 404:
+            return None
+        # Impower returns 500 with detail "Cannot download file" /
+        # "File loading failed" when the document row exists but has
+        # no rendered PDF. Treat that specific case as "no file"; any
+        # other 5xx is a real failure worth retrying.
+        if response.status_code == 500:
+            body_lower = response.text.lower()
+            if "cannot download" in body_lower or "file loading failed" in body_lower:
+                return None
+        response.raise_for_status()
+        return response.content
+
 
 async def get_impower_client(
     settings: Annotated[Settings, Depends(get_settings)],

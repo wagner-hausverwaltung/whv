@@ -189,7 +189,7 @@ async def backfill_assemblies_from_invitations(
     *,
     organization_id: uuid.UUID,
     today: date | None = None,
-) -> tuple[int, int]:
+) -> tuple[int, int, list[uuid.UUID]]:
     """One-off: create EtvAssembly stubs from existing Impower
     OWNERS_MEETING_INVITATION documents.
 
@@ -199,15 +199,20 @@ async def backfill_assemblies_from_invitations(
     entry by the Verwalter who may have used the meeting date, not
     the invitation date).
 
-    Returns (created, skipped_already_present).
+    Returns (created, skipped_already_present, created_ids).
+
+    `created_ids` is the list of assembly UUIDs created in this call.
+    Callers that want LLM extraction (ADR-0008) commit first, then
+    enqueue `extract_etv_metadata` Celery tasks against these IDs —
+    the CLI's `--extract` flag does exactly that.
 
     Caveats baked into the stub:
       - `scheduled_start` uses the invitation's `issued_date` at 18:00
         Europe/Berlin. The actual meeting is usually 2-4 weeks later
-        and lives inside the PDF body, which we don't OCR. Verwalter
-        must correct.
+        and lives inside the PDF body — the LLM extraction step
+        corrects this when run.
       - `location` and `description` carry a "(bitte ergänzen)" hint
-        so the inaccuracy is visible.
+        so the inaccuracy is visible until extraction lands.
       - `status` falls to ABGEHALTEN once `issued_date` is older than
         ~60 days (any meeting that was being invited that long ago
         has almost certainly happened).
@@ -247,6 +252,7 @@ async def backfill_assemblies_from_invitations(
 
     created = 0
     skipped = 0
+    created_ids: list[uuid.UUID] = []
     for property_id, issued_date in rows:
         # Slightly-fuzzy match: also treat ±1 day as "already exists"
         # so a Verwalter who manually entered the actual meeting date
@@ -295,9 +301,11 @@ async def backfill_assemblies_from_invitations(
             status=status,
         )
         session.add(assembly)
+        await session.flush()  # populate assembly.id for the return list
+        created_ids.append(assembly.id)
         created += 1
 
-    return created, skipped
+    return created, skipped, created_ids
 
 
 def require_verwalter(user: User) -> None:

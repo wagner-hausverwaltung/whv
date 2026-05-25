@@ -336,3 +336,129 @@ async def _publish_due_announcements_async() -> dict[str, int]:
 def publish_due_announcements() -> dict[str, int]:
     """Beat-driven: fan out any announcements whose 10-min buffer has elapsed."""
     return asyncio.run(_publish_due_announcements_async())
+
+
+async def _extract_etv_metadata_async(assembly_id_str: str) -> str:
+    """Look up one ETV assembly + one of its source invitation PDFs +
+    feed them to the LLM extraction service.
+
+    Returns one of:
+      - "applied"       — extraction landed on the row
+      - "skipped_*"     — see etv_extraction.extract_and_apply
+      - "no_source_pdf" — no invitation document with bytes available
+      - "assembly_gone" — row deleted between enqueue + run
+
+    The Celery wrapper turns most outcomes into a successful return
+    (recorded in audit log). Only real failures (DB error,
+    misconfigured provider after env reload) raise + retry.
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import select
+
+    from app.models import (
+        Document,
+        EtvAssembly,
+    )
+    from app.services.etv_extraction import extract_and_apply
+
+    assembly_id = _uuid.UUID(assembly_id_str)
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            assembly = await session.get(EtvAssembly, assembly_id)
+            if assembly is None or assembly.deleted_at is not None:
+                return "assembly_gone"
+
+            # Find one OWNERS_MEETING_INVITATION document for this
+            # property whose issued_date matches (or is within 1 day
+            # of) the assembly's scheduled_start. Multiple PDFs per
+            # meeting (one per Eigentümer) — any of them works.
+            day = assembly.scheduled_start.date()
+            doc = await session.scalar(
+                select(Document).where(
+                    Document.property_id == assembly.property_id,
+                    Document.impower_source_type == "OWNERS_MEETING_INVITATION",
+                    Document.deleted_at.is_(None),
+                    Document.issued_date == day,
+                ).limit(1)
+            )
+            if doc is None:
+                logger.info(
+                    "extract_etv_metadata: no invitation document for "
+                    "assembly=%s property=%s day=%s",
+                    assembly_id, assembly.property_id, day,
+                )
+                return "no_source_pdf"
+
+            # Try local storage first; fall back to a one-shot Impower
+            # download. Both paths can return None for "no bytes
+            # available", in which case we record + give up.
+            pdf_bytes = await _fetch_invitation_pdf_bytes(doc)
+            if pdf_bytes is None:
+                logger.info(
+                    "extract_etv_metadata: no PDF bytes available for "
+                    "document=%s (impower_id=%s)",
+                    doc.id, doc.impower_id,
+                )
+                return "no_source_pdf"
+
+            outcome = await extract_and_apply(
+                session,
+                assembly_id=assembly_id,
+                pdf_bytes=pdf_bytes,
+                source_document_id=doc.id,
+            )
+            await session.commit()
+            return outcome
+    finally:
+        await engine.dispose()
+
+
+async def _fetch_invitation_pdf_bytes(doc: "Document") -> bytes | None:  # type: ignore[name-defined]
+    """Best-effort source the PDF bytes for an invitation document.
+
+    Order:
+      1. Local storage_url (set by §1.4d iter 2 once it lands — until
+         then, NULL for Impower-sourced docs).
+      2. Impower /documents/{id}/download endpoint.
+
+    Returns None if neither source produces bytes; the Celery task
+    short-circuits and records "no_source_pdf" in the audit log.
+    """
+    from pathlib import Path
+
+    from app.integrations.impower.client import ImpowerClient
+
+    if doc.storage_url:
+        p = Path(doc.storage_url)
+        if p.exists():
+            try:
+                return p.read_bytes()
+            except OSError:
+                logger.exception("failed to read local invitation %s", p)
+
+    if doc.impower_id is None:
+        return None
+    settings = get_settings()
+    if not settings.impower_api_token:
+        return None
+    async with ImpowerClient(
+        settings.impower_api_base, settings.impower_api_token
+    ) as client:
+        return await client.download_document_content(int(doc.impower_id))
+
+
+@celery_app.task(
+    name="app.workers.tasks.extract_etv_metadata",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def extract_etv_metadata(assembly_id: str) -> str:
+    """Async LLM extraction for one assembly. Enqueued by the backfill
+    helper + (later) the Impower document-sync upsert path."""
+    return asyncio.run(_extract_etv_metadata_async(assembly_id))

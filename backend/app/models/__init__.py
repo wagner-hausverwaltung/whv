@@ -37,6 +37,7 @@ from app.models.etv import (
     EtvAssembly,
     EtvDiscussionEntry,
 )
+from app.models.llm_audit import LLMAuditLog
 from app.models.organization import Organization
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.ticket import (
@@ -81,6 +82,7 @@ __all__ = [
     "EtvAssembly",
     "EtvDiscussionEntry",
     "InviteCode",
+    "LLMAuditLog",
     "Organization",
     "PasswordResetToken",
     "PreferredChannel",

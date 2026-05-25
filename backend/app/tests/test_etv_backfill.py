@@ -65,7 +65,7 @@ async def test_backfill_one_assembly_per_invitation_date(
         )
 
     async with sm() as s:
-        created, skipped = await backfill_assemblies_from_invitations(
+        created, skipped, _ = await backfill_assemblies_from_invitations(
             s, organization_id=org.id, today=date(2026, 5, 25)
         )
         await s.commit()
@@ -106,14 +106,14 @@ async def test_backfill_is_idempotent(test_engine: AsyncEngine) -> None:
     )
 
     async with sm() as s:
-        c1, s1 = await backfill_assemblies_from_invitations(
+        c1, s1, _ = await backfill_assemblies_from_invitations(
             s, organization_id=org.id, today=date(2026, 5, 25)
         )
         await s.commit()
     assert (c1, s1) == (1, 0)
 
     async with sm() as s:
-        c2, s2 = await backfill_assemblies_from_invitations(
+        c2, s2, _ = await backfill_assemblies_from_invitations(
             s, organization_id=org.id, today=date(2026, 5, 25)
         )
         await s.commit()
@@ -151,7 +151,7 @@ async def test_backfill_respects_existing_within_one_day(
     )
 
     async with sm() as s:
-        created, skipped = await backfill_assemblies_from_invitations(
+        created, skipped, _ = await backfill_assemblies_from_invitations(
             s, organization_id=org.id, today=date(2026, 5, 25)
         )
         await s.commit()

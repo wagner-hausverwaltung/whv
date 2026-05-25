@@ -27,6 +27,11 @@ dependencies = [
     # decode image". register_heif_opener() must be called at import
     # time in app/integrations/storage/avatars.py.
     "pillow-heif>=0.18",
+    # Google Gemini SDK for the LLM extraction pipeline (ADR-0008).
+    # Native PDF input + structured output via response schemas. Swap-
+    # out point lives in app/integrations/llm/__init__.py if we ever
+    # add Anthropic / OpenAI.
+    "google-generativeai>=0.8",
 ]
 
 [dependency-groups]

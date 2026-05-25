@@ -134,6 +134,21 @@ class Settings(BaseSettings):
     # attachment one.
     etv_protocol_max_bytes: int = 50 * 1024 * 1024
 
+    # LLM extraction pipeline (ADR-0008). One API key per provider,
+    # selected by `llm_provider`. Empty key → factory raises rather
+    # than silently no-op — extraction tasks then short-circuit with
+    # a clear error in the audit log.
+    llm_provider: Literal["gemini", "none"] = "gemini"
+    gemini_api_key: str = ""
+    # Default model is Gemini 2.0 Flash — cheap (~$0.001 per 10-page
+    # PDF), German-strong, native multimodal. Bump to gemini-2.0-pro
+    # via env override for tougher cases without code changes.
+    gemini_model: str = "gemini-flash-latest"
+    # Hard cap so a misconfigured prompt template can't run away with
+    # the budget. ETV invitations top out around 15 pages; 32 KB of
+    # output JSON is generous for the largest agenda we've seen.
+    llm_max_output_tokens: int = 8192
+
 
 @lru_cache
 def get_settings() -> Settings:

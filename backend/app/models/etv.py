@@ -23,6 +23,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     DateTime,
     Enum,
     ForeignKey,
@@ -143,6 +144,39 @@ class EtvAssembly(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+
+    # --- LLM extraction tracking (ADR-0008) ---
+    # Set when the Celery extraction task last wrote into this row.
+    # Distinct from `verified_at`: auto_extracted is what the model
+    # thinks; verified is what a Verwalter signed off on. The admin
+    # SPA renders a "KI-extrahiert · bitte prüfen" badge when
+    # auto_extracted_at IS NOT NULL AND verified_at IS NULL.
+    auto_extracted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    # Which document we actually read to derive the extraction.
+    # Lets us re-run extraction on the same source for A/B-ing prompt
+    # changes, and lets the admin UI link "Quelle ansehen" → the
+    # original Impower invitation PDF.
+    auto_extracted_source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Raw extraction payload preserved verbatim. Cheap to keep
+    # (≤ a few KB per row); enables future "what did the model see
+    # before we corrected it" debugging without re-calling the API.
+    auto_extracted_raw: Mapped[dict[str, object] | None] = mapped_column(
+        JSON, nullable=True,
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     __table_args__ = (
