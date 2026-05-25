@@ -33,7 +33,7 @@ def render_ticket_notification_email(
     text = f"""\
 Hallo,
 
-Es gibt eine neue Nachricht zu Ihrem Ticket im WHV-Portal:
+es gibt eine neue Nachricht zu Ihrem Ticket:
 
   Ticket:   #{ticket_short_id} — {ticket_subject}
   Von:      {sender_email}
@@ -42,10 +42,11 @@ Es gibt eine neue Nachricht zu Ihrem Ticket im WHV-Portal:
 {message_body}
   ---------------------
 
-Antworten Sie über das WHV-Portal:
-https://portal.wagner-hausverwaltung.com/
+Antworten Sie einfach direkt auf diese E-Mail — Ihre Antwort wird
+automatisch dem Ticket hinzugefügt. Anhänge sind ebenfalls möglich.
 
-Bei Fragen: support@wagner-hausverwaltung.com
+Falls Sie lieber im Portal antworten möchten:
+https://portal.wagner-hausverwaltung.com/
 
 Mit freundlichen Grüßen,
 Wagner Hausverwaltung GmbH
@@ -68,16 +69,20 @@ padding: 12px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5;">
   {body_html}
 </div>
 
-<p style="margin: 24px 0;">
-  <a href="https://portal.wagner-hausverwaltung.com/" \
-style="display: inline-block; padding: 10px 20px; background: #1863DC; color: #fff; \
-text-decoration: none; border-radius: 6px; font-weight: 600;">Im Portal antworten</a>
+<p style="background: #e8f1fd; border-left: 4px solid #1863DC; \
+padding: 12px 16px; margin: 24px 0; font-size: 14px; line-height: 1.5; color: #0c3d8a;">
+  <strong>Antworten Sie einfach direkt auf diese E-Mail.</strong><br>
+  Ihre Antwort wird automatisch dem Ticket hinzugefügt — Anhänge inklusive.
+  Ein Besuch im Portal ist nicht nötig.
 </p>
 
-<p style="color: #4e4b66; font-size: 13px;">
-  Bei Fragen:
-  <a href="mailto:support@wagner-hausverwaltung.com">support@wagner-hausverwaltung.com</a>
+<p style="margin: 24px 0;">
+  <a href="https://portal.wagner-hausverwaltung.com/" \
+style="display: inline-block; padding: 8px 16px; background: transparent; color: #1863DC; \
+text-decoration: none; border: 1px solid #1863DC; border-radius: 6px; font-weight: 500; \
+font-size: 14px;">Im Portal öffnen</a>
 </p>
+
 <hr style="border: none; border-top: 1px solid #ebebeb; margin: 32px 0 16px;">
 <p style="color: #4e4b66; font-size: 12px;">Wagner Hausverwaltung GmbH</p>
 </body>

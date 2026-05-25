@@ -44,6 +44,13 @@ services:
       # "Im Portal antworten" link is the only path forward, which the
       # user (rightly) flagged as broken UX (2026-05-25).
       EMAIL_INBOUND_ADDRESS: support@wagner-hausverwaltung.com
+      # Also send FROM support@ (instead of the default noreply@) so
+      # the recipient's mail client visually shows a reply-friendly
+      # address. Reply-To above stays as belt-and-braces. DKIM/SPF on
+      # wagner-hausverwaltung.com already covers every address @
+      # that domain, so deliverability isn't affected by the swap.
+      EMAIL_FROM_ADDRESS: support@wagner-hausverwaltung.com
+      EMAIL_FROM_NAME: Wagner Hausverwaltung Support
 
   web:
     ports: !reset []
