@@ -68,6 +68,10 @@
     "lastActivity": "letzte Aktivität",
     "timeline": {
       "title": "Verlauf"
+    },
+    "messageBody": {
+      "showMore": "{{count}} weitere Zeilen anzeigen",
+      "showLess": "Weniger anzeigen"
     }
   },
   "resolutions": {
@@ -288,8 +292,10 @@
       "status": "Status",
       "shareScope": "Sichtbarkeit",
       "shareScopeHelp": "PRIVATE: nur Ersteller + Verwalter · PARTICIPANTS: + namentlich hinzugefügte · PROPERTY: + alle Eigentümer/Mieter mit Vertrag auf diesem Objekt",
+      "shareScopeHelpAria": "Sichtbarkeit erklärt",
       "apply": "Übernehmen",
       "participants": "Teilnehmer",
+      "noParticipants": "Keine namentlichen Teilnehmer.",
       "addParticipant": "Teilnehmer hinzufügen",
       "addParticipantPlaceholder": "E-Mail-Adresse eines WHV-Kontos",
       "removeParticipant": "Entfernen",

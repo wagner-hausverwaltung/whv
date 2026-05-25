@@ -68,6 +68,10 @@
     "lastActivity": "last activity",
     "timeline": {
       "title": "Timeline"
+    },
+    "messageBody": {
+      "showMore": "Show {{count}} more lines",
+      "showLess": "Show less"
     }
   },
   "resolutions": {
@@ -288,8 +292,10 @@
       "status": "Status",
       "shareScope": "Visibility",
       "shareScopeHelp": "PRIVATE: creator + Verwalter only · PARTICIPANTS: + named users · PROPERTY: + all owners/tenants with a contract on this property",
+      "shareScopeHelpAria": "Visibility explained",
       "apply": "Apply",
       "participants": "Participants",
+      "noParticipants": "No named participants.",
       "addParticipant": "Add participant",
       "addParticipantPlaceholder": "Email of an existing WHV account",
       "removeParticipant": "Remove",

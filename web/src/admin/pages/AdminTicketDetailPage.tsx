@@ -13,6 +13,7 @@ import {
   Link,
   MenuItem,
   Paper,
+  Popover,
   Select,
   Stack,
   Switch,
@@ -20,7 +21,9 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import {
@@ -31,6 +34,7 @@ import {
   type TicketShareScope,
   type TicketStatus,
 } from "@/api/types";
+import { MessageBody } from "@/components/MessageBody";
 import { MessageTimeline } from "@/components/MessageTimeline";
 
 const STATUSES: TicketStatus[] = [
@@ -111,6 +115,14 @@ export function AdminTicketDetailPage() {
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
   const [participantError, setParticipantError] = useState<string | null>(null);
+  // The add form lives in a Popover anchored to the "+" icon; null means
+  // closed. State lives at page scope so submit handlers can close it.
+  const [addAnchor, setAddAnchor] = useState<HTMLElement | null>(null);
+
+  const closeAddPopover = () => {
+    setAddAnchor(null);
+    setParticipantError(null);
+  };
 
   const addParticipant = async (e: FormEvent) => {
     e.preventDefault();
@@ -120,6 +132,7 @@ export function AdminTicketDetailPage() {
     try {
       await api.post(`/admin/tickets/${id}/participants`, { email: newEmail });
       setNewEmail("");
+      setAddAnchor(null);
       await refresh();
     } catch (err: unknown) {
       const detail = (
@@ -217,7 +230,10 @@ export function AdminTicketDetailPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Status + share-scope controls */}
+      {/* Status + share-scope controls. The share-scope help note now
+          rides along as a hover tooltip on the (i) icon next to the
+          dropdown — frees up a row of vertical chrome and keeps the
+          long explanation out of the way until the Verwalter looks for it. */}
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel>{t("admin.ticketDetail.status")}</InputLabel>
@@ -233,26 +249,44 @@ export function AdminTicketDetailPage() {
             ))}
           </Select>
         </FormControl>
-        <FormControl size="small" sx={{ minWidth: 260 }}>
-          <InputLabel>{t("admin.ticketDetail.shareScope")}</InputLabel>
-          <Select<TicketShareScope>
-            value={ticket.share_scope}
-            label={t("admin.ticketDetail.shareScope")}
-            onChange={(e) =>
-              onScopeChange(e.target.value as TicketShareScope)
-            }
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          <FormControl size="small" sx={{ minWidth: 260 }}>
+            <InputLabel>{t("admin.ticketDetail.shareScope")}</InputLabel>
+            <Select<TicketShareScope>
+              value={ticket.share_scope}
+              label={t("admin.ticketDetail.shareScope")}
+              onChange={(e) =>
+                onScopeChange(e.target.value as TicketShareScope)
+              }
+            >
+              {SCOPES.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {TICKET_SHARE_SCOPE_LABELS[s]}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Tooltip
+            title={t("admin.ticketDetail.shareScopeHelp")}
+            placement="top"
+            arrow
           >
-            {SCOPES.map((s) => (
-              <MenuItem key={s} value={s}>
-                {TICKET_SHARE_SCOPE_LABELS[s]}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            <IconButton
+              size="small"
+              // Skip in tab order — the tooltip content is informational
+              // and reachable via the visible label/select for screen
+              // readers via aria-describedby? Not wired here; the help
+              // text is short enough that a sighted hover-discoverable
+              // hint is the right tradeoff for now.
+              tabIndex={-1}
+              sx={{ color: "text.secondary" }}
+              aria-label={t("admin.ticketDetail.shareScopeHelpAria")}
+            >
+              <InfoOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
-      <Typography variant="caption" color="text.secondary">
-        {t("admin.ticketDetail.shareScopeHelp")}
-      </Typography>
 
       {/* Below the controls, the body splits into the main column
           (participants + thread + reply) and a sticky timeline rail on
@@ -267,13 +301,33 @@ export function AdminTicketDetailPage() {
         }}
       >
         <Stack spacing={3} sx={{ minWidth: 0 }}>
-      {/* Participants */}
+      {/* Participants. Header carries the count + a "+" icon that pops
+          the add-form open in a small floating panel — keeps the
+          baseline list clean (no empty input field on a fresh ticket)
+          and the error alert is scoped to the popover instead of
+          dangling under the section title. */}
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          {t("admin.ticketDetail.participants")} ({ticket.participants.length})
-        </Typography>
-        {ticket.participants.length > 0 && (
-          <Stack spacing={1} sx={{ mb: 2 }}>
+        <Stack
+          direction="row"
+          sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}
+        >
+          <Typography variant="subtitle1">
+            {t("admin.ticketDetail.participants")} (
+            {ticket.participants.length})
+          </Typography>
+          <Tooltip title={t("admin.ticketDetail.addParticipant")}>
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={(e) => setAddAnchor(e.currentTarget)}
+              aria-label={t("admin.ticketDetail.addParticipant")}
+            >
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+        {ticket.participants.length > 0 ? (
+          <Stack spacing={1}>
             {ticket.participants.map((p) => (
               <Stack
                 key={p.user_id}
@@ -299,32 +353,59 @@ export function AdminTicketDetailPage() {
               </Stack>
             ))}
           </Stack>
+        ) : (
+          <Typography variant="caption" color="text.secondary">
+            {t("admin.ticketDetail.noParticipants")}
+          </Typography>
         )}
-        {participantError && (
-          <Alert severity="error" sx={{ mb: 1 }}>
-            {participantError}
-          </Alert>
-        )}
-        <Box component="form" onSubmit={addParticipant}>
-          <Stack direction="row" spacing={1}>
-            <TextField
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder={t("admin.ticketDetail.addParticipantPlaceholder")}
-              size="small"
-              sx={{ flex: 1 }}
-              required
-            />
-            <Button
-              type="submit"
-              variant="outlined"
-              disabled={adding || !newEmail}
-            >
-              {t("admin.ticketDetail.addParticipant")}
-            </Button>
-          </Stack>
-        </Box>
+        <Popover
+          open={Boolean(addAnchor)}
+          anchorEl={addAnchor}
+          onClose={closeAddPopover}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{ paper: { sx: { p: 2, width: 360, maxWidth: "90vw" } } }}
+        >
+          <Box component="form" onSubmit={addParticipant}>
+            <Stack spacing={1.5}>
+              <Typography variant="subtitle2">
+                {t("admin.ticketDetail.addParticipant")}
+              </Typography>
+              {participantError && (
+                <Alert severity="error">{participantError}</Alert>
+              )}
+              <TextField
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder={t(
+                  "admin.ticketDetail.addParticipantPlaceholder",
+                )}
+                size="small"
+                fullWidth
+                required
+                autoFocus
+              />
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ justifyContent: "flex-end" }}
+              >
+                <Button size="small" onClick={closeAddPopover}>
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  size="small"
+                  disabled={adding || !newEmail}
+                >
+                  {t("admin.ticketDetail.addParticipant")}
+                </Button>
+              </Stack>
+            </Stack>
+          </Box>
+        </Popover>
       </Paper>
 
       {/* Thread */}
@@ -378,9 +459,7 @@ export function AdminTicketDetailPage() {
                 {new Date(m.created_at).toLocaleString("de-DE")}
               </Typography>
             </Stack>
-            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-              {m.body}
-            </Typography>
+            <MessageBody body={m.body} />
           </Card>
         ))}
       </Stack>

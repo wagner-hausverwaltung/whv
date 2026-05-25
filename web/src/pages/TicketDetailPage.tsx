@@ -11,13 +11,16 @@ import {
   Link,
   MenuItem,
   Paper,
+  Popover,
   Select,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import {
@@ -27,6 +30,7 @@ import {
   type TicketDetailResponse,
   type TicketShareScope,
 } from "@/api/types";
+import { MessageBody } from "@/components/MessageBody";
 import { MessageTimeline } from "@/components/MessageTimeline";
 
 export function TicketDetailPage() {
@@ -42,6 +46,13 @@ export function TicketDetailPage() {
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
   const [participantError, setParticipantError] = useState<string | null>(null);
   const [addingParticipant, setAddingParticipant] = useState(false);
+  // The add form sits inside a Popover behind a "+" icon — keeps the
+  // section clean by default. Mirrors the admin treatment.
+  const [addAnchor, setAddAnchor] = useState<HTMLElement | null>(null);
+  const closeAddPopover = () => {
+    setAddAnchor(null);
+    setParticipantError(null);
+  };
 
   const refresh = async () => {
     if (!id) return;
@@ -142,6 +153,7 @@ export function TicketDetailPage() {
         email: newParticipantEmail.trim().toLowerCase(),
       });
       setNewParticipantEmail("");
+      setAddAnchor(null);
       await refresh();
     } catch (err: unknown) {
       const detail =
@@ -204,11 +216,14 @@ export function TicketDetailPage() {
       >
         <Stack spacing={3} sx={{ minWidth: 0 }}>
           <Paper variant="outlined" sx={{ p: 2.5 }}>
+        {/* Header: section label + scope dropdown (with info-icon
+            tooltip when the user can manage) + a "+" icon that opens
+            the add-participant Popover. Mirrors the admin treatment. */}
         <Stack
           direction="row"
           sx={{
             justifyContent: "space-between",
-            alignItems: "baseline",
+            alignItems: "center",
             gap: 2,
             flexWrap: "wrap",
             mb: 2,
@@ -221,37 +236,65 @@ export function TicketDetailPage() {
           >
             Sichtbarkeit & Teilnehmer
           </Typography>
-          {canManage ? (
-            <FormControl size="small" sx={{ minWidth: 240 }}>
-              <InputLabel>Sichtbarkeit</InputLabel>
-              <Select<TicketShareScope>
-                value={ticket.share_scope}
-                label="Sichtbarkeit"
-                onChange={(e) =>
-                  onChangeScope(e.target.value as TicketShareScope)
-                }
-              >
-                <MenuItem value="PRIVATE">
-                  {TICKET_SHARE_SCOPE_LABELS.PRIVATE}
-                </MenuItem>
-                <MenuItem value="PARTICIPANTS">
-                  {TICKET_SHARE_SCOPE_LABELS.PARTICIPANTS}
-                </MenuItem>
-                <MenuItem value="PROPERTY" disabled={!isPropertyEligible}>
-                  {TICKET_SHARE_SCOPE_LABELS.PROPERTY}
-                  {!isPropertyEligible ? " (kein Objekt verknüpft)" : ""}
-                </MenuItem>
-              </Select>
-            </FormControl>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              {TICKET_SHARE_SCOPE_LABELS[ticket.share_scope]}
-            </Typography>
-          )}
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+            {canManage ? (
+              <>
+                <FormControl size="small" sx={{ minWidth: 240 }}>
+                  <InputLabel>Sichtbarkeit</InputLabel>
+                  <Select<TicketShareScope>
+                    value={ticket.share_scope}
+                    label="Sichtbarkeit"
+                    onChange={(e) =>
+                      onChangeScope(e.target.value as TicketShareScope)
+                    }
+                  >
+                    <MenuItem value="PRIVATE">
+                      {TICKET_SHARE_SCOPE_LABELS.PRIVATE}
+                    </MenuItem>
+                    <MenuItem value="PARTICIPANTS">
+                      {TICKET_SHARE_SCOPE_LABELS.PARTICIPANTS}
+                    </MenuItem>
+                    <MenuItem value="PROPERTY" disabled={!isPropertyEligible}>
+                      {TICKET_SHARE_SCOPE_LABELS.PROPERTY}
+                      {!isPropertyEligible ? " (kein Objekt verknüpft)" : ""}
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+                <Tooltip
+                  title="PRIVATE: nur Sie + Verwalter · PARTICIPANTS: + namentlich hinzugefügte · PROPERTY: + alle Eigentümer/Mieter mit Vertrag auf diesem Objekt"
+                  placement="top"
+                  arrow
+                >
+                  <IconButton
+                    size="small"
+                    tabIndex={-1}
+                    sx={{ color: "text.secondary" }}
+                    aria-label="Sichtbarkeit erklärt"
+                  >
+                    <InfoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Teilnehmer hinzufügen">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={(e) => setAddAnchor(e.currentTarget)}
+                    aria-label="Teilnehmer hinzufügen"
+                  >
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {TICKET_SHARE_SCOPE_LABELS[ticket.share_scope]}
+              </Typography>
+            )}
+          </Stack>
         </Stack>
 
         {ticket.participants.length > 0 ? (
-          <Stack spacing={1} sx={{ mb: canManage ? 2 : 0 }}>
+          <Stack spacing={1}>
             {ticket.participants.map((p) => (
               <Stack
                 key={p.user_id}
@@ -284,47 +327,66 @@ export function TicketDetailPage() {
             ))}
           </Stack>
         ) : (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mb: canManage ? 2 : 0 }}
-          >
+          <Typography variant="body2" color="text.secondary">
             Keine namentlichen Teilnehmer.
           </Typography>
         )}
 
         {canManage && (
-          <Box component="form" onSubmit={onAddParticipant}>
-            {participantError && (
-              <Alert severity="error" sx={{ mb: 1 }}>
-                {participantError}
-              </Alert>
-            )}
-            <Stack direction="row" spacing={1}>
-              <TextField
-                type="email"
-                size="small"
-                required
-                placeholder="E-Mail-Adresse eines WHV-Kontos"
-                value={newParticipantEmail}
-                onChange={(e) => setNewParticipantEmail(e.target.value)}
-                disabled={addingParticipant}
-                sx={{ flex: 1 }}
-              />
-              <Button
-                type="submit"
-                variant="outlined"
-                disabled={addingParticipant || !newParticipantEmail}
-              >
-                {addingParticipant ? "Wird hinzugefügt…" : "Hinzufügen"}
-              </Button>
-            </Stack>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-              Die Person braucht ein WHV-Portal-Konto. Hinzugefügte Teilnehmer
-              erhalten E-Mail-Updates bei jeder neuen Nachricht und können
-              selbst antworten.
-            </Typography>
-          </Box>
+          <Popover
+            open={Boolean(addAnchor)}
+            anchorEl={addAnchor}
+            onClose={closeAddPopover}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            slotProps={{
+              paper: { sx: { p: 2, width: 360, maxWidth: "90vw" } },
+            }}
+          >
+            <Box component="form" onSubmit={onAddParticipant}>
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle2">
+                  Teilnehmer hinzufügen
+                </Typography>
+                {participantError && (
+                  <Alert severity="error">{participantError}</Alert>
+                )}
+                <TextField
+                  type="email"
+                  size="small"
+                  required
+                  placeholder="E-Mail-Adresse eines WHV-Kontos"
+                  value={newParticipantEmail}
+                  onChange={(e) => setNewParticipantEmail(e.target.value)}
+                  disabled={addingParticipant}
+                  fullWidth
+                  autoFocus
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Die Person braucht ein WHV-Portal-Konto. Hinzugefügte
+                  Teilnehmer erhalten E-Mail-Updates bei jeder neuen
+                  Nachricht und können selbst antworten.
+                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ justifyContent: "flex-end" }}
+                >
+                  <Button size="small" onClick={closeAddPopover}>
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="small"
+                    disabled={addingParticipant || !newParticipantEmail}
+                  >
+                    {addingParticipant ? "Wird hinzugefügt…" : "Hinzufügen"}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Box>
+          </Popover>
         )}
       </Paper>
 
@@ -362,9 +424,7 @@ export function TicketDetailPage() {
                   {new Date(m.created_at).toLocaleString("de-DE")}
                 </Typography>
               </Stack>
-              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                {m.body}
-              </Typography>
+              <MessageBody body={m.body} />
             </Card>
           );
         })}
