@@ -13,20 +13,30 @@ status=ABGEHALTEN once scheduled_end has passed" task).
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     AgendaItemType,
     AssemblyStatus,
+    Document,
     EtvAgendaItem,
     EtvAssembly,
     EtvDiscussionEntry,
     User,
     UserRole,
 )
+
+BERLIN_TZ = ZoneInfo("Europe/Berlin")
+
+# Heuristic boundary between "definitely already happened" and
+# "probably still upcoming / on the way". Invitations are typically
+# sent 2-4 weeks before a Versammlung; anything older than this is
+# extremely unlikely to still be in the future.
+_ABGEHALTEN_THRESHOLD_DAYS = 60
 
 
 def _now() -> datetime:
@@ -172,6 +182,122 @@ def compute_vote_result(item: EtvAgendaItem) -> str | None:
     if item.vote_required_quorum is not None and cast < item.vote_required_quorum:
         return "ABGELEHNT"
     return "ANGENOMMEN" if item.vote_yes > item.vote_no else "ABGELEHNT"
+
+
+async def backfill_assemblies_from_invitations(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    today: date | None = None,
+) -> tuple[int, int]:
+    """One-off: create EtvAssembly stubs from existing Impower
+    OWNERS_MEETING_INVITATION documents.
+
+    Each (property_id, issued_date) group → one assembly. Idempotent:
+    re-running skips groups that already have an assembly within ±1
+    day of the invitation date (small fuzz to absorb manual data
+    entry by the Verwalter who may have used the meeting date, not
+    the invitation date).
+
+    Returns (created, skipped_already_present).
+
+    Caveats baked into the stub:
+      - `scheduled_start` uses the invitation's `issued_date` at 18:00
+        Europe/Berlin. The actual meeting is usually 2-4 weeks later
+        and lives inside the PDF body, which we don't OCR. Verwalter
+        must correct.
+      - `location` and `description` carry a "(bitte ergänzen)" hint
+        so the inaccuracy is visible.
+      - `status` falls to ABGEHALTEN once `issued_date` is older than
+        ~60 days (any meeting that was being invited that long ago
+        has almost certainly happened).
+    """
+    if today is None:
+        today = date.today()
+
+    # Step 1: load distinct (property_id, issued_date) from the
+    # invitation documents the user actually has in this org.
+    invite_groups_stmt = (
+        select(Document.property_id, Document.issued_date)
+        .where(
+            Document.organization_id == organization_id,
+            Document.impower_source_type == "OWNERS_MEETING_INVITATION",
+            Document.deleted_at.is_(None),
+            Document.property_id.is_not(None),
+            Document.issued_date.is_not(None),
+        )
+        .group_by(Document.property_id, Document.issued_date)
+    )
+    rows = (await session.execute(invite_groups_stmt)).all()
+
+    # Step 2: load existing assemblies in this org so we can short-
+    # circuit groups that already have one. Using just (property_id,
+    # date(scheduled_start)) as the dedup key — same fuzz as the
+    # docstring promises.
+    existing_stmt = (
+        select(EtvAssembly.property_id, func.date(EtvAssembly.scheduled_start))
+        .where(
+            EtvAssembly.organization_id == organization_id,
+            EtvAssembly.deleted_at.is_(None),
+        )
+    )
+    existing_keys: set[tuple[uuid.UUID, date]] = set()
+    for prop_id, dt in (await session.execute(existing_stmt)).all():
+        existing_keys.add((prop_id, dt))
+
+    created = 0
+    skipped = 0
+    for property_id, issued_date in rows:
+        # Slightly-fuzzy match: also treat ±1 day as "already exists"
+        # so a Verwalter who manually entered the actual meeting date
+        # (≈ invitation_date + 3 weeks) keeps theirs, not ours.
+        clash = any(
+            (property_id, d) in existing_keys
+            for d in (
+                issued_date,
+                issued_date + timedelta(days=1),
+                issued_date - timedelta(days=1),
+            )
+        )
+        if clash:
+            skipped += 1
+            continue
+
+        # Build the placeholder start/end timestamps. 18:00 Europe/
+        # Berlin is the most common ETV slot; conversion to UTC at
+        # write-time is transparent thanks to zoneinfo + the column's
+        # `timezone=True`.
+        start_berlin = datetime.combine(
+            issued_date,
+            time(hour=18, minute=0),
+            tzinfo=BERLIN_TZ,
+        )
+        end_berlin = start_berlin + timedelta(hours=3)
+
+        age_days = (today - issued_date).days
+        status = (
+            AssemblyStatus.ABGEHALTEN
+            if age_days >= _ABGEHALTEN_THRESHOLD_DAYS
+            else AssemblyStatus.EINGELADEN
+        )
+
+        assembly = EtvAssembly(
+            organization_id=organization_id,
+            property_id=property_id,
+            title=f"Eigentümerversammlung {issued_date.year}",
+            description=(
+                "Automatisch aus Bestand übernommen. "
+                "Bitte Datum, Ort und Tagesordnung prüfen."
+            ),
+            location="(noch nicht erfasst)",
+            scheduled_start=start_berlin.astimezone(UTC),
+            scheduled_end=end_berlin.astimezone(UTC),
+            status=status,
+        )
+        session.add(assembly)
+        created += 1
+
+    return created, skipped
 
 
 def require_verwalter(user: User) -> None:
