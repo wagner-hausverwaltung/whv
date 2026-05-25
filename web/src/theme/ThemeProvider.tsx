@@ -68,6 +68,24 @@ function buildTheme(mode: PaletteMode) {
       },
       MuiPaper: { defaultProps: { elevation: 0 } },
       MuiCard: { defaultProps: { elevation: 0 } },
+      // MUI v9 with our custom font stack occasionally mis-sizes the
+      // notched-outline legend, so the shrunk label ends up sitting on
+      // the focused 2px border instead of inside a gap. Painting the
+      // shrunk label with the surrounding Paper background + a few
+      // pixels of horizontal padding makes the label cover the border
+      // behind it — same trick the MUI docs recommend as a workaround.
+      // Forms in this app all sit inside Paper/Card (background.paper),
+      // so the colour always matches the surrounding surface.
+      MuiInputLabel: {
+        styleOverrides: {
+          outlined: ({ theme }) => ({
+            "&.MuiInputLabel-shrink": {
+              paddingInline: 4,
+              backgroundColor: theme.palette.background.paper,
+            },
+          }),
+        },
+      },
     },
   });
 }
