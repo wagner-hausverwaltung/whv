@@ -36,6 +36,14 @@ services:
       LOG_LEVEL: INFO
       PORTAL_BASE_URL: https://staging.portal.wagner-hausverwaltung.com
       ADMIN_BASE_URL: https://staging.admin.wagner-hausverwaltung.com
+      # SES is configured to receive at support@…, so every ticket
+      # notification carries Reply-To: support@…. Hitting "Reply" in
+      # the recipient's mail client lands the response back on the
+      # inbound webhook → next message on the same ticket — closes the
+      # email loop, no portal visit required. Without this the SPA's
+      # "Im Portal antworten" link is the only path forward, which the
+      # user (rightly) flagged as broken UX (2026-05-25).
+      EMAIL_INBOUND_ADDRESS: support@wagner-hausverwaltung.com
 
   web:
     ports: !reset []
