@@ -12,9 +12,7 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import {
   Alert,
   Box,
-  Breadcrumbs,
   Chip,
-  Link as MuiLink,
   Paper,
   Stack,
   Typography,
@@ -114,24 +112,8 @@ export function MyAssembliesPage() {
 
   return (
     <Stack spacing={3}>
-      <Breadcrumbs>
-        <MuiLink component={RouterLink} to="/" color="text.secondary">
-          Liegenschaften
-        </MuiLink>
-        <MuiLink
-          component={RouterLink}
-          to={`/properties/${id ?? ""}`}
-          color="text.secondary"
-        >
-          Liegenschaft
-        </MuiLink>
-        <Typography color="text.primary">Versammlungen</Typography>
-      </Breadcrumbs>
-
-      <Typography variant="h4" component="h1">
-        Eigentümerversammlungen
-      </Typography>
-
+      {/* Workspace tabs + AppBar switcher carry navigation + identity
+          — no embedded breadcrumb / page title here. */}
       {error && <Alert severity="error">{error}</Alert>}
 
       {rows === null ? (

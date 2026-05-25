@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode, type MouseEvent } from "react";
+import { useState, type ReactNode, type MouseEvent } from "react";
 import {
   Link as RouterLink,
-  matchPath,
-  useLocation,
   useNavigate,
 } from "react-router-dom";
 import {
@@ -23,25 +21,16 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
-import { api, API_BASE_URL } from "@/api/client";
-import type { PropertyResponse } from "@/api/types";
+import { API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LibraryBackdrop } from "@/components/LibraryBackdrop";
-
-function formatAddress(p: PropertyResponse | null | undefined): string | null {
-  if (!p) return null;
-  const street = [p.street, p.number].filter(Boolean).join(" ");
-  const zip = [p.postal_code, p.city].filter(Boolean).join(" ");
-  const combined = [street, zip].filter(Boolean).join(" · ");
-  return combined || null;
-}
+import { PropertySwitcher } from "@/components/PropertySwitcher";
 
 function initialsOf(email: string): string {
   // Fallback: take the bit before "@", split on common separators, take the
@@ -57,47 +46,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const theme = useTheme();
   const isWide = useMediaQuery(theme.breakpoints.up("sm"));
 
-  const [properties, setProperties] = useState<PropertyResponse[] | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-
-  // Pull the user's properties once so we can:
-  //  - show the address of the active property in the header
-  //  - know whether to call out "Objekte" plurality in nav
-  // Verwalter still sees /me/properties (returns all org properties) so the
-  // shape is the same. Failure is silent — the header just degrades to the
-  // app name.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    api
-      .get<PropertyResponse[]>("/me/properties")
-      .then((r) => {
-        if (!cancelled) setProperties(r.data);
-      })
-      .catch(() => {
-        if (!cancelled) setProperties([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  // The "active" property is whichever one the URL points at; otherwise the
-  // first/only one if the user is single-property. Multi-property users
-  // without a route-level pick get no header address.
-  const activeProperty = useMemo<PropertyResponse | null>(() => {
-    if (!properties || properties.length === 0) return null;
-    const match = matchPath("/properties/:id/*", location.pathname);
-    if (match?.params.id) {
-      return properties.find((p) => p.id === match.params.id) ?? null;
-    }
-    if (properties.length === 1) return properties[0] ?? null;
-    return null;
-  }, [properties, location.pathname]);
 
   const onLogout = async () => {
     setMenuAnchor(null);
@@ -107,8 +59,6 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const openMenu = (e: MouseEvent<HTMLElement>) => setMenuAnchor(e.currentTarget);
   const closeMenu = () => setMenuAnchor(null);
-
-  const addressLine = formatAddress(activeProperty);
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -130,15 +80,17 @@ export function Layout({ children }: { children: ReactNode }) {
       >
         <Container maxWidth="lg">
           <Toolbar disableGutters sx={{ minHeight: 64, gap: 1 }}>
+            {/* Logo links home — the workspace + switcher provide the
+                property identity directly to the right. */}
             <Box
               component={RouterLink}
               to="/"
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 1.5,
                 textDecoration: "none",
                 color: "inherit",
+                flexShrink: 0,
               }}
               aria-label={`${t("common.appName")} — ${t("common.portal")}`}
             >
@@ -148,37 +100,13 @@ export function Layout({ children }: { children: ReactNode }) {
                 alt={t("common.appName")}
                 sx={{ height: 40, width: "auto" }}
               />
-              {addressLine && (
-                <>
-                  <Avatar
-                    src={
-                      activeProperty?.image_url
-                        ? `${API_BASE_URL}${activeProperty.image_url}`
-                        : undefined
-                    }
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor: "action.hover",
-                      color: "text.disabled",
-                      ml: 0.5,
-                    }}
-                  >
-                    <HomeWorkOutlinedIcon sx={{ fontSize: 18 }} />
-                  </Avatar>
-                  <Stack spacing={0} sx={{ lineHeight: 1.2 }}>
-                    {activeProperty?.name && isWide && (
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {activeProperty.name}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" color="text.secondary">
-                      {addressLine}
-                    </Typography>
-                  </Stack>
-                </>
-              )}
             </Box>
+
+            {/* Active property + dropdown to switch. Only renders for
+                signed-in users who have at least one property; on
+                pre-auth pages there's no /me/properties to fetch so
+                we just don't mount it. */}
+            {user && <PropertySwitcher />}
 
             <Box sx={{ flex: 1 }} />
 
@@ -186,14 +114,6 @@ export function Layout({ children }: { children: ReactNode }) {
               <>
                 {isWide && (
                   <Stack direction="row" spacing={0.5} sx={{ mr: 1 }}>
-                    <Button
-                      component={RouterLink}
-                      to="/"
-                      color="inherit"
-                      size="small"
-                    >
-                      {t("nav.properties")}
-                    </Button>
                     <Button
                       component={RouterLink}
                       to="/tickets"

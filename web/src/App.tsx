@@ -22,6 +22,8 @@ import { AdminRoute } from "@/auth/AdminRoute";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
+import { PropertyWorkspace } from "@/components/PropertyWorkspace";
+import { RootRedirect } from "@/components/RootRedirect";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
 import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
@@ -31,7 +33,6 @@ import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
-import { PropertyListPage } from "@/pages/PropertyListPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { ResolutionDetailPage } from "@/pages/ResolutionDetailPage";
 import { ResolutionListPage } from "@/pages/ResolutionListPage";
@@ -51,63 +52,50 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Authenticated */}
+          {/* Root: fetches /me/properties + redirects to first */}
           <Route
             path="/"
             element={
               <ProtectedRoute>
                 <Layout>
-                  <PropertyListPage />
+                  <RootRedirect />
                 </Layout>
               </ProtectedRoute>
             }
           />
+
+          {/*
+           * Property workspace — tab container under /properties/:id.
+           * The bare path redirects to /details so direct hits land
+           * on the default tab. Old bookmarks like
+           * /properties/:id/announcements still hit the right tab
+           * because each tab segment is a real child route.
+           */}
           <Route
             path="/properties/:id"
             element={
               <ProtectedRoute>
                 <Layout>
-                  <PropertyDetailPage />
+                  <PropertyWorkspace />
                 </Layout>
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="/properties/:id/documents"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <PropertyDocumentsPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/properties/:id/announcements"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <MyAnnouncementsPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+          >
+            <Route index element={<Navigate to="details" replace />} />
+            <Route path="details" element={<PropertyDetailPage />} />
+            <Route path="announcements" element={<MyAnnouncementsPage />} />
+            <Route path="assemblies" element={<MyAssembliesPage />} />
+            <Route path="documents" element={<PropertyDocumentsPage />} />
+          </Route>
+
+          {/* Property-detail child pages — outside the workspace,
+              full-canvas with their own breadcrumbs. */}
           <Route
             path="/announcements/:id"
             element={
               <ProtectedRoute>
                 <Layout>
                   <MyAnnouncementDetailPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/properties/:id/assemblies"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <MyAssembliesPage />
                 </Layout>
               </ProtectedRoute>
             }
@@ -122,6 +110,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/settings"
             element={

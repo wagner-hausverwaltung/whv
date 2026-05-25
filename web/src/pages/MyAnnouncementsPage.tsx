@@ -13,9 +13,7 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import {
   Alert,
   Box,
-  Breadcrumbs,
   Chip,
-  Link as MuiLink,
   Paper,
   Stack,
   Typography,
@@ -52,26 +50,10 @@ export function MyAnnouncementsPage() {
 
   return (
     <Stack spacing={3}>
-      <Breadcrumbs>
-        <MuiLink component={RouterLink} to="/" color="text.secondary">
-          {t("portal.announcementsPage.crumbHome")}
-        </MuiLink>
-        <MuiLink
-          component={RouterLink}
-          to={`/properties/${id ?? ""}`}
-          color="text.secondary"
-        >
-          {t("portal.announcementsPage.crumbProperty")}
-        </MuiLink>
-        <Typography color="text.primary">
-          {t("portal.announcementsPage.title")}
-        </Typography>
-      </Breadcrumbs>
-
-      <Typography variant="h4" component="h1">
-        {t("portal.announcementsPage.title")}
-      </Typography>
-
+      {/* No breadcrumb / page title here — the workspace tabs above
+          and the AppBar property switcher carry both navigation and
+          identity. Avoids visual stacking of "Versammlungen >
+          Versammlungen". */}
       {error && <Alert severity="error">{error}</Alert>}
 
       {rows === null ? (

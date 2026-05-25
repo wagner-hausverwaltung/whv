@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   Alert,
   Box,
-  Button,
-  Link,
   Paper,
   Stack,
   Table,
@@ -18,6 +16,17 @@ import {
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { PropertyDetailResponse } from "@/api/types";
+
+/**
+ * Details tab inside PropertyWorkspace.
+ *
+ * Renders the property's Stammdaten + Einheiten. The previous
+ * standalone version also showed breadcrumbs, a page title, and a
+ * bottom row of "Dokumente / Mitteilungen / Versammlungen ansehen"
+ * buttons — all three are now redundant: the workspace tabs above
+ * carry navigation, the AppBar switcher carries identity, and the
+ * page title is implicit in the active tab.
+ */
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -54,14 +63,7 @@ export function PropertyDetailPage() {
   }, [id, t]);
 
   if (notFound) {
-    return (
-      <Stack spacing={2}>
-        <Alert severity="error">{t("properties.empty")}</Alert>
-        <Link component={RouterLink} to="/" color="text.secondary">
-          ← {t("properties.title")}
-        </Link>
-      </Stack>
-    );
+    return <Alert severity="error">{t("properties.empty")}</Alert>;
   }
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!prop) {
@@ -81,15 +83,9 @@ export function PropertyDetailPage() {
     .join(", ");
 
   return (
-    <Stack spacing={4}>
+    <Stack spacing={3}>
       <Box>
-        <Link component={RouterLink} to="/" color="text.secondary" underline="hover">
-          ← {t("properties.title")}
-        </Link>
-      </Box>
-
-      <Box>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
           {prop.name}
         </Typography>
         {prop.property_hr_id && (
@@ -163,30 +159,6 @@ export function PropertyDetailPage() {
           </TableContainer>
         )}
       </Box>
-
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-        <Button
-          component={RouterLink}
-          to={`/properties/${prop.id}/documents`}
-          variant="outlined"
-        >
-          Dokumente ansehen →
-        </Button>
-        <Button
-          component={RouterLink}
-          to={`/properties/${prop.id}/announcements`}
-          variant="outlined"
-        >
-          Mitteilungen ansehen →
-        </Button>
-        <Button
-          component={RouterLink}
-          to={`/properties/${prop.id}/assemblies`}
-          variant="outlined"
-        >
-          Versammlungen ansehen →
-        </Button>
-      </Stack>
     </Stack>
   );
 }
