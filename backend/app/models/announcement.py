@@ -212,6 +212,34 @@ class AnnouncementComment(Base):
     )
 
 
+class AnnouncementUnit(Base):
+    """Many-to-many: optional per-unit narrowing of an announcement's
+    fan-out target.
+
+    No rows for a given announcement = property-wide-by-role (the
+    default v1 behaviour). One or more rows = "send only to users
+    on contracts for these units (∩ audience role filter)".
+    """
+
+    __tablename__ = "announcement_units"
+
+    announcement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("announcements.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("units.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class AnnouncementSendAttempt(Base):
     """One row per recipient per fan-out attempt.
 

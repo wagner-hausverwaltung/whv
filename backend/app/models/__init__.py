@@ -3,6 +3,7 @@ from app.models.announcement import (
     AnnouncementAttachment,
     AnnouncementComment,
     AnnouncementSendAttempt,
+    AnnouncementUnit,
     SendAttemptStatus,
 )
 from app.models.audit import AuditLog
@@ -47,6 +48,7 @@ __all__ = [
     "AnnouncementAttachment",
     "AnnouncementComment",
     "AnnouncementSendAttempt",
+    "AnnouncementUnit",
     "AuditLog",
     "Building",
     "CircularResolution",

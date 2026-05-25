@@ -51,6 +51,7 @@ from app.models import (
     AuditLog,
     Property,
     SendAttemptStatus,
+    Unit,
     User,
     UserRole,
 )
@@ -109,6 +110,34 @@ async def _load_property_for_owner(
     return prop
 
 
+async def _validate_units_for_property(
+    session: AsyncSession, *, property_id: uuid.UUID, unit_ids: list[uuid.UUID]
+) -> None:
+    """Reject unit_ids that don't belong to the announcement's property.
+
+    The fan-out join would silently return zero recipients if a unit
+    on a different property snuck in, but the audit trail would
+    capture nonsense. Surface as 400 at request time instead.
+    """
+    if not unit_ids:
+        return
+    found = (
+        await session.scalars(
+            select(Unit.id).where(
+                Unit.id.in_(unit_ids),
+                Unit.property_id == property_id,
+            )
+        )
+    ).all()
+    found_set = set(found)
+    invalid = [uid for uid in unit_ids if uid not in found_set]
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(f"{len(invalid)} unit(s) do not belong to this property"),
+        )
+
+
 async def _enrich_response(
     session: AsyncSession,
     announcement: Announcement,
@@ -153,6 +182,7 @@ async def _enrich_response(
             )
         ) or 0
     base.comment_count = int(comment_count)
+    base.unit_ids = await svc.list_targeted_unit_ids(session, announcement.id)
 
     return base
 
@@ -209,6 +239,22 @@ async def _enrich_summaries(
         ).all()
     }
 
+    # Batch unit_ids per announcement so the SPA list view can render
+    # "n Einheiten" without a follow-up request.
+    from app.models import AnnouncementUnit as _AnnouncementUnit
+
+    unit_rows = (
+        await session.execute(
+            select(
+                _AnnouncementUnit.announcement_id,
+                _AnnouncementUnit.unit_id,
+            ).where(_AnnouncementUnit.announcement_id.in_(ann_ids))
+        )
+    ).all()
+    units_by_ann: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for ann_id, unit_id in unit_rows:
+        units_by_ann.setdefault(ann_id, []).append(unit_id)
+
     out: list[AnnouncementResponse] = []
     for r in rows:
         resp = AnnouncementResponse.model_validate(r)
@@ -219,6 +265,7 @@ async def _enrich_summaries(
         resp.creator_email = u.email if u else None
         resp.attachment_count = att_counts.get(r.id, 0)
         resp.comment_count = com_counts.get(r.id, 0)
+        resp.unit_ids = units_by_ann.get(r.id, [])
         out.append(resp)
     return out
 
@@ -265,6 +312,8 @@ async def admin_create_announcement(
         organization_id=current_user.organization_id,
         property_id=property_id,
     )
+    # Validate any per-unit narrowing before we touch the row.
+    await _validate_units_for_property(session, property_id=prop.id, unit_ids=payload.unit_ids)
     announcement = svc.create_announcement(
         session,
         organization_id=current_user.organization_id,
@@ -273,6 +322,10 @@ async def admin_create_announcement(
         payload=payload,
     )
     await session.flush()  # populate id before audit log writes target_id
+    if payload.unit_ids:
+        await svc.replace_targeted_units(
+            session, announcement=announcement, unit_ids=payload.unit_ids
+        )
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -286,6 +339,7 @@ async def admin_create_announcement(
                 "audience_eigentuemer": announcement.audience_eigentuemer,
                 "audience_mieter": announcement.audience_mieter,
                 "audience_beirat": announcement.audience_beirat,
+                "unit_ids": [str(u) for u in payload.unit_ids],
                 "scheduled_publish_at": announcement.scheduled_publish_at.isoformat(),
             },
         )
@@ -419,6 +473,18 @@ async def admin_update_announcement(
         svc.apply_update(announcement, payload)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if payload.unit_ids is not None:
+        # `None` = leave existing rows alone; explicit list (including
+        # empty []) replaces the entire set. Validate every supplied
+        # unit belongs to the announcement's property before swapping.
+        await _validate_units_for_property(
+            session,
+            property_id=announcement.property_id,
+            unit_ids=payload.unit_ids,
+        )
+        await svc.replace_targeted_units(
+            session, announcement=announcement, unit_ids=payload.unit_ids
+        )
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,

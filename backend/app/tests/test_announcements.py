@@ -851,6 +851,112 @@ async def test_publish_task_fans_out_due_announcements(
         assert fresh.notification_sent_at is not None
 
 
+async def test_resolve_recipients_narrows_to_targeted_units(
+    test_engine: AsyncEngine,
+) -> None:
+    """An announcement with announcement_units rows fans out only to
+    users on contracts that match the listed units. Property-wide
+    users on other units of the same property are excluded."""
+    from sqlalchemy import select as _select
+
+    from app.models import (
+        AnnouncementUnit,
+        Contact,
+        ContactKind,
+        Contract,
+        ContractContact,
+        ContractType,
+    )
+    from app.services.announcements import resolve_recipients
+    from app.tests._factories import make_unit
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    unit_a = await make_unit(test_engine, org=org, prop=prop, unit_hr_id="U-A")
+    unit_b = await make_unit(test_engine, org=org, prop=prop, unit_hr_id="U-B")
+    _, _, _ = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def _wire_user_to_unit(unit_id: uuid.UUID) -> Any:
+        impower_id = (uuid.uuid4().int >> 96) + 10**9
+        async with sm() as s:
+            contact = Contact(
+                organization_id=org.id,
+                impower_id=impower_id,
+                kind=ContactKind.PERSON,
+                first_name="T",
+                last_name="X",
+            )
+            s.add(contact)
+            await s.flush()
+            contract = Contract(
+                organization_id=org.id,
+                property_id=prop.id,
+                unit_id=unit_id,
+                type=ContractType.OWNER,
+            )
+            s.add(contract)
+            await s.flush()
+            s.add(ContractContact(contract_id=contract.id, contact_id=contact.id))
+            await s.commit()
+        user, _, _ = await make_user(
+            test_engine,
+            org=org,
+            role=UserRole.EIGENTUEMER,
+            contact_id_impower=impower_id,
+        )
+        return user
+
+    user_a = await _wire_user_to_unit(unit_a.id)
+    user_b = await _wire_user_to_unit(unit_b.id)
+
+    # Insert announcement targeted at unit_a only.
+    async with sm() as s:
+        a = Announcement(
+            organization_id=org.id,
+            property_id=prop.id,
+            created_by_user_id=user_a.id,
+            title="Nur Einheit A",
+            body="",
+            audience_eigentuemer=True,
+            audience_mieter=True,
+            audience_beirat=True,
+            scheduled_publish_at=datetime.now(UTC),
+        )
+        s.add(a)
+        await s.flush()
+        s.add(AnnouncementUnit(announcement_id=a.id, unit_id=unit_a.id))
+        await s.commit()
+        ann_id = a.id
+
+    async with sm() as s:
+        ann = await s.get(Announcement, ann_id)
+        assert ann is not None
+        recipients = await resolve_recipients(s, ann)
+    emails = {u.email for u in recipients}
+    assert user_a.email in emails
+    assert user_b.email not in emails
+
+    # Sanity: clearing the unit rows reverts to property-wide.
+    async with sm() as s:
+        await s.execute(
+            __import__("sqlalchemy", fromlist=["delete"])
+            .delete(AnnouncementUnit)
+            .where(AnnouncementUnit.announcement_id == ann_id)
+        )
+        await s.commit()
+    async with sm() as s:
+        ann = await s.get(Announcement, ann_id)
+        assert ann is not None
+        recipients_after = await resolve_recipients(s, ann)
+    assert {u.email for u in recipients_after} == {
+        user_a.email,
+        user_b.email,
+    }
+    _ = _select  # keep imports used
+
+
 async def test_publish_task_records_send_attempts(
     test_engine: AsyncEngine,
     tmp_announcement_dir: str,

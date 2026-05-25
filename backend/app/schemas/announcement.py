@@ -25,6 +25,10 @@ class AnnouncementCreateRequest(BaseModel):
     audience_eigentuemer: bool = True
     audience_mieter: bool = True
     audience_beirat: bool = True
+    # Optional per-unit narrowing. Empty list = property-wide-by-role
+    # (default v1 behaviour). Non-empty = recipients are intersected
+    # with users on contracts covering at least one of these units.
+    unit_ids: list[uuid.UUID] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _at_least_one_audience(self) -> Self:
@@ -48,6 +52,10 @@ class AnnouncementUpdateRequest(BaseModel):
     audience_eigentuemer: bool | None = None
     audience_mieter: bool | None = None
     audience_beirat: bool | None = None
+    # When provided, fully replaces the unit set (PUT-style on the
+    # collection, not a partial patch). Empty list explicitly clears
+    # the narrowing — admin shifts back to property-wide.
+    unit_ids: list[uuid.UUID] | None = None
 
 
 class AnnouncementCommentCreateRequest(BaseModel):
@@ -144,6 +152,10 @@ class AnnouncementResponse(BaseModel):
     is_edited: bool = False
     attachment_count: int = 0
     comment_count: int = 0
+    # Targeted units, denormalised on the wire so the SPA list view
+    # can render "n Einheiten" without a second request. Empty list
+    # = property-wide-by-role (default behaviour).
+    unit_ids: list[uuid.UUID] = []
 
 
 class AnnouncementDetailResponse(AnnouncementResponse):

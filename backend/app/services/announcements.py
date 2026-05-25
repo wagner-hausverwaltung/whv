@@ -33,6 +33,7 @@ from app.models import (
     AnnouncementAttachment,
     AnnouncementComment,
     AnnouncementSendAttempt,
+    AnnouncementUnit,
     Contact,
     Contract,
     ContractContact,
@@ -500,31 +501,88 @@ async def find_due_for_publish(
 
 
 async def resolve_recipients(session: AsyncSession, announcement: Announcement) -> list[User]:
-    """Active users on the property whose role matches the audience.
+    """Active users matched by the announcement's audience + (optional)
+    per-unit narrowing.
 
-    Goes via the contact → contract chain (same source of truth as
-    `_visible_properties_stmt`). De-duped by user.id — a user with
-    multiple contracts on one property still gets one email.
+    Behaviour split:
+      - No `announcement_units` rows for this announcement →
+        property-wide-by-role: every active user on a contract for
+        the property whose `User.role` is in the audience set.
+      - One or more `announcement_units` rows → same query but
+        Contract.unit_id is constrained to the listed unit set. A
+        contract that covers a different unit on the same property
+        no longer leaks.
+
+    De-duped by user.id — a user with multiple matching contracts
+    still gets one email.
     """
     roles = audience_roles(announcement)
     if not roles:
         return []
+
+    unit_ids = await list_targeted_unit_ids(session, announcement.id)
+
+    stmt = (
+        select(User)
+        .join(Contact, Contact.impower_id == User.contact_id_impower)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            Contract.property_id == announcement.property_id,
+            User.deleted_at.is_(None),
+            User.contact_id_impower.isnot(None),
+            User.role.in_(list(roles)),
+        )
+        .distinct()
+    )
+    if unit_ids:
+        stmt = stmt.where(Contract.unit_id.in_(unit_ids))
+
+    rows = (await session.scalars(stmt)).all()
+    return list(rows)
+
+
+async def list_targeted_unit_ids(
+    session: AsyncSession, announcement_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """All unit_ids the announcement is narrowed to. Empty list = the
+    announcement is property-wide-by-role (default)."""
     rows = (
         await session.scalars(
-            select(User)
-            .join(Contact, Contact.impower_id == User.contact_id_impower)
-            .join(ContractContact, ContractContact.contact_id == Contact.id)
-            .join(Contract, Contract.id == ContractContact.contract_id)
-            .where(
-                Contract.property_id == announcement.property_id,
-                User.deleted_at.is_(None),
-                User.contact_id_impower.isnot(None),
-                User.role.in_(list(roles)),
+            select(AnnouncementUnit.unit_id).where(
+                AnnouncementUnit.announcement_id == announcement_id
             )
-            .distinct()
         )
     ).all()
     return list(rows)
+
+
+async def replace_targeted_units(
+    session: AsyncSession,
+    *,
+    announcement: Announcement,
+    unit_ids: list[uuid.UUID],
+) -> None:
+    """Drop existing target-unit rows + insert the new set.
+
+    Caller is responsible for validating that every unit_id belongs
+    to `announcement.property_id` before calling (otherwise an admin
+    could narrow an announcement to a unit on a totally different
+    property and confuse the fan-out — the join would simply return
+    zero users, but the audit trail would look bizarre).
+    """
+    from sqlalchemy import delete
+
+    await session.execute(
+        delete(AnnouncementUnit).where(AnnouncementUnit.announcement_id == announcement.id)
+    )
+    for uid in unit_ids:
+        session.add(
+            AnnouncementUnit(
+                announcement_id=announcement.id,
+                unit_id=uid,
+            )
+        )
 
 
 async def resolve_comment_notification_recipients(
