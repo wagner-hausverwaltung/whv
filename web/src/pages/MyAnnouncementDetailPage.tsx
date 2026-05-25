@@ -26,12 +26,14 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import DownloadIcon from "@mui/icons-material/Download";
+import EditIcon from "@mui/icons-material/Edit";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL, api } from "@/api/client";
 import type {
   AnnouncementCommentResponse,
   AnnouncementDetailResponse,
 } from "@/api/types";
+import { useAuth } from "@/auth/AuthContext";
 
 function downloadUrl(announcementId: string, attachmentId: string): string {
   return `${API_BASE_URL}/me/announcements/${announcementId}/attachments/${attachmentId}/download`;
@@ -40,11 +42,21 @@ function downloadUrl(announcementId: string, attachmentId: string): string {
 export function MyAnnouncementDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [data, setData] = useState<AnnouncementDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  // editingCommentId: which comment row is currently in edit mode.
+  // editingBody: the live text in the edit form (separate from
+  // commentBody so the compose box and the edit box don't clobber).
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(
+    null,
+  );
+  const [editingBody, setEditingBody] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -63,6 +75,37 @@ export function MyAnnouncementDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  const beginEdit = (c: AnnouncementCommentResponse) => {
+    setEditingCommentId(c.id);
+    setEditingBody(c.body);
+    setEditError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingBody("");
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    if (!id || !editingCommentId || !editingBody.trim()) return;
+    setEditError(null);
+    setSavingEdit(true);
+    try {
+      await api.patch(
+        `/me/announcements/${id}/comments/${editingCommentId}`,
+        { body: editingBody.trim() },
+      );
+      setEditingCommentId(null);
+      setEditingBody("");
+      await load();
+    } catch {
+      setEditError(t("portal.announcementDetail.editFailed"));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const submitComment = async () => {
     if (!id || !commentBody.trim()) return;
@@ -217,20 +260,93 @@ export function MyAnnouncementDetailPage() {
           </Typography>
         ) : (
           <Stack spacing={1.5}>
-            {data.comments.map((c: AnnouncementCommentResponse) => (
-              <Paper key={c.id} variant="outlined" sx={{ p: 1.5 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {c.author_email ?? "—"} ·{" "}
-                  {new Date(c.created_at).toLocaleString("de-DE")}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
-                >
-                  {c.body}
-                </Typography>
-              </Paper>
-            ))}
+            {data.comments.map((c: AnnouncementCommentResponse) => {
+              const isMine = user?.id === c.author_user_id;
+              const isEditing = editingCommentId === c.id;
+              return (
+                <Paper key={c.id} variant="outlined" sx={{ p: 1.5 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {c.author_email ?? "—"} ·{" "}
+                      {new Date(c.created_at).toLocaleString("de-DE")}
+                      {c.edited_at && (
+                        <Box
+                          component="span"
+                          sx={{ fontStyle: "italic" }}
+                        >
+                          {" · "}
+                          {t("portal.announcementDetail.commentEdited")}
+                        </Box>
+                      )}
+                    </Typography>
+                    {isMine && !isEditing && (
+                      <IconButton
+                        size="small"
+                        onClick={() => beginEdit(c)}
+                        aria-label={t(
+                          "portal.announcementDetail.editComment",
+                        )}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Stack>
+                  {isEditing ? (
+                    <Box sx={{ mt: 1 }}>
+                      <TextField
+                        value={editingBody}
+                        onChange={(e) => setEditingBody(e.target.value)}
+                        multiline
+                        minRows={2}
+                        maxRows={8}
+                        fullWidth
+                        autoFocus
+                      />
+                      {editError && (
+                        <Alert severity="error" sx={{ mt: 1 }}>
+                          {editError}
+                        </Alert>
+                      )}
+                      <Box
+                        sx={{
+                          mt: 1,
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 1,
+                        }}
+                      >
+                        <Button onClick={cancelEdit} disabled={savingEdit}>
+                          {t("common.cancel")}
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={saveEdit}
+                          disabled={savingEdit || !editingBody.trim()}
+                        >
+                          {savingEdit
+                            ? t("common.loading")
+                            : t("common.save")}
+                        </Button>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
+                    >
+                      {c.body}
+                    </Typography>
+                  )}
+                </Paper>
+              );
+            })}
           </Stack>
         )}
 

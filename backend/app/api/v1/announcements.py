@@ -54,6 +54,7 @@ from app.models import (
 from app.schemas.announcement import (
     AnnouncementAttachmentResponse,
     AnnouncementCommentCreateRequest,
+    AnnouncementCommentEditRequest,
     AnnouncementCommentModerationRequest,
     AnnouncementCommentResponse,
     AnnouncementCreateRequest,
@@ -869,6 +870,59 @@ async def my_create_comment(
             organization_id=announcement.organization_id,
             actor_user_id=current_user.id,
             action="announcement_comment_created",
+            target_type="announcement_comments",
+            target_id=str(comment.id),
+            payload_json={
+                "announcement_id": str(announcement.id),
+                "body_length": len(payload.body),
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(comment)
+    return _comment_to_response(comment, author_email=current_user.email)
+
+
+@me_router.patch(
+    "/announcements/{announcement_id}/comments/{comment_id}",
+    response_model=AnnouncementCommentResponse,
+)
+async def my_edit_comment(
+    announcement_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    payload: AnnouncementCommentEditRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AnnouncementCommentResponse:
+    """Edit your own comment. 404 if the comment doesn't exist, belongs
+    to a different announcement, or you're not the author — we don't
+    distinguish to avoid leaking the existence of other people's
+    comments. Admin moderation runs on a separate URL."""
+    announcement = await svc.get_owner(session, announcement_id=announcement_id, user=current_user)
+    if announcement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Announcement not found",
+        )
+    await _load_property_for_owner(session, user=current_user, property_id=announcement.property_id)
+    comment: AnnouncementComment | None = await session.scalar(
+        select(AnnouncementComment).where(
+            AnnouncementComment.id == comment_id,
+            AnnouncementComment.announcement_id == announcement.id,
+        )
+    )
+    # Single 404 covers both "no such comment" and "not your comment".
+    if comment is None or comment.author_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    try:
+        svc.edit_comment(comment=comment, author=current_user, new_body=payload.body)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    session.add(
+        AuditLog(
+            organization_id=announcement.organization_id,
+            actor_user_id=current_user.id,
+            action="announcement_comment_edited",
             target_type="announcement_comments",
             target_id=str(comment.id),
             payload_json={

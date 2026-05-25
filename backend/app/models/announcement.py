@@ -172,6 +172,12 @@ class AnnouncementComment(Base):
         onupdate=func.now(),
     )
 
+    # Author-only inline edit timestamp. NULL = never edited. We don't
+    # version the body — the thread is a low-stakes conversation,
+    # tracking "what was changed" would over-engineer it. Moderation
+    # has its own separate audit trail via the hidden_* fields below.
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     is_hidden: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

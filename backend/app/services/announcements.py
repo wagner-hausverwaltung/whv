@@ -397,6 +397,27 @@ def add_comment(
     return comment
 
 
+def edit_comment(
+    *,
+    comment: AnnouncementComment,
+    author: User,
+    new_body: str,
+) -> None:
+    """Author-only inline edit. Mutates `comment.body` + stamps
+    `edited_at = now()`. Raises ValueError if the requester isn't the
+    original author — admins use the moderation path, not this one.
+
+    Hidden comments are intentionally editable too (admin can ask the
+    author to fix a problem before unhiding); the portal hides them
+    from non-admin reads anyway so an edit while hidden has no
+    user-visible side-effect until the admin un-hides.
+    """
+    if comment.author_user_id != author.id:
+        raise ValueError("Only the comment author can edit it")
+    comment.body = new_body
+    comment.edited_at = _now()
+
+
 def set_comment_hidden(
     *,
     comment: AnnouncementComment,

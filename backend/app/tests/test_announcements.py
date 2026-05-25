@@ -589,6 +589,90 @@ async def test_owner_cannot_comment_before_publish(
     assert r.status_code == 404
 
 
+async def test_author_can_edit_own_comment(
+    test_engine: AsyncEngine,
+) -> None:
+    org = await make_org(test_engine)
+    _, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    _, o_email, o_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    v_token = _login(v_email, v_pw)
+    o_token = _login(o_email, o_pw)
+    with TestClient(app) as client:
+        ann = client.post(
+            f"/admin/properties/{prop.id}/announcements",
+            headers=_auth(v_token),
+            json={"title": "x", "body": ""},
+        ).json()
+    # Publish out-of-band so commenting is allowed.
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Announcement, uuid.UUID(ann["id"]))
+        assert row is not None
+        row.notification_sent_at = datetime.now(UTC)
+        await s.commit()
+    with TestClient(app) as client:
+        c = client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(o_token),
+            json={"body": "v1 mit Tippfehler"},
+        ).json()
+        # Author edits the body — 200 + edited_at populated.
+        edit = client.patch(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}",
+            headers=_auth(o_token),
+            json={"body": "v2 ohne Tippfehler"},
+        )
+        assert edit.status_code == 200, edit.text
+        assert edit.json()["body"] == "v2 ohne Tippfehler"
+        assert edit.json()["edited_at"] is not None
+        # Reload the detail — same body, edited_at carries through.
+        d = client.get(
+            f"/me/announcements/{ann['id']}", headers=_auth(o_token)
+        )
+        assert d.json()["comments"][0]["body"] == "v2 ohne Tippfehler"
+        assert d.json()["comments"][0]["edited_at"] is not None
+
+
+async def test_other_user_cannot_edit_someone_elses_comment(
+    test_engine: AsyncEngine,
+) -> None:
+    """Non-author edit attempt 404s (no existence leak)."""
+    org = await make_org(test_engine)
+    _, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    _, a_email, a_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    _, b_email, b_pw = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    v_token = _login(v_email, v_pw)
+    a_token = _login(a_email, a_pw)
+    b_token = _login(b_email, b_pw)
+    with TestClient(app) as client:
+        ann = client.post(
+            f"/admin/properties/{prop.id}/announcements",
+            headers=_auth(v_token),
+            json={"title": "x", "body": ""},
+        ).json()
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Announcement, uuid.UUID(ann["id"]))
+        assert row is not None
+        row.notification_sent_at = datetime.now(UTC)
+        await s.commit()
+    with TestClient(app) as client:
+        c = client.post(
+            f"/me/announcements/{ann['id']}/comments",
+            headers=_auth(a_token),
+            json={"body": "von a geschrieben"},
+        ).json()
+        # b tries to edit a's comment → 404.
+        r = client.patch(
+            f"/me/announcements/{ann['id']}/comments/{c['id']}",
+            headers=_auth(b_token),
+            json={"body": "übernommen"},
+        )
+        assert r.status_code == 404
+
+
 async def test_admin_hide_comment_removes_from_owner_view(
     test_engine: AsyncEngine,
 ) -> None:

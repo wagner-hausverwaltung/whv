@@ -114,7 +114,10 @@
       "composeLabel": "Write a comment",
       "composePlaceholder": "Add to the conversation…",
       "composeSubmit": "Post",
-      "commentFailed": "Couldn’t post the comment."
+      "commentFailed": "Couldn’t post the comment.",
+      "commentEdited": "edited",
+      "editComment": "Edit comment",
+      "editFailed": "Couldn’t save the change."
     }
   },
   "admin": {

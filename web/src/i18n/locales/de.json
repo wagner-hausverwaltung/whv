@@ -114,7 +114,10 @@
       "composeLabel": "Kommentar schreiben",
       "composePlaceholder": "Was möchten Sie zu dieser Mitteilung sagen?",
       "composeSubmit": "Senden",
-      "commentFailed": "Kommentar konnte nicht gespeichert werden."
+      "commentFailed": "Kommentar konnte nicht gespeichert werden.",
+      "commentEdited": "bearbeitet",
+      "editComment": "Kommentar bearbeiten",
+      "editFailed": "Änderung konnte nicht gespeichert werden."
     }
   },
   "admin": {

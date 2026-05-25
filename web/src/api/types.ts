@@ -474,6 +474,9 @@ export interface AnnouncementCommentResponse {
   body: string;
   created_at: string;
   updated_at: string;
+  // NULL until the author has edited the comment at least once.
+  // Portal renders a "bearbeitet" indicator when set.
+  edited_at: string | null;
   is_hidden: boolean;
   hidden_at: string | null;
   hidden_by_user_id: string | null;

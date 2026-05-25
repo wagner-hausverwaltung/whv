@@ -54,6 +54,14 @@ class AnnouncementCommentCreateRequest(BaseModel):
     body: str = Field(..., min_length=1, max_length=10_000)
 
 
+class AnnouncementCommentEditRequest(BaseModel):
+    """Author-only inline edit. Admin moderation uses the separate
+    `AnnouncementCommentModerationRequest` shape; this endpoint
+    explicitly does not allow admin edits to user content."""
+
+    body: str = Field(..., min_length=1, max_length=10_000)
+
+
 class AnnouncementCommentModerationRequest(BaseModel):
     """Admin hide / unhide. Setting is_hidden=False clears hidden_reason
     + hidden_at + hidden_by_user_id in the service helper."""
@@ -90,6 +98,9 @@ class AnnouncementCommentResponse(BaseModel):
     body: str
     created_at: datetime
     updated_at: datetime
+    # Author-edit timestamp. NULL when the comment was never edited.
+    # Portal renders a "bearbeitet am …" hint when this is set.
+    edited_at: datetime | None = None
 
     # Moderation fields. For non-admin responses, hidden comments are
     # filtered out before serialisation, so these always read false/null
