@@ -230,18 +230,29 @@ async def _to_detail(
         )
         for m in messages
     ]
+    # Reuse the same enrichment the queue uses so the detail response
+    # carries property_name + address + creator_email — otherwise the
+    # admin page falls back to a UUID prefix after assigning a property
+    # to a previously-orphaned ticket from an unknown sender.
+    enriched = (await _enrich_summaries(session, [t]))[0]
     return TicketDetailResponse(
-        id=t.id,
-        property_id=t.property_id,
-        created_by_user_id=t.created_by_user_id,
-        assignee_user_id=t.assignee_user_id,
-        category=t.category,
-        status=t.status,
-        share_scope=t.share_scope,
-        subject=t.subject,
-        last_message_at=t.last_message_at,
-        created_at=t.created_at,
-        closed_at=t.closed_at,
+        id=enriched.id,
+        property_id=enriched.property_id,
+        created_by_user_id=enriched.created_by_user_id,
+        assignee_user_id=enriched.assignee_user_id,
+        category=enriched.category,
+        status=enriched.status,
+        share_scope=enriched.share_scope,
+        subject=enriched.subject,
+        last_message_at=enriched.last_message_at,
+        created_at=enriched.created_at,
+        closed_at=enriched.closed_at,
+        property_name=enriched.property_name,
+        property_address=enriched.property_address,
+        creator_email=enriched.creator_email,
+        creator_contact_label=enriched.creator_contact_label,
+        creator_contact_id_impower=enriched.creator_contact_id_impower,
+        external_sender_email=enriched.external_sender_email,
         messages=message_resps,
         participants=participants,
     )
