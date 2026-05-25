@@ -163,6 +163,8 @@
       "composeTitle": "New announcement",
       "composeTitleRequired": "Please enter a subject.",
       "composeAudienceRequired": "At least one audience must be selected.",
+      "composePropertyRequired": "Please choose a property.",
+      "propertyLabel": "Property",
       "composeFailed": "Couldn’t create the announcement.",
       "attachmentFailed": "Couldn’t upload attachment \"{{name}}\".",
       "fieldTitle": "Subject",

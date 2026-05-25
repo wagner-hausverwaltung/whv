@@ -17,6 +17,7 @@ import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
+  Button,
   Chip,
   Paper,
   Stack,
@@ -28,9 +29,11 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AnnouncementResponse } from "@/api/types";
+import { AnnouncementComposeDialog } from "@/components/AnnouncementComposeDialog";
 
 type StatusFilter = "all" | "scheduled" | "published";
 
@@ -64,6 +67,7 @@ export function AdminAnnouncementsAllPage() {
   const statusFilter = (params.get("status") ?? "all") as StatusFilter;
   const [rows, setRows] = useState<AnnouncementResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -94,12 +98,31 @@ export function AdminAnnouncementsAllPage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4" component="h1">
-        {t("admin.announcementsAll.title")}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {t("admin.announcementsAll.subtitle")}
-      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 2,
+          flexWrap: "wrap",
+        }}
+      >
+        <Box>
+          <Typography variant="h4" component="h1">
+            {t("admin.announcementsAll.title")}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {t("admin.announcementsAll.subtitle")}
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setComposeOpen(true)}
+        >
+          {t("admin.announcementsTab.newButton")}
+        </Button>
+      </Box>
 
       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
         {FILTERS.map((f) => (
@@ -224,6 +247,13 @@ export function AdminAnnouncementsAllPage() {
           </Table>
         </TableContainer>
       )}
+
+      <AnnouncementComposeDialog
+        propertyId={null}
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onCreated={() => void load()}
+      />
     </Stack>
   );
 }

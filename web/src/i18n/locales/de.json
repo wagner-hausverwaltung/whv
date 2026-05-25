@@ -163,6 +163,8 @@
       "composeTitle": "Neue Mitteilung",
       "composeTitleRequired": "Bitte einen Betreff eingeben.",
       "composeAudienceRequired": "Mindestens eine Empfängergruppe muss ausgewählt sein.",
+      "composePropertyRequired": "Bitte eine Liegenschaft auswählen.",
+      "propertyLabel": "Liegenschaft",
       "composeFailed": "Mitteilung konnte nicht angelegt werden.",
       "attachmentFailed": "Anhang \"{{name}}\" konnte nicht hochgeladen werden.",
       "fieldTitle": "Betreff",
