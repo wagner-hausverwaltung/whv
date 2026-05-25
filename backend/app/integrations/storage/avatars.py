@@ -8,6 +8,7 @@ sensitivity attached to an avatar image.
 """
 
 import io
+import logging
 import uuid
 from pathlib import Path
 
@@ -15,9 +16,26 @@ from PIL import Image, UnidentifiedImageError
 
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
+
+# Register pillow-heif's HEIC/HEIF opener with Pillow so .heic/.heif
+# uploads from iPhone (the iOS 11+ default photo format) decode through
+# Image.open() like any other format. Import-time call is idempotent
+# but cheap. We tolerate the import failing — if pillow-heif isn't
+# installed the rest of the avatar pipeline still works for the legacy
+# JPEG/PNG/WEBP set, the user just gets a clear "unsupported format"
+# error on a HEIC upload instead of a silent decode failure.
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # pragma: no cover - only hit on a partial install
+    logger.warning("pillow_heif not installed; HEIC/HEIF avatars won't decode")
+
 # Pillow recognises many input formats; we restrict to the common web set
-# so a corrupt RIFF chunk or exotic format can't slip through.
-_ALLOWED_INPUT_FORMATS = {"PNG", "JPEG", "WEBP", "GIF", "BMP"}
+# (now including HEIF for iPhone) so a corrupt RIFF chunk or exotic
+# format can't slip through.
+_ALLOWED_INPUT_FORMATS = {"PNG", "JPEG", "WEBP", "GIF", "BMP", "HEIF"}
 _TARGET_SIZE = (256, 256)
 
 

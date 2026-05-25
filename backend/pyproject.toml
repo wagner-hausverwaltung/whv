@@ -22,6 +22,11 @@ dependencies = [
     "python-multipart>=0.0.20",
     "boto3>=1.43.14",
     "reportlab>=4.4.0",
+    # HEIC/HEIF decoder for Pillow. iPhone photos default to HEIC since
+    # iOS 11 — without this they fail avatar upload with "Could not
+    # decode image". register_heif_opener() must be called at import
+    # time in app/integrations/storage/avatars.py.
+    "pillow-heif>=0.18",
 ]
 
 [dependency-groups]
