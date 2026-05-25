@@ -19,6 +19,19 @@ struct RootTabView: View {
     private let tabCount = 5
 
     var body: some View {
+        tabs
+            // Floating Verwaltung-Hotline button — bottom-right,
+            // pinned above the tab bar via .safeAreaInset so it
+            // never collides with the tab bar items and never sits
+            // under the home indicator. Same shape on every tab.
+            .overlay(alignment: .bottomTrailing) {
+                CallVerwaltungButton()
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 64)  // floats above the tab bar
+            }
+    }
+
+    private var tabs: some View {
         TabView(selection: $selection) {
             ComingSoonView(
                 title: "Mitteilungen",

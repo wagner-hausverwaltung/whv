@@ -73,6 +73,29 @@ struct CreateAssemblyCommentBody: Codable {
     let body: String
 }
 
+/// Minimal Ticket summary — only the fields the widget feeder
+/// reads. The full Mitteilungen / Tickets screens get their own
+/// richer types once those tabs land.
+struct TicketSummary: Codable, Hashable {
+    let id: String
+    let subject: String
+    let status: String  // OFFEN / IN_BEARBEITUNG / GESCHLOSSEN
+    let category: String
+    let last_message_at: Date
+    let created_at: Date
+    let property_name: String?
+}
+
+struct AnnouncementSummary: Codable, Hashable {
+    let id: String
+    let property_id: String
+    let title: String
+    let body: String
+    let scheduled_publish_at: Date
+    let notification_sent_at: Date?
+    let property_name: String?
+}
+
 /// POST body for /auth/refresh. Single field — the backend swaps it
 /// for a new access+refresh pair plus the user envelope.
 struct RefreshRequest: Codable {
@@ -349,6 +372,20 @@ struct APIClient {
             method: "POST",
             body: CreateAssemblyCommentBody(body: body)
         )
+    }
+
+    // MARK: - Tickets / Mitteilungen (widget data sources)
+
+    /// GET /me/tickets?status=OFFEN — used by the dynamic widget to
+    /// surface "X open tickets" + the newest one.
+    func listMyOpenTickets() async throws -> [TicketSummary] {
+        try await authedGET("/me/tickets?status=OFFEN")
+    }
+
+    /// GET /me/properties/{id}/announcements — used by the dynamic
+    /// widget to surface the newest published announcement.
+    func listMyAnnouncementsForProperty(_ propertyId: String) async throws -> [AnnouncementSummary] {
+        try await authedGET("/me/properties/\(propertyId)/announcements")
     }
 
     // MARK: - Plumbing
