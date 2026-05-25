@@ -22,15 +22,18 @@ staging.api.wagner-hausverwaltung.com {
     }
 }
 
-# Admin host. Serves the same SPA bundle as portal.* but rewrites `/` to
-# `/admin` so the Verwalter bookmark lands on the admin dashboard. The
-# Jinja admin UI was retired 2026-05-25; the admin SPA lives under
-# /admin/* in the same React + MUI bundle the customer portal uses.
+# Admin host. Serves the same SPA bundle as portal.* but a root visit
+# 302-redirects to `/admin` so the URL bar (and therefore React Router
+# inside the SPA) actually lands on the admin dashboard. A `rewrite`
+# would only change the upstream path — the browser would still see `/`
+# and the SPA would render the customer portal home. The Jinja admin
+# UI was retired 2026-05-25; the admin SPA lives under /admin/* in the
+# same React + MUI bundle the customer portal uses.
 staging.admin.wagner-hausverwaltung.com {
     encode gzip zstd
 
     @root path /
-    rewrite @root /admin
+    redir @root /admin 302
 
     reverse_proxy web:80
 
