@@ -67,6 +67,8 @@ from app.schemas.announcement import (
     AnnouncementResponse,
     AnnouncementSendAttemptResponse,
     AnnouncementUpdateRequest,
+    RecipientPreviewItem,
+    RecipientPreviewResponse,
 )
 from app.services import announcements as svc
 
@@ -183,6 +185,8 @@ async def _enrich_response(
         ) or 0
     base.comment_count = int(comment_count)
     base.unit_ids = await svc.list_targeted_unit_ids(session, announcement.id)
+    base.excluded_user_ids = list(announcement.excluded_user_ids or [])
+    base.extra_emails = list(announcement.extra_emails or [])
 
     return base
 
@@ -266,6 +270,8 @@ async def _enrich_summaries(
         resp.attachment_count = att_counts.get(r.id, 0)
         resp.comment_count = com_counts.get(r.id, 0)
         resp.unit_ids = units_by_ann.get(r.id, [])
+        resp.excluded_user_ids = list(r.excluded_user_ids or [])
+        resp.extra_emails = list(r.extra_emails or [])
         out.append(resp)
     return out
 
@@ -484,6 +490,14 @@ async def admin_update_announcement(
         )
         await svc.replace_targeted_units(
             session, announcement=announcement, unit_ids=payload.unit_ids
+        )
+    # Recipient-editor overrides — same partial-PATCH semantics as
+    # unit_ids: None = leave alone, list = full replace.
+    if payload.excluded_user_ids is not None or payload.extra_emails is not None:
+        svc.apply_recipient_overrides(
+            announcement,
+            excluded_user_ids=payload.excluded_user_ids,
+            extra_emails=payload.extra_emails,
         )
     session.add(
         AuditLog(
@@ -742,6 +756,35 @@ def _serve_attachment(attachment: AnnouncementAttachment) -> FileResponse:
         path,
         media_type=attachment.mime_type or "application/octet-stream",
         filename=attachment.filename,
+    )
+
+
+@admin_router.get(
+    "/announcements/{announcement_id}/recipient-preview",
+    response_model=RecipientPreviewResponse,
+)
+async def admin_recipient_preview(
+    announcement_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RecipientPreviewResponse:
+    """Render the recipient editor: the auto-resolved set (with the
+    admin's excludes flagged) + every extra email + the final list
+    that the next send would actually fan out to."""
+    announcement = await svc.get_admin(
+        session,
+        announcement_id=announcement_id,
+        organization_id=current_user.organization_id,
+    )
+    if announcement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Announcement not found",
+        )
+    items, active = await svc.build_recipient_preview(session, announcement)
+    return RecipientPreviewResponse(
+        items=[RecipientPreviewItem(**item) for item in items],
+        active_emails=active,
     )
 
 

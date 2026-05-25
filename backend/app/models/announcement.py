@@ -40,7 +40,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -94,6 +94,25 @@ class Announcement(OrganizationScopedMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Per-Mitteilung recipient overrides on top of the audience + unit
+    # filter. `excluded_user_ids` is a deny-list against the auto-
+    # resolved user set; `extra_emails` is a free-text add-on for
+    # recipients without a portal account. Both default to empty so
+    # legacy rows are unaffected. The final send set on every fan-out
+    # = (auto-resolved minus excluded) plus extras.
+    excluded_user_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        server_default="{}",
+        default=list,
+    )
+    extra_emails: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        server_default="{}",
+        default=list,
+    )
 
     __table_args__ = (
         Index(

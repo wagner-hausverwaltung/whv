@@ -653,6 +653,118 @@ async def resolve_comment_notification_recipients(
     return merged
 
 
+async def resolve_active_recipients(
+    session: AsyncSession, announcement: Announcement
+) -> list[tuple[User | None, str]]:
+    """Final recipient set for the next send.
+
+    Applies the admin's per-Mitteilung override on top of the
+    auto-resolved set:
+
+        active = (auto_users minus excluded_user_ids) plus extra_emails
+
+    Returns a list of (User-or-None, email) tuples. For auto-resolved
+    rows the User is set so the caller can pass it to
+    record_send_attempt; for extras (no portal account) User is None
+    and the email is captured straight from `extra_emails`.
+
+    De-duped by email — an admin who adds an extra that happens to
+    match an auto-resolved user's address still gets one send.
+    """
+    auto = await resolve_recipients(session, announcement)
+    excluded = set(announcement.excluded_user_ids or [])
+
+    out: list[tuple[User | None, str]] = []
+    seen_emails: set[str] = set()
+    for user in auto:
+        if user.id in excluded:
+            continue
+        if not user.email or user.email in seen_emails:
+            continue
+        seen_emails.add(user.email)
+        out.append((user, user.email))
+    for raw in announcement.extra_emails or []:
+        email = raw.strip()
+        if not email or email in seen_emails:
+            continue
+        seen_emails.add(email)
+        out.append((None, email))
+    return out
+
+
+async def build_recipient_preview(
+    session: AsyncSession, announcement: Announcement
+) -> tuple[list[dict[str, str | bool | None]], list[str]]:
+    """Render the admin's recipient-editor view.
+
+    Returns `(items, active_emails)`. Each `item` is a dict the
+    Pydantic schema can ingest directly — using a dict (vs. dataclass)
+    keeps the helper free of layering concerns when called from the
+    API handler.
+    """
+    auto = await resolve_recipients(session, announcement)
+    excluded = set(announcement.excluded_user_ids or [])
+
+    items: list[dict[str, str | bool | None]] = []
+    seen_emails: set[str] = set()
+    active_emails: list[str] = []
+    for user in auto:
+        is_excluded = user.id in excluded
+        item: dict[str, str | bool | None] = {
+            "kind": "AUTO_USER",
+            "email": user.email,
+            "user_id": str(user.id),
+            "user_role": user.role.value if user.role else None,
+            "excluded": is_excluded,
+        }
+        items.append(item)
+        if not is_excluded and user.email and user.email not in seen_emails:
+            seen_emails.add(user.email)
+            active_emails.append(user.email)
+
+    for raw in announcement.extra_emails or []:
+        email = raw.strip()
+        if not email:
+            continue
+        items.append(
+            {
+                "kind": "EXTRA_EMAIL",
+                "email": email,
+                "user_id": None,
+                "user_role": None,
+                "excluded": False,
+            }
+        )
+        if email not in seen_emails:
+            seen_emails.add(email)
+            active_emails.append(email)
+
+    return items, active_emails
+
+
+def apply_recipient_overrides(
+    announcement: Announcement,
+    *,
+    excluded_user_ids: list[uuid.UUID] | None,
+    extra_emails: list[str] | None,
+) -> None:
+    """PATCH-style writer for the override columns. None = leave; an
+    explicit list (incl. empty) replaces the column."""
+    if excluded_user_ids is not None:
+        announcement.excluded_user_ids = list(excluded_user_ids)
+    if extra_emails is not None:
+        # Normalise: trim whitespace, drop empties, de-dupe in order.
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in extra_emails:
+            email = raw.strip()
+            if not email or email in seen:
+                continue
+            seen.add(email)
+            out.append(email)
+        announcement.extra_emails = out
+
+
 def mark_published(announcement: Announcement) -> None:
     """Stamp `notification_sent_at = now()` so the row drops out of
     the publish-due partial index. Caller commits."""

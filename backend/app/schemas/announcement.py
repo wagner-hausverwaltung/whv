@@ -56,6 +56,10 @@ class AnnouncementUpdateRequest(BaseModel):
     # collection, not a partial patch). Empty list explicitly clears
     # the narrowing — admin shifts back to property-wide.
     unit_ids: list[uuid.UUID] | None = None
+    # Recipient overrides — None = leave existing values alone. The
+    # admin SPA POSTs both lists on every recipient-editor save.
+    excluded_user_ids: list[uuid.UUID] | None = None
+    extra_emails: list[str] | None = None
 
 
 class AnnouncementCommentCreateRequest(BaseModel):
@@ -156,6 +160,11 @@ class AnnouncementResponse(BaseModel):
     # can render "n Einheiten" without a second request. Empty list
     # = property-wide-by-role (default behaviour).
     unit_ids: list[uuid.UUID] = []
+    # Recipient-editor overrides, exposed so the detail SPA can render
+    # them without a second request. Empty lists = "purely
+    # auto-resolved", which is the v1.0/v1.1 default.
+    excluded_user_ids: list[uuid.UUID] = []
+    extra_emails: list[str] = []
 
 
 class AnnouncementDetailResponse(AnnouncementResponse):
@@ -163,6 +172,36 @@ class AnnouncementDetailResponse(AnnouncementResponse):
 
     attachments: list[AnnouncementAttachmentResponse] = []
     comments: list[AnnouncementCommentResponse] = []
+
+
+class RecipientPreviewItem(BaseModel):
+    """One row of the recipient-editor preview.
+
+    `kind`:
+      - AUTO_USER     — auto-resolved via audience + unit filter
+      - EXTRA_EMAIL   — admin-added free-text email (no user account)
+
+    `excluded` is true only for AUTO_USER rows the admin has
+    unchecked — they appear in the preview struck-through. EXTRA_EMAIL
+    rows are always "included" by definition (removing one deletes the
+    row from extras).
+    """
+
+    kind: str  # "AUTO_USER" | "EXTRA_EMAIL"
+    email: str
+    user_id: uuid.UUID | None = None
+    user_role: str | None = None
+    excluded: bool = False
+
+
+class RecipientPreviewResponse(BaseModel):
+    """Full recipient-editor payload: the auto-resolved set + override
+    state + the resulting active recipient list the next send would go
+    to. The SPA renders the first three; `active_emails` is mainly
+    useful for tests + confirmation copy ('sendet an N Empfänger')."""
+
+    items: list[RecipientPreviewItem]
+    active_emails: list[str]
 
 
 class AnnouncementSendAttemptResponse(BaseModel):

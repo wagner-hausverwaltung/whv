@@ -851,6 +851,83 @@ async def test_publish_task_fans_out_due_announcements(
         assert fresh.notification_sent_at is not None
 
 
+async def test_recipient_preview_and_active_set_apply_overrides(
+    test_engine: AsyncEngine,
+) -> None:
+    """Auto-resolved set minus excluded_user_ids plus extra_emails.
+
+    Walks the full helper surface:
+      - build_recipient_preview returns 3 items (2 auto + 1 extra)
+      - one auto user is in excluded_user_ids → its item is `excluded`
+      - active_emails has the surviving auto user + the extra
+    """
+    from app.services.announcements import (
+        apply_recipient_overrides,
+        build_recipient_preview,
+        resolve_active_recipients,
+    )
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    user_a, _, _ = await _make_eligible_owner(test_engine, org=org, prop=prop)
+    user_b, _, _ = await _make_eligible_owner(test_engine, org=org, prop=prop)
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        a = Announcement(
+            organization_id=org.id,
+            property_id=prop.id,
+            created_by_user_id=user_a.id,
+            title="Overrides",
+            body="",
+            audience_eigentuemer=True,
+            audience_mieter=True,
+            audience_beirat=True,
+            scheduled_publish_at=datetime.now(UTC),
+        )
+        s.add(a)
+        await s.commit()
+        ann_id = a.id
+
+    # Apply overrides: exclude user_b, add an extra email.
+    async with sm() as s:
+        ann = await s.get(Announcement, ann_id)
+        assert ann is not None
+        apply_recipient_overrides(
+            ann,
+            excluded_user_ids=[user_b.id],
+            extra_emails=["external-contractor@example.com"],
+        )
+        await s.commit()
+
+    # Preview should reflect both — user_b row is excluded=True.
+    async with sm() as s:
+        ann = await s.get(Announcement, ann_id)
+        assert ann is not None
+        items, active = await build_recipient_preview(s, ann)
+    by_email = {item["email"]: item for item in items}
+    assert user_a.email in by_email
+    assert user_b.email in by_email
+    assert by_email[user_a.email]["excluded"] is False
+    assert by_email[user_b.email]["excluded"] is True
+    assert by_email[user_a.email]["kind"] == "AUTO_USER"
+    extra_item = next(i for i in items if i["kind"] == "EXTRA_EMAIL")
+    assert extra_item["email"] == "external-contractor@example.com"
+
+    # active = user_a + extra (user_b dropped via exclude).
+    assert set(active) == {user_a.email, "external-contractor@example.com"}
+
+    # resolve_active_recipients agrees.
+    async with sm() as s:
+        ann = await s.get(Announcement, ann_id)
+        assert ann is not None
+        active_pairs = await resolve_active_recipients(s, ann)
+    assert {email for _, email in active_pairs} == {
+        user_a.email,
+        "external-contractor@example.com",
+    }
+
+
 async def test_resolve_recipients_narrows_to_targeted_units(
     test_engine: AsyncEngine,
 ) -> None:
