@@ -335,6 +335,9 @@ class AnnouncementSendAttempt(Base):
         nullable=False,
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Stable categorisation of the failure for SPA-side branching:
+    # "rate_limited", "no_api_key", "upstream", or NULL on SUCCESS.
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -8,7 +8,23 @@ from app.config import Settings, get_settings
 
 
 class EmailError(Exception):
-    pass
+    """Send failed. `code` is a stable string the SPA can match on
+    to render a specific failure mode (rate-limit, missing key, etc.)
+    without parsing the free-text message. None when the caller
+    didn't know enough to categorise — SPA falls back to a generic
+    error message in that case."""
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+# Stable error-code constants. The SPA reads these to render
+# user-facing copy — change them carefully, every reference is a
+# product surface.
+EMAIL_ERROR_RATE_LIMITED = "rate_limited"
+EMAIL_ERROR_NO_API_KEY = "no_api_key"
+EMAIL_ERROR_UPSTREAM = "upstream"
 
 
 class EmailClient:
@@ -65,7 +81,10 @@ class EmailClient:
         applies its own bounce/DKIM logic correctly).
         """
         if not self._settings.resend_api_key:
-            raise EmailError("RESEND_API_KEY is not configured")
+            raise EmailError(
+                "RESEND_API_KEY is not configured",
+                code=EMAIL_ERROR_NO_API_KEY,
+            )
 
         from_value = f"{self._settings.email_from_name} <{self._settings.email_from_address}>"
         # Resend's `to` field accepts a list of valid `email@host` (or
@@ -90,7 +109,28 @@ class EmailClient:
             body["reply_to"] = reply_to
         response = await self._client.post("/emails", json=body)
         if response.status_code != 200:
-            raise EmailError(f"Resend returned {response.status_code}: {response.text[:200]}")
+            # Resend returns 429 for rate-limit (free tier 100/day,
+            # paid tiers higher). Marking it specifically lets the
+            # SPA show "Tageslimit erreicht" instead of a generic
+            # send error. Authoritative source: Resend's "rate_limit"
+            # error.type in the JSON body, but we also accept any
+            # 429 status as a defensive fallback for transient
+            # gateway responses.
+            code: str | None = EMAIL_ERROR_UPSTREAM
+            if response.status_code == 429:
+                code = EMAIL_ERROR_RATE_LIMITED
+            else:
+                try:
+                    body_json = response.json()
+                    err_type = body_json.get("type") if isinstance(body_json, dict) else None
+                    if isinstance(err_type, str) and "rate" in err_type.lower():
+                        code = EMAIL_ERROR_RATE_LIMITED
+                except (ValueError, AttributeError):
+                    pass
+            raise EmailError(
+                f"Resend returned {response.status_code}: {response.text[:200]}",
+                code=code,
+            )
         payload: dict[str, Any] = response.json()
         message_id = payload.get("id")
         if not isinstance(message_id, str):

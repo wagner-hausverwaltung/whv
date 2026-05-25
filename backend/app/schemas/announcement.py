@@ -230,20 +230,26 @@ class AnnouncementSendAttemptResponse(BaseModel):
     recipient_user_id: uuid.UUID | None = None
     status: str  # "SUCCESS" | "FAILED"
     error_message: str | None = None
+    # Stable categorisation for SPA branching: "rate_limited",
+    # "no_api_key", "upstream", or None on SUCCESS. SPA may show
+    # different copy depending on this code.
+    error_code: str | None = None
     attempted_at: datetime
 
 
 class AnnouncementResendSummary(BaseModel):
-    """Response shape for POST /admin/announcements/{id}/resend-failed.
+    """Response shape for POST /admin/announcements/{id}/resend.
 
-    `attempted` = how many recipients we just tried to resend to
-    (matches the latest-FAILED set). `succeeded` / `failed` capture
-    the outcome of the resend pass itself. `error_message_examples`
-    surfaces up to three distinct error strings so the admin sees
-    *why* the retries are still failing without having to dig into
-    individual rows."""
+    `attempted` = how many recipients we just tried to send to.
+    `succeeded` / `failed` capture the outcome of the resend pass
+    itself. `error_message_examples` surfaces up to three distinct
+    error strings so the admin sees *why* the retries are still
+    failing without having to dig into individual rows.
+    `dominant_error_code` is the most-frequent FAILED error_code in
+    this pass (e.g. "rate_limited") — None when nothing failed."""
 
     attempted: int
     succeeded: int
     failed: int
     error_message_examples: list[str] = []
+    dominant_error_code: str | None = None

@@ -947,25 +947,47 @@ export function AdminAnnouncementDetailPage() {
                   resendSummary.failed > 0 ? "warning" : "success"
                 }
               >
-                {t("admin.announcementDetail.resendSummary", {
-                  attempted: resendSummary.attempted,
-                  succeeded: resendSummary.succeeded,
-                  failed: resendSummary.failed,
-                })}
-                {resendSummary.error_message_examples.length > 0 && (
-                  <Box
-                    component="ul"
-                    sx={{ pl: 2, mt: 1, mb: 0, fontSize: "0.85rem" }}
-                  >
-                    {resendSummary.error_message_examples.map(
-                      (e, i) => (
+                {/* Branch the top-level copy on the dominant failure
+                    category. Rate-limit hits get a dedicated message
+                    so the admin understands the cause (and how to
+                    fix it) without parsing the raw Resend error. */}
+                {resendSummary.dominant_error_code === "rate_limited" ? (
+                  <>
+                    <Box component="strong" sx={{ display: "block" }}>
+                      {t("admin.announcementDetail.errorRateLimitedTitle")}
+                    </Box>
+                    {t("admin.announcementDetail.errorRateLimitedBody", {
+                      succeeded: resendSummary.succeeded,
+                      failed: resendSummary.failed,
+                    })}
+                  </>
+                ) : resendSummary.dominant_error_code === "no_api_key" ? (
+                  <>
+                    <Box component="strong" sx={{ display: "block" }}>
+                      {t("admin.announcementDetail.errorNoApiKeyTitle")}
+                    </Box>
+                    {t("admin.announcementDetail.errorNoApiKeyBody")}
+                  </>
+                ) : (
+                  t("admin.announcementDetail.resendSummary", {
+                    attempted: resendSummary.attempted,
+                    succeeded: resendSummary.succeeded,
+                    failed: resendSummary.failed,
+                  })
+                )}
+                {resendSummary.error_message_examples.length > 0 &&
+                  resendSummary.dominant_error_code !== "rate_limited" && (
+                    <Box
+                      component="ul"
+                      sx={{ pl: 2, mt: 1, mb: 0, fontSize: "0.85rem" }}
+                    >
+                      {resendSummary.error_message_examples.map((e, i) => (
                         <Box component="li" key={i}>
                           {e}
                         </Box>
-                      ),
-                    )}
-                  </Box>
-                )}
+                      ))}
+                    </Box>
+                  )}
               </Alert>
             )}
             {attempts === null ? (

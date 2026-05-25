@@ -811,19 +811,23 @@ def record_send_attempt(
     recipient_email: str,
     status: SendAttemptStatus,
     error_message: str | None = None,
+    error_code: str | None = None,
 ) -> AnnouncementSendAttempt:
     """Append a per-recipient send-attempt row. Caller commits.
 
     `recipient_user` is the resolved user at send time (or None for
     a replay where the user was deleted). `recipient_email` is what
     actually went out. On FAILED, `error_message` carries the
-    truncated EmailError string."""
+    truncated EmailError string and `error_code` carries the stable
+    category ("rate_limited", "no_api_key", "upstream") so the SPA
+    can branch on a known set rather than free-text parsing."""
     row = AnnouncementSendAttempt(
         announcement_id=announcement.id,
         recipient_user_id=recipient_user.id if recipient_user else None,
         recipient_email=recipient_email,
         status=status,
         error_message=error_message[:500] if error_message else None,
+        error_code=error_code,
     )
     session.add(row)
     return row

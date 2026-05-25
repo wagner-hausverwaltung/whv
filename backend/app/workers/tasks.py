@@ -298,9 +298,10 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                         except EmailError as exc:
                             failed += 1
                             logger.exception(
-                                "announcement fan-out failed: announcement=%s recipient=%s",
+                                "announcement fan-out failed: announcement=%s recipient=%s code=%s",
                                 fresh.id,
                                 recipient_email,
+                                exc.code,
                             )
                             announcements_svc.record_send_attempt(
                                 session,
@@ -309,6 +310,7 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                                 recipient_email=recipient_email,
                                 status=SendAttemptStatus.FAILED,
                                 error_message=str(exc),
+                                error_code=exc.code,
                             )
 
                     # Commit the per-recipient attempt rows in one go.

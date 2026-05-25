@@ -550,6 +550,9 @@ export interface AnnouncementSendAttemptResponse {
   // "SUCCESS" | "FAILED"
   status: string;
   error_message: string | null;
+  // Stable category for SPA branching:
+  // "rate_limited" | "no_api_key" | "upstream" | null
+  error_code: string | null;
   attempted_at: string;
 }
 
@@ -575,6 +578,9 @@ export interface AnnouncementResendSummary {
   succeeded: number;
   failed: number;
   error_message_examples: string[];
+  // Most-frequent FAILED error_code in this pass — drives the
+  // friendlier SPA copy (e.g. "Tageslimit erreicht" for rate_limited).
+  dominant_error_code: string | null;
 }
 
 export interface AnnouncementCommentVersionResponse {

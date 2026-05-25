@@ -872,6 +872,7 @@ async def admin_resend(
     succeeded = 0
     failed = 0
     errors: list[str] = []
+    error_codes: list[str] = []
     for recipient_user, recipient_email in recipient_pairs:
         try:
             await email_client.send(
@@ -898,8 +899,11 @@ async def admin_resend(
                 recipient_email=recipient_email,
                 status=SendAttemptStatus.FAILED,
                 error_message=str(exc),
+                error_code=exc.code,
             )
             errors.append(str(exc))
+            if exc.code:
+                error_codes.append(exc.code)
 
     session.add(
         AuditLog(
@@ -927,11 +931,21 @@ async def admin_resend(
         if len(distinct_errors) >= 3:
             break
 
+    # Dominant code = the most-frequent FAILED error_code. None if
+    # nothing failed (or every failure had a None code somehow).
+    dominant: str | None = None
+    if error_codes:
+        counts: dict[str, int] = {}
+        for c in error_codes:
+            counts[c] = counts.get(c, 0) + 1
+        dominant = max(counts.items(), key=lambda kv: kv[1])[0]
+
     return AnnouncementResendSummary(
         attempted=len(recipient_pairs),
         succeeded=succeeded,
         failed=failed,
         error_message_examples=distinct_errors,
+        dominant_error_code=dominant,
     )
 
 
