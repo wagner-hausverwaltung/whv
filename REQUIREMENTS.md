@@ -574,7 +574,15 @@ Property-scoped messages from Verwalter to Eigentümer / Mieter / Beirat, with a
 
 **Design choices** (full rationale in ADR-0006): audience as 3 booleans (not a join table); 10-min editorial delay with timer-reset-on-edit (each save extends the buffer); body as plain text (not Markdown — no XSS surface); hide-only moderation (reversible); 1-min Celery cadence.
 
-**Tests**: 19 backend tests in `app/tests/test_announcements.py` covering lifecycle, scope, audience filter, attachments, moderation, and fan-out idempotency.
+**Tests**: 24 backend tests in `app/tests/test_announcements.py` covering lifecycle, scope, audience filter, attachments, moderation, fan-out idempotency, comment edits, comment notifications, send-attempt logging, and per-unit targeting.
+
+**v1.1 follow-ups (shipped 2026-05-25)** — five extensions on the same day as v1.0; full design in ADR-0006:
+
+- **Comment edits** — author-only inline edit with `edited_at` timestamp + "bearbeitet" indicator on the portal.
+- **Cross-property admin queue** — `GET /admin/announcements` + new top-level admin nav item showing every Mitteilung across the org with status filter chips.
+- **Comment notifications** — when a portal user comments, fan out to the Verwalter team + prior non-hidden commenters (excl. the new commenter). Failures are best-effort.
+- **Per-recipient send-attempt log + manual resend** — append-only `announcement_send_attempts` table, "Zustellprotokoll" panel on the admin detail page, "Erneut senden (N)" button that retries every recipient whose latest attempt is FAILED.
+- **Per-unit recipient narrowing** — optional `announcement_units` junction. Empty = property-wide-by-role (default). Non-empty = the audience role filter is intersected with users on contracts for the listed units. Admin Autocomplete picker in compose + edit forms; `n Einheit(en)` chip on list rows.
 
 ### 10.9 Definition of Done (Phase 4)
 - All four channels (portal, email, WhatsApp, ePost) live and routed via dispatcher

@@ -78,13 +78,28 @@ The fan-out task issues one Resend `POST /emails` per audience-matched user. BCC
 
 In production on staging from 2026-05-25. 19 backend tests (lifecycle, scope, audience, moderation, fan-out idempotency) all passing. Admin SPA tab + detail page live on `staging.admin.wagner-hausverwaltung.com`; portal list + detail on `staging.portal.wagner-hausverwaltung.com`.
 
-**Not in v1, follow-ups if real-world usage demands**:
+**Still not in v1.1, follow-ups if real-world usage demands**:
 
-- Comment edits (currently: post a follow-up). Adds an `edited_at` column and an "edit" toggle on each owner's own comment.
-- Comment notifications (admin sees new comments in the SPA; users see them on next open). Adds Celery batching ("digest of new comments on Mitteilung X").
-- Cross-property admin "Alle Mitteilungen" queue. Currently per-property only; bolt on when the WHV manages enough properties that this becomes painful.
-- Resend-failed-recipients button. Stub until we see a real bounce.
+- Per-comment edit history (currently only `edited_at` is captured; the prior body is lost). Add an `announcement_comment_versions` table if we ever need to argue with an author about "what they actually wrote".
+- Comment-thread digest emails. Currently every comment fires its own notification — sufficient at the v1 volume we expect, but a noisy thread could spam Verwalter. Trivially solvable by switching the per-comment send to a Celery debounce that batches every 10 min.
 - iOS surface — `Messages` inbox screen in REQUIREMENTS.md §8.3 maps to this domain; binding will happen in the Phase 2 iOS scaffold.
+
+## v1.1 follow-ups (shipped 2026-05-25)
+
+Five extensions landed the same day as v1.0:
+
+1. **Comment edits** — `announcement_comments.edited_at` + author-only `PATCH /me/announcements/{id}/comments/{cid}`. Admin can't edit user content (separate moderation surface). Portal renders a "bearbeitet" indicator + inline edit form with pencil icon on own rows.
+2. **Cross-property admin queue** — `GET /admin/announcements` + new top-level nav entry → `AdminAnnouncementsAllPage`. Filter chips (`?status=all|scheduled|published`) + property column on each row. Compose still happens per-property tab to keep the scope-target obvious.
+3. **Comment notifications** — On every `POST /me/announcements/{id}/comments` commit, fan out to (Verwalter team for the org) ∪ (prior non-hidden commenters on the thread), excluding the new commenter. Hidden commenters explicitly don't get re-pinged — moderated-out users shouldn't keep receiving thread updates. Failures are caught + logged WARN; the comment commit stands.
+4. **Per-recipient send-attempt log + manual resend** — New `announcement_send_attempts` table (append-only). The Celery publish task and the manual resend both write one row per recipient (SUCCESS / FAILED + error_message). Admin SPA renders a "Zustellprotokoll" panel under the detail page with status chips + an "Erneut senden (N)" button that hits `POST /admin/announcements/{id}/resend-failed`. The retry resolves recipients as "latest attempt per email is FAILED" — a row that previously failed but later succeeded drops out of the retry set on its own.
+5. **Per-unit recipient narrowing** — New `announcement_units(announcement_id, unit_id)` junction. Empty set = property-wide-by-role (no behaviour change for v1 callers, backwards compatible). Non-empty = the audience-role filter is intersected with `Contract.unit_id IN (target_set)`, so e.g. only Mietern of unit 3a + 4b get the Aufzug-Wartung notice. The admin SPA Autocomplete picker in both compose + edit forms loads the property's units once and chooses a subset; a `{count} Einheit(en)` chip on list rows surfaces the narrowing at a glance.
+
+**Decisions made during v1.1 (not pre-planned in v1.0 spec)**:
+
+- **Comment notification recipients**: Verwalter + prior commenters, not just the Verwalter. Threads on a Mitteilung tend to involve a small handful of owners; pinging prior participants keeps the back-and-forth visible to them without forcing a portal check. Trade-off: a noisy thread spams; debounce is the easy follow-up (see "Not in v1.1" above).
+- **Resend retry mode**: manual button, not auto-backoff. Auto-retry on transient failures sounds appealing but the failure mode we actually see (invalid recipient address, bounced domain) is permanent — auto-retry on those is throwing requests into a void. Manual gives the admin a chance to fix the address or drop the recipient before retrying.
+- **Per-unit targeting model**: rows in a junction table, not a denormalised array column on the announcement. Junction makes the SQL trivially-correct (`Contract.unit_id IN subquery`) and gives us a future-friendly model if we need per-unit visibility checks on the portal side too. Costs one extra INSERT-per-unit on save; negligible at v1 scale.
+- **Send-attempt log is append-only**: Each retry writes a new row, the original FAILED stays. "Latest attempt per recipient" resolves via timestamp. Simpler than mutating rows, and the audit trail captures the sequence ("failed at 9:00, retried at 9:05, succeeded at 9:30") — useful for figuring out whether a slow bounce is from a transient outage or a permanent block.
 
 ## Consequences
 
