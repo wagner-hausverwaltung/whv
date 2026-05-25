@@ -47,6 +47,8 @@ import { useTranslation } from "react-i18next";
 import { API_BASE_URL, api } from "@/api/client";
 import type {
   AnnouncementDetailResponse,
+  AnnouncementResendSummary,
+  AnnouncementSendAttemptResponse,
   AnnouncementUpdateRequest,
 } from "@/api/types";
 
@@ -72,6 +74,17 @@ export function AdminAnnouncementDetailPage() {
   const [audE, setAudE] = useState(true);
   const [audM, setAudM] = useState(true);
   const [audB, setAudB] = useState(true);
+
+  // Per-recipient send-attempt log (admin-only). Lazy-loaded on
+  // demand because most admin sessions never need to inspect it; the
+  // detail page itself stays snappy for the common path.
+  const [attempts, setAttempts] = useState<
+    AnnouncementSendAttemptResponse[] | null
+  >(null);
+  const [attemptsError, setAttemptsError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendSummary, setResendSummary] =
+    useState<AnnouncementResendSummary | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -190,6 +203,63 @@ export function AdminAnnouncementDetailPage() {
       await load();
     } catch {
       setError(t("admin.announcementDetail.attachmentDeleteFailed"));
+    }
+  };
+
+  const loadAttempts = useCallback(async () => {
+    if (!id) return;
+    setAttemptsError(null);
+    try {
+      const r = await api.get<AnnouncementSendAttemptResponse[]>(
+        `/admin/announcements/${id}/send-attempts`,
+      );
+      setAttempts(r.data);
+    } catch {
+      setAttemptsError(t("admin.announcementDetail.attemptsLoadFailed"));
+    }
+  }, [id, t]);
+
+  // Auto-load attempts on first render — the table is small and admin
+  // wants to see status immediately if they navigated here to debug
+  // a failed send.
+  useEffect(() => {
+    if (data && data.notification_sent_at) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadAttempts();
+    }
+  }, [data, loadAttempts]);
+
+  const failedAttemptsByEmail = (() => {
+    // Resolve "latest attempt per recipient", then filter to FAILED.
+    if (!attempts) return new Set<string>();
+    const latest = new Map<string, AnnouncementSendAttemptResponse>();
+    // attempts come back newest-first; first sighting per email wins.
+    for (const a of attempts) {
+      if (!latest.has(a.recipient_email)) {
+        latest.set(a.recipient_email, a);
+      }
+    }
+    const failed = new Set<string>();
+    for (const [email, a] of latest) {
+      if (a.status === "FAILED") failed.add(email);
+    }
+    return failed;
+  })();
+
+  const resendFailed = async () => {
+    if (!id) return;
+    setResending(true);
+    setResendSummary(null);
+    try {
+      const r = await api.post<AnnouncementResendSummary>(
+        `/admin/announcements/${id}/resend-failed`,
+      );
+      setResendSummary(r.data);
+      await loadAttempts();
+    } catch {
+      setAttemptsError(t("admin.announcementDetail.resendFailed"));
+    } finally {
+      setResending(false);
     }
   };
 
@@ -503,6 +573,144 @@ export function AdminAnnouncementDetailPage() {
           )}
         </Stack>
       </Paper>
+
+      {/* Send-attempt log (visible only post-publish) */}
+      {isPublished && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 1,
+              }}
+            >
+              <Typography variant="h6">
+                {t("admin.announcementDetail.attemptsTitle")}
+              </Typography>
+              {failedAttemptsByEmail.size > 0 && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="warning"
+                  onClick={resendFailed}
+                  disabled={resending}
+                >
+                  {resending
+                    ? t("common.loading")
+                    : t("admin.announcementDetail.resendFailedButton", {
+                        count: failedAttemptsByEmail.size,
+                      })}
+                </Button>
+              )}
+            </Box>
+            {attemptsError && <Alert severity="error">{attemptsError}</Alert>}
+            {resendSummary && (
+              <Alert
+                severity={
+                  resendSummary.failed > 0 ? "warning" : "success"
+                }
+              >
+                {t("admin.announcementDetail.resendSummary", {
+                  attempted: resendSummary.attempted,
+                  succeeded: resendSummary.succeeded,
+                  failed: resendSummary.failed,
+                })}
+                {resendSummary.error_message_examples.length > 0 && (
+                  <Box
+                    component="ul"
+                    sx={{ pl: 2, mt: 1, mb: 0, fontSize: "0.85rem" }}
+                  >
+                    {resendSummary.error_message_examples.map(
+                      (e, i) => (
+                        <Box component="li" key={i}>
+                          {e}
+                        </Box>
+                      ),
+                    )}
+                  </Box>
+                )}
+              </Alert>
+            )}
+            {attempts === null ? (
+              <Typography variant="body2" color="text.secondary">
+                {t("common.loading")}
+              </Typography>
+            ) : attempts.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                {t("admin.announcementDetail.attemptsEmpty")}
+              </Typography>
+            ) : (
+              <Stack spacing={0.5}>
+                {attempts.map((a) => (
+                  <Box
+                    key={a.id}
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 1,
+                      px: 1,
+                      py: 0.5,
+                      borderLeft: 3,
+                      borderColor:
+                        a.status === "SUCCESS"
+                          ? "success.light"
+                          : "error.light",
+                      bgcolor:
+                        a.status === "SUCCESS"
+                          ? "transparent"
+                          : "error.50",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "ui-monospace, Menlo, monospace",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        {a.recipient_email}
+                      </Typography>
+                      {a.error_message && (
+                        <Typography
+                          variant="caption"
+                          color="error.main"
+                          sx={{ display: "block" }}
+                        >
+                          {a.error_message}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "center" }}
+                    >
+                      <Chip
+                        size="small"
+                        label={a.status}
+                        color={a.status === "SUCCESS" ? "success" : "error"}
+                        variant="outlined"
+                      />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ whiteSpace: "nowrap" }}
+                      >
+                        {new Date(a.attempted_at).toLocaleString("de-DE")}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+      )}
 
       {/* Comments / moderation */}
       <Paper variant="outlined" sx={{ p: 2 }}>

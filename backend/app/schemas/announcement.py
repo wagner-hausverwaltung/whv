@@ -151,3 +151,34 @@ class AnnouncementDetailResponse(AnnouncementResponse):
 
     attachments: list[AnnouncementAttachmentResponse] = []
     comments: list[AnnouncementCommentResponse] = []
+
+
+class AnnouncementSendAttemptResponse(BaseModel):
+    """One row of the per-recipient fan-out log. Admin-only — the
+    owner endpoints never expose this surface."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    announcement_id: uuid.UUID
+    recipient_email: str
+    recipient_user_id: uuid.UUID | None = None
+    status: str  # "SUCCESS" | "FAILED"
+    error_message: str | None = None
+    attempted_at: datetime
+
+
+class AnnouncementResendSummary(BaseModel):
+    """Response shape for POST /admin/announcements/{id}/resend-failed.
+
+    `attempted` = how many recipients we just tried to resend to
+    (matches the latest-FAILED set). `succeeded` / `failed` capture
+    the outcome of the resend pass itself. `error_message_examples`
+    surfaces up to three distinct error strings so the admin sees
+    *why* the retries are still failing without having to dig into
+    individual rows."""
+
+    attempted: int
+    succeeded: int
+    failed: int
+    error_message_examples: list[str] = []

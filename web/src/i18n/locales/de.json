@@ -211,7 +211,13 @@
       "commentsEmpty": "Noch keine Kommentare.",
       "commentHidden": "verborgen",
       "hideComment": "Kommentar verbergen",
-      "unhideComment": "Wieder sichtbar machen"
+      "unhideComment": "Wieder sichtbar machen",
+      "attemptsTitle": "Zustellprotokoll",
+      "attemptsEmpty": "Noch keine Zustellungen protokolliert.",
+      "attemptsLoadFailed": "Zustellprotokoll konnte nicht geladen werden.",
+      "resendFailedButton": "Erneut senden ({{count}})",
+      "resendFailed": "Erneut senden fehlgeschlagen.",
+      "resendSummary": "{{attempted}} erneut versandt — {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen."
     },
     "invitesPage": {
       "title": "Einladungen",

@@ -211,7 +211,13 @@
       "commentsEmpty": "No comments yet.",
       "commentHidden": "hidden",
       "hideComment": "Hide comment",
-      "unhideComment": "Restore visibility"
+      "unhideComment": "Restore visibility",
+      "attemptsTitle": "Delivery log",
+      "attemptsEmpty": "No delivery attempts recorded yet.",
+      "attemptsLoadFailed": "Couldn’t load the delivery log.",
+      "resendFailedButton": "Resend ({{count}})",
+      "resendFailed": "Resend failed.",
+      "resendSummary": "Resent {{attempted}} — {{succeeded}} OK, {{failed}} failed."
     },
     "invitesPage": {
       "title": "Invitations",

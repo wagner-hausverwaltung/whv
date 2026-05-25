@@ -50,6 +50,7 @@ from app.models import (
     AnnouncementComment,
     AuditLog,
     Property,
+    SendAttemptStatus,
     User,
     UserRole,
 )
@@ -61,7 +62,9 @@ from app.schemas.announcement import (
     AnnouncementCommentResponse,
     AnnouncementCreateRequest,
     AnnouncementDetailResponse,
+    AnnouncementResendSummary,
     AnnouncementResponse,
+    AnnouncementSendAttemptResponse,
     AnnouncementUpdateRequest,
 )
 from app.services import announcements as svc
@@ -673,6 +676,155 @@ def _serve_attachment(attachment: AnnouncementAttachment) -> FileResponse:
         path,
         media_type=attachment.mime_type or "application/octet-stream",
         filename=attachment.filename,
+    )
+
+
+@admin_router.get(
+    "/announcements/{announcement_id}/send-attempts",
+    response_model=list[AnnouncementSendAttemptResponse],
+)
+async def admin_list_send_attempts(
+    announcement_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AnnouncementSendAttemptResponse]:
+    """Per-recipient send log for an announcement. Newest first."""
+    announcement = await svc.get_admin(
+        session,
+        announcement_id=announcement_id,
+        organization_id=current_user.organization_id,
+    )
+    if announcement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Announcement not found",
+        )
+    rows = await svc.list_send_attempts(session, announcement.id)
+    return [AnnouncementSendAttemptResponse.model_validate(r) for r in rows]
+
+
+@admin_router.post(
+    "/announcements/{announcement_id}/resend-failed",
+    response_model=AnnouncementResendSummary,
+)
+async def admin_resend_failed(
+    announcement_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> AnnouncementResendSummary:
+    """Retry every recipient whose latest send attempt is FAILED.
+
+    Resolves the failed-recipient set at request time. Each retry
+    writes a new attempt row (the original FAILED stays in the
+    audit trail); a successful retry shifts the "latest" outcome
+    for that address to SUCCESS, so it drops out of future retries.
+    """
+    announcement = await svc.get_admin(
+        session,
+        announcement_id=announcement_id,
+        organization_id=current_user.organization_id,
+    )
+    if announcement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Announcement not found",
+        )
+
+    failed_emails = await svc.list_failed_recipients_for_resend(session, announcement.id)
+    if not failed_emails:
+        return AnnouncementResendSummary(
+            attempted=0, succeeded=0, failed=0, error_message_examples=[]
+        )
+
+    # Rebuild the email body from current state so any post-publish
+    # admin edits land in the retry — that's what the recipient
+    # should see if the original send didn't reach them.
+    prop = await session.scalar(select(Property).where(Property.id == announcement.property_id))
+    property_name = prop.name if prop else "—"
+    attachments = await svc.list_attachments(session, announcement.id)
+    # Reuse the same on-disk → base64 helper the Celery task uses.
+    from app.integrations.email.announcements import render_publish_email
+    from app.workers.tasks import _read_attachments_for_send
+
+    resend_attachments = _read_attachments_for_send(attachments)
+    subject, html, text = render_publish_email(
+        announcement_id=str(announcement.id),
+        title=announcement.title,
+        body=announcement.body,
+        property_name=property_name,
+        published_at=announcement.notification_sent_at or announcement.updated_at,
+        attachment_count=len(resend_attachments),
+    )
+
+    user_by_email: dict[str, User] = {}
+    if failed_emails:
+        users = (await session.scalars(select(User).where(User.email.in_(failed_emails)))).all()
+        user_by_email = {u.email: u for u in users}
+
+    succeeded = 0
+    failed = 0
+    errors: list[str] = []
+    for recipient_email in failed_emails:
+        try:
+            await email_client.send(
+                to=[recipient_email],
+                subject=subject,
+                html=html,
+                text=text,
+                attachments=resend_attachments or None,
+            )
+            svc.record_send_attempt(
+                session,
+                announcement=announcement,
+                recipient_user=user_by_email.get(recipient_email),
+                recipient_email=recipient_email,
+                status=SendAttemptStatus.SUCCESS,
+            )
+            succeeded += 1
+        except EmailError as exc:
+            failed += 1
+            svc.record_send_attempt(
+                session,
+                announcement=announcement,
+                recipient_user=user_by_email.get(recipient_email),
+                recipient_email=recipient_email,
+                status=SendAttemptStatus.FAILED,
+                error_message=str(exc),
+            )
+            errors.append(str(exc))
+
+    session.add(
+        AuditLog(
+            organization_id=announcement.organization_id,
+            actor_user_id=current_user.id,
+            action="announcement_resend_failed",
+            target_type="announcements",
+            target_id=str(announcement.id),
+            payload_json={
+                "attempted": len(failed_emails),
+                "succeeded": succeeded,
+                "failed": failed,
+            },
+        )
+    )
+    await session.commit()
+
+    # De-dupe error strings, surface up to 3 to keep the SPA toast tidy.
+    distinct_errors: list[str] = []
+    seen: set[str] = set()
+    for e in errors:
+        if e and e not in seen:
+            distinct_errors.append(e[:200])
+            seen.add(e)
+        if len(distinct_errors) >= 3:
+            break
+
+    return AnnouncementResendSummary(
+        attempted=len(failed_emails),
+        succeeded=succeeded,
+        failed=failed,
+        error_message_examples=distinct_errors,
     )
 
 

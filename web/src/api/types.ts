@@ -526,3 +526,21 @@ export interface AnnouncementUpdateRequest {
   audience_mieter?: boolean;
   audience_beirat?: boolean;
 }
+
+export interface AnnouncementSendAttemptResponse {
+  id: string;
+  announcement_id: string;
+  recipient_email: string;
+  recipient_user_id: string | null;
+  // "SUCCESS" | "FAILED"
+  status: string;
+  error_message: string | null;
+  attempted_at: string;
+}
+
+export interface AnnouncementResendSummary {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  error_message_examples: string[];
+}
