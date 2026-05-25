@@ -547,7 +547,36 @@ circular_votes (id, resolution_id, owner_contact_id, choice,
 - [ ] Pre-ETV: owners can browse all invoices of the Jahresabrechnung in the portal (huge time-saver vs. in-person inspection)
 - [ ] Documents pulled from Impower or SharePoint, ACL-checked, watermarked with viewer name + timestamp
 
-### 10.8 Definition of Done (Phase 4)
+### 10.8 Announcements / Mitteilungen — ✅ shipped 2026-05-25
+
+Property-scoped messages from Verwalter to Eigentümer / Mieter / Beirat, with an editorial delay before fan-out, attachments, and an in-portal comment thread with admin moderation. The closest analog is a tenant-association bulletin board: many-to-some, low-volume, often time-sensitive ("Wasser fällt morgen 9–11 Uhr aus"), occasionally with a PDF protocol attached.
+
+**Data model** (`announcements` + `announcement_attachments` + `announcement_comments`):
+
+- Audience: three booleans (`audience_eigentuemer`, `audience_mieter`, `audience_beirat`) with a CHECK constraint that at least one is true. Audience is applied **at read time** so post-publish edits take effect immediately on the portal — no audience snapshot.
+- Lifecycle: create → `scheduled_publish_at = now() + 10 min` → each PATCH while unpublished resets the timer (editorial buffer) → fan-out → `notification_sent_at` stamped → row drops out of the publish-due partial index.
+- Post-publish edits are allowed; the portal shows a "bearbeitet am DD.MM." indicator when `updated_at` exceeds `notification_sent_at + 60s`.
+- Soft-delete via `deleted_at`. Pre-publish deletes also prevent fan-out. Comments are not soft-deleted with the parent but become invisible by virtue of the parent being hidden.
+
+**Comment moderation**: hide-only, reversible. `is_hidden = true` filters the comment out of all non-admin reads; `hidden_at` / `hidden_by_user_id` / `hidden_reason` provide an audit trail. No hard-delete in v1.
+
+**Fan-out**: Celery beat task `publish_due_announcements` runs every minute. Hits a partial index `WHERE notification_sent_at IS NULL AND deleted_at IS NULL`, so the scan stays O(due-rows) regardless of historical volume. Per-recipient send (no BCC leak); `notification_sent_at` stamped *before* the send loop to make retries idempotent. Email body = subject + body + attachment list + portal deep link, sent via Resend with binary attachments base64-encoded.
+
+**API surface** (full list in `app/api/v1/announcements.py`):
+
+- Admin: `POST/GET /admin/properties/{pid}/announcements`, `GET/PATCH/DELETE /admin/announcements/{id}`, `POST /admin/announcements/{id}/publish-now`, attachment + comment-moderation endpoints.
+- Owner: `GET /me/properties/{pid}/announcements`, `GET /me/announcements/{id}`, attachment downloads, `POST /me/announcements/{id}/comments`.
+
+**UI**:
+
+- Admin: a "Mitteilungen" tab on the property detail page (alongside Übersicht / Tickets / Dokumente / Firmen); compose lives in a modal on the list; `/admin/announcements/:id` is the single-screen detail with edit + publish-now + delete + attachments + comments + per-comment hide/unhide.
+- Portal: an entry button on the property detail page → `/properties/:id/announcements` list → `/announcements/:id` detail with attachments + comment thread + compose box.
+
+**Design choices** (full rationale in ADR-0006): audience as 3 booleans (not a join table); 10-min editorial delay with timer-reset-on-edit (each save extends the buffer); body as plain text (not Markdown — no XSS surface); hide-only moderation (reversible); 1-min Celery cadence.
+
+**Tests**: 19 backend tests in `app/tests/test_announcements.py` covering lifecycle, scope, audience filter, attachments, moderation, and fan-out idempotency.
+
+### 10.9 Definition of Done (Phase 4)
 - All four channels (portal, email, WhatsApp, ePost) live and routed via dispatcher
 - At least one Umlaufbeschluss successfully run end-to-end with a real WEG
 - One ETV held in hybrid mode
