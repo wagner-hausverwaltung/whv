@@ -19,6 +19,7 @@ struct EinstellungenView: View {
     @EnvironmentObject var authStore: AuthStore
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
     @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var biometricLock: BiometricLockStore
 
     @StateObject private var dsgvo = DsgvoActionsStore()
     @State private var exportURL: URL?
@@ -31,6 +32,7 @@ struct EinstellungenView: View {
                 liegenschaftSection
                 appearanceSection
                 languageSection
+                sicherheitSection
                 datenschutzSection
                 rechtlichesSection
                 infoSection
@@ -175,6 +177,38 @@ struct EinstellungenView: View {
                 }
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    @ViewBuilder
+    private var sicherheitSection: some View {
+        if biometricLock.isAvailable {
+            Section {
+                Toggle(isOn: $biometricLock.enabled) {
+                    Label(
+                        biometricLock.biometryLabel.isEmpty
+                            ? "App-Sperre"
+                            : "App-Sperre mit \(biometricLock.biometryLabel)",
+                        systemImage: biometryIcon
+                    )
+                }
+            } header: {
+                Text("Sicherheit")
+            } footer: {
+                Text(
+                    "Die App wird gesperrt, wenn sie länger als eine "
+                    + "Minute im Hintergrund war. Kurze Tab-Wechsel "
+                    + "lösen keine Abfrage aus."
+                )
+            }
+        }
+    }
+
+    private var biometryIcon: String {
+        switch biometricLock.biometryLabel {
+        case "Face ID": return "faceid"
+        case "Touch ID": return "touchid"
+        default: return "lock.fill"
         }
     }
 

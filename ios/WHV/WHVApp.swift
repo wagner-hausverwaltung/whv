@@ -20,14 +20,40 @@ struct WHVApp: App {
     @StateObject private var liegenschaftStore = LiegenschaftStore()
     @StateObject private var settings = SettingsStore()
     @StateObject private var deepLinkRouter = DeepLinkRouter()
+    @StateObject private var biometricLock = BiometricLockStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            rootView
-                .environmentObject(authStore)
-                .environmentObject(liegenschaftStore)
-                .environmentObject(settings)
-                .environmentObject(deepLinkRouter)
+            ZStack {
+                rootView
+                    .environmentObject(authStore)
+                    .environmentObject(liegenschaftStore)
+                    .environmentObject(settings)
+                    .environmentObject(deepLinkRouter)
+                    .environmentObject(biometricLock)
+                // Lock overlay sits on top of the entire tree when
+                // active — covers every tab + every nav stack +
+                // every modal sheet underneath. Sign-in is gated
+                // separately (rootView), so the lock only matters
+                // for already-authenticated sessions.
+                if biometricLock.isLocked && authStore.signedIn {
+                    BiometricLockView()
+                        .environmentObject(biometricLock)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: biometricLock.isLocked)
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .background:
+                    biometricLock.didEnterBackground()
+                case .active:
+                    biometricLock.didBecomeActive()
+                default:
+                    break
+                }
+            }
                 // Widget taps + Universal Links land here. The
                 // router decodes them; RootTabView (when mounted)
                 // observes pendingTarget and reacts. Links that
