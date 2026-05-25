@@ -44,6 +44,7 @@ import {
   type AgendaItemResponse,
   type AgendaItemType,
   type AgendaItemVoteResult,
+  type AgendaItemVotingBasis,
   type AssemblyDetailResponse,
   type AssemblyStatus,
 } from "@/api/types";
@@ -459,16 +460,25 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
   const [voteNo, setVoteNo] = useState(item.vote_no);
   const [voteAbstain, setVoteAbstain] = useState(item.vote_abstain);
   const [voteResult, setVoteResult] = useState<AgendaItemVoteResult | "">(item.vote_result ?? "");
+  const [votingBasis, setVotingBasis] = useState<AgendaItemVotingBasis | "">(
+    item.voting_basis ?? "",
+  );
+  const [presentCount, setPresentCount] = useState<string>(
+    item.present_count !== null ? String(item.present_count) : "",
+  );
   const [savingVote, setSavingVote] = useState(false);
 
   const saveVote = async () => {
     setSavingVote(true);
     try {
+      const parsedPresent = presentCount.trim();
       await api.patch(`/admin/agenda-items/${item.id}`, {
         vote_yes: voteYes,
         vote_no: voteNo,
         vote_abstain: voteAbstain,
         vote_result: voteResult || null,
+        voting_basis: votingBasis || null,
+        present_count: parsedPresent ? parseInt(parsedPresent, 10) : null,
       });
       await onChanged();
     } finally {
@@ -555,7 +565,36 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase" }}>
                 Abstimmungsergebnis ({total} Stimmen)
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mt: 1, flexWrap: "wrap", rowGap: 1, alignItems: "flex-start" }}
+              >
+                <TextField
+                  label="Stimmrecht"
+                  select
+                  size="small"
+                  value={votingBasis}
+                  onChange={(e) =>
+                    setVotingBasis(e.target.value as AgendaItemVotingBasis | "")
+                  }
+                  sx={{ minWidth: 180 }}
+                >
+                  <MenuItem value="">—</MenuItem>
+                  <MenuItem value="KOPF">Kopfprinzip</MenuItem>
+                  <MenuItem value="MEA">Anteilsprinzip (MEA)</MenuItem>
+                  <MenuItem value="OBJEKT">Objektprinzip (Einheiten)</MenuItem>
+                </TextField>
+                <TextField
+                  label="Anwesend"
+                  type="number"
+                  size="small"
+                  value={presentCount}
+                  onChange={(e) => setPresentCount(e.target.value)}
+                  sx={{ width: 110 }}
+                  placeholder=""
+                  slotProps={{ htmlInput: { min: 0 } }}
+                />
                 <TextField
                   label="Ja"
                   type="number"
