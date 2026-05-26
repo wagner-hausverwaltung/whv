@@ -135,10 +135,7 @@ private struct AnnouncementList: View {
                 ContentUnavailableView(
                     "Keine Mitteilungen",
                     systemImage: "megaphone",
-                    description: Text(
-                        "Sobald die Verwaltung eine Mitteilung veröffentlicht, "
-                        + "erscheint sie hier."
-                    )
+                    description: Text("Sobald die Verwaltung eine Mitteilung veröffentlicht, erscheint sie hier.")
                 )
             } else {
                 List {

@@ -380,6 +380,16 @@
         }
       }
     },
+    "Das Protokoll wird in der Regel innerhalb von vier Wochen nach der Versammlung hochgeladen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The protocol is usually uploaded within four weeks of the assembly."
+          }
+        }
+      }
+    },
     "Datenschutz": {
       "localizations": {
         "en": {
@@ -416,6 +426,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Demo mode — no real data"
+          }
+        }
+      }
+    },
+    "Die App wird gesperrt, wenn sie länger als eine Minute im Hintergrund war. Kurze Tab-Wechsel lösen keine Abfrage aus.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app locks when it has been in the background for more than a minute. Quick tab switches don’t trigger a prompt."
           }
         }
       }
@@ -603,6 +623,16 @@
         }
       }
     },
+    "Export erfolgt nach DSGVO Art. 20 als JSON-Datei. Konto löschen deaktiviert Ihr Konto sofort; die endgültige Löschung erfolgt nach 30 Tagen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export follows GDPR Art. 20 as a JSON file. Deleting the account deactivates it immediately; the final deletion happens after 30 days."
+          }
+        }
+      }
+    },
     "Fachinfo": {
       "localizations": {
         "en": {
@@ -683,12 +713,62 @@
         }
       }
     },
+    "Hier erscheinen Ihre Anfragen + Schadensmeldungen an die Verwaltung.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your requests and damage reports to the management will appear here."
+          }
+        }
+      }
+    },
+    "Hier können Sie Rückfragen zu dieser Mitteilung stellen. Antworten erscheinen direkt unter der Frage.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can ask follow-up questions about this announcement here. Replies appear directly below the question."
+          }
+        }
+      }
+    },
+    "Hier können Sie Rückfragen zu dieser Versammlung stellen. Antworten erscheinen direkt unter der Frage.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can ask follow-up questions about this assembly here. Replies appear directly below the question."
+          }
+        }
+      }
+    },
     "Hochgeladen am %@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Uploaded on %@"
+          }
+        }
+      }
+    },
+    "Ihr Konto ist noch nicht mit einer Liegenschaft verknüpft. Bitte wenden Sie sich an die Verwaltung.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account isn’t linked to a property yet. Please contact the management."
+          }
+        }
+      }
+    },
+    "Ihr Konto wird sofort deaktiviert und alle aktiven Sitzungen beendet. Die DSGVO-konforme endgültige Löschung erfolgt nach 30 Tagen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account will be deactivated immediately and all active sessions ended. The GDPR-compliant final deletion happens after 30 days."
           }
         }
       }
@@ -869,6 +949,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Doorbell sign"
+          }
+        }
+      }
+    },
+    "Kommentare dienen Rückfragen — formale Anfechtungen erfolgen außerhalb des Portals.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comments are for follow-up questions — formal challenges happen outside the portal."
           }
         }
       }
@@ -1355,6 +1445,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Signed protocol"
+          }
+        }
+      }
+    },
+    "Sobald die Verwaltung eine Mitteilung veröffentlicht, erscheint sie hier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As soon as the management publishes an announcement, it appears here."
+          }
+        }
+      }
+    },
+    "Sobald die Verwaltung eine Versammlung anlegt, erscheint sie hier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As soon as the management schedules an assembly, it appears here."
           }
         }
       }

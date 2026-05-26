@@ -170,10 +170,7 @@ struct TicketsTab: View {
             ContentUnavailableView(
                 "Keine Tickets",
                 systemImage: "tray",
-                description: Text(
-                    "Hier erscheinen Ihre Anfragen + Schadensmeldungen "
-                    + "an die Verwaltung."
-                )
+                description: Text("Hier erscheinen Ihre Anfragen + Schadensmeldungen an die Verwaltung.")
             )
         } else {
             TicketsList(tickets: store.tickets) {

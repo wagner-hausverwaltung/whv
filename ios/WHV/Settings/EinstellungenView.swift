@@ -55,11 +55,7 @@ struct EinstellungenView: View {
                     }
                 }
             } message: {
-                Text(
-                    "Ihr Konto wird sofort deaktiviert und alle "
-                    + "aktiven Sitzungen beendet. Die DSGVO-konforme "
-                    + "endgültige Löschung erfolgt nach 30 Tagen."
-                )
+                Text("Ihr Konto wird sofort deaktiviert und alle aktiven Sitzungen beendet. Die DSGVO-konforme endgültige Löschung erfolgt nach 30 Tagen.")
             }
             .sheet(
                 item: Binding(
@@ -198,11 +194,7 @@ struct EinstellungenView: View {
             } header: {
                 Text("Sicherheit")
             } footer: {
-                Text(
-                    "Die App wird gesperrt, wenn sie länger als eine "
-                    + "Minute im Hintergrund war. Kurze Tab-Wechsel "
-                    + "lösen keine Abfrage aus."
-                )
+                Text("Die App wird gesperrt, wenn sie länger als eine Minute im Hintergrund war. Kurze Tab-Wechsel lösen keine Abfrage aus.")
             }
         }
     }
@@ -255,11 +247,7 @@ struct EinstellungenView: View {
         } header: {
             Text("Datenschutz")
         } footer: {
-            Text(
-                "Export erfolgt nach DSGVO Art. 20 als JSON-Datei. "
-                + "Konto löschen deaktiviert Ihr Konto sofort; die "
-                + "endgültige Löschung erfolgt nach 30 Tagen."
-            )
+            Text("Export erfolgt nach DSGVO Art. 20 als JSON-Datei. Konto löschen deaktiviert Ihr Konto sofort; die endgültige Löschung erfolgt nach 30 Tagen.")
         }
     }
 

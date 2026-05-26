@@ -350,11 +350,7 @@ struct AnnouncementDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             } else {
-                Text(
-                    "Hier können Sie Rückfragen zu dieser Mitteilung "
-                    + "stellen. Antworten erscheinen direkt unter der "
-                    + "Frage."
-                )
+                Text("Hier können Sie Rückfragen zu dieser Mitteilung stellen. Antworten erscheinen direkt unter der Frage.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }

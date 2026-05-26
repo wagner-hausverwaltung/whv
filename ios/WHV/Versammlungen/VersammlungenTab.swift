@@ -152,10 +152,7 @@ private struct AssemblyList: View {
                 ContentUnavailableView(
                     "Keine Versammlungen",
                     systemImage: "calendar.badge.exclamationmark",
-                    description: Text(
-                        "Sobald die Verwaltung eine Versammlung anlegt, "
-                        + "erscheint sie hier."
-                    )
+                    description: Text("Sobald die Verwaltung eine Versammlung anlegt, erscheint sie hier.")
                 )
             } else {
                 List {

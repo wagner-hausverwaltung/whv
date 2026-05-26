@@ -379,11 +379,10 @@ struct AssemblyDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             } else if store.comments.isEmpty {
-                Text(
-                    "Hier können Sie Rückfragen zu dieser Versammlung "
-                    + "stellen. Antworten erscheinen direkt unter der "
-                    + "Frage."
-                )
+                // Single-literal Text so the build-time string
+                // extractor sees the key. `+`-concatenated strings
+                // are invisible to it and never reach the catalog.
+                Text("Hier können Sie Rückfragen zu dieser Versammlung stellen. Antworten erscheinen direkt unter der Frage.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             } else {
@@ -396,10 +395,7 @@ struct AssemblyDetailView: View {
 
             commentComposer
 
-            Text(
-                "Kommentare dienen Rückfragen — formale Anfechtungen "
-                + "erfolgen außerhalb des Portals."
-            )
+            Text("Kommentare dienen Rückfragen — formale Anfechtungen erfolgen außerhalb des Portals.")
             .font(.caption2)
             .foregroundStyle(.tertiary)
             .padding(.top, 4)
@@ -495,10 +491,7 @@ struct AssemblyDetailView: View {
                 .buttonStyle(.plain)
                 .disabled(store.isDownloadingProtocol)
             } else {
-                Text(
-                    "Das Protokoll wird in der Regel innerhalb von "
-                    + "vier Wochen nach der Versammlung hochgeladen."
-                )
+                Text("Das Protokoll wird in der Regel innerhalb von vier Wochen nach der Versammlung hochgeladen.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }

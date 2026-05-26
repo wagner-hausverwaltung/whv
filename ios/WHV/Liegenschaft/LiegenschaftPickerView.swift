@@ -67,10 +67,7 @@ struct LiegenschaftPickerView: View {
             ContentUnavailableView(
                 "Keine Liegenschaften",
                 systemImage: "building.2",
-                description: Text(
-                    "Ihr Konto ist noch nicht mit einer Liegenschaft "
-                    + "verknüpft. Bitte wenden Sie sich an die Verwaltung."
-                )
+                description: Text("Ihr Konto ist noch nicht mit einer Liegenschaft verknüpft. Bitte wenden Sie sich an die Verwaltung.")
             )
         } else {
             List {
