@@ -15,7 +15,6 @@ struct RootTabView: View {
     @EnvironmentObject var store: LiegenschaftStore
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @EnvironmentObject var authStore: AuthStore
-    @EnvironmentObject var demoStore: DemoStore
     @State private var selection = 2  // start on ETV — the most
                                        // load-bearing tab today
     @State private var newTicketSheetOpen = false
@@ -23,20 +22,11 @@ struct RootTabView: View {
     private let tabCount = 5
 
     var body: some View {
+        // Demo banner now lives in WHVApp as a VStack sibling of
+        // the whole rootView (LoginView / picker / tab shell) so
+        // it sits ABOVE the navigation bar instead of fighting it
+        // for safe-area space. Removed from here.
         tabs
-            // Demo banner sits in its own reserved strip via
-            // .safeAreaInset so the NavigationStack's title bar
-            // lays out *beneath* it instead of being covered.
-            // .overlay(alignment: .top) was the previous attempt
-            // and it hid the nav header on iPad. The inset is
-            // visible only while DemoStore.isActive.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if demoStore.isActive {
-                    DemoBanner { authStore.signOut() }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: demoStore.isActive)
             // Floating Verwaltung-Hotline button — bottom-right,
             // pinned above the tab bar via .safeAreaInset so it
             // never collides with the tab bar items and never sits

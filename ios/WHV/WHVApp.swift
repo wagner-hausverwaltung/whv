@@ -27,7 +27,22 @@ struct WHVApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                rootView
+                // Demo banner is a real VStack sibling above the
+                // entire view tree — sits over the status bar
+                // safe area and pushes ALL downstream content
+                // (including TabView + NavigationStacks) down so
+                // nothing collides with the banner. Previous
+                // attempts via .overlay / .safeAreaInset on
+                // RootTabView left the nav header partially under
+                // the strip on iPad.
+                VStack(spacing: 0) {
+                    if demoStore.isActive {
+                        DemoBanner { authStore.signOut() }
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    rootView
+                }
+                    .animation(.easeInOut(duration: 0.2), value: demoStore.isActive)
                     .environmentObject(authStore)
                     .environmentObject(liegenschaftStore)
                     .environmentObject(settings)
