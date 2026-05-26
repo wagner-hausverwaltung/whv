@@ -46,7 +46,7 @@ export function ResolutionListPage() {
   useEffect(() => {
     api
       .get<ResolutionResponse[]>("/me/resolutions")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setRows(r.data))
       .catch(() => setError("Beschlüsse konnten nicht geladen werden."));
   }, []);

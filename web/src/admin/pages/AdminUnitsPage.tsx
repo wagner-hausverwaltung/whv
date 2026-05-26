@@ -25,7 +25,7 @@ export function AdminUnitsPage() {
   useEffect(() => {
     api
       .get<AdminUnitListItem[]>("/admin/units")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setRows(r.data))
       .catch(() => setError(t("admin.stammdaten.loadFailed")));
   }, [t]);

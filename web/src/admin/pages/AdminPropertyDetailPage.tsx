@@ -391,7 +391,7 @@ export function AdminPropertyDetailPage() {
     api
       .get<AdminPropertyDetailResponse>(`/admin/properties/${id}`)
       .then((r) => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         if (!cancelled) setDetail(r.data);
       })
       .catch((err: unknown) => {

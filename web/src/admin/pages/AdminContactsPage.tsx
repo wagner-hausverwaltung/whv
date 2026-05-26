@@ -32,7 +32,7 @@ export function AdminContactsPage() {
   useEffect(() => {
     api
       .get<AdminContactListItem[]>("/admin/contacts")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setRows(r.data))
       .catch(() => setError(t("admin.stammdaten.loadFailed")));
   }, [t]);

@@ -55,7 +55,7 @@ export function TicketListPage() {
   useEffect(() => {
     api
       .get<TicketResponse[]>("/me/tickets")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setTickets(r.data))
       .catch(() => setError(t("tickets.loadFailed")));
   }, [t]);

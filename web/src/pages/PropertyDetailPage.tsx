@@ -56,7 +56,7 @@ export function PropertyDetailPage() {
     if (!id) return;
     api
       .get<PropertyDetailResponse>(`/me/properties/${id}`)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setProp(r.data))
       .catch((err) => {
         if (err.response?.status === 404) setNotFound(true);

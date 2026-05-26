@@ -32,7 +32,7 @@ export function AdminAuditPage() {
   useEffect(() => {
     api
       .get<AdminAuditLogResponse[]>("/admin/audit-log")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setRows(r.data))
       .catch(() => setError(t("admin.auditPage.loadFailed")));
   }, [t]);

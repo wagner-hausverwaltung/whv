@@ -26,7 +26,7 @@ export function AdminContractsPage() {
   useEffect(() => {
     api
       .get<AdminContractListItem[]>("/admin/contracts")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       .then((r) => setRows(r.data))
       .catch(() => setError(t("admin.stammdaten.loadFailed")));
   }, [t]);

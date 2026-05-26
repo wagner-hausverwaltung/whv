@@ -33,7 +33,7 @@ const ROLES: UserRole[] = [
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     const t = setTimeout(() => setV(value), ms);
     return () => clearTimeout(t);
   }, [value, ms]);
@@ -99,7 +99,7 @@ export function AdminInviteNewPage() {
       return;
     }
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setContactLoading(true);
     api
       .get<AdminContactSearchResult[]>(

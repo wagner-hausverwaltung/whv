@@ -101,18 +101,15 @@ export function AnnouncementComposeDialog({
     };
   }, [open, isPickerMode]);
 
-  // Load units for the effective property. Per-property tab sets it
-  // immediately; picker mode re-fires every time the user picks a
-  // different Liegenschaft.
+  // Load units for the effective property — only ever fires when
+  // the dialog opens in per-property mode. Picker mode doesn't
+  // offer unit-level targeting (see module docstring), so we
+  // skip the fetch AND skip touching state inside the effect to
+  // avoid the cascading-renders lint trip; `reset()` already
+  // clears `units`/`selectedUnits` on close so re-opening in
+  // picker mode never sees stale data.
   useEffect(() => {
-    if (!open) return;
-    if (isPickerMode) {
-      // Unit-level targeting isn't offered in picker mode (see
-      // module docstring) — clear stale selections, no fetch.
-      setUnits([]);
-      setSelectedUnits([]);
-      return;
-    }
+    if (!open || isPickerMode) return;
     let cancelled = false;
     void (async () => {
       try {

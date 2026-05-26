@@ -47,7 +47,7 @@
 		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVWidgets.entitlements; sourceTree = "<group>"; };
-		C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; name = Localizable.xcstrings; path = WHV/Localizable.xcstrings; sourceTree = "<group>"; };
+		C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json.xcstrings; name = Localizable.xcstrings; path = WHV/Localizable.xcstrings; sourceTree = "<group>"; };
 		CDB39A43568E05D893E91175 /* RunningLateIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunningLateIntent.swift; sourceTree = "<group>"; };
 		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
 		E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVLiveActivity.swift; sourceTree = "<group>"; };
@@ -56,17 +56,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2A0000010000000000000010 /* WHV */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = WHV;
-			sourceTree = "<group>";
-		};
+		2A0000010000000000000010 /* WHV */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = WHV; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */

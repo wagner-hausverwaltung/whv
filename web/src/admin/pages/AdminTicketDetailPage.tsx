@@ -142,12 +142,12 @@ export function AdminTicketDetailPage() {
         )
         .then((r) => {
           if (cancelled) return;
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+           
           setPropOptions(r.data);
         })
         .catch(() => {
           if (cancelled) return;
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+           
           setPropOptions([]);
         })
         .finally(() => {
