@@ -215,22 +215,29 @@ struct WidgetView: View {
         }
     }
 
-    /// Tap target per kind. Quiet → new-ticket composer. Every
-    /// other kind opens its tab (no per-row deep link yet — that
-    /// needs the URL scheme to carry an id, which we'll add once
-    /// the tab views know how to consume it). Without these, an
-    /// ETV-card tap on a real device falls back to whichever tab
-    /// the user had last open, which usually feels wrong.
+    /// Tap target per kind. Each row carries its row id where one
+    /// exists, so the tap opens the detail screen directly via
+    /// DeepLinkRouter (whv://etv/{id} → ETV tab + push assembly
+    /// detail). Falls back to tab-only links when the row carries
+    /// no id (ticketCountOnly) or doesn't make sense as a single
+    /// detail (quiet). Each card has its own widgetURL via
+    /// .widgetURL(...) on the surrounding view — we expose one
+    /// URL for the whole widget body since iOS only honors one
+    /// URL per non-interactive widget tap.
     private func deepLink(for item: WidgetItem) -> URL? {
         switch item {
         case .quiet:
             return URL(string: "whv://new-ticket")
-        case .etvInProgress, .etvSoon, .etvUpcoming, .etvNewComment:
-            return URL(string: "whv://etv")
-        case .ticketFresh, .ticketCountOnly:
+        case .etvInProgress(let etv), .etvSoon(let etv), .etvUpcoming(let etv):
+            return URL(string: "whv://etv/\(etv.assemblyId)")
+        case .etvNewComment(let c):
+            return URL(string: "whv://etv/\(c.assemblyId)")
+        case .ticketFresh(let t, _):
+            return URL(string: "whv://ticket/\(t.id)")
+        case .ticketCountOnly:
             return URL(string: "whv://tickets")
-        case .announcementFresh:
-            return URL(string: "whv://mitteilungen")
+        case .announcementFresh(let a):
+            return URL(string: "whv://announcement/\(a.id)")
         }
     }
 }

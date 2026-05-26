@@ -62,12 +62,22 @@ final class AssemblyListStore: ObservableObject {
 struct VersammlungenTab: View {
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
     @EnvironmentObject var authStore: AuthStore
+    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @StateObject private var store = AssemblyListStore()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $deepLinkRouter.etvPath) {
             content
                 .navigationTitle("Versammlungen")
+                // Path-based destination: list rows append the
+                // assembly id via NavigationLink(value:); widget
+                // taps push by setting etvPath externally.
+                .navigationDestination(for: String.self) { assemblyId in
+                    AssemblyDetailView(
+                        assemblyId: assemblyId,
+                        fallback: store.assemblies.first { $0.id == assemblyId }
+                    )
+                }
                 .toolbar {
                     if let l = liegenschaftStore.selected {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -185,9 +195,7 @@ private struct AssemblyList: View {
     }
 
     private func row(for a: AssemblySummary) -> some View {
-        NavigationLink {
-            AssemblyDetailView(assemblyId: a.id, fallback: a)
-        } label: {
+        NavigationLink(value: a.id) {
             HStack(alignment: .center, spacing: 12) {
                 statusBadge(for: a.status)
                 VStack(alignment: .leading, spacing: 3) {

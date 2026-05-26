@@ -48,12 +48,19 @@ final class AnnouncementListStore: ObservableObject {
 struct MitteilungenTab: View {
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
     @EnvironmentObject var authStore: AuthStore
+    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @StateObject private var store = AnnouncementListStore()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $deepLinkRouter.mitteilungenPath) {
             content
                 .navigationTitle("Mitteilungen")
+                .navigationDestination(for: String.self) { announcementId in
+                    AnnouncementDetailView(
+                        announcementId: announcementId,
+                        fallback: store.announcements.first { $0.id == announcementId }
+                    )
+                }
                 .toolbar {
                     if let l = liegenschaftStore.selected {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -162,9 +169,7 @@ private struct AnnouncementList: View {
     }
 
     private func row(for a: AnnouncementSummary) -> some View {
-        NavigationLink {
-            AnnouncementDetailView(announcementId: a.id, fallback: a)
-        } label: {
+        NavigationLink(value: a.id) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "megaphone.fill")
                     .font(.title3)

@@ -47,13 +47,20 @@ final class TicketsListStore: ObservableObject {
 
 struct TicketsTab: View {
     @EnvironmentObject var authStore: AuthStore
+    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @StateObject private var store = TicketsListStore()
     @State private var newTicketOpen = false
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $deepLinkRouter.ticketsPath) {
             content
                 .navigationTitle("Tickets")
+                .navigationDestination(for: String.self) { ticketId in
+                    TicketDetailView(
+                        ticketId: ticketId,
+                        fallback: store.tickets.first { $0.id == ticketId }
+                    )
+                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -188,9 +195,7 @@ private struct TicketsList: View {
     }
 
     private func row(for t: TicketSummary) -> some View {
-        NavigationLink {
-            TicketDetailView(ticketId: t.id, fallback: t)
-        } label: {
+        NavigationLink(value: t.id) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "tray.full.fill")
                     .font(.title3)

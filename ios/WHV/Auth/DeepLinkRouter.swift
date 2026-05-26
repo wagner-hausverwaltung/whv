@@ -20,6 +20,13 @@ enum DeepLinkTarget: Equatable {
     /// Switch to a specific tab without presenting a sheet — used
     /// by the widget's ETV / Mitteilungen / Tickets cards.
     case tab(WHVTab)
+    /// Switch to ETV tab and push the assembly's detail view.
+    case assembly(id: String)
+    /// Switch to Tickets tab and push the ticket's detail view.
+    case ticket(id: String)
+    /// Switch to Mitteilungen tab and push the announcement's
+    /// detail view.
+    case announcement(id: String)
 }
 
 /// One enum per tab the widget might want to deep-link to. Mirrors
@@ -50,6 +57,13 @@ final class DeepLinkRouter: ObservableObject {
     /// can use `.onChange(of:)` to react.
     @Published var pendingTarget: DeepLinkTarget?
 
+    /// Per-tab navigation paths so external code (deep links,
+    /// widget taps) can push detail views from outside the tab's
+    /// own UI. Each tab's NavigationStack binds to its path here.
+    @Published var etvPath: [String] = []
+    @Published var ticketsPath: [String] = []
+    @Published var mitteilungenPath: [String] = []
+
     /// Parse + register an incoming URL. Returns true if we
     /// recognised it (so the caller can decide whether to flag
     /// unknown URLs to the user); false otherwise.
@@ -60,31 +74,43 @@ final class DeepLinkRouter: ObservableObject {
         // → host is empty + path is "/new-ticket". Accept both
         // since iOS doesn't agree with itself on which form widgets
         // emit.
-        let target = (url.host?.lowercased() ?? "").isEmpty
-            ? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            : url.host!.lowercased()
-        switch target {
-        case "new-ticket":
+        let rawHost = url.host?.lowercased() ?? ""
+        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let host: String
+        let id: String?
+        if rawHost.isEmpty {
+            // whv:///foo/abc → path is "foo/abc"
+            let parts = path.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+            host = parts.first.map { String($0).lowercased() } ?? ""
+            id = parts.count > 1 ? String(parts[1]) : nil
+        } else {
+            host = rawHost
+            id = path.isEmpty ? nil : path
+        }
+
+        switch (host, id) {
+        case ("new-ticket", _):
             pendingTarget = .newTicket
-            return true
-        case "tickets":
+        case ("etv", .some(let aid)), ("assembly", .some(let aid)):
+            pendingTarget = .assembly(id: aid)
+        case ("ticket", .some(let tid)):
+            pendingTarget = .ticket(id: tid)
+        case ("announcement", .some(let anid)), ("mitteilung", .some(let anid)):
+            pendingTarget = .announcement(id: anid)
+        case ("tickets", _):
             pendingTarget = .tab(.tickets)
-            return true
-        case "etv", "assembly":
+        case ("etv", _), ("assembly", _):
             pendingTarget = .tab(.etv)
-            return true
-        case "mitteilungen", "announcement":
+        case ("mitteilungen", _), ("announcement", _):
             pendingTarget = .tab(.mitteilungen)
-            return true
-        case "news":
+        case ("news", _):
             pendingTarget = .tab(.news)
-            return true
-        case "einstellungen", "settings":
+        case ("einstellungen", _), ("settings", _):
             pendingTarget = .tab(.einstellungen)
-            return true
         default:
             return false
         }
+        return true
     }
 
     func consume() {

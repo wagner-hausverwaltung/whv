@@ -63,9 +63,9 @@ struct RootTabView: View {
     }
 
     /// Handle a (possibly-nil) DeepLinkTarget by mutating the
-    /// tab selection / opening the right sheet. Always consumes
-    /// the router so a re-fire of the same URL is treated as a
-    /// fresh request.
+    /// tab selection / opening the right sheet / pushing onto
+    /// the tab's own NavigationStack. Always consumes the router
+    /// so a re-fire of the same URL is treated as a fresh request.
     private func consumeDeepLink(_ target: DeepLinkTarget?) {
         guard let target else { return }
         switch target {
@@ -74,6 +74,17 @@ struct RootTabView: View {
             newTicketSheetOpen = true
         case .tab(let t):
             selection = t.selection
+        case .assembly(let id):
+            selection = 2
+            // Replace rather than append so a re-tap of the same
+            // widget item doesn't pile detail screens on the stack.
+            deepLinkRouter.etvPath = [id]
+        case .ticket(let id):
+            selection = 1
+            deepLinkRouter.ticketsPath = [id]
+        case .announcement(let id):
+            selection = 0
+            deepLinkRouter.mitteilungenPath = [id]
         }
         deepLinkRouter.consume()
     }
