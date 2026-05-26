@@ -24,6 +24,11 @@ final class TicketsListStore: ObservableObject {
     /// activePropertyId. The role check lives outside the store so
     /// it can read AuthStore.user.role; this flag is the result.
     @Published var bypassPropertyFilter: Bool = false
+    /// Verwalter-side narrowing: when set, only tickets for this
+    /// property show even though bypassPropertyFilter is true.
+    /// `nil` = "Alle Liegenschaften" (default for Verwalter).
+    /// Owners ignore this — their list is gated by activePropertyId.
+    @Published var verwalterFilter: String?
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
@@ -34,13 +39,19 @@ final class TicketsListStore: ObservableObject {
         self.api = api
     }
 
-    /// View-facing list. Filters `allTickets` to the active
-    /// property + property-less rows. Done client-side so the
-    /// backend `/me/tickets` endpoint stays untouched + so a
-    /// property switch is instant (no refetch round-trip).
-    /// Verwalter (`bypassPropertyFilter == true`) sees everything.
+    /// View-facing list. Three branches:
+    ///   1. Verwalter with no toolbar filter → show everything
+    ///   2. Verwalter with a toolbar filter → narrow to that property
+    ///   3. Owner → filter to active Liegenschaft + property-less rows
+    /// Client-side filter so the backend `/me/tickets` endpoint stays
+    /// untouched + a property switch is instant (no refetch round-trip).
     var tickets: [TicketSummary] {
-        if bypassPropertyFilter { return allTickets }
+        if bypassPropertyFilter {
+            if let v = verwalterFilter {
+                return allTickets.filter { $0.property_id == v }
+            }
+            return allTickets
+        }
         guard let activePropertyId else { return allTickets }
         return allTickets.filter { t in
             t.property_id == nil || t.property_id == activePropertyId
@@ -87,6 +98,36 @@ struct TicketsTab: View {
         authStore.user?.role.lowercased() == "verwalter"
     }
 
+    /// Toolbar Menu listing every Liegenschaft + "Alle". Setting
+    /// it narrows the visible ticket list without touching the
+    /// active Liegenschaft in Einstellungen, which still drives
+    /// the ETV / Mitteilungen tabs.
+    private var verwalterFilterMenu: some View {
+        Menu {
+            Button {
+                store.verwalterFilter = nil
+            } label: {
+                Label("Alle Liegenschaften",
+                      systemImage: store.verwalterFilter == nil ? "checkmark" : "")
+            }
+            Divider()
+            ForEach(liegenschaftStore.available) { l in
+                Button {
+                    store.verwalterFilter = l.id
+                } label: {
+                    Label(l.name,
+                          systemImage: store.verwalterFilter == l.id ? "checkmark" : "")
+                }
+            }
+        } label: {
+            // Icon switches between funnel + filled funnel so the
+            // user can tell at a glance that a filter is on.
+            Image(systemName: store.verwalterFilter == nil
+                  ? "line.3.horizontal.decrease.circle"
+                  : "line.3.horizontal.decrease.circle.fill")
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $deepLinkRouter.ticketsPath) {
             content
@@ -103,6 +144,15 @@ struct TicketsTab: View {
                             newTicketOpen = true
                         } label: {
                             Image(systemName: "square.and.pencil")
+                        }
+                    }
+                    // Verwalter dispatch board: filter chip pinned
+                    // top-trailing alongside the new-ticket pencil.
+                    // Renders nothing for non-Verwalter roles since
+                    // their list is property-scoped by definition.
+                    if isVerwalter {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            verwalterFilterMenu
                         }
                     }
                     ToolbarItem(placement: .topBarLeading) {

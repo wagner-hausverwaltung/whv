@@ -327,33 +327,41 @@ private struct ExpandedBottom: View {
 
 // MARK: - Formatting helpers (file-scope so all subviews share)
 
+/// Foundation's locale-aware relative formatter — replaces the
+/// hand-rolled German-only switch statements with localized
+/// output that follows the system language ("in 3 days" on en,
+/// "in 3 Tagen" on de).
+private let activityRelativeFormatter: RelativeDateTimeFormatter = {
+    let f = RelativeDateTimeFormatter()
+    f.unitsStyle = .full
+    f.dateTimeStyle = .named
+    return f
+}()
+
+private let activityCompactRelativeFormatter: RelativeDateTimeFormatter = {
+    let f = RelativeDateTimeFormatter()
+    f.unitsStyle = .abbreviated
+    f.dateTimeStyle = .numeric
+    return f
+}()
+
 private func relativeLabel(for date: Date) -> String {
-    let now = Date()
-    let interval = date.timeIntervalSince(now)
+    let interval = date.timeIntervalSince(Date())
     if interval < 0 {
+        // Meeting already started — surface "läuft gerade" /
+        // "live now" via a localizable key. Key is German source;
+        // EN translation lives in the catalog.
         let minsLate = Int(-interval / 60)
-        if minsLate < 60 { return "läuft gerade · \(minsLate) min" }
-        return "läuft gerade"
+        if minsLate < 60 {
+            return String(localized: "läuft gerade · \(minsLate) min")
+        }
+        return String(localized: "läuft gerade")
     }
-    let mins = Int(interval / 60)
-    if mins < 60 { return "in \(mins) min" }
-    let hours = mins / 60
-    if hours < 24 { return "in \(hours) h" }
-    let days = hours / 24
-    return days == 1 ? "morgen" : "in \(days) Tagen"
+    return activityRelativeFormatter.localizedString(for: date, relativeTo: Date())
 }
 
 private func compactRelative(_ date: Date) -> String {
-    let interval = date.timeIntervalSince(Date())
-    if interval < 0 {
-        let mins = Int(-interval / 60)
-        return mins < 60 ? "\(mins)′" : "live"
-    }
-    let mins = Int(interval / 60)
-    if mins < 60 { return "\(mins)′" }
-    let hours = mins / 60
-    if hours < 24 { return "\(hours)h" }
-    return "\(hours / 24)d"
+    activityCompactRelativeFormatter.localizedString(for: date, relativeTo: Date())
 }
 
 private func lateBadgeIcon(_ status: ETVActivityAttributes.LateStatus) -> String {

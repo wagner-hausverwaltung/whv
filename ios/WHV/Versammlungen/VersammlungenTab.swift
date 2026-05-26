@@ -283,21 +283,21 @@ private struct AssemblyList: View {
     }
 }
 
-/// Single-shot date-range formatter — same dd.MM.yyyy HH:mm Germans
-/// expect, dropping the redundant day-of-week.
+/// Locale-aware date-range formatter. Uses Foundation's
+/// `formatted(.dateTime…)` which respects the current locale, so
+/// English readers see "28 Apr 2026, 18:00 – 21:00" with their
+/// regional ordering instead of the hardcoded German "dd.MM.yyyy".
 private func formatDateRange(_ start: Date, _ end: Date) -> String {
-    let cal = Calendar.current
-    let sameDay = cal.isDate(start, inSameDayAs: end)
-    let date = DateFormatter()
-    date.locale = Locale(identifier: "de_DE")
-    date.dateFormat = "dd.MM.yyyy"
-    let time = DateFormatter()
-    time.locale = Locale(identifier: "de_DE")
-    time.dateFormat = "HH:mm"
+    let sameDay = Calendar.current.isDate(start, inSameDayAs: end)
     if sameDay {
-        return "\(date.string(from: start)), \(time.string(from: start))–\(time.string(from: end)) Uhr"
+        let date = start.formatted(.dateTime.day().month().year())
+        let s = start.formatted(.dateTime.hour().minute())
+        let e = end.formatted(.dateTime.hour().minute())
+        return "\(date), \(s) – \(e)"
     }
-    return "\(date.string(from: start)) \(time.string(from: start)) – \(date.string(from: end)) \(time.string(from: end))"
+    let s = start.formatted(.dateTime.day().month().year().hour().minute())
+    let e = end.formatted(.dateTime.day().month().year().hour().minute())
+    return "\(s) – \(e)"
 }
 
 #Preview {

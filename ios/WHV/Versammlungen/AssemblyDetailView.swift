@@ -327,19 +327,28 @@ struct AssemblyDetailView: View {
         .buttonStyle(.plain)
     }
 
+    /// Locale-aware "Wednesday, 28 April 2026, 18:00–21:00" /
+    /// "Mittwoch, 28. April 2026, 18:00–21:00 Uhr". Uses
+    /// Foundation's locale-aware formatters so swapping the
+    /// app language (or device language) flips the rendering
+    /// without hand-coded German fallbacks.
     private func dateRange(start: Date, end: Date) -> String {
-        let cal = Calendar.current
-        let sameDay = cal.isDate(start, inSameDayAs: end)
-        let date = DateFormatter()
-        date.locale = Locale(identifier: "de_DE")
-        date.dateFormat = "EEEE, d. MMMM yyyy"
-        let time = DateFormatter()
-        time.locale = Locale(identifier: "de_DE")
-        time.dateFormat = "HH:mm"
+        let sameDay = Calendar.current.isDate(start, inSameDayAs: end)
         if sameDay {
-            return "\(date.string(from: start)), \(time.string(from: start))–\(time.string(from: end)) Uhr"
+            let date = start.formatted(
+                .dateTime.weekday(.wide).day().month(.wide).year()
+            )
+            let s = start.formatted(.dateTime.hour().minute())
+            let e = end.formatted(.dateTime.hour().minute())
+            return "\(date), \(s) – \(e)"
         }
-        return "\(date.string(from: start)) – \(date.string(from: end))"
+        let s = start.formatted(
+            .dateTime.weekday(.wide).day().month(.wide).year()
+        )
+        let e = end.formatted(
+            .dateTime.weekday(.wide).day().month(.wide).year()
+        )
+        return "\(s) – \(e)"
     }
 
     // MARK: - Agenda

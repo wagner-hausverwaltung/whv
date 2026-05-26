@@ -567,33 +567,26 @@ private func kindLabel(_ item: WidgetItem) -> String {
 
 // MARK: - Formatting helpers
 
+/// Locale-aware short date (e.g. "28.04., 18:00" on de,
+/// "Apr 28, 6:00 PM" on en). Drops the year because the widget
+/// only surfaces near-future events. Widgets get the system
+/// locale automatically — Locale.current is correct here.
 private func formatShort(_ date: Date) -> String {
-    let df = DateFormatter()
-    df.locale = Locale(identifier: "de_DE")
-    df.dateFormat = "dd.MM., HH:mm"
-    return df.string(from: date)
+    date.formatted(.dateTime.day().month(.abbreviated).hour().minute())
 }
 
+/// Locale-aware "in 3 days" / "vor 4 Min" via Foundation's built-
+/// in formatter. Replaces the hand-rolled German-only switch
+/// statement that bypassed the catalog entirely.
+private let widgetRelativeFormatter: RelativeDateTimeFormatter = {
+    let f = RelativeDateTimeFormatter()
+    f.unitsStyle = .short
+    f.dateTimeStyle = .named  // "yesterday" / "tomorrow" / "now"
+    return f
+}()
+
 private func formatRelative(_ date: Date) -> String {
-    let now = Date()
-    let interval = date.timeIntervalSince(now)
-    let absMins = Int(abs(interval) / 60)
-    if interval < 0 {
-        if absMins < 60 { return "vor \(absMins) min" }
-        let hours = absMins / 60
-        if hours < 24 { return "vor \(hours) h" }
-        let days = hours / 24
-        return days == 1 ? "gestern" : "vor \(days) Tagen"
-    }
-    if absMins == 0 { return "jetzt" }
-    if absMins < 60 { return "in \(absMins) min" }
-    let hours = absMins / 60
-    if hours < 24 { return "in \(hours) h" }
-    let days = hours / 24
-    if days == 1 { return "morgen" }
-    if days < 7 { return "in \(days) Tagen" }
-    let weeks = days / 7
-    return weeks == 1 ? "in 1 Woche" : "in \(weeks) Wochen"
+    widgetRelativeFormatter.localizedString(for: date, relativeTo: Date())
 }
 
 // MARK: - Preview helpers

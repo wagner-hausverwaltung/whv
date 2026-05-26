@@ -113,6 +113,16 @@
         }
       }
     },
+    "Alle Liegenschaften": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All properties"
+          }
+        }
+      }
+    },
     "Allgemeine Frage": {
       "localizations": {
         "en": {
@@ -1906,6 +1916,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "edited"
+          }
+        }
+      }
+    },
+    "läuft gerade": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "live now"
+          }
+        }
+      }
+    },
+    "läuft gerade · %lld min": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "live now · %lld min"
           }
         }
       }
