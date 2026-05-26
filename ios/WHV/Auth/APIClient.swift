@@ -408,7 +408,11 @@ struct APIClient {
     /// GET /me/export → tmp file URL with the DSGVO Art. 20 JSON
     /// dump (profile + sessions metadata + audit entries). Caller
     /// presents via ShareLink so the user can save / mail it.
+    /// Demo mode can't materialise a server-signed export, so the
+    /// call throws `demoReadOnly` — the Datenschutz UI surfaces
+    /// "Im Demo-Modus nicht verfügbar." rather than a tmp-file 401.
     func exportMyData() async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
         let stamp = ISO8601DateFormatter().string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
         return try await authedDownload(
@@ -421,7 +425,14 @@ struct APIClient {
     /// session, writes an audit row. Caller signs out cleanly on
     /// success (the JWT is now backed by a revoked session so any
     /// next request would 401 anyway).
+    /// Demo mode: there's no real backend account to delete, so the
+    /// call returns a no-op success. The caller's existing
+    /// post-success path (signOut + deactivate demo) still runs,
+    /// which is exactly what the user wants — "delete" in demo is
+    /// indistinguishable from "exit demo" because there's nothing
+    /// persistent to remove.
     func deleteMyAccount() async throws {
+        if DemoFlag.isActive { return }
         guard let token = tokenProvider() else { throw APIError.unauthorized }
         var request = URLRequest(url: baseURL.appending(path: "/me"))
         request.httpMethod = "DELETE"
