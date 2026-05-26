@@ -16,7 +16,12 @@ enum AssemblyStatus: String, Codable, CaseIterable {
     case abgehalten = "ABGEHALTEN"
     case abgesagt = "ABGESAGT"
 
-    var label: String {
+    /// Returning LocalizedStringResource (vs. String) lets the
+    /// Xcode build extractor pick these labels up automatically
+    /// AND lets `Text(_ resource:)` swap language on the fly when
+    /// the user toggles English in Settings. Plain Strings here
+    /// would be invisible to both pipelines.
+    var label: LocalizedStringResource {
         switch self {
         case .geplant: return "Geplant"
         case .eingeladen: return "Eingeladen"
@@ -39,7 +44,7 @@ enum AgendaItemType: String, Codable {
     case beschluss = "BESCHLUSS"
     case diskussion = "DISKUSSION"
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .information: return "Information"
         case .beschluss: return "Beschluss"
@@ -52,7 +57,7 @@ enum AgendaItemVoteResult: String, Codable {
     case angenommen = "ANGENOMMEN"
     case abgelehnt = "ABGELEHNT"
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .angenommen: return "Angenommen"
         case .abgelehnt: return "Abgelehnt"
@@ -69,7 +74,7 @@ enum AgendaItemVotingBasis: String, Codable {
     case mea = "MEA"
     case objekt = "OBJEKT"
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .kopf: return "Kopfprinzip"
         case .mea: return "MEA"
@@ -95,7 +100,7 @@ enum AssemblyAuthorRole: String, Codable {
         self = AssemblyAuthorRole(rawValue: raw.lowercased()) ?? .unknown
     }
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .verwalter: return "Verwalter"
         case .eigentuemer: return "Eigentümer"
@@ -105,6 +110,12 @@ enum AssemblyAuthorRole: String, Codable {
         case .unknown: return ""
         }
     }
+
+    /// True for the "no role known" sentinel — used to hide the
+    /// role chip when present_at == .unknown. Lets call sites
+    /// keep their existing `.isEmpty` check semantically without
+    /// poking into LocalizedStringResource internals.
+    var hasLabel: Bool { self != .unknown }
 }
 
 struct DiscussionEntry: Codable, Identifiable, Hashable {

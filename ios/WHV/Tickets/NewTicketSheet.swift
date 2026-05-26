@@ -76,7 +76,10 @@ struct NewTicketSheet: View {
                 Section("Kategorie") {
                     Picker("Kategorie", selection: $category) {
                         ForEach(TicketCategory.grouped(), id: \.group) { group in
-                            Section(group.group) {
+                            // Section header uses the localized
+                            // groupLabel — the .group string itself
+                            // is the German identity key.
+                            Section(header: Text(group.items.first?.groupLabel ?? "Sonstiges")) {
                                 ForEach(group.items, id: \.self) { cat in
                                     Text(cat.label).tag(cat)
                                 }

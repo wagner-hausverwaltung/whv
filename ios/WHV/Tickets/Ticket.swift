@@ -14,7 +14,11 @@ enum TicketStatus: String, Codable, CaseIterable {
     case wartetAufKunde = "WARTET_AUF_KUNDE"
     case geschlossen = "GESCHLOSSEN"
 
-    var label: String {
+    /// LocalizedStringResource so the build extractor sees the
+    /// values and `Text(_ resource:)` re-renders when the user
+    /// toggles English in Settings. Same pattern as
+    /// AssemblyStatus.label.
+    var label: LocalizedStringResource {
         switch self {
         case .neu: return "Neu"
         case .offen: return "Offen"
@@ -83,6 +87,10 @@ enum TicketCategory: String, Codable, CaseIterable {
         self = TicketCategory(rawValue: raw) ?? .sonstigesOther
     }
 
+    /// Group key — used as a String identity for grouped()
+    /// (matches the backend GROUPS_ORDER) AND for the
+    /// localized header. `groupLabel` returns the user-facing
+    /// LocalizedStringResource the picker section header reads.
     var group: String {
         switch self {
         case .allgemeinFrage, .allgemeinKlingel, .allgemeinDokumente,
@@ -109,7 +117,19 @@ enum TicketCategory: String, Codable, CaseIterable {
         }
     }
 
-    var label: String {
+    var groupLabel: LocalizedStringResource {
+        switch group {
+        case "Allgemeines": return "Allgemeines"
+        case "Buchhaltung": return "Buchhaltung"
+        case "Immobilienvertrieb": return "Immobilienvertrieb"
+        case "Mietverwaltung": return "Mietverwaltung"
+        case "Schadensmeldung": return "Schadensmeldung"
+        case "WEG-Verwaltung": return "WEG-Verwaltung"
+        default: return "Sonstiges"
+        }
+    }
+
+    var label: LocalizedStringResource {
         switch self {
         case .allgemeinFrage: return "Allgemeine Frage"
         case .allgemeinKlingel: return "Klingelschild"
@@ -146,6 +166,13 @@ enum TicketCategory: String, Codable, CaseIterable {
         case .sonstigesStoerung: return "Störung"
         case .sonstigesOther: return "Sonstiges"
         }
+    }
+
+    /// Plain-String form for places that can't accept a
+    /// LocalizedStringResource (widget payload writers etc.).
+    /// Looks up the current locale's translation at call time.
+    var labelString: String {
+        String(localized: label)
     }
 
     /// Group order matches the backend's GROUPS_ORDER so the iOS

@@ -589,7 +589,7 @@ private struct AgendaItemCard: View {
     private var votingMeta: some View {
         HStack(spacing: 8) {
             if let basis = item.voting_basis {
-                metaChip(label: "Stimmrecht", value: basis.label, tint: .accentColor)
+                metaChip(label: "Stimmrecht", value: String(localized: basis.label), tint: .accentColor)
             }
             if let present = item.present_count {
                 metaChip(label: "Anwesend", value: "\(present)", tint: .secondary)
@@ -698,7 +698,7 @@ private struct CommentRow: View {
                 Text(comment.author_label)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
-                if !comment.author_role.label.isEmpty {
+                if comment.author_role.hasLabel {
                     Text(comment.author_role.label)
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 7)
