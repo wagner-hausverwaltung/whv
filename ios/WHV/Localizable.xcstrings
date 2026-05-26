@@ -719,6 +719,16 @@
         }
       }
     },
+    "Fläche": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Area"
+          }
+        }
+      }
+    },
     "Folgt in Phase 2.": {
       "localizations": {
         "en": {
@@ -1362,6 +1372,16 @@
         }
       }
     },
+    "Objekteigentümer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building owner"
+          }
+        }
+      }
+    },
     "Objektprinzip": {
       "localizations": {
         "en": {
@@ -1956,6 +1976,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shows the most important WHV items: upcoming ETV, new announcements, open tickets."
+          }
+        }
+      }
+    },
+    "Zimmer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rooms"
           }
         }
       }

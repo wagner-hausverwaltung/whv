@@ -58,21 +58,25 @@ class ReconcileDiff:
 async def _count_mirror(session: AsyncSession) -> dict[str, int]:
     """One round-trip per entity counting non-soft-deleted rows."""
     out: dict[str, int] = {}
-    out["properties"] = await session.scalar(
-        select(func.count(Property.id)).where(Property.deleted_at.is_(None))
-    ) or 0
-    out["units"] = await session.scalar(
-        select(func.count(Unit.id)).where(Unit.deleted_at.is_(None))
-    ) or 0
-    out["contracts"] = await session.scalar(
-        select(func.count(Contract.id)).where(Contract.deleted_at.is_(None))
-    ) or 0
-    out["contacts"] = await session.scalar(
-        select(func.count(Contact.id)).where(Contact.deleted_at.is_(None))
-    ) or 0
-    out["documents"] = await session.scalar(
-        select(func.count(Document.id)).where(Document.deleted_at.is_(None))
-    ) or 0
+    out["properties"] = (
+        await session.scalar(select(func.count(Property.id)).where(Property.deleted_at.is_(None)))
+        or 0
+    )
+    out["units"] = (
+        await session.scalar(select(func.count(Unit.id)).where(Unit.deleted_at.is_(None))) or 0
+    )
+    out["contracts"] = (
+        await session.scalar(select(func.count(Contract.id)).where(Contract.deleted_at.is_(None)))
+        or 0
+    )
+    out["contacts"] = (
+        await session.scalar(select(func.count(Contact.id)).where(Contact.deleted_at.is_(None)))
+        or 0
+    )
+    out["documents"] = (
+        await session.scalar(select(func.count(Document.id)).where(Document.deleted_at.is_(None)))
+        or 0
+    )
     return out
 
 

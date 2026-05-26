@@ -32,6 +32,7 @@ from app.schemas.auth import UserResponse
 from app.schemas.document import DocumentFolderResponse, DocumentResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
+from app.services import units as units_svc
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -174,9 +175,22 @@ async def get_my_property(
         )
     ).all()
 
+    # Master-table enrichment: join contracts + contacts so each
+    # unit carries its currently-active contracts (owner, tenant)
+    # with role-tagged contact labels. The clients display the
+    # rendered names without reimplementing person/company logic.
+    contracts_by_unit = await units_svc.load_current_contracts_for_property(
+        session, property_id=prop.id
+    )
+    unit_responses: list[UnitResponse] = []
+    for u in unit_rows:
+        ur = UnitResponse.model_validate(u)
+        ur.current_contracts = contracts_by_unit.get(u.id, [])
+        unit_responses.append(ur)
+
     return PropertyDetailResponse(
         **PropertyResponse.model_validate(prop).model_dump(),
-        units=[UnitResponse.model_validate(u) for u in unit_rows],
+        units=unit_responses,
     )
 
 

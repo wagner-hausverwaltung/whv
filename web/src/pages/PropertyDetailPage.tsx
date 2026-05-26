@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   Alert,
   Box,
+  Chip,
   Paper,
   Stack,
   Table,
@@ -13,6 +14,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import type { UnitContractSummary } from "@/api/types";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { PropertyDetailResponse } from "@/api/types";
@@ -135,8 +137,13 @@ export function PropertyDetailPage() {
                   <TableCell>Typ</TableCell>
                   <TableCell>Etage</TableCell>
                   <TableCell>Lage</TableCell>
-                  <TableCell>m²</TableCell>
-                  <TableCell>Zimmer</TableCell>
+                  <TableCell align="right">m²</TableCell>
+                  {/* MEA (Miteigentumsanteile) + currently-active
+                      contracts are the master-table-truthy
+                      columns: who-pays-how-much + who's-in-it. */}
+                  <TableCell align="right">MEA</TableCell>
+                  <TableCell align="right">Zimmer</TableCell>
+                  <TableCell>Aktuelle Verträge</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -150,8 +157,26 @@ export function PropertyDetailPage() {
                     <TableCell>{u.type}</TableCell>
                     <TableCell>{u.floor ?? "—"}</TableCell>
                     <TableCell>{u.position ?? "—"}</TableCell>
-                    <TableCell>{u.area_m2 ?? "—"}</TableCell>
-                    <TableCell>{u.rooms ?? "—"}</TableCell>
+                    <TableCell align="right">
+                      {u.area_m2 != null
+                        ? u.area_m2.toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
+                          })
+                        : "—"}
+                    </TableCell>
+                    <TableCell align="right">
+                      {u.voting_share != null
+                        ? u.voting_share.toLocaleString(undefined, {
+                            maximumFractionDigits: 4,
+                          })
+                        : "—"}
+                    </TableCell>
+                    <TableCell align="right">
+                      {u.rooms != null ? u.rooms : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <ContractChips contracts={u.current_contracts} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -161,4 +186,66 @@ export function PropertyDetailPage() {
       </Box>
     </Stack>
   );
+}
+
+/// One chip per role-tagged contract — Eigentümer green, Mieter
+/// blue/accent, Objekteigentümer orange. Falls back gracefully
+/// when the backend sends `contact_label` null (a contract row
+/// without a contact, rare data-hygiene case).
+function ContractChips({ contracts }: { contracts: UnitContractSummary[] }) {
+  if (contracts.length === 0) {
+    return (
+      <Typography variant="caption" color="text.secondary">
+        leer
+      </Typography>
+    );
+  }
+  return (
+    <Stack spacing={0.5}>
+      {contracts.map((c) => (
+        <Stack
+          key={c.contract_id + ":" + (c.contact_id ?? "—")}
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center" }}
+        >
+          <Chip
+            label={typeLabel(c.type)}
+            size="small"
+            color={typeColor(c.type)}
+            variant="filled"
+          />
+          <Typography variant="body2">{c.contact_label ?? "—"}</Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+function typeLabel(type: string): string {
+  switch (type) {
+    case "OWNER":
+      return "Eigentümer";
+    case "TENANT":
+      return "Mieter";
+    case "PROPERTY_OWNER":
+      return "Objekteigentümer";
+    default:
+      return type;
+  }
+}
+
+function typeColor(
+  type: string,
+): "success" | "primary" | "warning" | "default" {
+  switch (type) {
+    case "OWNER":
+      return "success";
+    case "TENANT":
+      return "primary";
+    case "PROPERTY_OWNER":
+      return "warning";
+    default:
+      return "default";
+  }
 }

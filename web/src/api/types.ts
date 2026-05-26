@@ -39,14 +39,35 @@ export interface PropertyResponse {
   image_url: string | null;
 }
 
+export interface UnitContractSummary {
+  contract_id: string;
+  contract_number: string | null;
+  /// OWNER / TENANT / PROPERTY_OWNER — keep as string so a future
+  /// backend addition doesn't 500 the SPA on decode.
+  type: string;
+  contact_id: string | null;
+  /// Server-rendered "Max Mustermann" / "Acme GmbH" / "—".
+  contact_label: string | null;
+  role: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
 export interface UnitResponse {
   id: string;
   unit_hr_id: string | null;
   type: string;
   floor: string | null;
   position: string | null;
-  area_m2: string | null;
+  /// Decimal serialised as JSON number by Pydantic v2 — coerce to
+  /// number on the SPA side. Keeping the type | null pattern that
+  /// matches Pydantic's nullable Decimal output.
+  voting_share: number | null;
+  area_m2: number | null;
   rooms: number | null;
+  /// Active contracts for this unit; empty when the unit is vacant
+  /// or hasn't been mirrored with a contract yet.
+  current_contracts: UnitContractSummary[];
 }
 
 export interface PropertyDetailResponse extends PropertyResponse {

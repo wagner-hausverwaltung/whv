@@ -271,37 +271,91 @@ private struct UnitRow: View {
     let unit: UnitResponse
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: iconName)
                 .font(.body)
                 .foregroundStyle(.tint)
                 .frame(width: 32, height: 32)
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
+                // Heading: HR-ID first, fallback to type.
                 Text(unit.unit_hr_id ?? unit.type)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                HStack(spacing: 6) {
-                    if let floor = unit.floor, !floor.isEmpty {
-                        Text(floor)
-                    }
-                    if let pos = unit.position, !pos.isEmpty {
-                        Text("·").foregroundStyle(.tertiary)
-                        Text(pos)
-                    }
+
+                // Master-table metrics. Each shows only when the
+                // backend actually populated it so empty stub
+                // properties don't drown the row in dashes.
+                HStack(spacing: 10) {
                     if let area = unit.area_m2 {
-                        Text("·").foregroundStyle(.tertiary)
-                        Text(area.formatted(.number.precision(.fractionLength(0...1))) + " m²")
+                        metric(label: "Fläche",
+                               value: area.formatted(.number.precision(.fractionLength(0...1))) + " m²")
+                    }
+                    if let mea = unit.voting_share {
+                        // MEA / Miteigentumsanteile — typically a
+                        // fraction-of-1000 or fraction-of-10000.
+                        // Render with 0-4 fractional digits so 5,4321
+                        // shows but 100 doesn't grow a useless ".00".
+                        metric(label: "MEA",
+                               value: mea.formatted(.number.precision(.fractionLength(0...4))))
+                    }
+                    if let rooms = unit.rooms {
+                        metric(label: "Zimmer",
+                               value: rooms.formatted(.number.precision(.fractionLength(0...1))))
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+
+                // Secondary: floor + position. The kind of thing
+                // you'd skim if you don't recognise the HR-ID.
+                if hasGeo {
+                    HStack(spacing: 6) {
+                        if let floor = unit.floor, !floor.isEmpty {
+                            Text(floor)
+                        }
+                        if let pos = unit.position, !pos.isEmpty {
+                            Text("·").foregroundStyle(.tertiary)
+                            Text(pos)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                }
+
+                // Role-tagged contracts (one chip per Eigentümer /
+                // Mieter / Objekteigentümer currently on the unit).
+                // Backend renders contact_label, we just chip it.
+                if !unit.current_contracts.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(unit.current_contracts) { c in
+                            ContractChip(contract: c)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    private var hasGeo: Bool {
+        let f = unit.floor?.isEmpty == false
+        let p = unit.position?.isEmpty == false
+        return f || p
+    }
+
+    private func metric(label: LocalizedStringResource, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+        }
     }
 
     private var iconName: String {
@@ -310,6 +364,38 @@ private struct UnitRow: View {
         case "KELLER": return "tray.fill"
         case "GEWERBE": return "briefcase.fill"
         default: return "house.fill"
+        }
+    }
+}
+
+/// One contract chip — role-tinted (green = Eigentümer, accent =
+/// Mieter, orange = Objekteigentümer) with the rendered contact
+/// label to the right.
+private struct ContractChip: View {
+    let contract: UnitContractSummary
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(contract.typeLabel)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(chipColor.opacity(0.18))
+                .foregroundStyle(chipColor)
+                .clipShape(Capsule())
+            Text(contract.contact_label ?? "—")
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+    }
+
+    private var chipColor: Color {
+        switch contract.type {
+        case "OWNER": return .green
+        case "TENANT": return .accentColor
+        case "PROPERTY_OWNER": return .orange
+        default: return .secondary
         }
     }
 }

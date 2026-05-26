@@ -67,6 +67,35 @@ struct PropertyResponse: Codable, Hashable {
     let image_url: String?
 }
 
+/// One contract currently active on a unit. Backend bundles them
+/// into UnitResponse.current_contracts so PropertyDetailView can
+/// render the role-tagged tenant/owner chip without a second
+/// fetch.
+struct UnitContractSummary: Codable, Hashable, Identifiable {
+    let contract_id: String
+    let contract_number: String?
+    let type: String        // OWNER / TENANT / PROPERTY_OWNER
+    let contact_id: String?
+    let contact_label: String?  // server-rendered "Max Mustermann"
+    let role: String?
+    let start_date: String?     // ISO-8601 date, no time
+    let end_date: String?
+
+    var id: String { contract_id }
+
+    /// "Eigentümer" / "Mieter" / "Verwalter (objekt-eigen)"
+    /// for the chip label. Falls back to raw `type` if the
+    /// backend ever adds a new ContractType.
+    var typeLabel: LocalizedStringResource {
+        switch type {
+        case "OWNER": return "Eigentümer"
+        case "TENANT": return "Mieter"
+        case "PROPERTY_OWNER": return "Objekteigentümer"
+        default: return LocalizedStringResource(stringLiteral: type)
+        }
+    }
+}
+
 /// One Einheit inside a property — mirrors the backend's
 /// UnitResponse. PropertyDetailView renders these as a compact
 /// table beneath the address card.
@@ -83,6 +112,31 @@ struct UnitResponse: Codable, Hashable, Identifiable {
     let voting_share: Double?
     let area_m2: Double?
     let rooms: Double?
+    /// Empty array when no contracts are currently active (vacant
+    /// or stub). Decoded with a default via custom init so older
+    /// payloads (without the field) still parse.
+    let current_contracts: [UnitContractSummary]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        unit_hr_id = try c.decodeIfPresent(String.self, forKey: .unit_hr_id)
+        type = try c.decode(String.self, forKey: .type)
+        floor = try c.decodeIfPresent(String.self, forKey: .floor)
+        position = try c.decodeIfPresent(String.self, forKey: .position)
+        unit_rank = try c.decodeIfPresent(Int.self, forKey: .unit_rank)
+        is_owned_by_weg = try c.decodeIfPresent(Bool.self, forKey: .is_owned_by_weg)
+        voting_share = try c.decodeIfPresent(Double.self, forKey: .voting_share)
+        area_m2 = try c.decodeIfPresent(Double.self, forKey: .area_m2)
+        rooms = try c.decodeIfPresent(Double.self, forKey: .rooms)
+        current_contracts = (try? c.decode([UnitContractSummary].self, forKey: .current_contracts)) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, unit_hr_id, type, floor, position, unit_rank
+        case is_owned_by_weg, voting_share, area_m2, rooms
+        case current_contracts
+    }
 }
 
 /// Detail variant of PropertyResponse — adds the embedded unit
