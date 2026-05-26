@@ -17,6 +17,13 @@ final class TicketsListStore: ObservableObject {
     /// are "general" requests the user opened without picking a
     /// Liegenschaft, e.g. profile/data questions).
     @Published var activePropertyId: String?
+    /// Verwalter need the cross-property "dispatch board" view —
+    /// they triage tickets across every Liegenschaft from this tab
+    /// without switching the active property in Einstellungen.
+    /// Owners (and any other role) stay property-scoped via
+    /// activePropertyId. The role check lives outside the store so
+    /// it can read AuthStore.user.role; this flag is the result.
+    @Published var bypassPropertyFilter: Bool = false
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
@@ -31,7 +38,9 @@ final class TicketsListStore: ObservableObject {
     /// property + property-less rows. Done client-side so the
     /// backend `/me/tickets` endpoint stays untouched + so a
     /// property switch is instant (no refetch round-trip).
+    /// Verwalter (`bypassPropertyFilter == true`) sees everything.
     var tickets: [TicketSummary] {
+        if bypassPropertyFilter { return allTickets }
         guard let activePropertyId else { return allTickets }
         return allTickets.filter { t in
             t.property_id == nil || t.property_id == activePropertyId
@@ -71,6 +80,13 @@ struct TicketsTab: View {
     @StateObject private var store = TicketsListStore()
     @State private var newTicketOpen = false
 
+    /// True when the signed-in user is Verwalter — drives the
+    /// "show every property's tickets" bypass + (later) any
+    /// admin-only affordances on the row layout.
+    private var isVerwalter: Bool {
+        authStore.user?.role.lowercased() == "verwalter"
+    }
+
     var body: some View {
         NavigationStack(path: $deepLinkRouter.ticketsPath) {
             content
@@ -107,9 +123,16 @@ struct TicketsTab: View {
                     // property switch elsewhere is reflected the
                     // next time the user comes back to this tab.
                     store.activePropertyId = liegenschaftStore.selected?.id
+                    // Verwalter is the dispatch role: they triage
+                    // tickets across the whole org from one screen,
+                    // so the property filter doesn't apply to them.
+                    store.bypassPropertyFilter = isVerwalter
                 }
                 .onChange(of: liegenschaftStore.selected?.id) { _, new in
                     store.activePropertyId = new
+                }
+                .onChange(of: authStore.user?.role) { _, _ in
+                    store.bypassPropertyFilter = isVerwalter
                 }
                 .task { await store.load() }
                 .sheet(isPresented: $newTicketOpen) {
