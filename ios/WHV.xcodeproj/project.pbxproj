@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
+		5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */; };
 		701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */; };
 		7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		9ED26CC9D0D015BE24E43BAC /* UpcomingEtvWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */; };
@@ -46,6 +47,7 @@
 		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVWidgets.entitlements; sourceTree = "<group>"; };
+		C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; name = Localizable.xcstrings; path = WHV/Localizable.xcstrings; sourceTree = "<group>"; };
 		CDB39A43568E05D893E91175 /* RunningLateIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunningLateIntent.swift; sourceTree = "<group>"; };
 		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
 		E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVLiveActivity.swift; sourceTree = "<group>"; };
@@ -54,7 +56,17 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2A0000010000000000000010 /* WHV */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = WHV; sourceTree = "<group>"; };
+		2A0000010000000000000010 /* WHV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = WHV;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +104,7 @@
 				C19384519A4F8842436FA03A /* WHVWidgets */,
 				0E255BF922D567A8EAB28C5C /* Frameworks */,
 				BAC5E43D50A5C289859D632C /* Shared */,
+				7FFA0314F67630CFFA312BB1 /* WHV-Localization */,
 			);
 			sourceTree = "<group>";
 		};
@@ -101,6 +114,14 @@
 				A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		7FFA0314F67630CFFA312BB1 /* WHV-Localization */ = {
+			isa = PBXGroup;
+			children = (
+				C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */,
+			);
+			name = "WHV-Localization";
 			sourceTree = "<group>";
 		};
 		BAC5E43D50A5C289859D632C /* Shared */ = {
@@ -221,6 +242,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,6 +303,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -483,6 +506,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

@@ -61,6 +61,11 @@ if project.targets.any? { |t| t.name == WIDGET_TARGET_NAME }
   widget_target = project.targets.find { |t| t.name == WIDGET_TARGET_NAME }
   widget_target.build_configurations.each do |config|
     config.build_settings['PRODUCT_NAME'] ||= '$(TARGET_NAME)'
+    # Required for the build to emit .stringsdata that
+    # xcstringstool sync can fold into the catalog. Without it
+    # Text("Neues Anliegen") inside the widget never reaches
+    # Localizable.xcstrings and renders German on every locale.
+    config.build_settings['SWIFT_EMIT_LOC_STRINGS'] = 'YES'
   end
   # Host-app plist switches from generated to manual so we can
   # register CFBundleURLTypes for the `whv://` deep-link scheme
@@ -81,6 +86,23 @@ if project.targets.any? { |t| t.name == WIDGET_TARGET_NAME }
   end
   SHARED_FILES.each do |rel|
     ensure_shared_file(project, app_target, widget_target, rel)
+  end
+
+  # Localization catalog: WHV/Localizable.xcstrings is currently a
+  # WHV-target resource via the file-system synchronized group. We
+  # also add it to the widget target's Resources phase so the
+  # compiled en.lproj/Localizable.strings ships inside the .appex
+  # — without this every Text("...") inside WHVWidgets always
+  # renders in the source language (German).
+  catalog_path = File.join(__dir__, '..', 'WHV', 'Localizable.xcstrings')
+  if File.exist?(catalog_path)
+    catalog_group = project.main_group.find_subpath('WHV-Localization', true)
+    catalog_group.set_source_tree('<group>')
+    existing = catalog_group.files.find { |f| f.path == 'WHV/Localizable.xcstrings' }
+    catalog_ref = existing || catalog_group.new_reference('WHV/Localizable.xcstrings')
+    unless widget_target.resources_build_phase.files_references.include?(catalog_ref)
+      widget_target.resources_build_phase.add_file_reference(catalog_ref)
+    end
   end
 
   # Re-scan WHVWidgets/*.swift so files dropped in after the target

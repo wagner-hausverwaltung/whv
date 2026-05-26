@@ -7,6 +7,9 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld. %@": {
+      "shouldTranslate": false
+    },
     "Abbrechen": {
       "localizations": {
         "en": {
@@ -86,6 +89,9 @@
           }
         }
       }
+    },
+    "Activity ID": {
+      "shouldTranslate": false
     },
     "Aktive Liegenschaft": {
       "localizations": {
@@ -513,12 +519,42 @@
     "ETV": {
       "shouldTranslate": false
     },
+    "ETV läuft: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ETV in progress: %@"
+          }
+        }
+      }
+    },
+    "ETV: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ETV: %@"
+          }
+        }
+      }
+    },
     "Eigentümer": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Owner"
+          }
+        }
+      }
+    },
+    "Eigentümerversammlung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owners' meeting"
           }
         }
       }
@@ -749,6 +785,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uploaded on %@"
+          }
+        }
+      }
+    },
+    "Ich komme später": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running late"
           }
         }
       }
@@ -1093,6 +1139,16 @@
         }
       }
     },
+    "Markiert die anstehende Eigentümerversammlung als verspätet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marks the upcoming owners' meeting as running late."
+          }
+        }
+      }
+    },
     "Meine Daten exportieren": {
       "localizations": {
         "en": {
@@ -1139,6 +1195,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Announcement"
+          }
+        }
+      }
+    },
+    "Mitteilung: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announcement: %@"
           }
         }
       }
@@ -1199,6 +1265,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "New"
+          }
+        }
+      }
+    },
+    "Neue Frage: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New question: %@"
           }
         }
       }
@@ -1509,6 +1585,16 @@
         }
       }
     },
+    "TOP 1: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TOP 1: %@"
+          }
+        }
+      }
+    },
     "Tagesordnung": {
       "localizations": {
         "en": {
@@ -1525,6 +1611,19 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your manager will add the agenda."
+          }
+        }
+      }
+    },
+    "Teams": {
+      "shouldTranslate": false
+    },
+    "Teams beitreten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join Teams"
           }
         }
       }
@@ -1561,6 +1660,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn’t load tickets."
+          }
+        }
+      }
+    },
+    "Tickets offen: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open tickets: %lld"
           }
         }
       }
@@ -1658,6 +1767,16 @@
     "Version": {
       "shouldTranslate": false
     },
+    "Verspätet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running late"
+          }
+        }
+      }
+    },
     "Verwalter": {
       "localizations": {
         "en": {
@@ -1694,6 +1813,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "WHV locked"
+          }
+        }
+      }
+    },
+    "WHV — Übersicht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHV — Overview"
+          }
+        }
+      }
+    },
+    "WHV: Neues Anliegen melden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHV: Report a new request"
           }
         }
       }
@@ -1751,6 +1890,16 @@
         }
       }
     },
+    "Zeigt die wichtigsten WHV-Themen: kommende ETV, neue Mitteilungen, offene Tickets.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the most important WHV items: upcoming ETV, new announcements, open tickets."
+          }
+        }
+      }
+    },
     "bearbeitet": {
       "localizations": {
         "en": {
@@ -1773,6 +1922,16 @@
     },
     "name@example.com": {
       "shouldTranslate": false
+    },
+    "verspätet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "running late"
+          }
+        }
+      }
     },
     "z. B. ABC123-XYZ": {
       "localizations": {
