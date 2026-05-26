@@ -67,6 +67,39 @@ struct PropertyResponse: Codable, Hashable {
     let image_url: String?
 }
 
+/// One Einheit inside a property — mirrors the backend's
+/// UnitResponse. PropertyDetailView renders these as a compact
+/// table beneath the address card.
+struct UnitResponse: Codable, Hashable, Identifiable {
+    let id: String
+    let unit_hr_id: String?
+    let type: String
+    let floor: String?
+    let position: String?
+    let unit_rank: Int?
+    let is_owned_by_weg: Bool?
+    /// Pydantic v2 emits Decimal as JSON number — Double is enough
+    /// precision for the read-only display in PropertyDetailView.
+    let voting_share: Double?
+    let area_m2: Double?
+    let rooms: Double?
+}
+
+/// Detail variant of PropertyResponse — adds the embedded unit
+/// list. Returned by GET /me/properties/{id}.
+struct PropertyDetailResponse: Codable, Hashable {
+    let id: String
+    let property_hr_id: String?
+    let name: String
+    let type: String
+    let city: String?
+    let street: String?
+    let number: String?
+    let postal_code: String?
+    let image_url: String?
+    let units: [UnitResponse]
+}
+
 /// POST body for /me/assemblies/{id}/comments. Mirrors
 /// CreateAssemblyCommentRequest.
 struct CreateAssemblyCommentBody: Codable {
@@ -403,6 +436,31 @@ struct APIClient {
             return await DemoStore.shared.properties
         }
         return try await authedGET("/me/properties")
+    }
+
+    /// GET /me/properties/{id} — full detail with the units list.
+    /// Used by PropertyDetailView (§8.3). Short-circuits to a demo
+    /// stub when active so the demo user sees their seed property's
+    /// detail page populated.
+    func getMyPropertyDetail(id: String) async throws -> PropertyDetailResponse {
+        if DemoFlag.isActive {
+            if let p = await DemoStore.shared.properties.first(where: { $0.id == id }) {
+                return PropertyDetailResponse(
+                    id: p.id,
+                    property_hr_id: p.property_hr_id,
+                    name: p.name,
+                    type: p.type,
+                    city: p.city,
+                    street: p.street,
+                    number: p.number,
+                    postal_code: p.postal_code,
+                    image_url: p.image_url,
+                    units: []
+                )
+            }
+            throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
+        }
+        return try await authedGET("/me/properties/\(id)")
     }
 
     /// GET /me/export → tmp file URL with the DSGVO Art. 20 JSON

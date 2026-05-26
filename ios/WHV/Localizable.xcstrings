@@ -529,6 +529,16 @@
     "ETV": {
       "shouldTranslate": false
     },
+    "ETV ansehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View ETV"
+          }
+        }
+      }
+    },
     "ETV läuft: %@": {
       "localizations": {
         "en": {
@@ -575,6 +585,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Invited"
+          }
+        }
+      }
+    },
+    "Einheiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Units"
           }
         }
       }
@@ -1089,6 +1109,16 @@
         }
       }
     },
+    "Liegenschaft wechseln": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch property"
+          }
+        }
+      }
+    },
     "Liegenschaft wählen": {
       "localizations": {
         "en": {
@@ -1485,6 +1515,16 @@
         }
       }
     },
+    "Schnellzugriff": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick access"
+          }
+        }
+      }
+    },
     "Schädlinge": {
       "localizations": {
         "en": {
@@ -1797,6 +1837,16 @@
         }
       }
     },
+    "Verwaltung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Management"
+          }
+        }
+      }
+    },
     "WEG-Anfrage": {
       "localizations": {
         "en": {
@@ -1972,6 +2022,9 @@
           }
         }
       }
+    },
+    "·": {
+      "shouldTranslate": false
     },
     "Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung": {
       "localizations": {

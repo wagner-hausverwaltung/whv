@@ -131,10 +131,14 @@ struct EinstellungenView: View {
     private var liegenschaftSection: some View {
         if let l = liegenschaftStore.selected {
             // Bare row in its own section so the library backdrop
-            // stays clean — no header / footer copy.
+            // stays clean — tap pushes the §8.3 detail screen
+            // (address card + Verwaltung-Kontakt + units + quick
+            // actions). "Liegenschaft wechseln" lives on the detail
+            // page now rather than the tap action — discoverable
+            // but not destructive on accidental taps.
             Section {
-                Button {
-                    liegenschaftStore.clear()
+                NavigationLink {
+                    PropertyDetailView(property: l)
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -145,10 +149,7 @@ struct EinstellungenView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.left.arrow.right")
-                            .font(.body)
-                            .foregroundStyle(.tint)
+                        Spacer(minLength: 0)
                     }
                     .padding(.vertical, 2)
                 }
