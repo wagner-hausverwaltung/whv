@@ -8,7 +8,15 @@ import SwiftUI
 
 @MainActor
 final class TicketsListStore: ObservableObject {
-    @Published private(set) var tickets: [TicketSummary] = []
+    /// Raw response from the API — every ticket the caller can
+    /// see across the whole organization. The visible `tickets`
+    /// list filters this down to the active Liegenschaft.
+    @Published private(set) var allTickets: [TicketSummary] = []
+    /// Property the list is currently filtered to. Nil = show all.
+    /// When set, tickets without a property_id still show (those
+    /// are "general" requests the user opened without picking a
+    /// Liegenschaft, e.g. profile/data questions).
+    @Published var activePropertyId: String?
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
@@ -19,13 +27,24 @@ final class TicketsListStore: ObservableObject {
         self.api = api
     }
 
+    /// View-facing list. Filters `allTickets` to the active
+    /// property + property-less rows. Done client-side so the
+    /// backend `/me/tickets` endpoint stays untouched + so a
+    /// property switch is instant (no refetch round-trip).
+    var tickets: [TicketSummary] {
+        guard let activePropertyId else { return allTickets }
+        return allTickets.filter { t in
+            t.property_id == nil || t.property_id == activePropertyId
+        }
+    }
+
     func load(force: Bool = false) async {
-        if !tickets.isEmpty, !force, !isLoading { return }
+        if !allTickets.isEmpty, !force, !isLoading { return }
         lastError = nil
         isLoading = true
         defer { isLoading = false }
         do {
-            self.tickets = try await api.listMyTickets()
+            self.allTickets = try await api.listMyTickets()
         } catch APIError.unauthorized {
             onUnauthorized?()
         } catch let error as APIError {
@@ -47,6 +66,7 @@ final class TicketsListStore: ObservableObject {
 
 struct TicketsTab: View {
     @EnvironmentObject var authStore: AuthStore
+    @EnvironmentObject var liegenschaftStore: LiegenschaftStore
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @StateObject private var store = TicketsListStore()
     @State private var newTicketOpen = false
@@ -82,6 +102,14 @@ struct TicketsTab: View {
                     store.onUnauthorized = { [weak authStore] in
                         authStore?.signOut()
                     }
+                    // Sync the filter with the user's current
+                    // Liegenschaft selection. Re-runs on appear so a
+                    // property switch elsewhere is reflected the
+                    // next time the user comes back to this tab.
+                    store.activePropertyId = liegenschaftStore.selected?.id
+                }
+                .onChange(of: liegenschaftStore.selected?.id) { _, new in
+                    store.activePropertyId = new
                 }
                 .task { await store.load() }
                 .sheet(isPresented: $newTicketOpen) {
