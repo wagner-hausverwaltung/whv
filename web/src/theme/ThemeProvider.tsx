@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CssBaseline, ThemeProvider as MUIThemeProvider } from "@mui/material";
+import { CssBaseline, GlobalStyles, ThemeProvider as MUIThemeProvider } from "@mui/material";
 import { createTheme, type PaletteMode } from "@mui/material/styles";
 import {
   ColorSchemeContext,
@@ -134,6 +134,46 @@ export function WhvThemeProvider({ children }: { children: ReactNode }) {
     <ColorSchemeContext.Provider value={value}>
       <MUIThemeProvider theme={theme}>
         <CssBaseline />
+        {/*
+          Print stylesheet (§9.3). Hides chrome (AppBar, sidebar, FAB,
+          floating buttons) and forces black-on-white so a printout
+          of a document / announcement / ticket reads like a paper
+          letter. Components opt out by adding the `no-print` class
+          (used on the AppBar + sidebar nav). Page-break hints land
+          on `.page-break-before` for sectioned documents.
+        */}
+        <GlobalStyles
+          styles={{
+            "@media print": {
+              ".no-print": { display: "none !important" },
+              "html, body": {
+                background: "#fff !important",
+                color: "#000 !important",
+              },
+              "main": {
+                padding: "0 !important",
+                margin: "0 !important",
+                maxWidth: "100% !important",
+              },
+              "a, a:visited": {
+                color: "#000 !important",
+                textDecoration: "underline",
+              },
+              // MUI Paper/Card lose their elevation in print — flat
+              // shapes read better on paper than a faint shadow.
+              ".MuiPaper-root, .MuiCard-root": {
+                boxShadow: "none !important",
+                border: "1px solid #ccc !important",
+              },
+              // Buttons + tab bars are interactive only, drop them.
+              ".MuiButton-root, .MuiTab-root, .MuiTabs-root, .MuiFab-root": {
+                display: "none !important",
+              },
+              ".page-break-before": { pageBreakBefore: "always" },
+              ".page-break-avoid": { pageBreakInside: "avoid" },
+            },
+          }}
+        />
         {children}
       </MUIThemeProvider>
     </ColorSchemeContext.Provider>

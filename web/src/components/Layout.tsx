@@ -68,6 +68,9 @@ export function Layout({ children }: { children: ReactNode }) {
         position="static"
         color="default"
         elevation={0}
+        // Hidden in print so the rendered document / announcement /
+        // ticket is the only thing on the printed page (§9.3).
+        className="no-print"
         sx={{
           bgcolor: (theme) =>
             theme.palette.mode === "dark"

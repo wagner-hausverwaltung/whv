@@ -29,6 +29,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.sync_all_impower",
         "schedule": crontab(hour=2, minute=0),
     },
+    # Reconciliation watchdog runs 90 min after the sync (and after the
+    # backup) so any drift the sync missed surfaces in Sentry. Read-only —
+    # never writes. Pages every entity, so we want this off-peak.
+    "reconcile-impower-daily": {
+        "task": "app.workers.tasks.reconcile_impower",
+        "schedule": crontab(hour=3, minute=30),
+    },
     # Hourly: open ENTWURF resolutions whose opens_at has passed, and
     # finalize OFFEN resolutions whose closes_at has passed (tally → PDF →
     # email). Hourly granularity is fine for v1 — owners read the Frist as

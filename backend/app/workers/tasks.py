@@ -81,6 +81,48 @@ def sync_all_impower() -> dict[str, int]:
     return asyncio.run(_sync_all_async())
 
 
+async def _reconcile_impower_async() -> dict[str, dict[str, int]]:
+    """Compare local mirror row-counts vs. Impower live counts and
+    emit a Sentry warning if the diff exceeds the thresholds in
+    `services/reconciliation.py`. Read-only — never writes."""
+    from app.services.reconciliation import alert_on_drift, reconcile
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    summary: dict[str, dict[str, int]] = {}
+    try:
+        async with (
+            ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client,
+            session_factory() as session,
+        ):
+            diffs = await reconcile(session, client)
+            alert_on_drift(diffs)
+            for d in diffs:
+                summary[d.entity] = {
+                    "mirror": d.mirror_count,
+                    "impower": d.impower_count,
+                    "diff": d.diff,
+                }
+                logger.info(
+                    "reconcile %s: mirror=%d impower=%d diff=%d drifted=%s",
+                    d.entity,
+                    d.mirror_count,
+                    d.impower_count,
+                    d.diff,
+                    d.is_drifted,
+                )
+    finally:
+        await engine.dispose()
+    return summary
+
+
+@celery_app.task(name="app.workers.tasks.reconcile_impower")
+def reconcile_impower() -> dict[str, dict[str, int]]:
+    """Daily watchdog — Sentry alert on drift between mirror + Impower."""
+    return asyncio.run(_reconcile_impower_async())
+
+
 async def _process_due_resolutions_async() -> dict[str, int]:
     """Open due-to-open resolutions and finalize expired ones.
 

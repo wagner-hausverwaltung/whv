@@ -101,6 +101,69 @@ class ImpowerClient:
 
         raise ImpowerError(f"{method} {path} exhausted retries") from last_exc
 
+    # ---- Connections (webhook registration) ----------------------------------
+    # Impower's `/v2/connections` API is how third-party apps subscribe to
+    # entity-change events. We register one connection per environment
+    # (staging + prod) pointing at `/webhooks/impower`; Impower then POSTs
+    # to that URL whenever a property / unit / contract / contact / document
+    # changes.
+    #
+    # The `decryptedSecret` we provide here is what Impower uses to sign
+    # subsequent webhook deliveries (HMAC-SHA256 of the body, sent in the
+    # `X-Impower-Signature` header). Must match what we configure on our
+    # side as `IMPOWER_WEBHOOK_SECRET`.
+
+    async def register_connection(
+        self,
+        *,
+        webhook_url: str,
+        secret: str,
+        name: str | None = None,
+        app_id: int = 8,
+    ) -> dict[str, Any]:
+        """POST /v2/connections — register a new webhook subscriber.
+
+        Returns the raw JSON Impower replied with (includes the new
+        connection id + state). We don't bind it to the generated
+        ConnectionDto because the CLI just prints the result + doesn't
+        need typed access.
+        """
+        payload = {
+            "appId": app_id,
+            "decryptedSecret": secret,
+            "webhookUrl": webhook_url,
+        }
+        if name is not None:
+            payload["name"] = name
+        response = await self._request("POST", "/v2/connections", json=payload)
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def list_connections(self) -> list[dict[str, Any]]:
+        """GET /v2/connections — every connection registered for the
+        caller's tenant. Used by the CLI's `webhook list` command to
+        confirm a registration landed."""
+        response = await self._request("GET", "/v2/connections")
+        data = response.json()
+        if isinstance(data, list):
+            return data
+        # Some Impower endpoints wrap collections in {"content": […]}; be
+        # defensive in case this one does too.
+        content = data.get("content")
+        if isinstance(content, list):
+            return content
+        return []
+
+    async def delete_connection(self, connection_id: int, *, delete_related: bool = True) -> None:
+        """DELETE /v2/connections/{id} — remove a registered subscriber.
+        `delete_related=True` (default per Impower spec) also cleans up
+        any state the connection's app provisioned."""
+        await self._request(
+            "DELETE",
+            f"/v2/connections/{connection_id}",
+            json={"deleteRelated": delete_related},
+        )
+
     async def list_properties(
         self, page: int = 0, size: int = _DEFAULT_PAGE_SIZE
     ) -> SliceOfPropertyDto:
