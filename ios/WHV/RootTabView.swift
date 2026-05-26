@@ -24,10 +24,13 @@ struct RootTabView: View {
 
     var body: some View {
         tabs
-            // Demo banner pinned at the top — visible on every tab,
-            // above any NavigationStack content underneath. Only
-            // appears while DemoStore.isActive == true.
-            .overlay(alignment: .top) {
+            // Demo banner sits in its own reserved strip via
+            // .safeAreaInset so the NavigationStack's title bar
+            // lays out *beneath* it instead of being covered.
+            // .overlay(alignment: .top) was the previous attempt
+            // and it hid the nav header on iPad. The inset is
+            // visible only while DemoStore.isActive.
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if demoStore.isActive {
                     DemoBanner { authStore.signOut() }
                         .transition(.move(edge: .top).combined(with: .opacity))
