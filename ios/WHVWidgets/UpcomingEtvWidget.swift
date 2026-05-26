@@ -215,17 +215,22 @@ struct WidgetView: View {
         }
     }
 
-    /// Tap target for the whole widget. Quiet state opens the
-    /// new-ticket flow so a glance at "nothing to do" is one tap
-    /// away from "report something" — the rest of the kinds stay
-    /// unscoped for now (a future commit can wire each case to the
-    /// matching detail screen via whv:// hosts).
+    /// Tap target per kind. Quiet → new-ticket composer. Every
+    /// other kind opens its tab (no per-row deep link yet — that
+    /// needs the URL scheme to carry an id, which we'll add once
+    /// the tab views know how to consume it). Without these, an
+    /// ETV-card tap on a real device falls back to whichever tab
+    /// the user had last open, which usually feels wrong.
     private func deepLink(for item: WidgetItem) -> URL? {
         switch item {
         case .quiet:
             return URL(string: "whv://new-ticket")
-        default:
-            return nil
+        case .etvInProgress, .etvSoon, .etvUpcoming, .etvNewComment:
+            return URL(string: "whv://etv")
+        case .ticketFresh, .ticketCountOnly:
+            return URL(string: "whv://tickets")
+        case .announcementFresh:
+            return URL(string: "whv://mitteilungen")
         }
     }
 }

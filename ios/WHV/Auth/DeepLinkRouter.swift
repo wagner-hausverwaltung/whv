@@ -17,6 +17,30 @@ import Foundation
 enum DeepLinkTarget: Equatable {
     /// Switch to the Tickets tab and present the new-ticket sheet.
     case newTicket
+    /// Switch to a specific tab without presenting a sheet — used
+    /// by the widget's ETV / Mitteilungen / Tickets cards.
+    case tab(WHVTab)
+}
+
+/// One enum per tab the widget might want to deep-link to. Mirrors
+/// the `.tag(_:)` integers in RootTabView so the router doesn't
+/// need to know about magic numbers.
+enum WHVTab {
+    case mitteilungen
+    case tickets
+    case etv
+    case news
+    case einstellungen
+
+    var selection: Int {
+        switch self {
+        case .mitteilungen: return 0
+        case .tickets: return 1
+        case .etv: return 2
+        case .news: return 3
+        case .einstellungen: return 4
+        }
+    }
 }
 
 @MainActor
@@ -42,6 +66,21 @@ final class DeepLinkRouter: ObservableObject {
         switch target {
         case "new-ticket":
             pendingTarget = .newTicket
+            return true
+        case "tickets":
+            pendingTarget = .tab(.tickets)
+            return true
+        case "etv", "assembly":
+            pendingTarget = .tab(.etv)
+            return true
+        case "mitteilungen", "announcement":
+            pendingTarget = .tab(.mitteilungen)
+            return true
+        case "news":
+            pendingTarget = .tab(.news)
+            return true
+        case "einstellungen", "settings":
+            pendingTarget = .tab(.einstellungen)
             return true
         default:
             return false

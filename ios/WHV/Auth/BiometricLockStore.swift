@@ -59,6 +59,12 @@ final class BiometricLockStore: ObservableObject {
         )
         self.isAvailable = canEvaluate
         self.biometryLabel = Self.label(for: ctx.biometryType)
+        // Cold start: when biometric lock is enabled, lock the app
+        // straight away. didBecomeActive() never fires on the first
+        // launch because there's no preceding background transition,
+        // so without this we'd silently leave the app unlocked on
+        // every fresh start.
+        self.isLocked = self.enabled && self.isAvailable
     }
 
     /// Call from WHVApp when the scene phase flips to .background.

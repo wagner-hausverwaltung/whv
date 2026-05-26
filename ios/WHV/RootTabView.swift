@@ -43,19 +43,16 @@ struct RootTabView: View {
                     .padding(.trailing, 16)
                     .padding(.bottom, 64)  // floats above the tab bar
             }
-            // Deep-link consumer: whv://new-ticket from the widget
-            // (or a Universal Link in the future) flips selection
-            // to the Tickets tab + presents the new-ticket sheet.
-            // Consume immediately so a second open of the same link
-            // re-fires the side effect.
+            // Deep-link consumer. Two firing paths so we catch both
+            // a runtime URL (widget tap while app is running →
+            // .onChange fires) AND a cold-launch URL (URL handed in
+            // before this view is in the tree, so pendingTarget is
+            // already set when .onAppear fires).
             .onChange(of: deepLinkRouter.pendingTarget) { _, target in
-                guard let target else { return }
-                switch target {
-                case .newTicket:
-                    selection = 1
-                    newTicketSheetOpen = true
-                }
-                deepLinkRouter.consume()
+                consumeDeepLink(target)
+            }
+            .onAppear {
+                consumeDeepLink(deepLinkRouter.pendingTarget)
             }
             .sheet(isPresented: $newTicketSheetOpen) {
                 // No-op onCreated — the Tickets tab owns its store
@@ -63,6 +60,22 @@ struct RootTabView: View {
                 // deep-link sheet is purely an entry point.
                 NewTicketSheet { _ in }
             }
+    }
+
+    /// Handle a (possibly-nil) DeepLinkTarget by mutating the
+    /// tab selection / opening the right sheet. Always consumes
+    /// the router so a re-fire of the same URL is treated as a
+    /// fresh request.
+    private func consumeDeepLink(_ target: DeepLinkTarget?) {
+        guard let target else { return }
+        switch target {
+        case .newTicket:
+            selection = 1
+            newTicketSheetOpen = true
+        case .tab(let t):
+            selection = t.selection
+        }
+        deepLinkRouter.consume()
     }
 
     private var tabs: some View {
