@@ -170,6 +170,23 @@ class ImpowerClient:
         response = await self._request("GET", "/properties", params={"page": page, "size": size})
         return SliceOfPropertyDto.model_validate(response.json())
 
+    async def get_invoice(self, invoice_id: int) -> dict[str, Any]:
+        """GET /v2/invoices/{id} — returns the structured invoice with
+        line items (`items`), each carrying `accountCode`, `accountName`
+        ("Passive Rechnungsabgrenzungsposten"), `amount`, `bookingText`
+        ("Strom Lieferung 15.04.2025 - 31.12.2025"), `vatAmount`,
+        `vatPercentage`.
+
+        Used by `/me/properties/{id}/invoices/{source_id}` to surface
+        the Buchungsdetails in the Dienstleister-tab invoice dialog.
+        Returned as a raw dict because the generated `InvoiceDto`
+        nests a dozen unrelated fields the SPA doesn't render; the
+        endpoint shapes a narrow `InvoiceDetailResponse` instead.
+        """
+        response = await self._request("GET", f"/invoices/{invoice_id}")
+        result: dict[str, Any] = response.json()
+        return result
+
     async def list_units(
         self,
         page: int = 0,

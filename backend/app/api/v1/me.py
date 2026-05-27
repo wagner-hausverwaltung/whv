@@ -32,6 +32,7 @@ from app.models.property import PropertyState
 from app.schemas.auth import UserResponse
 from app.schemas.contact import ContactDetailResponse, ContractContextResponse
 from app.schemas.document import DocumentFolderResponse, DocumentResponse
+from app.schemas.invoice import InvoiceDetailResponse, InvoiceLineItemResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
 from app.schemas.vendor import VendorSummary
@@ -425,6 +426,148 @@ async def get_my_property_vendors(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
 
     return await vendors_svc.load_vendors_for_property(session, property_id=prop.id)
+
+
+@router.get(
+    "/properties/{property_id}/invoices/{document_id}",
+    response_model=InvoiceDetailResponse,
+)
+async def get_my_invoice_detail(
+    property_id: uuid.UUID,
+    document_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InvoiceDetailResponse:
+    """Per-invoice detail dialog source.
+
+    The Dienstleister tab shows the document row (filename, date,
+    amount). Clicking the row opens a dialog that needs the actual
+    bookkeeping breakdown — what account each line was posted to,
+    booking text ("Primärenergie 01.01-31.12"), VAT split. That
+    lives on Impower's `/v2/invoices/{id}` resource.
+
+    We don't mirror invoices locally — high churn, read-once per
+    user click. So we look up the document on our side (to verify
+    property access + get the `sourceId` we need on Impower's side),
+    then fetch from Impower on demand. The endpoint returns a
+    narrow, owner-friendly shape rather than the raw 30-field
+    InvoiceDto.
+
+    Auth: caller must have access to the property AND the document
+    must belong to that property and have a real `impower_id` /
+    sourceType=INVOICE. 404 otherwise — same existence-leak hygiene
+    as elsewhere.
+    """
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    doc_stmt = select(Document).where(
+        Document.id == document_id,
+        Document.property_id == prop.id,
+        Document.organization_id == current_user.organization_id,
+        Document.deleted_at.is_(None),
+    )
+    if current_user.role != UserRole.VERWALTER:
+        # Same row-scope check the documents endpoint uses — if the
+        # invoice is unit/contract/contact-pinned and this caller
+        # isn't on the right side, hide it.
+        doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
+    doc = await session.scalar(doc_stmt)
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    # The `sourceId` we mirrored from Impower's DocumentDto IS the
+    # invoice id on the /v2/invoices side. Pull it out of raw_jsonb
+    # since we never broke it into a typed column.
+    raw = doc.raw_jsonb or {}
+    invoice_id = raw.get("sourceId")
+    if not isinstance(invoice_id, int):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Buchungsdetails sind für dieses Dokument nicht verfügbar.",
+        )
+
+    if not settings.impower_api_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Impower-Verbindung nicht konfiguriert.",
+        )
+
+    from app.integrations.impower.client import ImpowerClient, ImpowerError
+
+    try:
+        async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
+            data = await client.get_invoice(invoice_id)
+    except ImpowerError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Rechnungsdetails konnten nicht von Impower geladen werden.",
+        ) from None
+
+    return _impower_invoice_to_response(data)
+
+
+def _impower_invoice_to_response(data: dict[str, object]) -> InvoiceDetailResponse:
+    """Project Impower's raw InvoiceDto down to the fields the
+    Dienstleister dialog renders. Defensive against missing keys —
+    we treat absent/None as "not surfaced" rather than failing the
+    whole response.
+    """
+    from datetime import date as date_cls
+    from decimal import Decimal
+
+    def _dec(v: object) -> Decimal | None:
+        if v is None:
+            return None
+        try:
+            return Decimal(str(v))
+        except (ValueError, ArithmeticError):
+            return None
+
+    def _date(v: object) -> date_cls | None:
+        if not isinstance(v, str) or len(v) < 10:
+            return None
+        try:
+            return date_cls.fromisoformat(v[:10])
+        except ValueError:
+            return None
+
+    def _str(v: object) -> str | None:
+        return v if isinstance(v, str) and v else None
+
+    items_raw = data.get("items") or []
+    items: list[InvoiceLineItemResponse] = []
+    if isinstance(items_raw, list):
+        for it in items_raw:
+            if not isinstance(it, dict):
+                continue
+            items.append(
+                InvoiceLineItemResponse(
+                    account_code=_str(it.get("accountCode")),
+                    account_name=_str(it.get("accountName")),
+                    booking_text=_str(it.get("bookingText")),
+                    amount=_dec(it.get("amount")),
+                    vat_amount=_dec(it.get("vatAmount")),
+                    vat_percentage=_dec(it.get("vatPercentage")),
+                )
+            )
+
+    return InvoiceDetailResponse(
+        invoice_number=_str(data.get("name")),
+        issued_date=_date(data.get("issuedDate")),
+        amount=_dec(data.get("amount")),
+        state=_str(data.get("state")),
+        counterpart_name=_str(data.get("counterpartContactName")),
+        counterpart_iban=_str(data.get("orderPropertyIban")),
+        counterpart_bic=_str(data.get("orderPropertyBic")),
+        items=items,
+    )
 
 
 @router.get(

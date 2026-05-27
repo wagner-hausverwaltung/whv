@@ -102,6 +102,32 @@ export interface ContractContextResponse {
   role: string | null;
 }
 
+/// One posting line in an InvoiceDetailResponse. Comes from
+/// Impower's /v2/invoices/{id}.items — the bookkeeping breakdown
+/// owners want to see ("Primärenergie 01.01–31.12.2025 · 250 €").
+export interface InvoiceLineItemResponse {
+  account_code: string | null;
+  account_name: string | null;
+  booking_text: string | null;
+  amount: number | string | null;
+  vat_amount: number | string | null;
+  vat_percentage: number | string | null;
+}
+
+/// Header + items returned by
+/// GET /me/properties/{id}/invoices/{document_id}. Drives the
+/// per-invoice detail dialog on the Dienstleister tab.
+export interface InvoiceDetailResponse {
+  invoice_number: string | null;
+  issued_date: string | null;
+  amount: number | string | null;
+  state: string | null;
+  counterpart_name: string | null;
+  counterpart_iban: string | null;
+  counterpart_bic: string | null;
+  items: InvoiceLineItemResponse[];
+}
+
 /// One invoice row in a VendorSummary.recent_invoices list. Pure
 /// metadata — the actual PDF is served by the existing
 /// /me/documents/{id}/file endpoint.
