@@ -130,7 +130,14 @@ export function PropertyVendorsPage() {
       )}
 
       {openInvoice && id && (
+        // `key` per invoice id forces a fresh component mount when
+        // the user opens a different invoice without closing the
+        // dialog first. Internal state (detail / error) reinitialises
+        // to its useState default — no setState-in-effect reset
+        // needed (which the lint rule flags as a cascading-render
+        // risk).
         <InvoiceDetailDialog
+          key={openInvoice.invoice.id}
           open
           propertyId={id}
           invoice={openInvoice.invoice}
@@ -355,9 +362,10 @@ function InvoiceDetailDialog({
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
+    // Per-invoice key on the parent (PropertyVendorsPage) forces a
+    // remount when invoice.id changes — that's where the state
+    // reset lives. This effect only kicks the fetch.
     if (!open) return;
-    setDetail(null);
-    setError(null);
     let cancelled = false;
     void (async () => {
       try {

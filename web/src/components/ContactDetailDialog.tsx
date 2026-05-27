@@ -53,9 +53,10 @@ export function ContactDetailDialog({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Parent passes a `key={contactId}` so the component remounts
+    // on prop change; that's where the state reset happens. This
+    // effect just fires the fetch.
     if (!open) return;
-    setDetail(null);
-    setError(null);
     let cancelled = false;
     void (async () => {
       try {

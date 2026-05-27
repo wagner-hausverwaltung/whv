@@ -182,6 +182,52 @@ struct VendorSummary: Codable, Hashable, Identifiable {
     var id: String { contact_id }
 }
 
+/// One posting line in an InvoiceDetailResponse. Comes from
+/// Impower's `/v2/invoices/{id}.items` — the bookkeeping breakdown
+/// owners want to see ("Primärenergie 01.01.-31.12.2025 · 250 €").
+struct InvoiceLineItemResponse: Codable, Hashable, Identifiable {
+    let account_code: String?
+    let account_name: String?
+    let booking_text: String?
+    let amount: Double?
+    let vat_amount: Double?
+    let vat_percentage: Double?
+
+    /// Synthetic id — line items don't carry one on the wire and
+    /// we need something stable for SwiftUI ForEach. Falls back to
+    /// the booking text + amount so the same line in the same
+    /// position keeps its identity across re-decodes.
+    var id: String {
+        "\(account_code ?? "")|\(booking_text ?? "")|\(amount ?? 0)"
+    }
+}
+
+/// Header + items returned by
+/// `GET /me/properties/{property_id}/invoices/{document_id}`.
+/// Drives the per-invoice detail sheet on the Dienstleister
+/// section of PropertyDetailView.
+struct InvoiceDetailResponse: Codable, Hashable {
+    let invoice_number: String?
+    let issued_date: String?
+    let amount: Double?
+    /// DRAFT | READY | BOOKED | SCHEDULED | REVERSED.
+    let state: String?
+    let counterpart_name: String?
+    /// Vendor (recipient) IBAN/BIC — "Zum Konto".
+    let counterpart_iban: String?
+    let counterpart_bic: String?
+    /// Property (sender) IBAN/BIC — "Vom Konto".
+    let property_iban: String?
+    let property_bic: String?
+    /// True when Impower generates a bank order for this invoice.
+    let order_required: Bool?
+    /// Statement text that lands on the bank order.
+    let order_statement: String?
+    /// Days from booking → bank-order execution.
+    let order_day_offset: Int?
+    let items: [InvoiceLineItemResponse]
+}
+
 /// Detail variant of PropertyResponse — adds the embedded unit
 /// list. Returned by GET /me/properties/{id}.
 struct PropertyDetailResponse: Codable, Hashable {
@@ -687,6 +733,22 @@ struct APIClient {
             return await DemoStore.shared.vendors(for: propertyId)
         }
         return try await authedGET("/me/properties/\(propertyId)/vendors")
+    }
+
+    /// GET /me/properties/{property_id}/invoices/{document_id} —
+    /// per-invoice detail with bookkeeping line items, drives the
+    /// VendorInvoiceDetailSheet opened by tapping a row in the
+    /// Dienstleister section. Backend fetches from Impower on demand
+    /// (5-min TTL cache). Demo mode throws so the sheet can render
+    /// "Buchungsdetails im Demo nicht verfügbar" rather than fake
+    /// line items.
+    func getMyInvoiceDetail(
+        propertyId: String, documentId: String
+    ) async throws -> InvoiceDetailResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedGET(
+            "/me/properties/\(propertyId)/invoices/\(documentId)"
+        )
     }
 
     /// GET /me/contracts/{contractId}/contacts/{contactId} —

@@ -63,6 +63,16 @@ struct ContactSheetTarget: Identifiable, Hashable {
     var id: String { contractId + ":" + contactId }
 }
 
+/// Target for the per-invoice detail sheet — set by tapping a
+/// row inside a vendor's DisclosureGroup. Carries enough fallback
+/// metadata that the sheet can render its header while the fetch
+/// is in flight.
+struct InvoiceSheetTarget: Identifiable, Hashable {
+    let vendorName: String
+    let invoice: VendorInvoiceSummary
+    var id: String { invoice.id }
+}
+
 struct PropertyDetailView: View {
     let property: Liegenschaft
 
@@ -72,6 +82,7 @@ struct PropertyDetailView: View {
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     /// Sheet binding. nil = closed.
     @State private var contactSheetTarget: ContactSheetTarget?
+    @State private var invoiceSheetTarget: InvoiceSheetTarget?
 
     var body: some View {
         ScrollView {
@@ -109,6 +120,14 @@ struct PropertyDetailView: View {
                 contactId: target.contactId,
                 fallbackLabel: target.fallbackLabel,
                 contractType: target.contractType
+            )
+            .environmentObject(authStore)
+        }
+        .sheet(item: $invoiceSheetTarget) { target in
+            InvoiceDetailSheet(
+                propertyId: property.id,
+                vendorName: target.vendorName,
+                invoice: target.invoice
             )
             .environmentObject(authStore)
         }
@@ -319,7 +338,15 @@ struct PropertyDetailView: View {
             }
             VStack(spacing: 0) {
                 ForEach(vendors) { vendor in
-                    VendorRow(vendor: vendor)
+                    VendorRow(
+                        vendor: vendor,
+                        onInvoiceTap: { invoice in
+                            invoiceSheetTarget = InvoiceSheetTarget(
+                                vendorName: vendor.name,
+                                invoice: invoice
+                            )
+                        }
+                    )
                     if vendor.contact_id != vendors.last?.contact_id {
                         Divider().padding(.leading, 56)
                     }
@@ -535,102 +562,140 @@ private struct ContractChip: View {
 /// then a compact recent-invoices list. Owners use this to answer
 /// "who fixed the boiler last time?" — same shape as the portal's
 /// VendorCard.
+/// One vendor row in the Dienstleister section — DisclosureGroup
+/// collapsed by default. Header (always visible) carries the
+/// summary chips; expanded body shows tap-to-call/mail + the
+/// recent-invoices list, each row a button that opens
+/// InvoiceDetailSheet via the parent's sheet binding.
 private struct VendorRow: View {
     let vendor: VendorSummary
+    let onInvoiceTap: (VendorInvoiceSummary) -> Void
+
+    /// Per-row expand state. SwiftUI's `DisclosureGroup` keeps it
+    /// for free if we use the parameterless init, but we want the
+    /// chevron animation under our own control so the screen
+    /// doesn't reset state when the parent re-fetches vendors.
+    @State private var expanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: vendor.kind == "COMPANY" ? "briefcase.fill" : "person.fill")
-                    .font(.body)
-                    .foregroundStyle(.tint)
-                    .frame(width: 32, height: 32)
-                    .background(Color.accentColor.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(vendor.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    HStack(spacing: 6) {
-                        if let last = vendor.last_service_date,
-                           let formatted = formatDate(last) {
-                            Text("Zuletzt \(formatted)")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Text("· \(vendor.invoice_count) Rechnung\(vendor.invoice_count == 1 ? "" : "en")")
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                if vendor.phone != nil || vendor.email != nil {
+                    contactRow
+                }
+                if !vendor.recent_invoices.isEmpty {
+                    invoicesBlock
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            header
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: vendor.kind == "COMPANY" ? "briefcase.fill" : "person.fill")
+                .font(.body)
+                .foregroundStyle(.tint)
+                .frame(width: 32, height: 32)
+                .background(Color.accentColor.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(vendor.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    if let last = vendor.last_service_date,
+                       let formatted = formatDate(last)
+                    {
+                        Text("Zuletzt \(formatted)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Text("· \(vendor.invoice_count) Rechnung\(vendor.invoice_count == 1 ? "" : "en")")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    if let total = vendor.total_amount {
+                        Text("· \(formatAmount(total)) €")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Spacer(minLength: 0)
             }
+            Spacer(minLength: 0)
+        }
+    }
 
-            // Contact rows — tap launches Mail / Phone. We skip the
-            // block entirely when neither field is set so the card
-            // stays compact for vendors with only a postal address.
-            if vendor.phone != nil || vendor.email != nil {
-                HStack(spacing: 14) {
-                    if let phone = vendor.phone, !phone.isEmpty,
-                       let url = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))")
-                    {
-                        Link(destination: url) {
-                            Label(phone, systemImage: "phone.fill")
-                                .font(.caption.weight(.medium))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    if let email = vendor.email, !email.isEmpty,
-                       let url = URL(string: "mailto:\(email)")
-                    {
-                        Link(destination: url) {
-                            Label(email, systemImage: "envelope.fill")
-                                .font(.caption.weight(.medium))
-                                .lineLimit(1)
-                        }
-                        .buttonStyle(.plain)
-                    }
+    private var contactRow: some View {
+        HStack(spacing: 14) {
+            if let phone = vendor.phone, !phone.isEmpty,
+               let url = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))")
+            {
+                Link(destination: url) {
+                    Label(phone, systemImage: "phone.fill")
+                        .font(.caption.weight(.medium))
                 }
+                .buttonStyle(.plain)
             }
+            if let email = vendor.email, !email.isEmpty,
+               let url = URL(string: "mailto:\(email)")
+            {
+                Link(destination: url) {
+                    Label(email, systemImage: "envelope.fill")
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 
-            // Recent invoices — we don't make these tappable on iOS
-            // yet because the document downloader lives behind a
-            // FilePreview wrapper that's a separate sheet, and the
-            // payoff is small (the portal already does it well). For
-            // iOS the value is "see WHO worked here + their phone";
-            // grabbing the PDF can come in a follow-up.
-            if !vendor.recent_invoices.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Letzte Rechnungen")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .textCase(.uppercase)
-                    ForEach(vendor.recent_invoices) { inv in
-                        HStack(spacing: 6) {
+    private var invoicesBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Letzte Rechnungen")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+            ForEach(vendor.recent_invoices) { inv in
+                // Whole-row button — tap opens InvoiceDetailSheet
+                // via the parent's sheet binding. Plain button
+                // style keeps the surrounding chrome calm.
+                Button {
+                    onInvoiceTap(inv)
+                } label: {
+                    HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(inv.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.primary)
                                 .lineLimit(1)
-                            Spacer(minLength: 0)
-                            if let amount = inv.amount {
-                                Text(formatAmount(amount) + " €")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
                             if let date = inv.issued_date,
-                               let formatted = formatDate(date) {
+                               let formatted = formatDate(date)
+                            {
                                 Text(formatted)
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                             }
                         }
+                        Spacer(minLength: 0)
+                        if let amount = inv.amount {
+                            Text(formatAmount(amount) + " €")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func formatDate(_ iso: String) -> String? {

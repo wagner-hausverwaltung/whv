@@ -244,9 +244,12 @@ export function PropertyDetailPage() {
       </Box>
 
       {/* One dialog instance for the whole page — opening another
-          contact replaces the target, which re-runs the fetch. */}
+          contact remounts via the contact-id key so internal state
+          (detail / error) resets to its useState default. Avoids
+          synchronous setState-in-effect resets the lint rule flags. */}
       {contactDialog && (
         <ContactDetailDialog
+          key={contactDialog.contactId}
           open
           contractId={contactDialog.contractId}
           contactId={contactDialog.contactId}

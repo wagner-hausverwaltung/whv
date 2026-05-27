@@ -499,16 +499,29 @@ async def get_my_invoice_detail(
             detail="Impower-Verbindung nicht konfiguriert.",
         )
 
-    from app.integrations.impower.client import ImpowerClient, ImpowerError
+    # In-process TTL cache absorbs the "click → close → click again"
+    # burst pattern owners exhibit when looking at the same invoice
+    # multiple times. The cache is keyed by Impower's invoice id —
+    # the data doesn't vary per user, and authorization already
+    # happened above before we got here.
+    from app.services.invoice_cache import get_invoice_cache
 
-    try:
-        async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
-            data = await client.get_invoice(invoice_id)
-    except ImpowerError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Rechnungsdetails konnten nicht von Impower geladen werden.",
-        ) from None
+    cache = get_invoice_cache()
+    data = cache.get(invoice_id)
+    if data is None:
+        from app.integrations.impower.client import ImpowerClient, ImpowerError
+
+        try:
+            async with ImpowerClient(
+                settings.impower_api_base, settings.impower_api_token
+            ) as client:
+                data = await client.get_invoice(invoice_id)
+        except ImpowerError:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Rechnungsdetails konnten nicht von Impower geladen werden.",
+            ) from None
+        await cache.set(invoice_id, data)
 
     return _impower_invoice_to_response(data)
 
