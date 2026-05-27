@@ -465,7 +465,8 @@ async def download_my_document(
     document_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> FileResponse:
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
     """Authenticated PDF download for portal users.
 
     Two scope checks for non-Verwalter callers: the document's property
@@ -473,6 +474,16 @@ async def download_my_document(
     AND the row-scope filter must allow it (so a Mieter on Unit 4 can't
     deep-link to a doc Impower pinned to Unit 1 on the same property).
     Verwalter sees everything.
+
+    Source resolution (same order as the Celery extraction tasks'
+    `_read_doc_bytes` helper):
+      1. Local cache at `document_path(doc.id, suffix)` if storage_url
+         carries the `local-disk:<suffix>` marker.
+      2. Impower's `/documents/{impower_id}/download` endpoint, pulled
+         on demand. Most owner-facing docs (Rechnungen, Abrechnungen)
+         live ONLY on Impower's side until §1.4d iter 2 mirrors them
+         to Hetzner OS — so falling back here is the common path, not
+         the exception.
     """
     doc_stmt = select(Document).where(
         Document.id == document_id,
@@ -492,23 +503,96 @@ async def download_my_document(
         if prop is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if not doc.storage_url or not doc.storage_url.startswith("local-disk:"):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Datei ist nicht lokal hinterlegt.",
-        )
-    suffix = doc.storage_url[len("local-disk:") :]
-    path = document_path(doc.id, suffix)
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Datei wurde nicht gefunden.",
-        )
-    return FileResponse(
-        path,
-        media_type=doc.mime_type or "application/octet-stream",
-        filename=f"{doc.name}{suffix}",
+    download_name = _safe_download_filename(doc.name, doc.mime_type, doc.storage_url)
+
+    # 1. Local cache — fastest, no Impower round-trip.
+    if doc.storage_url and doc.storage_url.startswith("local-disk:"):
+        suffix = doc.storage_url[len("local-disk:") :]
+        path = document_path(doc.id, suffix)
+        if path.exists():
+            return FileResponse(
+                path,
+                media_type=doc.mime_type or "application/octet-stream",
+                filename=download_name,
+            )
+        # storage_url claimed local but the file's gone — log + fall
+        # through to Impower so the user still gets the bytes.
+        # (Caching back to disk is a §1.4d-iter-2 problem.)
+
+    # 2. Impower on-demand fallback. Most Impower-imported docs land
+    # here because we don't mirror their bytes yet.
+    if doc.impower_id is not None and settings.impower_api_token:
+        from app.integrations.impower.client import ImpowerClient, ImpowerError
+
+        try:
+            async with ImpowerClient(
+                settings.impower_api_base, settings.impower_api_token
+            ) as client:
+                data = await client.download_document_content(int(doc.impower_id))
+        except ImpowerError:
+            # Impower 5xx / network — surface as 502 so the SPA shows
+            # the upstream error instead of "file not found" (which
+            # the user would interpret as our problem).
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Datei konnte nicht von Impower geladen werden.",
+            ) from None
+        if data is not None:
+            return Response(
+                content=data,
+                media_type=doc.mime_type or "application/pdf",
+                headers={
+                    # RFC 6266 — using `filename=` (ASCII) plus
+                    # `filename*=UTF-8'…` for umlauts in the Impower
+                    # name. Browsers honor whichever they support.
+                    "Content-Disposition": (
+                        f"attachment; filename=\"{_ascii_fallback(download_name)}\"; "
+                        f"filename*=UTF-8''{_rfc5987(download_name)}"
+                    ),
+                },
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Datei ist nicht verfügbar.",
     )
+
+
+def _safe_download_filename(name: str, mime_type: str | None, storage_url: str | None) -> str:
+    """Build a sensible filename for the Content-Disposition header.
+
+    Impower's `name` is usually descriptive ("R26/01384 …") but lacks
+    an extension. We append one inferred from the MIME type or the
+    local-disk suffix so the OS / browser opens the file with the
+    right app instead of treating it as octet-stream.
+    """
+    has_extension = "." in name.rsplit("/", 1)[-1]
+    if has_extension:
+        return name
+    if storage_url and storage_url.startswith("local-disk:"):
+        return name + storage_url[len("local-disk:") :]
+    # Most Impower docs are PDFs; the mime check covers the rest.
+    if mime_type == "application/pdf":
+        return name + ".pdf"
+    if mime_type and "/" in mime_type:
+        return name + "." + mime_type.split("/", 1)[1]
+    return name + ".pdf"
+
+
+def _ascii_fallback(s: str) -> str:
+    """Strip non-ASCII chars for the legacy `filename=` Content-
+    Disposition slot. The `filename*=` slot carries the real UTF-8
+    name; this is just the safe fallback for old clients."""
+    return "".join(ch if ord(ch) < 128 else "_" for ch in s)
+
+
+def _rfc5987(s: str) -> str:
+    """Percent-encode for the `filename*=UTF-8''…` Content-Disposition
+    slot per RFC 5987. Same semantics as urllib.parse.quote with a
+    conservative safe-char set."""
+    from urllib.parse import quote
+
+    return quote(s, safe="")
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
