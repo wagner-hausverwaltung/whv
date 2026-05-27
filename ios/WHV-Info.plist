@@ -52,7 +52,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.wagner-hausverwaltung.WHV</string>
+			<string>com.wagner-hausverwaltung.portal</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>whv</string>

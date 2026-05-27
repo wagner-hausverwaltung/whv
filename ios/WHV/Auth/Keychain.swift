@@ -27,7 +27,7 @@ enum KeychainError: Error {
 struct Keychain {
     let service: String
 
-    init(service: String = "com.wagner-hausverwaltung.WHV.auth") {
+    init(service: String = "com.wagner-hausverwaltung.portal.auth") {
         self.service = service
     }
 

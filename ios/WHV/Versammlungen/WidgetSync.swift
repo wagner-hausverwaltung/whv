@@ -66,7 +66,7 @@ struct WidgetAnnouncementPayload: Codable {
 }
 
 enum WidgetSync {
-    static let appGroup = "group.com.wagner-hausverwaltung.WHV"
+    static let appGroup = "group.com.wagner-hausverwaltung.portal"
     static let snapshotKey = "WHV.widget.snapshot"
     /// "Upcoming" cutoff for surfacing an ETV. Matches §8.9 — anything
     /// further out isn't actionable enough for a glance widget.

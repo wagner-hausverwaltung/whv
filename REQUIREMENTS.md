@@ -472,7 +472,7 @@ If none of the above is "live", the widget falls back to a quiet "Alles ruhig" s
 
 **Data plumbing:**
 - New `widget/` Xcode target sharing `Assembly` + `Liegenschaft` models via an App Group container.
-- `WidgetTimelineProvider` fetches `/me/properties/{id}/assemblies` (top of the upcoming queue), `/me/tickets?status=OFFEN` (Phase 4 once Tickets ship), `/me/announcements?since=…` via the same JWT the app uses (Keychain access group `group.com.wagner-hausverwaltung.WHV`).
+- `WidgetTimelineProvider` fetches `/me/properties/{id}/assemblies` (top of the upcoming queue), `/me/tickets?status=OFFEN` (Phase 4 once Tickets ship), `/me/announcements?since=…` via the same JWT the app uses (Keychain access group `group.com.wagner-hausverwaltung.portal`).
 - Refresh budget: every 30 min on Home Screen widgets, on-demand via `WidgetCenter.shared.reloadAllTimelines()` after app-side mutations (e.g. comment posted → background refresh).
 - DSGVO: same Auftragsverarbeitung gates as the app; no third-party SDKs in the widget target.
 

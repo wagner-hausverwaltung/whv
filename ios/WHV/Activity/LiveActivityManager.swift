@@ -33,7 +33,7 @@ private let agendaTitleMaxChars = 70
 
 @MainActor
 enum LiveActivityManager {
-    private static let log = Logger(subsystem: "com.wagner-hausverwaltung.WHV", category: "live-activity")
+    private static let log = Logger(subsystem: "com.wagner-hausverwaltung.portal", category: "live-activity")
 
     /// Scans the just-fetched list for an assembly that's about to
     /// happen, and starts/updates an Activity if so. Ends any stale

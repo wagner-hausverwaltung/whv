@@ -32,7 +32,7 @@ xcodebuild -project WHV.xcodeproj \
 
 xcrun simctl boot "iPhone 17" 2>/dev/null
 xcrun simctl install booted ~/Library/Developer/Xcode/DerivedData/WHV-*/Build/Products/Debug-iphonesimulator/WHV.app
-xcrun simctl launch booted com.wagner-hausverwaltung.WHV
+xcrun simctl launch booted com.wagner-hausverwaltung.portal
 open -a Simulator
 ```
 

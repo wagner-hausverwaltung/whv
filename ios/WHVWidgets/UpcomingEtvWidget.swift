@@ -66,7 +66,7 @@ struct WidgetAnnouncementPayload: Codable {
 }
 
 enum WidgetStorage {
-    static let appGroup = "group.com.wagner-hausverwaltung.WHV"
+    static let appGroup = "group.com.wagner-hausverwaltung.portal"
     static let snapshotKey = "WHV.widget.snapshot"
 
     static func loadSnapshot() -> WidgetSnapshot? {
