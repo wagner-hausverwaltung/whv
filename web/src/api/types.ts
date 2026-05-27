@@ -121,10 +121,22 @@ export interface InvoiceDetailResponse {
   invoice_number: string | null;
   issued_date: string | null;
   amount: number | string | null;
+  /// DRAFT | READY | BOOKED | SCHEDULED | REVERSED. Render via the
+  /// portal-side label helper.
   state: string | null;
   counterpart_name: string | null;
+  /// Vendor (recipient) IBAN/BIC — "Zum Konto".
   counterpart_iban: string | null;
   counterpart_bic: string | null;
+  /// Property (sender) IBAN/BIC — "Vom Konto".
+  property_iban: string | null;
+  property_bic: string | null;
+  /// True when Impower generates a bank order for this invoice.
+  order_required: boolean | null;
+  /// Statement text that lands on the bank order ("Re-Nr. R26/000116").
+  order_statement: string | null;
+  /// Days from booking → bank-order execution. 0 = same day.
+  order_day_offset: number | null;
   items: InvoiceLineItemResponse[];
 }
 

@@ -558,14 +558,33 @@ def _impower_invoice_to_response(data: dict[str, object]) -> InvoiceDetailRespon
                 )
             )
 
+    order_required = data.get("orderRequired")
+    if not isinstance(order_required, bool):
+        order_required = None
+    order_day_offset = data.get("orderDayOffset")
+    if not isinstance(order_day_offset, int):
+        order_day_offset = None
+
     return InvoiceDetailResponse(
         invoice_number=_str(data.get("name")),
         issued_date=_date(data.get("issuedDate")),
         amount=_dec(data.get("amount")),
         state=_str(data.get("state")),
         counterpart_name=_str(data.get("counterpartContactName")),
-        counterpart_iban=_str(data.get("orderPropertyIban")),
-        counterpart_bic=_str(data.get("orderPropertyBic")),
+        # Per Impower's nomenclature:
+        #   counterpart* = recipient (vendor) — the bill is paid TO
+        #   property*    = sender (WHV bank account) — the bill is paid FROM
+        # The original code mis-mapped counterpart_iban to the
+        # property side; corrected here so the dialog shows the
+        # vendor's IBAN on the "Zum Konto" line and the property's
+        # on the "Vom Konto" line.
+        counterpart_iban=_str(data.get("orderCounterpartIban")),
+        counterpart_bic=_str(data.get("orderCounterpartBic")),
+        property_iban=_str(data.get("orderPropertyIban")),
+        property_bic=_str(data.get("orderPropertyBic")),
+        order_required=order_required,
+        order_statement=_str(data.get("orderStatement")),
+        order_day_offset=order_day_offset,
         items=items,
     )
 

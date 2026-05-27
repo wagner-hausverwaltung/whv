@@ -47,13 +47,37 @@ class InvoiceDetailResponse(BaseModel):
     invoice_number: str | None = None
     issued_date: date | None = None
     amount: Decimal | None = None
+    # Raw Impower state — DRAFT / READY / BOOKED / SCHEDULED / REVERSED.
+    # Clients render via the friendly-label switch (BOOKED → "Gebucht",
+    # etc.) to avoid duplicating the mapping; this field stays as the
+    # raw enum so a future ETL / audit can match exactly what Impower
+    # has.
     state: str | None = None
     # Render-ready vendor label. The contact is already on the
     # parent VendorSummary so this is a sanity-check field —
     # double-rendering harmless.
     counterpart_name: str | None = None
-    # Order-required IBAN + BIC for owners who want to verify the
-    # bank account a SEPA mandate is hitting.
+
+    # ---- Bank-order metadata --------------------------------------
+    # Impower distinguishes property bank account (sender — our
+    # client's WHV) from counterpart bank account (recipient —
+    # vendor). The four iban/bic fields below render two rows in
+    # the dialog: "Vom Konto" (property) and "Zum Konto" (vendor).
     counterpart_iban: str | None = None
     counterpart_bic: str | None = None
+    property_iban: str | None = None
+    property_bic: str | None = None
+    # True when Impower will generate a bank order for this invoice
+    # (vs. SEPA-Lastschrift on the counterpart's side, or manual
+    # cash payment). False on most owner-paid bills.
+    order_required: bool | None = None
+    # The booking statement text that lands on the bank order /
+    # statement line — e.g. "Re-Nr. R26/000116". Owners use this
+    # to reconcile against their actual bank statement.
+    order_statement: str | None = None
+    # Days from booking date to scheduled bank-order execution.
+    # `orderDayOffset = 0` means "send same day", `7` means
+    # "execute in a week".
+    order_day_offset: int | None = None
+
     items: list[InvoiceLineItemResponse] = []

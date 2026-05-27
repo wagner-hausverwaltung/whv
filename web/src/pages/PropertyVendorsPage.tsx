@@ -479,13 +479,79 @@ function InvoiceBody({
             amount != null ? `${formatAmount(amount)} €` : null
           }
         />
-        <Row label="Status" value={detail.state} />
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", flexWrap: "wrap" }}
+        >
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ minWidth: 130, flexShrink: 0 }}
+          >
+            Status
+          </Typography>
+          {detail.state ? (
+            <Chip
+              size="small"
+              label={invoiceStateLabel(detail.state)}
+              color={invoiceStateColor(detail.state)}
+              variant="filled"
+            />
+          ) : (
+            <Typography variant="body2">—</Typography>
+          )}
+          {/* Treat "BOOKED + orderRequired=true" as the strongest
+              signal we have that the bill has been queued for the
+              bank. Impower doesn't expose execution-time data
+              (DS19 / TS01 status codes) on the public API, so this
+              is the cleanest "an Bank übermittelt" indicator we
+              can give the owner. */}
+          {detail.state === "BOOKED" && detail.order_required && (
+            <Chip
+              size="small"
+              label="An Bank übermittelt"
+              color="success"
+              variant="outlined"
+            />
+          )}
+        </Stack>
+        {detail.order_statement && (
+          <Row
+            label="Verwendungszweck"
+            value={detail.order_statement}
+          />
+        )}
+        {detail.order_day_offset != null &&
+          detail.order_required && (
+            <Row
+              label="Ausführung"
+              value={
+                detail.order_day_offset === 0
+                  ? "Sofort am Buchungstag"
+                  : `Buchungstag + ${detail.order_day_offset} Tage`
+              }
+            />
+          )}
       </Section>
 
-      {(detail.counterpart_iban || detail.counterpart_bic) && (
+      {(detail.counterpart_iban ||
+        detail.counterpart_bic ||
+        detail.property_iban ||
+        detail.property_bic) && (
         <Section title="Bankverbindung">
-          <Row label="IBAN" value={detail.counterpart_iban} />
-          <Row label="BIC" value={detail.counterpart_bic} />
+          {detail.property_iban && (
+            <Row label="Vom Konto (IBAN)" value={detail.property_iban} />
+          )}
+          {detail.property_bic && (
+            <Row label="Vom Konto (BIC)" value={detail.property_bic} />
+          )}
+          {detail.counterpart_iban && (
+            <Row label="Zum Konto (IBAN)" value={detail.counterpart_iban} />
+          )}
+          {detail.counterpart_bic && (
+            <Row label="Zum Konto (BIC)" value={detail.counterpart_bic} />
+          )}
         </Section>
       )}
 
@@ -502,8 +568,64 @@ function InvoiceBody({
           </Stack>
         )}
       </Section>
+
+      {/* Honest note: Impower's public REST API doesn't expose the
+          actual bank-order execution history (BankOrderDataDto /
+          EbicsOrderMonitoringDto) per invoice. We surface what's
+          available (state + orderRequired + statement); the
+          "actually settled" detail can only come once Impower
+          opens those endpoints or we mirror bank statements. */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontStyle: "italic" }}
+      >
+        Einzelne Banktransaktionen pro Rechnung sind über die
+        Impower-API derzeit nicht abrufbar. Der oben angezeigte
+        Status spiegelt den Buchungsstand wider — nicht den
+        tatsächlichen Geldfluss.
+      </Typography>
     </Stack>
   );
+}
+
+/// Maps Impower's invoice-state enum to the German labels owners
+/// see in the dialog header. The raw enum stays on the wire so
+/// audits / future ETL can match exactly what Impower has.
+function invoiceStateLabel(state: string): string {
+  switch (state) {
+    case "DRAFT":
+      return "Entwurf";
+    case "READY":
+      return "Bereit";
+    case "BOOKED":
+      return "Gebucht";
+    case "SCHEDULED":
+      return "Geplant";
+    case "REVERSED":
+      return "Storniert";
+    default:
+      return state;
+  }
+}
+
+function invoiceStateColor(
+  state: string,
+): "default" | "primary" | "success" | "warning" | "error" {
+  switch (state) {
+    case "DRAFT":
+      return "warning";
+    case "READY":
+      return "primary";
+    case "BOOKED":
+      return "success";
+    case "SCHEDULED":
+      return "default";
+    case "REVERSED":
+      return "error";
+    default:
+      return "default";
+  }
 }
 
 function LineItemRow({ item }: { item: InvoiceLineItemResponse }) {
