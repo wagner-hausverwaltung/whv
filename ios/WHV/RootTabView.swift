@@ -1,7 +1,14 @@
 // Main app shell — visible only after the user has selected a
-// Liegenschaft. Five tabs: Mitteilungen / Tickets / ETV / News /
+// Liegenschaft. Four tabs: News (= announcements) / Tickets / ETV /
 // Einstellungen. Liegenschaft is *not* a tab — it's the startup
 // screen + a switcher row at the top of Einstellungen.
+//
+// The Mitteilungen tab is labelled "News" in the tab bar because
+// it fits the iOS tab-bar width better than "Mitteilungen" on
+// smaller iPhones; the inner navigation title stays "News" too so
+// the user doesn't read two different words for the same screen.
+// The vermieter1x1.de RSS feed tab (`NewsTab.swift`) is currently
+// hidden — see commit history if you want to restore it.
 //
 // Tab swipe: the user can swipe left/right anywhere on the screen
 // to move between tabs. SwiftUI's TabView retains child views even
@@ -19,7 +26,7 @@ struct RootTabView: View {
                                        // load-bearing tab today
     @State private var newTicketSheetOpen = false
 
-    private let tabCount = 5
+    private let tabCount = 4
 
     var body: some View {
         // Demo banner now lives in WHVApp as a VStack sibling of
@@ -86,7 +93,7 @@ struct RootTabView: View {
         TabView(selection: $selection) {
             MitteilungenTab()
                 .tabItem {
-                    Label("Mitteilungen", systemImage: "megaphone")
+                    Label("News", systemImage: "megaphone")
                 }
                 .tag(0)
 
@@ -102,17 +109,16 @@ struct RootTabView: View {
                 }
                 .tag(2)
 
-            NewsTab()
-                .tabItem {
-                    Label("News", systemImage: "newspaper")
-                }
-                .tag(3)
+            // RSS-feed `NewsTab()` removed from the bar — keep the
+            // file in the bundle so re-enabling it is one tabItem
+            // away. The "News" label on tab 0 is for our own
+            // Mitteilungen now.
 
             EinstellungenView()
                 .tabItem {
                     Label("Einstellungen", systemImage: "gear")
                 }
-                .tag(4)
+                .tag(3)
         }
         // Horizontal swipe → flip selection. simultaneousGesture so
         // it cohabits with vertical ScrollViews inside each tab; the

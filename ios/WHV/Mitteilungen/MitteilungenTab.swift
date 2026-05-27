@@ -54,7 +54,7 @@ struct MitteilungenTab: View {
     var body: some View {
         NavigationStack(path: $deepLinkRouter.mitteilungenPath) {
             content
-                .navigationTitle("Mitteilungen")
+                .navigationTitle("News")
                 .navigationDestination(for: String.self) { announcementId in
                     AnnouncementDetailView(
                         announcementId: announcementId,
