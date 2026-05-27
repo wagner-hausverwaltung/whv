@@ -53,6 +53,85 @@ export interface UnitContractSummary {
   end_date: string | null;
 }
 
+/// Response for GET /me/contracts/{cid}/contacts/{contactId}.
+/// Drives the contact-detail dialog opened by clicking a contract
+/// chip on the property detail. Mirrors backend `ContactDetailResponse`.
+export interface ContactDetailResponse {
+  id: string;
+  /// PERSON or COMPANY — drives whether to render first/last_name vs.
+  /// company_name + vat/trade-register fields.
+  kind: string;
+  // Person
+  salutation: string | null;
+  title: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  date_of_birth: string | null;
+  // Company
+  company_name: string | null;
+  vat_id: string | null;
+  trade_register_number: string | null;
+  // Communications
+  recipient_name: string | null;
+  mandate_number: string | null;
+  email: string | null;
+  phone: string | null;
+  preferred_channel: string;
+  /// Free-form key/value pairs of extra channels Impower exposes
+  /// (e.g. "Mobil": "+49 …"). Render as plain rows.
+  additional_contacts: Record<string, unknown> | null;
+  // Address
+  city: string | null;
+  street: string | null;
+  number: string | null;
+  postal_code: string | null;
+  country: string | null;
+  // Contract context — the "why" side of the dialog.
+  contract: ContractContextResponse;
+}
+
+export interface ContractContextResponse {
+  id: string;
+  /// OWNER / TENANT / PROPERTY_OWNER.
+  type: string;
+  contract_number: string | null;
+  name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_vacant: boolean | null;
+  role: string | null;
+}
+
+/// One invoice row in a VendorSummary.recent_invoices list. Pure
+/// metadata — the actual PDF is served by the existing
+/// /me/documents/{id}/file endpoint.
+export interface VendorInvoiceSummary {
+  id: string;
+  name: string;
+  issued_date: string | null;
+  /// Pydantic v2 serialises Decimal as a JSON number, but Impower-
+  /// sourced rows can land as strings depending on tooling — treat
+  /// both. Clients parse to Number before formatting.
+  amount: number | string | null;
+}
+
+/// Per-vendor aggregate for /me/properties/{id}/vendors. Drives the
+/// Dienstleister tab — owners see who's worked on the property +
+/// can call/email them back.
+export interface VendorSummary {
+  contact_id: string;
+  name: string;
+  /// PERSON | COMPANY. Drives the icon on the vendor card.
+  kind: string;
+  email: string | null;
+  phone: string | null;
+  invoice_count: number;
+  total_amount: number | string | null;
+  first_service_date: string | null;
+  last_service_date: string | null;
+  recent_invoices: VendorInvoiceSummary[];
+}
+
 export interface UnitResponse {
   id: string;
   unit_hr_id: string | null;
@@ -64,6 +143,13 @@ export interface UnitResponse {
   /// matches Pydantic's nullable Decimal output.
   voting_share: number | null;
   area_m2: number | null;
+  /// "Heizfläche" — heating floor area, manual-fill from Impower's
+  /// Eigenschaften-der-Einheiten panel (their API doesn't expose
+  /// it). Often null on MV properties.
+  heated_area_m2: number | null;
+  /// "Personen" — registered head-count for cost distribution.
+  /// Number not int because Impower allows 0.5 partials.
+  persons: number | null;
   rooms: number | null;
   /// Active contracts for this unit; empty when the unit is vacant
   /// or hasn't been mirrored with a contract yet.
@@ -85,6 +171,14 @@ export interface DocumentResponse {
   // Verwalter-managed tree (Item 6). NULL = sits at the property root
   // (Impower-imported docs and pre-folder uploads land there).
   folder_id?: string | null;
+  // Row-scope FKs mirrored from Impower. NULL on all three = visible to
+  // every property member; otherwise the doc only reaches the caller if
+  // they're on the matching unit / contract / contact (enforced
+  // server-side in /me/properties/{id}/documents). Surfaced here so the
+  // portal can render "Persönlich" / "Einheit X" / "Vertrag" badges.
+  unit_id?: string | null;
+  contract_id?: string | null;
+  contact_id?: string | null;
   uploaded_at?: string | null;
   visibility?: string;
 }
@@ -358,6 +452,13 @@ export interface DiscussionEntryResponse {
   created_at: string;
 }
 
+export interface AgendaItemAttachmentResponse {
+  id: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number;
+}
+
 export interface AgendaItemResponse {
   id: string;
   assembly_id: string;
@@ -374,6 +475,10 @@ export interface AgendaItemResponse {
   voting_basis: AgendaItemVotingBasis | null;
   present_count: number | null;
   discussion: DiscussionEntryResponse[];
+  /// Supporting documents attached to this TOP. Empty when the
+  /// Verwalter hasn't uploaded anything (typical for older
+  /// assemblies prior to the per-item attachment feature).
+  attachments: AgendaItemAttachmentResponse[];
 }
 
 export interface AssemblyResponse {
@@ -539,9 +644,24 @@ export interface AdminUnitListItem {
   type: string;
   floor: string | null;
   position: string | null;
+  voting_share: number | null;
   area_m2: number | null;
+  heated_area_m2: number | null;
+  persons: number | null;
   property_id: string;
   property_name: string;
+  /// Property type — OWNER / RENTAL / STRATA. Used to gate which
+  /// distribution-key columns make sense (MEA is meaningless for
+  /// RENTAL).
+  property_type: string;
+}
+
+/// PUT body for /admin/units/{id}/distribution-keys.
+export interface AdminUnitDistributionKeysUpdate {
+  voting_share: number | null;
+  area_m2: number | null;
+  heated_area_m2: number | null;
+  persons: number | null;
 }
 
 export interface AdminContractListItem {

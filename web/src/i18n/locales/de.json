@@ -53,12 +53,17 @@
     "folderDeleteFailed": "Ordner konnte nicht entfernt werden.",
     "folderCreateFailed": "Ordner konnte nicht angelegt werden.",
     "docDelete": "Dokument entfernen",
+    "docDownload": "Herunterladen",
     "docDeleteConfirm": "Dokument wirklich entfernen?",
     "docDeleteFailed": "Dokument konnte nicht entfernt werden.",
     "uploadFailed": "Datei konnte nicht hochgeladen werden.",
     "downloadFailed": "Datei konnte nicht heruntergeladen werden.",
     "loadFailed": "Dokumente konnten nicht geladen werden.",
-    "portalIntro": "Vom Hausverwalter hinterlegte Dokumente zu Ihrem Objekt. Klicken Sie auf ein Dokument, um es herunterzuladen."
+    "portalIntro": "Vom Hausverwalter hinterlegte Dokumente zu Ihrem Objekt. Klicken Sie auf ein Dokument, um es herunterzuladen.",
+    "scopePersonal": "Persönlich",
+    "scopeContract": "Vertrag",
+    "scopeUnitNamed": "Einheit {{name}}",
+    "scopeUnit": "Einheit"
   },
   "tickets": {
     "title": "Meine Tickets",

@@ -206,16 +206,37 @@ class AdminPropertyListItem(BaseModel):
 
 
 class AdminUnitListItem(BaseModel):
-    """Unit row joined to its property name for the /admin/units table."""
+    """Unit row joined to its property name for the /admin/units table.
+
+    Distribution-key fields (voting_share / area_m2 / heated_area_m2 /
+    persons) come from manual Verwalter entry — Impower's REST API
+    doesn't expose them. See ADR-0009.
+    """
 
     id: uuid.UUID
     unit_hr_id: str | None = None
     type: str
     floor: str | None = None
     position: str | None = None
+    voting_share: float | None = None
     area_m2: float | None = None
+    heated_area_m2: float | None = None
+    persons: float | None = None
     property_id: uuid.UUID
     property_name: str
+    property_type: str
+
+
+class AdminUnitDistributionKeysUpdate(BaseModel):
+    """PUT body for /admin/units/{id}/distribution-keys. Every field
+    is optional — sending only the ones the Verwalter changed keeps
+    the audit-log entry tight and lets a future browser-extension
+    bulk-fill skip fields Impower didn't render."""
+
+    voting_share: float | None = None
+    area_m2: float | None = None
+    heated_area_m2: float | None = None
+    persons: float | None = None
 
 
 class AdminContractListItem(BaseModel):

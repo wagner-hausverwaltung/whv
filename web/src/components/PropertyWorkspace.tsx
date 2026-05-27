@@ -31,6 +31,11 @@ const TAB_DEFS = [
   { value: "announcements", label: "Mitteilungen" },
   { value: "assemblies", label: "Versammlungen" },
   { value: "documents", label: "Dokumente" },
+  // "Dienstleister" — aggregates the property's RECHNUNG documents
+  // by vendor contact so owners see who's done work on the
+  // property + can call them back. Read-only; data comes for free
+  // from the existing Impower invoice mirror.
+  { value: "vendors", label: "Dienstleister" },
 ] as const;
 
 type TabValue = (typeof TAB_DEFS)[number]["value"];

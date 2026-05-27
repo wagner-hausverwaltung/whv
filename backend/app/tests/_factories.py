@@ -152,6 +152,9 @@ async def make_document(
     prop: Property,
     name: str | None = None,
     kind: "DocumentKind | None" = None,
+    unit: "Unit | None" = None,
+    contract: "Contract | None" = None,
+    contact: "Contact | None" = None,
 ) -> "Document":
     from app.models import Document as _Document
     from app.models import DocumentKind as _DocumentKind
@@ -161,6 +164,9 @@ async def make_document(
         doc = _Document(
             organization_id=org.id,
             property_id=prop.id,
+            unit_id=unit.id if unit is not None else None,
+            contract_id=contract.id if contract is not None else None,
+            contact_id=contact.id if contact is not None else None,
             name=name or f"Test Doc {_short_id()}.pdf",
             kind=kind or _DocumentKind.SONSTIGES,
         )
@@ -176,10 +182,15 @@ async def make_contact_with_contract_link(
     org: Organization,
     prop: Property,
     contact_impower_id: int,
+    unit: Unit | None = None,
+    contract_type: ContractType = ContractType.OWNER,
 ) -> tuple[Contact, Contract]:
     """Wires up a Contact (with impower_id) → Contract → Property via the junction table.
 
-    Used to test EIGENTUEMER scope on /me/properties.
+    Used to test EIGENTUEMER scope on /me/properties. Pass `unit` to
+    pin the contract to a specific unit (drives the unit-scope branch of
+    the document visibility filter, which checks for contracts the
+    caller is on that target the doc's unit).
     """
     sm = async_sessionmaker(engine, expire_on_commit=False)
     async with sm() as s:
@@ -195,7 +206,8 @@ async def make_contact_with_contract_link(
         contract = Contract(
             organization_id=org.id,
             property_id=prop.id,
-            type=ContractType.OWNER,
+            unit_id=unit.id if unit is not None else None,
+            type=contract_type,
         )
         s.add(contract)
         await s.flush()

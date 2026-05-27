@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,11 +28,15 @@ from app.models import (
 from app.models import (
     Session as DbSession,
 )
+from app.models.property import PropertyState
 from app.schemas.auth import UserResponse
+from app.schemas.contact import ContactDetailResponse, ContractContextResponse
 from app.schemas.document import DocumentFolderResponse, DocumentResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
+from app.schemas.vendor import VendorSummary
 from app.services import units as units_svc
+from app.services import vendors as vendors_svc
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -125,6 +129,13 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
 
     VERWALTER sees all org properties; other roles are scoped via
     contact_id_impower → contract_contacts → contracts → properties.
+
+    For non-VERWALTER roles we also require `state == READY` — portal
+    + iOS users should never see DRAFT or DISABLED properties (the
+    Verwalter is still onboarding / cleaning them up). The admin SPA
+    deliberately keeps the unfiltered statement via `_admin_*` paths
+    in `app/api/v1/admin.py` so Verwalter can finish the onboarding
+    work before flipping the state to READY.
     """
     base = select(Property).where(
         Property.organization_id == user.organization_id,
@@ -133,11 +144,70 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
     if user.role == UserRole.VERWALTER:
         return base
     return (
-        base.join(Contract, Contract.property_id == Property.id)
+        base.where(Property.state == PropertyState.READY)
+        .join(Contract, Contract.property_id == Property.id)
         .join(ContractContact, ContractContact.contract_id == Contract.id)
         .join(Contact, Contact.id == ContractContact.contact_id)
         .where(Contact.impower_id == user.contact_id_impower)
         .distinct()
+    )
+
+
+def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
+    """Row-scope filter for non-Verwalter callers on the documents tab.
+
+    Impower scopes a document to a specific unit / contract / contact via
+    its `unitId` / `contractId` / `contactId` fields (mirrored onto our
+    `documents.unit_id|contract_id|contact_id` columns). A doc that's
+    pinned to Unit 1 must NOT show up in the documents tab for the Mieter
+    of Unit 4. The rule:
+
+    * Property-wide docs (all three FKs NULL) — always visible.
+    * Unit-scoped docs — visible only if the caller is on a contract for
+      that unit.
+    * Contract-scoped docs — visible only if the caller is on that
+      contract (via contract_contacts → contact → impower_id).
+    * Contact-scoped docs — visible only if the caller's own contact
+      (matched by contact_id_impower) is the target.
+
+    `building_id` is intentionally NOT part of the gate: an
+    Impower-imported doc that targets a whole building stays visible to
+    every member of the property, matching the "all three NULL" branch
+    semantically.
+
+    Verwalter sees everything — call this only after the role check.
+    """
+    caller_contracts = (
+        select(Contract.id)
+        .join(ContractContact, ContractContact.contract_id == Contract.id)
+        .join(Contact, Contact.id == ContractContact.contact_id)
+        .where(Contact.impower_id == user.contact_id_impower)
+        .scalar_subquery()
+    )
+    caller_units = (
+        select(Contract.unit_id)
+        .join(ContractContact, ContractContact.contract_id == Contract.id)
+        .join(Contact, Contact.id == ContractContact.contact_id)
+        .where(
+            Contact.impower_id == user.contact_id_impower,
+            Contract.unit_id.is_not(None),
+        )
+        .scalar_subquery()
+    )
+    caller_contact = (
+        select(Contact.id)
+        .where(Contact.impower_id == user.contact_id_impower)
+        .scalar_subquery()
+    )
+    return or_(
+        and_(
+            Document.unit_id.is_(None),
+            Document.contract_id.is_(None),
+            Document.contact_id.is_(None),
+        ),
+        Document.unit_id.in_(caller_units),
+        Document.contract_id.in_(caller_contracts),
+        Document.contact_id.in_(caller_contact),
     )
 
 
@@ -194,6 +264,109 @@ async def get_my_property(
     )
 
 
+@router.get(
+    "/contracts/{contract_id}/contacts/{contact_id}",
+    response_model=ContactDetailResponse,
+)
+async def get_my_contract_contact(
+    contract_id: uuid.UUID,
+    contact_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ContactDetailResponse:
+    """Detail card for a contact reached via a specific contract.
+
+    Authorization model: the contract's property must be in the
+    caller's visible set, AND the contact must actually be on the
+    contract (via contract_contacts). This means a Mieter on Unit 4
+    can see the Eigentümer who's also on a contract for that unit's
+    property — same data the chips already expose, just expanded.
+    The Verwalter sees everything within their org. For everyone
+    else, both joins act as scope checks.
+
+    We collapse missing → 404 (not 403) so we don't disclose whether
+    contract_id or contact_id exist when the caller has no access.
+    """
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    # Pull the contract + property in a single query so we can apply
+    # the property visibility join up-front. We don't reuse
+    # `_visible_properties_stmt` directly because we'd then need to
+    # round-trip property_id → contract; this single join is tighter.
+    contract_q = (
+        select(Contract)
+        .join(Property, Property.id == Contract.property_id)
+        .where(
+            Contract.id == contract_id,
+            Contract.organization_id == current_user.organization_id,
+            Contract.deleted_at.is_(None),
+            Property.deleted_at.is_(None),
+        )
+    )
+    if current_user.role != UserRole.VERWALTER:
+        # Same READY-only gate as the property list: a contract whose
+        # property is still DRAFT shouldn't expose its participants.
+        contract_q = contract_q.where(Property.state == PropertyState.READY)
+    contract = await session.scalar(contract_q)
+    if contract is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    # Now the contact-on-contract link. Non-Verwalter callers must
+    # themselves be on the contract chain — i.e. they share a contact
+    # row (their contact_id_impower) with someone on the contract's
+    # property. The visible-property join already guarantees this
+    # transitively, so we only need to verify the requested contact
+    # is actually a participant of this specific contract.
+    link_q = (
+        select(Contact, ContractContact.role)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .where(
+            ContractContact.contract_id == contract.id,
+            Contact.id == contact_id,
+            Contact.organization_id == current_user.organization_id,
+            Contact.deleted_at.is_(None),
+        )
+    )
+    link_row = (await session.execute(link_q)).one_or_none()
+    if link_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+    contact, role = link_row
+
+    contract_ctx = ContractContextResponse.model_validate(contract).model_copy(
+        update={"role": role}
+    )
+    return ContactDetailResponse(
+        **{
+            k: getattr(contact, k)
+            for k in (
+                "id",
+                "kind",
+                "salutation",
+                "title",
+                "first_name",
+                "last_name",
+                "date_of_birth",
+                "company_name",
+                "vat_id",
+                "trade_register_number",
+                "recipient_name",
+                "mandate_number",
+                "email",
+                "phone",
+                "preferred_channel",
+                "additional_contacts",
+                "city",
+                "street",
+                "number",
+                "postal_code",
+                "country",
+            )
+        },
+        contract=contract_ctx,
+    )
+
+
 @router.get("/properties/{property_id}/documents", response_model=list[DocumentResponse])
 async def get_my_property_documents(
     property_id: uuid.UUID,
@@ -210,15 +383,50 @@ async def get_my_property_documents(
     if prop is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
 
-    doc_rows = (
-        await session.scalars(
-            select(Document)
-            .where(Document.property_id == prop.id, Document.deleted_at.is_(None))
-            .order_by(Document.issued_date.desc().nulls_last(), Document.name)
-        )
-    ).all()
+    doc_stmt = (
+        select(Document)
+        .where(Document.property_id == prop.id, Document.deleted_at.is_(None))
+        .order_by(Document.issued_date.desc().nulls_last(), Document.name)
+    )
+    if current_user.role != UserRole.VERWALTER:
+        doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
+    doc_rows = (await session.scalars(doc_stmt)).all()
 
     return [DocumentResponse.model_validate(d) for d in doc_rows]
+
+
+@router.get(
+    "/properties/{property_id}/vendors",
+    response_model=list[VendorSummary],
+)
+async def get_my_property_vendors(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[VendorSummary]:
+    """Vendor / Dienstleister aggregate for a property.
+
+    Buckets the property's invoice documents by `contact_id` and
+    returns one card per firm + invoice history. Owners use this to
+    answer "who fixed the boiler last time" — the actionable bits
+    (name + phone + email) plus a recent-invoices list that links
+    back into the existing document downloader.
+
+    Auth: same 404-on-no-access shape as the other property-scoped
+    endpoints. We deliberately do NOT apply the per-document
+    visibility filter here — vendors are property-wide context, not
+    per-unit personal data. (Invoices themselves remain gated; this
+    endpoint only exposes the aggregate / contactability metadata.)
+    """
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    return await vendors_svc.load_vendors_for_property(session, property_id=prop.id)
 
 
 @router.get(
@@ -260,22 +468,20 @@ async def download_my_document(
 ) -> FileResponse:
     """Authenticated PDF download for portal users.
 
-    Scope: the document must belong to a property the caller can see
-    (same `_visible_properties_stmt` rule used elsewhere). Verwalter
-    sees everything; other roles are filtered to their contracts.
-
-    Visibility on the document is not yet gated here — current behaviour
-    matches `/me/properties/{id}/documents` which surfaces every non-
-    deleted doc for the property. Tightening to per-role visibility is
-    deliberately deferred until the portal has UI for it.
+    Two scope checks for non-Verwalter callers: the document's property
+    must be visible (same `_visible_properties_stmt` rule used elsewhere)
+    AND the row-scope filter must allow it (so a Mieter on Unit 4 can't
+    deep-link to a doc Impower pinned to Unit 1 on the same property).
+    Verwalter sees everything.
     """
-    doc = await session.scalar(
-        select(Document).where(
-            Document.id == document_id,
-            Document.organization_id == current_user.organization_id,
-            Document.deleted_at.is_(None),
-        )
+    doc_stmt = select(Document).where(
+        Document.id == document_id,
+        Document.organization_id == current_user.organization_id,
+        Document.deleted_at.is_(None),
     )
+    if current_user.role != UserRole.VERWALTER:
+        doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
+    doc = await session.scalar(doc_stmt)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 

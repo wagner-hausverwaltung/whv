@@ -53,3 +53,25 @@ extension Liegenschaft {
         self.address = combined.isEmpty ? "—" : combined
     }
 }
+
+extension Liegenschaft {
+    /// German-correspondence label for the property's administration
+    /// type. Backend stores Impower's raw enum (OWNER / RENTAL /
+    /// STRATA); the user-facing copy WHV uses is WEG / MV / SEV.
+    /// Falls back to `type` for unknown values, or "—" if missing.
+    var typeLabel: String {
+        switch type {
+        case "OWNER": return "WEG"
+        case "RENTAL": return "MV"
+        case "STRATA": return "SEV"
+        default: return type ?? "—"
+        }
+    }
+
+    /// "Does this property carry MEA / Miteigentumsanteile?" WEG and
+    /// SEV do (ownership-share concept); MV (rental) does not, so
+    /// PropertyDetailView hides the MEA metric entirely on MV.
+    var hasOwnershipShares: Bool {
+        type == "OWNER" || type == "STRATA"
+    }
+}

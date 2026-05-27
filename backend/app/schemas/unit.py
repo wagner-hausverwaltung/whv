@@ -39,6 +39,8 @@ class UnitResponse(BaseModel):
     is_owned_by_weg: bool | None = None
     voting_share: Decimal | None = None
     area_m2: Decimal | None = None
+    heated_area_m2: Decimal | None = None
+    persons: Decimal | None = None
     rooms: Decimal | None = None
     # Active contracts for this unit at request time. Empty when
     # the unit is vacant or has no contracts in the mirror.

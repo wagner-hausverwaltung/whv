@@ -18,6 +18,11 @@ import type { UnitContractSummary } from "@/api/types";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { PropertyDetailResponse } from "@/api/types";
+import {
+  propertyHasOwnershipShares,
+  propertyTypeLabel,
+} from "@/lib/propertyType";
+import { ContactDetailDialog } from "@/components/ContactDetailDialog";
 
 /**
  * Details tab inside PropertyWorkspace.
@@ -45,12 +50,26 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+/// Click target for the contact-detail dialog. We carry the
+/// contract+contact pair plus the chip's rendered label so the
+/// dialog title can populate before the network round-trip finishes.
+interface ContactDialogTarget {
+  contractId: string;
+  contactId: string;
+  fallbackLabel: string;
+}
+
 export function PropertyDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [prop, setProp] = useState<PropertyDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  /// Null = dialog closed. Set by ContractChips when the user clicks
+  /// a row; cleared on dialog dismiss.
+  const [contactDialog, setContactDialog] = useState<ContactDialogTarget | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -84,6 +103,12 @@ export function PropertyDetailPage() {
     .filter(Boolean)
     .join(", ");
 
+  // Hide the unit-type column when every Einheit has the same kind —
+  // a column of repeated "APARTMENT" cells is dead weight. Mixed-use
+  // properties (APARTMENT + PARKING + COMMERCIAL) keep the column.
+  const distinctUnitTypes = new Set(prop.units.map((u) => u.type));
+  const showUnitTypeColumn = distinctUnitTypes.size > 1;
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -111,8 +136,14 @@ export function PropertyDetailPage() {
         </Typography>
         <Stack spacing={1}>
           {address && <Row label="Adresse:" value={address} />}
-          <Row label="Typ:" value={prop.type} />
-          <Row label="Status:" value={prop.state} />
+          {/* Render the human label (WEG / MV / SEV) — the raw
+              OWNER/RENTAL/STRATA enum from Impower is opaque to
+              owners and the prop.name already carries the same
+              prefix, so showing "OWNER" beside "WEG …" looks
+              broken. Status row was removed: the portal is filtered
+              to state == "READY" upstream, so showing "Status:
+              READY" everywhere is noise. */}
+          <Row label="Typ:" value={propertyTypeLabel(prop.type)} />
         </Stack>
       </Paper>
 
@@ -132,16 +163,24 @@ export function PropertyDetailPage() {
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
+                {/* MEA (Miteigentumsanteile) only makes sense on
+                    WEG / SEV (ownership) properties — for MV
+                    rentals Mieter have no Anteile, so hiding the
+                    column keeps the table honest. The other three
+                    distribution-key columns (Fläche / Heizfläche /
+                    Personen) are universal so they're always
+                    rendered, with "—" when the row is blank. */}
                 <TableRow>
                   <TableCell>Bezeichnung</TableCell>
-                  <TableCell>Typ</TableCell>
+                  {showUnitTypeColumn && <TableCell>Typ</TableCell>}
                   <TableCell>Etage</TableCell>
                   <TableCell>Lage</TableCell>
-                  <TableCell align="right">m²</TableCell>
-                  {/* MEA (Miteigentumsanteile) + currently-active
-                      contracts are the master-table-truthy
-                      columns: who-pays-how-much + who's-in-it. */}
-                  <TableCell align="right">MEA</TableCell>
+                  <TableCell align="right">Fläche (m²)</TableCell>
+                  <TableCell align="right">Heizfl. (m²)</TableCell>
+                  <TableCell align="right">Personen</TableCell>
+                  {propertyHasOwnershipShares(prop.type) && (
+                    <TableCell align="right">MEA</TableCell>
+                  )}
                   <TableCell align="right">Zimmer</TableCell>
                   <TableCell>Aktuelle Verträge</TableCell>
                 </TableRow>
@@ -154,7 +193,7 @@ export function PropertyDetailPage() {
                     >
                       {u.unit_hr_id ?? "—"}
                     </TableCell>
-                    <TableCell>{u.type}</TableCell>
+                    {showUnitTypeColumn && <TableCell>{u.type}</TableCell>}
                     <TableCell>{u.floor ?? "—"}</TableCell>
                     <TableCell>{u.position ?? "—"}</TableCell>
                     <TableCell align="right">
@@ -165,17 +204,36 @@ export function PropertyDetailPage() {
                         : "—"}
                     </TableCell>
                     <TableCell align="right">
-                      {u.voting_share != null
-                        ? u.voting_share.toLocaleString(undefined, {
-                            maximumFractionDigits: 4,
+                      {u.heated_area_m2 != null
+                        ? u.heated_area_m2.toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
                           })
                         : "—"}
                     </TableCell>
                     <TableCell align="right">
+                      {u.persons != null
+                        ? u.persons.toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
+                          })
+                        : "—"}
+                    </TableCell>
+                    {propertyHasOwnershipShares(prop.type) && (
+                      <TableCell align="right">
+                        {u.voting_share != null
+                          ? u.voting_share.toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })
+                          : "—"}
+                      </TableCell>
+                    )}
+                    <TableCell align="right">
                       {u.rooms != null ? u.rooms : "—"}
                     </TableCell>
                     <TableCell>
-                      <ContractChips contracts={u.current_contracts} />
+                      <ContractChips
+                        contracts={u.current_contracts}
+                        onContactClick={setContactDialog}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -184,6 +242,18 @@ export function PropertyDetailPage() {
           </TableContainer>
         )}
       </Box>
+
+      {/* One dialog instance for the whole page — opening another
+          contact replaces the target, which re-runs the fetch. */}
+      {contactDialog && (
+        <ContactDetailDialog
+          open
+          contractId={contactDialog.contractId}
+          contactId={contactDialog.contactId}
+          fallbackLabel={contactDialog.fallbackLabel}
+          onClose={() => setContactDialog(null)}
+        />
+      )}
     </Stack>
   );
 }
@@ -192,7 +262,18 @@ export function PropertyDetailPage() {
 /// blue/accent, Objekteigentümer orange. Falls back gracefully
 /// when the backend sends `contact_label` null (a contract row
 /// without a contact, rare data-hygiene case).
-function ContractChips({ contracts }: { contracts: UnitContractSummary[] }) {
+///
+/// Rows where we have a contact_id are clickable — clicking
+/// surfaces the ContactDetailDialog via the page-level callback.
+/// Rows without a contact_id (rare) stay as static text so we don't
+/// open a dialog that can't load.
+function ContractChips({
+  contracts,
+  onContactClick,
+}: {
+  contracts: UnitContractSummary[];
+  onContactClick: (target: ContactDialogTarget) => void;
+}) {
   if (contracts.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary">
@@ -202,22 +283,81 @@ function ContractChips({ contracts }: { contracts: UnitContractSummary[] }) {
   }
   return (
     <Stack spacing={0.5}>
-      {contracts.map((c) => (
-        <Stack
-          key={c.contract_id + ":" + (c.contact_id ?? "—")}
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: "center" }}
-        >
-          <Chip
-            label={typeLabel(c.type)}
-            size="small"
-            color={typeColor(c.type)}
-            variant="filled"
-          />
-          <Typography variant="body2">{c.contact_label ?? "—"}</Typography>
-        </Stack>
-      ))}
+      {contracts.map((c) => {
+        const label = c.contact_label ?? "—";
+        const clickable = c.contact_id != null;
+        const body = (
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              alignItems: "center",
+              // Visual affordance for clickability — text underline
+              // on hover, default cursor when not clickable.
+              cursor: clickable ? "pointer" : "default",
+              "&:hover .contact-label": clickable
+                ? { textDecoration: "underline" }
+                : undefined,
+              // The whole row is the hit target; widen vertical
+              // padding so finger-tapping on touch devices is
+              // forgiving without changing visual rhythm.
+              py: 0.25,
+            }}
+          >
+            <Chip
+              label={typeLabel(c.type)}
+              size="small"
+              color={typeColor(c.type)}
+              variant="filled"
+            />
+            <Typography variant="body2" className="contact-label">
+              {label}
+            </Typography>
+          </Stack>
+        );
+        if (!clickable) {
+          return (
+            <Box key={c.contract_id + ":none"}>{body}</Box>
+          );
+        }
+        return (
+          <Box
+            key={c.contract_id + ":" + c.contact_id}
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+              onContactClick({
+                contractId: c.contract_id,
+                contactId: c.contact_id!,
+                fallbackLabel: label,
+              })
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onContactClick({
+                  contractId: c.contract_id,
+                  contactId: c.contact_id!,
+                  fallbackLabel: label,
+                });
+              }
+            }}
+            // Keyboard focus ring — MUI's Button would do this for
+            // us but it'd over-style the row; we want it to read
+            // as plain text with a hover hint.
+            sx={{
+              borderRadius: 0.5,
+              "&:focus-visible": {
+                outline: "2px solid",
+                outlineColor: "primary.main",
+                outlineOffset: 2,
+              },
+            }}
+          >
+            {body}
+          </Box>
+        );
+      })}
     </Stack>
   );
 }

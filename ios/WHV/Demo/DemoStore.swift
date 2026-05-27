@@ -84,6 +84,14 @@ final class DemoStore: ObservableObject {
     func ticketDetail(id: String) -> TicketDetail? {
         seed?.ticketDetails.first { $0.id == id }
     }
+
+    func units(for propertyId: String) -> [UnitResponse] {
+        seed?.units[propertyId] ?? []
+    }
+
+    func vendors(for propertyId: String) -> [VendorSummary] {
+        seed?.vendors[propertyId] ?? []
+    }
 }
 
 /// Synchronous mirror of DemoStore.shared.isActive for APIClient,

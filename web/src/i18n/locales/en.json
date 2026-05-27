@@ -53,12 +53,17 @@
     "folderDeleteFailed": "Folder could not be removed.",
     "folderCreateFailed": "Folder could not be created.",
     "docDelete": "Remove document",
+    "docDownload": "Download",
     "docDeleteConfirm": "Remove this document?",
     "docDeleteFailed": "Document could not be removed.",
     "uploadFailed": "File could not be uploaded.",
     "downloadFailed": "File could not be downloaded.",
     "loadFailed": "Documents could not be loaded.",
-    "portalIntro": "Documents filed by your property manager. Click a document to download it."
+    "portalIntro": "Documents filed by your property manager. Click a document to download it.",
+    "scopePersonal": "Personal",
+    "scopeContract": "Contract",
+    "scopeUnitNamed": "Unit {{name}}",
+    "scopeUnit": "Unit"
   },
   "tickets": {
     "title": "My tickets",

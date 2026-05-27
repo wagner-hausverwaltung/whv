@@ -60,6 +60,7 @@ from app.schemas.admin import (
     AdminPropertyDetailResponse,
     AdminPropertyListItem,
     AdminPropertySearchResult,
+    AdminUnitDistributionKeysUpdate,
     AdminUnitListItem,
     BulkInviteOutcome,
     BulkInviteOutcomeStatus,
@@ -827,7 +828,7 @@ async def list_units(
     capped = max(1, min(limit, 1000))
     rows = (
         await session.execute(
-            select(Unit, Property.name)
+            select(Unit, Property.name, Property.type)
             .join(Property, Property.id == Unit.property_id)
             .where(
                 Unit.organization_id == current_user.organization_id,
@@ -844,12 +845,90 @@ async def list_units(
             type=u.type.value,
             floor=u.floor,
             position=u.position,
+            voting_share=float(u.voting_share) if u.voting_share is not None else None,
             area_m2=float(u.area_m2) if u.area_m2 is not None else None,
+            heated_area_m2=float(u.heated_area_m2) if u.heated_area_m2 is not None else None,
+            persons=float(u.persons) if u.persons is not None else None,
             property_id=u.property_id,
             property_name=pname,
+            property_type=ptype,
         )
-        for u, pname in rows
+        for u, pname, ptype in rows
     ]
+
+
+@router.put(
+    "/units/{unit_id}/distribution-keys",
+    response_model=AdminUnitListItem,
+)
+async def update_unit_distribution_keys(
+    unit_id: uuid.UUID,
+    body: AdminUnitDistributionKeysUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminUnitListItem:
+    """Manually overwrite the distribution-key cells (MEA / Fläche /
+    Heizfläche / Personen). Sent by the admin SPA's inline editor
+    today; will be sent by the browser extension once that lands
+    (see ADR-0009).
+
+    Only fields present in the request body are applied — `None` and
+    "field omitted" are different intents from a partial-update
+    perspective, but Pydantic exposes both as None. We treat them the
+    same (write-through nullable column); the inline UI sends every
+    field on save so this matches reality.
+    """
+    row = (
+        await session.execute(
+            select(Unit, Property.name, Property.type)
+            .join(Property, Property.id == Unit.property_id)
+            .where(
+                Unit.id == unit_id,
+                Unit.organization_id == current_user.organization_id,
+                Unit.deleted_at.is_(None),
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+    unit, pname, ptype = row
+
+    unit.voting_share = body.voting_share
+    unit.area_m2 = body.area_m2
+    unit.heated_area_m2 = body.heated_area_m2
+    unit.persons = body.persons
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="unit.distribution_keys.updated",
+            resource_type="unit",
+            resource_id=unit.id,
+            details={
+                "voting_share": body.voting_share,
+                "area_m2": body.area_m2,
+                "heated_area_m2": body.heated_area_m2,
+                "persons": body.persons,
+            },
+        )
+    )
+    await session.commit()
+
+    return AdminUnitListItem(
+        id=unit.id,
+        unit_hr_id=unit.unit_hr_id,
+        type=unit.type.value,
+        floor=unit.floor,
+        position=unit.position,
+        voting_share=float(unit.voting_share) if unit.voting_share is not None else None,
+        area_m2=float(unit.area_m2) if unit.area_m2 is not None else None,
+        heated_area_m2=float(unit.heated_area_m2) if unit.heated_area_m2 is not None else None,
+        persons=float(unit.persons) if unit.persons is not None else None,
+        property_id=unit.property_id,
+        property_name=pname,
+        property_type=ptype,
+    )
 
 
 @router.get("/contracts", response_model=list[AdminContractListItem])

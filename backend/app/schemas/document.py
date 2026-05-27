@@ -23,6 +23,12 @@ class DocumentResponse(BaseModel):
     # pre-folder uploads land here). Otherwise references a folder in
     # the Verwalter-managed tree.
     folder_id: uuid.UUID | None = None
+    # Row-scope FKs mirrored from Impower. Drive the portal "Persönlich"
+    # / "Einheit X" / "Vertrag" badges and the visibility filter on
+    # /me/properties/{id}/documents. NULL on all three = property-wide.
+    unit_id: uuid.UUID | None = None
+    contract_id: uuid.UUID | None = None
+    contact_id: uuid.UUID | None = None
     uploaded_at: datetime | None = None
 
 

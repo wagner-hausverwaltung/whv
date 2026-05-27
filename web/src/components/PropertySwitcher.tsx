@@ -45,6 +45,30 @@ function formatAddress(p: PropertyResponse): string | null {
   return combined || null;
 }
 
+/// "Is the formatted address already implied by the property name?"
+/// Wagner's naming convention always bakes the address into the name
+/// ("MV Hahnstraße 33, 70199 Stuttgart"), so rendering the address
+/// as a subtitle is pure duplication. We compare normalised tokens
+/// — strip type prefix, punctuation, casing — and suppress the
+/// subtitle when both the street tokens AND the city token are in
+/// the name. Properties named differently (legacy / demo) keep the
+/// subtitle.
+function addressRedundantWith(name: string, p: PropertyResponse): boolean {
+  if (!p.street || !p.city) return false;
+  const tokens = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[.,·]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+  const nameTokens = new Set(tokens(name));
+  const streetTokens = tokens(p.street);
+  const cityToken = tokens(p.city)[0];
+  const allStreetIn = streetTokens.every((t) => nameTokens.has(t));
+  const cityIn = cityToken ? nameTokens.has(cityToken) : true;
+  return allStreetIn && cityIn;
+}
+
 // Tab segment the user is currently on, so the switcher can preserve
 // it across properties. Anything we don't recognise (e.g. the user is
 // on /tickets, not in a property) returns null and the switcher
@@ -110,6 +134,8 @@ export function PropertySwitcher() {
   if (!active) return null;
 
   const address = formatAddress(active);
+  const showActiveAddress =
+    !!address && !addressRedundantWith(active.name, active);
 
   return (
     <>
@@ -155,7 +181,7 @@ export function PropertySwitcher() {
               {active.name}
             </Typography>
           )}
-          {address && (
+          {showActiveAddress && (
             <Typography variant="caption" color="text.secondary" noWrap>
               {address}
             </Typography>
@@ -188,6 +214,7 @@ export function PropertySwitcher() {
           <Divider />
           {properties.map((p) => {
             const addr = formatAddress(p);
+            const showAddr = !!addr && !addressRedundantWith(p.name, p);
             const isActive = p.id === active.id;
             return (
               <MenuItem
@@ -211,7 +238,7 @@ export function PropertySwitcher() {
                   <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
                     {p.name}
                   </Typography>
-                  {addr && (
+                  {showAddr && (
                     <Typography
                       variant="caption"
                       color="text.secondary"

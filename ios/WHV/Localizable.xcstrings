@@ -729,6 +729,26 @@
         }
       }
     },
+    "Heizfl.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heat. area"
+          }
+        }
+      }
+    },
+    "Personen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persons"
+          }
+        }
+      }
+    },
     "Folgt in Phase 2.": {
       "localizations": {
         "en": {

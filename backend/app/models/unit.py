@@ -49,6 +49,16 @@ class Unit(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     is_owned_by_weg: Mapped[bool | None] = mapped_column(nullable=True)
     voting_share: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
     area_m2: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Heizfläche — usable heating floor area, often differs from
+    # area_m2 (terraces, cellars excluded). Sourced manually from
+    # Impower's "Eigenschaften der Einheiten" panel (their REST API
+    # doesn't expose it) until a sync path opens.
+    heated_area_m2: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Personen — registered occupant head-count used for cost
+    # distribution. Numeric not Integer because Impower stores 0.5
+    # partials for shared apartments. Same manual-fill story as
+    # heated_area_m2.
+    persons: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     rooms: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
 
     raw_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

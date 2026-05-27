@@ -111,6 +111,13 @@ struct UnitResponse: Codable, Hashable, Identifiable {
     /// precision for the read-only display in PropertyDetailView.
     let voting_share: Double?
     let area_m2: Double?
+    /// Heizfläche — heating floor area, often differs from area_m2
+    /// (terraces / cellars excluded). Manual-fill on our side since
+    /// Impower's REST API doesn't expose the panel. Optional.
+    let heated_area_m2: Double?
+    /// Personen — registered head-count for cost distribution.
+    /// Number, not Int, because Impower allows 0.5 partials.
+    let persons: Double?
     let rooms: Double?
     /// Empty array when no contracts are currently active (vacant
     /// or stub). Decoded with a default via custom init so older
@@ -128,15 +135,51 @@ struct UnitResponse: Codable, Hashable, Identifiable {
         is_owned_by_weg = try c.decodeIfPresent(Bool.self, forKey: .is_owned_by_weg)
         voting_share = try c.decodeIfPresent(Double.self, forKey: .voting_share)
         area_m2 = try c.decodeIfPresent(Double.self, forKey: .area_m2)
+        heated_area_m2 = try c.decodeIfPresent(Double.self, forKey: .heated_area_m2)
+        persons = try c.decodeIfPresent(Double.self, forKey: .persons)
         rooms = try c.decodeIfPresent(Double.self, forKey: .rooms)
         current_contracts = (try? c.decode([UnitContractSummary].self, forKey: .current_contracts)) ?? []
     }
 
     enum CodingKeys: String, CodingKey {
         case id, unit_hr_id, type, floor, position, unit_rank
-        case is_owned_by_weg, voting_share, area_m2, rooms
+        case is_owned_by_weg, voting_share, area_m2, heated_area_m2
+        case persons, rooms
         case current_contracts
     }
+}
+
+/// One invoice row inside a VendorSummary's recent-history list.
+/// The actual PDF is fetched via the existing
+/// `/me/documents/{id}/file` endpoint when the user taps the row.
+struct VendorInvoiceSummary: Codable, Hashable, Identifiable {
+    let id: String
+    let name: String
+    let issued_date: String?
+    /// Pydantic v2 emits Decimal as a JSON number — Double is enough
+    /// precision for the rendered amount. May be nil for early-stage
+    /// invoices without a parsed total.
+    let amount: Double?
+}
+
+/// Per-vendor aggregate returned by
+/// `GET /me/properties/{id}/vendors`. Drives the Dienstleister
+/// section in PropertyDetailView — owners see who's worked on the
+/// property and can call/email them back.
+struct VendorSummary: Codable, Hashable, Identifiable {
+    let contact_id: String
+    let name: String
+    /// PERSON | COMPANY — drives the row icon (briefcase vs person).
+    let kind: String
+    let email: String?
+    let phone: String?
+    let invoice_count: Int
+    let total_amount: Double?
+    let first_service_date: String?
+    let last_service_date: String?
+    let recent_invoices: [VendorInvoiceSummary]
+
+    var id: String { contact_id }
 }
 
 /// Detail variant of PropertyResponse — adds the embedded unit
@@ -152,6 +195,124 @@ struct PropertyDetailResponse: Codable, Hashable {
     let postal_code: String?
     let image_url: String?
     let units: [UnitResponse]
+}
+
+/// Contract context attached to ContactDetailResponse. Answers the
+/// "why am I looking at this contact for this property" half of
+/// the dialog.
+struct ContractContextResponse: Codable, Hashable {
+    let id: String
+    /// OWNER / TENANT / PROPERTY_OWNER.
+    let type: String
+    let contract_number: String?
+    let name: String?
+    let start_date: String?
+    let end_date: String?
+    let is_vacant: Bool?
+    /// Free-text role from contract_contacts (rare).
+    let role: String?
+}
+
+/// Full contact card returned by
+/// `GET /me/contracts/{contractId}/contacts/{contactId}`. Drives the
+/// sheet opened by tapping a contract chip on PropertyDetailView.
+/// Mirrors backend `ContactDetailResponse` field-for-field.
+struct ContactDetailResponse: Codable, Hashable {
+    let id: String
+    /// PERSON or COMPANY.
+    let kind: String
+    // Person
+    let salutation: String?
+    let title: String?
+    let first_name: String?
+    let last_name: String?
+    let date_of_birth: String?
+    // Company
+    let company_name: String?
+    let vat_id: String?
+    let trade_register_number: String?
+    // Communications
+    let recipient_name: String?
+    let mandate_number: String?
+    let email: String?
+    let phone: String?
+    /// PORTAL / EMAIL / WHATSAPP / EPOST.
+    let preferred_channel: String
+    /// Free-form key/value pairs of extra channels Impower exposes
+    /// (e.g. "Mobil Privat": "+49 …"). Decoded as `[String: String]`
+    /// — Impower's JSON can carry nested objects but we only render
+    /// the leaf string values; non-strings get dropped at decode time
+    /// via the custom container below to keep the sheet predictable.
+    let additional_contacts: [String: String]?
+    // Address
+    let city: String?
+    let street: String?
+    let number: String?
+    let postal_code: String?
+    let country: String?
+    let contract: ContractContextResponse
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(String.self, forKey: .kind)
+        salutation = try c.decodeIfPresent(String.self, forKey: .salutation)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        first_name = try c.decodeIfPresent(String.self, forKey: .first_name)
+        last_name = try c.decodeIfPresent(String.self, forKey: .last_name)
+        date_of_birth = try c.decodeIfPresent(String.self, forKey: .date_of_birth)
+        company_name = try c.decodeIfPresent(String.self, forKey: .company_name)
+        vat_id = try c.decodeIfPresent(String.self, forKey: .vat_id)
+        trade_register_number = try c.decodeIfPresent(String.self, forKey: .trade_register_number)
+        recipient_name = try c.decodeIfPresent(String.self, forKey: .recipient_name)
+        mandate_number = try c.decodeIfPresent(String.self, forKey: .mandate_number)
+        email = try c.decodeIfPresent(String.self, forKey: .email)
+        phone = try c.decodeIfPresent(String.self, forKey: .phone)
+        preferred_channel = try c.decode(String.self, forKey: .preferred_channel)
+        city = try c.decodeIfPresent(String.self, forKey: .city)
+        street = try c.decodeIfPresent(String.self, forKey: .street)
+        number = try c.decodeIfPresent(String.self, forKey: .number)
+        postal_code = try c.decodeIfPresent(String.self, forKey: .postal_code)
+        country = try c.decodeIfPresent(String.self, forKey: .country)
+        contract = try c.decode(ContractContextResponse.self, forKey: .contract)
+        // Drop non-string values silently — Impower occasionally
+        // returns numbers / nulls and we'd rather render the rest
+        // than fail decoding.
+        if let raw = try c.decodeIfPresent([String: AnyCodable].self, forKey: .additional_contacts) {
+            additional_contacts = raw.compactMapValues { v in
+                if let s = v.value as? String { return s }
+                if let n = v.value as? Int { return String(n) }
+                if let n = v.value as? Double { return String(n) }
+                return nil
+            }
+        } else {
+            additional_contacts = nil
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, salutation, title, first_name, last_name
+        case date_of_birth, company_name, vat_id, trade_register_number
+        case recipient_name, mandate_number, email, phone
+        case preferred_channel, additional_contacts
+        case city, street, number, postal_code, country, contract
+    }
+}
+
+/// Tiny `Any` wrapper for JSON values we only need to inspect, not
+/// re-encode. Used by ContactDetailResponse's additional_contacts
+/// dictionary so heterogeneous Impower payloads survive decoding.
+private struct AnyCodable: Decodable {
+    let value: Any?
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { value = nil; return }
+        if let s = try? c.decode(String.self) { value = s; return }
+        if let i = try? c.decode(Int.self) { value = i; return }
+        if let d = try? c.decode(Double.self) { value = d; return }
+        if let b = try? c.decode(Bool.self) { value = b; return }
+        value = nil
+    }
 }
 
 /// POST body for /me/assemblies/{id}/comments. Mirrors
@@ -509,12 +670,60 @@ struct APIClient {
                     number: p.number,
                     postal_code: p.postal_code,
                     image_url: p.image_url,
-                    units: []
+                    units: await DemoStore.shared.units(for: id)
                 )
             }
             throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
         }
         return try await authedGET("/me/properties/\(id)")
+    }
+
+    /// GET /me/properties/{id}/vendors — aggregate of every invoice
+    /// document on the property keyed by vendor contact. Drives the
+    /// Dienstleister section on PropertyDetailView. Demo mode hands
+    /// back an empty list rather than synthesising fake plumbers.
+    func getMyPropertyVendors(propertyId: String) async throws -> [VendorSummary] {
+        if DemoFlag.isActive {
+            return await DemoStore.shared.vendors(for: propertyId)
+        }
+        return try await authedGET("/me/properties/\(propertyId)/vendors")
+    }
+
+    /// GET /me/contracts/{contractId}/contacts/{contactId} —
+    /// drives the contact-detail sheet opened by tapping a contract
+    /// chip on PropertyDetailView. Returns the full mirror of the
+    /// contact + the contract context that wires them to the
+    /// property. Demo mode synthesises a minimal stub from the chip's
+    /// contact_label so the sheet still renders with something.
+    func getMyContractContact(
+        contractId: String,
+        contactId: String,
+        fallbackLabel: String,
+        contractType: String
+    ) async throws -> ContactDetailResponse {
+        if DemoFlag.isActive {
+            // Reconstruct just enough to populate the sheet — name
+            // splits on the first space (good enough for "Max
+            // Mustermann"); company labels (Acme GmbH) fall through
+            // to last_name which is the visible field anyway.
+            let parts = fallbackLabel.split(separator: " ", maxSplits: 1)
+            let first = parts.count > 1 ? String(parts[0]) : nil
+            let last = parts.count > 1 ? String(parts[1]) : fallbackLabel
+            let payload: [String: Any] = [
+                "id": contactId,
+                "kind": "PERSON",
+                "first_name": first as Any,
+                "last_name": last as Any,
+                "preferred_channel": "EMAIL",
+                "contract": [
+                    "id": contractId,
+                    "type": contractType,
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return try JSONDecoder().decode(ContactDetailResponse.self, from: data)
+        }
+        return try await authedGET("/me/contracts/\(contractId)/contacts/\(contactId)")
     }
 
     /// GET /me/export → tmp file URL with the DSGVO Art. 20 JSON
@@ -562,6 +771,29 @@ struct APIClient {
         try await authedDownload(
             "/me/assemblies/\(id)/protocol",
             saveAs: "protokoll-\(id).pdf"
+        )
+    }
+
+    /// GET /me/agenda-items/{itemId}/attachments/{attId}/download
+    /// → local file URL. Used by AssemblyDetailView to feed
+    /// QLPreviewController when an attendee taps an attachment chip.
+    /// Filename preserves the original so QuickLook picks the right
+    /// renderer (PDF preview vs image viewer vs office handoff).
+    func downloadAgendaAttachment(
+        agendaItemId: String,
+        attachmentId: String,
+        filename: String
+    ) async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        // Sanitise the filename — the backend renders the
+        // Content-Disposition header but we re-use the original on
+        // disk so the share-sheet / Files app show the right name.
+        let safe = filename
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+        return try await authedDownload(
+            "/me/agenda-items/\(agendaItemId)/attachments/\(attachmentId)/download",
+            saveAs: "\(attachmentId)-\(safe)"
         )
     }
 

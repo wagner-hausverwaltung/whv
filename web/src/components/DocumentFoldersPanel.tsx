@@ -12,6 +12,7 @@ import {
   Box,
   Breadcrumbs,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -32,6 +33,7 @@ import {
 import CreateNewFolderOutlinedIcon from "@mui/icons-material/CreateNewFolderOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import { useTranslation } from "react-i18next";
@@ -47,6 +49,11 @@ interface DocumentFoldersPanelProps {
    *  see a read-only tree. The component swaps endpoint paths between
    *  /admin/* and /me/* based on this flag. */
   mode: "admin" | "portal";
+  /** Optional unit lookup so unit-scoped docs can show "Einheit W01"
+   *  rather than the generic "Einheit" badge. Pass `[{id, unit_hr_id}]`
+   *  from the property detail. Missing entries fall back to the generic
+   *  label — useful when the caller can't see the unit. */
+  units?: { id: string; unit_hr_id: string | null }[];
 }
 
 function formatBytes(bytes: number | null): string {
@@ -76,6 +83,7 @@ function formatBytes(bytes: number | null): string {
 export function DocumentFoldersPanel({
   propertyId,
   mode,
+  units,
 }: DocumentFoldersPanelProps) {
   const { t } = useTranslation();
   const [folders, setFolders] = useState<DocumentFolderResponse[]>([]);
@@ -95,6 +103,29 @@ export function DocumentFoldersPanel({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const folderBase = mode === "admin" ? "/admin" : "/me";
+
+  // Map unit_id → label for the row-scope chips. Built once per render
+  // of the units list; small enough that re-creating each render is
+  // cheaper than memoising. Falls back to the generic "Einheit" badge
+  // when the doc references a unit the caller can't see (a property
+  // member who isn't on that unit's contract — though in that case the
+  // visibility filter on the server should have hidden the doc anyway).
+  const unitLabelById = new Map<string, string | null>(
+    (units ?? []).map((u) => [u.id, u.unit_hr_id]),
+  );
+  const scopeChip = (d: DocumentResponse): { label: string } | null => {
+    if (d.contact_id) return { label: t("documents.scopePersonal") };
+    if (d.contract_id) return { label: t("documents.scopeContract") };
+    if (d.unit_id) {
+      const name = unitLabelById.get(d.unit_id);
+      return {
+        label: name
+          ? t("documents.scopeUnitNamed", { name })
+          : t("documents.scopeUnit"),
+      };
+    }
+    return null;
+  };
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -403,21 +434,42 @@ export function DocumentFoldersPanel({
                 disablePadding
                 divider={i < docsHere.length - 1}
                 secondaryAction={
-                  mode === "admin" ? (
-                    <Tooltip title={t("documents.docDelete")}>
+                  /* Always render a visible Download affordance — the
+                     whole row is also clickable but the icon makes
+                     the action discoverable. Admins additionally get
+                     a Delete icon to the right of it. The stopPropagation
+                     on each button keeps the row-level onClick from
+                     firing twice. */
+                  <Stack direction="row" spacing={0.5}>
+                    <Tooltip title={t("documents.docDownload")}>
                       <IconButton
                         edge="end"
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void deleteDoc(d.id);
+                          void downloadDoc(d);
                         }}
-                        aria-label={t("documents.docDelete")}
+                        aria-label={t("documents.docDownload")}
                       >
-                        <DeleteOutlineIcon fontSize="small" />
+                        <DownloadOutlinedIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                  ) : null
+                    {mode === "admin" && (
+                      <Tooltip title={t("documents.docDelete")}>
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteDoc(d.id);
+                          }}
+                          aria-label={t("documents.docDelete")}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
                 }
               >
                 <ListItemButton onClick={() => void downloadDoc(d)}>
@@ -426,7 +478,22 @@ export function DocumentFoldersPanel({
                   </ListItemIcon>
                   <ListItemText
                     primary={
-                      <Typography variant="body2">{d.name}</Typography>
+                      <Stack
+                        direction="row"
+                        sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}
+                      >
+                        <Typography variant="body2">{d.name}</Typography>
+                        {(() => {
+                          const chip = scopeChip(d);
+                          return chip ? (
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={chip.label}
+                            />
+                          ) : null;
+                        })()}
+                      </Stack>
                     }
                     secondary={
                       <Typography

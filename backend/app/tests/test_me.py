@@ -251,3 +251,75 @@ async def test_me_property_documents_eigentuemer_other_property_returns_404(
             headers={"Authorization": f"Bearer {token}"},
         )
     assert response.status_code == 404
+
+
+async def test_me_property_documents_mieter_cannot_see_other_units_doc(
+    test_engine: AsyncEngine,
+) -> None:
+    """A Mieter on Unit 4 must NOT see a doc Impower pinned to Unit 1.
+
+    Property-wide docs (all row-scope FKs NULL) and docs pinned to the
+    Mieter's own unit stay visible — the filter hides only the
+    cross-unit leakage. Mirrors the Impower scoping that the sync
+    pulls into `documents.unit_id`.
+    """
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    unit_one = await make_unit(test_engine, org=org, prop=prop, unit_hr_id="W01")
+    unit_four = await make_unit(test_engine, org=org, prop=prop, unit_hr_id="W04")
+
+    # Mieter is on Unit 4 via their contract; nothing on Unit 1.
+    impower_contact = 9_000_030
+    await make_contact_with_contract_link(
+        test_engine,
+        org=org,
+        prop=prop,
+        contact_impower_id=impower_contact,
+        unit=unit_four,
+    )
+
+    visible_doc = await make_document(
+        test_engine, org=org, prop=prop, name="Hausordnung.pdf"
+    )
+    own_unit_doc = await make_document(
+        test_engine,
+        org=org,
+        prop=prop,
+        name="Mein-Mietvertrag.pdf",
+        unit=unit_four,
+    )
+    other_unit_doc = await make_document(
+        test_engine,
+        org=org,
+        prop=prop,
+        name="Fremder-Mietvertrag.pdf",
+        unit=unit_one,
+    )
+
+    _, email, password = await make_user(
+        test_engine,
+        org=org,
+        role=UserRole.MIETER,
+        contact_id_impower=impower_contact,
+    )
+    token = _login(email, password)
+
+    with TestClient(app) as client:
+        list_response = client.get(
+            f"/me/properties/{prop.id}/documents",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        # Verify the deep-link route is gated the same way: even with
+        # the doc id in hand, a Mieter on Unit 4 can't pull bytes for
+        # Unit 1's doc.
+        deep_link_response = client.get(
+            f"/me/documents/{other_unit_doc.id}/file",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert list_response.status_code == 200
+    ids = {d["id"] for d in list_response.json()}
+    assert str(visible_doc.id) in ids
+    assert str(own_unit_doc.id) in ids
+    assert str(other_unit_doc.id) not in ids
+    assert deep_link_response.status_code == 404
