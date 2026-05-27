@@ -42,8 +42,14 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.integrations.email.etv import render_assembly_comment_notification_email
 from app.integrations.storage.etv_attachments import (
     EtvAttachmentStorageError,
+)
+from app.integrations.storage.etv_attachments import (
     attachment_path as etv_attachment_path,
+)
+from app.integrations.storage.etv_attachments import (
     delete_attachment as etv_delete_attachment,
+)
+from app.integrations.storage.etv_attachments import (
     write_attachment as etv_write_attachment,
 )
 from app.models import (
@@ -1418,12 +1424,18 @@ async def download_agenda_item_attachment(
     # already have the assembly in hand.
     if current_user.role != UserRole.VERWALTER:
         if current_user.contact_id_impower is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found",
+            )
         visible = await session.scalar(
             _visible_properties_stmt(current_user).where(Property.id == assembly.property_id)
         )
         if visible is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found",
+            )
 
     att = await session.get(EtvAgendaItemAttachment, attachment_id)
     if att is None or att.agenda_item_id != item.id:

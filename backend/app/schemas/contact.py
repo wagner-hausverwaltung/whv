@@ -67,7 +67,7 @@ class ContactDetailResponse(BaseModel):
     # Free-form alternate channels Impower lets the user enter ("Tel
     # geschäftlich", "Mobil Partner", etc.). Just a dict; the SPA
     # renders it as key/value lines.
-    additional_contacts: dict | None = None
+    additional_contacts: dict[str, object] | None = None
     # Address
     city: str | None = None
     street: str | None = None

@@ -9,11 +9,13 @@ recent invoices in two queries.
 import uuid
 from collections import defaultdict
 from decimal import Decimal
+from typing import cast
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Contact, Document
+from app.models.contact import ContactKind
 from app.models.document import DocumentKind
 from app.schemas.vendor import VendorInvoiceSummary, VendorSummary
 from app.services.units import _contact_label
@@ -133,7 +135,11 @@ async def load_vendors_for_property(
         out.append(
             VendorSummary(
                 contact_id=r.contact_id,
-                name=_contact_label(contact_shim),
+                # `_contact_label` reads attributes via duck-typing
+                # — the shim provides exactly those, but mypy can't
+                # prove the structural-compat without a Protocol.
+                # Cast keeps the helper's signature unchanged.
+                name=_contact_label(cast(Contact, contact_shim)),
                 kind=r.kind,
                 email=r.email,
                 phone=r.phone,
@@ -153,19 +159,19 @@ class _ContactRowShim:
     instead of dragging the full Contact ORM object through."""
 
     __slots__ = (
+        "company_name",
+        "first_name",
         "kind",
+        "last_name",
+        "recipient_name",
         "salutation",
         "title",
-        "first_name",
-        "last_name",
-        "company_name",
-        "recipient_name",
     )
 
     def __init__(
         self,
         *,
-        kind,  # type: ignore[no-untyped-def]
+        kind: ContactKind,
         salutation: str | None,
         title: str | None,
         first_name: str | None,
