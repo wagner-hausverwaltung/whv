@@ -24,6 +24,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     DateTime,
     Enum,
     ForeignKey,
@@ -463,4 +464,50 @@ class EtvDiscussionEntry(Base):
             "position",
             name="uq_etv_discussion_entries_agenda_item_position",
         ),
+    )
+
+
+class EtvAgendaItemAttachment(Base):
+    """PDF / document attached to a single Tagesordnungspunkt.
+
+    The user-visible feature: attendees see supporting docs inline
+    with the item ("hier ist der Angebotsvergleich für TOP 3") rather
+    than at the end of the meeting where the protocol PDF lands. The
+    Verwalter uploads from the admin SPA's per-item editor; everyone
+    on the property can download + preview.
+
+    Mirrors `announcement_attachments` / `ticket_message_attachments`
+    storage convention: `storage_url` = `"local-disk:<suffix>"`, bytes
+    live at `{etv_attachment_dir}/{id}{suffix}`. Same Hetzner Object
+    Storage migration plan (REQUIREMENTS.md §1.4d iter 2) applies.
+
+    Org scope rides along via the agenda item → assembly →
+    organization_id chain; storing it on this thin row would just be
+    denormalised duplication.
+    """
+
+    __tablename__ = "etv_agenda_item_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    agenda_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("etv_agenda_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # See class docstring for the "local-disk:<suffix>" convention.
+    storage_url: Mapped[str] = mapped_column(Text, nullable=False)
+    uploaded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

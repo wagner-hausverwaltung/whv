@@ -40,11 +40,18 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.etv import render_assembly_comment_notification_email
+from app.integrations.storage.etv_attachments import (
+    EtvAttachmentStorageError,
+    attachment_path as etv_attachment_path,
+    delete_attachment as etv_delete_attachment,
+    write_attachment as etv_write_attachment,
+)
 from app.models import (
     AgendaItemType,
     AssemblyStatus,
     AuditLog,
     EtvAgendaItem,
+    EtvAgendaItemAttachment,
     EtvAssembly,
     EtvAssemblyComment,
     EtvDiscussionEntry,
@@ -53,6 +60,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.etv import (
+    AgendaItemAttachmentResponse,
     AgendaItemResponse,
     AssemblyCommentResponse,
     AssemblyDetailResponse,
@@ -113,13 +121,32 @@ async def _props_by_id_for(
 
 
 async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> AssemblyDetailResponse:
-    """Compose the full nested tree for one assembly in two extra
-    queries (items, then a single batched discussion fetch keyed by
-    item id). Used by both `/me/assemblies/{id}` + the admin variant."""
+    """Compose the full nested tree for one assembly in three extra
+    queries (items, batched discussion, batched per-item attachments).
+    Used by both `/me/assemblies/{id}` + the admin variant."""
     items = await svc.load_agenda_items(session, assembly_id=a.id)
     disc_by_item = await svc.load_discussion_for_items(
         session, agenda_item_ids=[i.id for i in items]
     )
+
+    # Batch-fetch attachments keyed by agenda_item_id. One round
+    # trip regardless of agenda size; empty for items with no
+    # attachments (the common case).
+    item_ids = [i.id for i in items]
+    attachments_by_item: dict[uuid.UUID, list[EtvAgendaItemAttachment]] = {
+        iid: [] for iid in item_ids
+    }
+    if item_ids:
+        att_rows = (
+            await session.scalars(
+                select(EtvAgendaItemAttachment)
+                .where(EtvAgendaItemAttachment.agenda_item_id.in_(item_ids))
+                .order_by(EtvAgendaItemAttachment.created_at)
+            )
+        ).all()
+        for att in att_rows:
+            attachments_by_item[att.agenda_item_id].append(att)
+
     item_responses = [
         AgendaItemResponse(
             id=i.id,
@@ -138,6 +165,10 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
             present_count=i.present_count,
             discussion=[
                 DiscussionEntryResponse.model_validate(d) for d in disc_by_item.get(i.id, [])
+            ],
+            attachments=[
+                AgendaItemAttachmentResponse.model_validate(a_)
+                for a_ in attachments_by_item.get(i.id, [])
             ],
         )
         for i in items
@@ -1245,6 +1276,208 @@ async def admin_delete_invitation(
             target_type="etv_assemblies",
             target_id=str(a.id),
             payload_json={},
+        )
+    )
+    await session.commit()
+
+
+# ---------- Per-agenda-item attachments -------------------------------------
+#
+# Supporting documents (Angebotsvergleiche, Baupläne, Vergleichs-
+# angebote) shown inline next to a Tagesordnungspunkt. Storage helper
+# in app/integrations/storage/etv_attachments.py mirrors the
+# announcement attachment pattern; download endpoint re-checks
+# property scope on every fetch.
+
+
+async def _load_agenda_item_for_org(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    agenda_item_id: uuid.UUID,
+) -> tuple[EtvAgendaItem, EtvAssembly] | None:
+    """Resolve an agenda item + its assembly for scope checks.
+
+    Returns None when the item is missing or belongs to a different
+    org — same 404 hand-off the admin endpoints use elsewhere. We
+    fetch both rows together because every caller needs the assembly
+    too (for property_id) and a single join beats two awaits.
+    """
+    row = (
+        await session.execute(
+            select(EtvAgendaItem, EtvAssembly)
+            .join(EtvAssembly, EtvAssembly.id == EtvAgendaItem.assembly_id)
+            .where(
+                EtvAgendaItem.id == agenda_item_id,
+                EtvAssembly.organization_id == organization_id,
+                EtvAssembly.deleted_at.is_(None),
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return row[0], row[1]
+
+
+@admin_router.post(
+    "/agenda-items/{agenda_item_id}/attachments",
+    response_model=AgendaItemAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_upload_agenda_item_attachment(
+    agenda_item_id: uuid.UUID,
+    upload: UploadFile,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AgendaItemAttachmentResponse:
+    """Verwalter attaches a supporting file to one Tagesordnungspunkt.
+
+    Returns the new attachment row so the admin SPA can splice it
+    into the agenda card without a full reload. Storage suffix
+    validation happens in the helper; bad extensions surface as 400.
+    """
+    pair = await _load_agenda_item_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        agenda_item_id=agenda_item_id,
+    )
+    if pair is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agenda item not found")
+    item, _assembly = pair
+
+    data = await upload.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty upload")
+    if len(data) > settings.etv_attachment_max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File exceeds 25 MB",
+        )
+
+    att = EtvAgendaItemAttachment(
+        agenda_item_id=item.id,
+        filename=upload.filename or "attachment",
+        mime_type=upload.content_type,
+        size_bytes=len(data),
+        storage_url="",  # filled below once suffix is known
+        uploaded_by_user_id=current_user.id,
+    )
+    session.add(att)
+    await session.flush()
+    try:
+        _path, suffix = etv_write_attachment(att.id, att.filename, data)
+    except EtvAttachmentStorageError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    att.storage_url = f"local-disk:{suffix}"
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="etv_agenda_attachment_uploaded",
+            target_type="etv_agenda_item_attachments",
+            target_id=str(att.id),
+            payload_json={
+                "agenda_item_id": str(item.id),
+                "filename": att.filename,
+                "size_bytes": att.size_bytes,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(att)
+    return AgendaItemAttachmentResponse.model_validate(att)
+
+
+@me_router.get(
+    "/agenda-items/{agenda_item_id}/attachments/{attachment_id}/download"
+)
+async def download_agenda_item_attachment(
+    agenda_item_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Auth-gated download for any attendee on the assembly's
+    property. Same 404-on-no-access shape as the protocol download —
+    we don't leak whether the file exists when the caller has no
+    scope on it.
+    """
+    pair = await _load_agenda_item_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        agenda_item_id=agenda_item_id,
+    )
+    if pair is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    item, assembly = pair
+
+    # Non-Verwalter callers must have property access. Same gate
+    # as `_check_assembly_visible` but inlined here because we
+    # already have the assembly in hand.
+    if current_user.role != UserRole.VERWALTER:
+        if current_user.contact_id_impower is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+        visible = await session.scalar(
+            _visible_properties_stmt(current_user).where(Property.id == assembly.property_id)
+        )
+        if visible is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    att = await session.get(EtvAgendaItemAttachment, attachment_id)
+    if att is None or att.agenda_item_id != item.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    if not att.storage_url.startswith("local-disk:"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    suffix = att.storage_url.removeprefix("local-disk:")
+    path = etv_attachment_path(att.id, suffix)
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    return FileResponse(
+        path,
+        media_type=att.mime_type or "application/octet-stream",
+        filename=att.filename,
+    )
+
+
+@admin_router.delete(
+    "/agenda-items/{agenda_item_id}/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def admin_delete_agenda_item_attachment(
+    agenda_item_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """Remove an attachment + its on-disk file. CASCADE on the FK
+    handles the row when the parent agenda item is deleted, but a
+    plain DELETE goes through this endpoint so we can also cleanup
+    the bytes and write an audit entry."""
+    pair = await _load_agenda_item_for_org(
+        session,
+        organization_id=current_user.organization_id,
+        agenda_item_id=agenda_item_id,
+    )
+    if pair is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    item, _assembly = pair
+    att = await session.get(EtvAgendaItemAttachment, attachment_id)
+    if att is None or att.agenda_item_id != item.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    if att.storage_url.startswith("local-disk:"):
+        suffix = att.storage_url.removeprefix("local-disk:")
+        etv_delete_attachment(att.id, suffix)
+    await session.delete(att)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="etv_agenda_attachment_deleted",
+            target_type="etv_agenda_item_attachments",
+            target_id=str(att.id),
+            payload_json={"agenda_item_id": str(item.id)},
         )
     )
     await session.commit()

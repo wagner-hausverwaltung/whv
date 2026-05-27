@@ -19,6 +19,13 @@ final class AssemblyDetailStore: ObservableObject {
     @Published private(set) var isPosting = false
     @Published private(set) var isDownloadingProtocol = false
     @Published private(set) var protocolFileURL: URL?
+    /// Currently-downloading attachment id, so the tapped chip can
+    /// render a spinner without affecting siblings. nil = none in
+    /// flight.
+    @Published private(set) var downloadingAttachmentId: String?
+    /// File URL of the most recently downloaded attachment. Drives
+    /// the separate `.sheet(item:)` for QuickLook preview.
+    @Published var attachmentPreview: AttachmentPreviewURL?
     @Published var lastError: String?
 
     var onUnauthorized: (() -> Void)?
@@ -88,6 +95,39 @@ final class AssemblyDetailStore: ObservableObject {
             try? FileManager.default.removeItem(at: url)
         }
         protocolFileURL = nil
+    }
+
+    /// Downloads an agenda-item attachment to a temp file and
+    /// surfaces the URL via `attachmentPreview`. Tap-spam-safe: if
+    /// the same id is in flight we no-op, otherwise we record which
+    /// chip the user pressed so the view can render a spinner.
+    func openAttachment(agendaItemId: String, attachment: AgendaItemAttachment) async {
+        if downloadingAttachmentId == attachment.id { return }
+        downloadingAttachmentId = attachment.id
+        defer { downloadingAttachmentId = nil }
+        do {
+            let url = try await api.downloadAgendaAttachment(
+                agendaItemId: agendaItemId,
+                attachmentId: attachment.id,
+                filename: attachment.filename
+            )
+            attachmentPreview = AttachmentPreviewURL(url: url)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
+        } catch let error as APIError {
+            self.lastError = error.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+    }
+
+    /// Cleans up the downloaded file when the user dismisses the
+    /// preview — keeps tmp lean across many opens during one visit.
+    func dismissAttachmentPreview() {
+        if let url = attachmentPreview?.url {
+            try? FileManager.default.removeItem(at: url)
+        }
+        attachmentPreview = nil
     }
 
     /// Posts the comment and appends the server-returned row to the
@@ -178,6 +218,17 @@ struct AssemblyDetailView: View {
                 FilePreview(url: url)
                     .ignoresSafeArea()
             }
+        }
+        // Separate sheet for per-TOP attachment preview so opening
+        // one doesn't fight the protocol sheet's binding.
+        .sheet(
+            item: Binding(
+                get: { store.attachmentPreview },
+                set: { v in if v == nil { store.dismissAttachmentPreview() } }
+            )
+        ) { preview in
+            FilePreview(url: preview.url)
+                .ignoresSafeArea()
         }
     }
 
@@ -364,7 +415,18 @@ struct AssemblyDetailView: View {
                     .padding(.vertical, 24)
             } else if let detail = store.detail, !detail.agenda_items.isEmpty {
                 ForEach(detail.agenda_items.sorted(by: { $0.position < $1.position })) { item in
-                    AgendaItemCard(item: item)
+                    AgendaItemCard(
+                        item: item,
+                        downloadingAttachmentId: store.downloadingAttachmentId,
+                        onAttachmentTap: { att in
+                            Task {
+                                await store.openAttachment(
+                                    agendaItemId: item.id,
+                                    attachment: att
+                                )
+                            }
+                        }
+                    )
                 }
             } else {
                 Text("Tagesordnung wird vom Verwalter ergänzt.")
@@ -512,6 +574,12 @@ struct AssemblyDetailView: View {
 
 private struct AgendaItemCard: View {
     let item: AgendaItem
+    /// Mirrors `AssemblyDetailStore.downloadingAttachmentId` — when
+    /// it matches an attachment.id the chip renders a spinner.
+    let downloadingAttachmentId: String?
+    /// Closure invoked on tap. Parent fires the download + presents
+    /// QuickLook via the page-level sheet binding.
+    let onAttachmentTap: (AgendaItemAttachment) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -569,6 +637,9 @@ private struct AgendaItemCard: View {
                     alignment: .leading
                 )
             }
+            if !item.attachments.isEmpty {
+                attachmentsBlock
+            }
             if item.voting_basis != nil || item.present_count != nil {
                 votingMeta
             }
@@ -585,6 +656,55 @@ private struct AgendaItemCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
         )
+    }
+
+    /// Supporting docs attached to this TOP. Each chip is a Button —
+    /// tapping calls back into the parent which fires the download
+    /// and presents QuickLook. We use a wrap-friendly HStack instead
+    /// of FlowLayout (iOS 16 doesn't have it) — for 1-4 attachments
+    /// the single line is fine; longer rows wrap by SwiftUI's
+    /// HStack-in-VStack default.
+    private var attachmentsBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Anhänge")
+                .font(.caption2.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(item.attachments) { att in
+                    Button {
+                        onAttachmentTap(att)
+                    } label: {
+                        HStack(spacing: 8) {
+                            if downloadingAttachmentId == att.id {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "doc.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.tint)
+                            }
+                            Text(att.filename)
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text(formatBytes(att.size_bytes))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.tertiarySystemFill))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(downloadingAttachmentId == att.id)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -753,4 +873,22 @@ private struct CommentRow: View {
     NavigationStack {
         AssemblyDetailView(assemblyId: "demo-assembly-past-x")
     }
+}
+
+/// Wrapper so we can drive `.sheet(item:)` from a URL — `URL` itself
+/// isn't `Identifiable`. The id is the file's path, which is stable
+/// per download and uniquely identifies the sheet target.
+struct AttachmentPreviewURL: Identifiable, Hashable {
+    let url: URL
+    var id: String { url.path }
+}
+
+/// Short human-readable byte string for chip subtitles. Matches the
+/// "150 KB" / "1.4 MB" rounding the portal uses so the two clients
+/// don't disagree on the same file's reported size.
+private func formatBytes(_ b: Int) -> String {
+    if b < 1024 { return "\(b) B" }
+    if b < 1024 * 1024 { return "\(b / 1024) KB" }
+    let mb = Double(b) / (1024.0 * 1024.0)
+    return String(format: "%.1f MB", mb)
 }

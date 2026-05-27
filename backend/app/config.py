@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     announcement_attachment_dir: str = "/var/lib/whv/announcement-attachments"
     announcement_attachment_max_bytes: int = 25 * 1024 * 1024
 
+    # ETV agenda-item attachments — supporting docs (Angebotsvergleiche,
+    # Baupläne, Vergleichsangebote) shown inline next to a
+    # Tagesordnungspunkt. Same 25 MB cap, same storage convention,
+    # same auth-gated download as the announcement variant.
+    etv_attachment_dir: str = "/var/lib/whv/etv-attachments"
+    etv_attachment_max_bytes: int = 25 * 1024 * 1024
+
     # Signed Eigentümerversammlung protocol PDFs — one per assembly,
     # named {assembly_id}.pdf so re-uploads cleanly overwrite. Auth-
     # gated download via /me/assemblies/{id}/protocol; storage moves

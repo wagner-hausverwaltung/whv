@@ -33,9 +33,11 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import SaveIcon from "@mui/icons-material/Save";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import CancelIcon from "@mui/icons-material/Close";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import { AssemblyComments } from "@/pages/AssemblyComments";
@@ -544,6 +546,8 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
               {item.body}
             </Typography>
           )}
+          <AgendaItemAttachmentsEditor item={item} onChanged={onChanged} />
+
           {item.beschluss_text && (
             <Box
               sx={{
@@ -641,6 +645,119 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
           )}
 
           <DiscussionSection item={item} onChanged={onChanged} />
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
+/// Verwalter-side editor for the per-TOP attachments. Upload via a
+/// hidden file input → POST as multipart → reload the parent so the
+/// new chip appears. Delete via a small × icon on each chip. The
+/// portal + iOS sides render these same attachments inline next to
+/// the TOP body.
+function AgendaItemAttachmentsEditor({
+  item,
+  onChanged,
+}: {
+  item: AgendaItemResponse;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // re-allow same-file selection after this run
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("upload", file);
+      await api.post(
+        `/admin/agenda-items/${item.id}/attachments`,
+        form,
+      );
+      await onChanged();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        .response?.data?.detail;
+      setError(detail ?? "Upload fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (attId: string) => {
+    if (!window.confirm("Anhang löschen?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(
+        `/admin/agenda-items/${item.id}/attachments/${attId}`,
+      );
+      await onChanged();
+    } catch {
+      setError("Löschen fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Box>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", mb: 1 }}
+      >
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}
+        >
+          Anhänge
+        </Typography>
+        <Button
+          component="label"
+          size="small"
+          variant="outlined"
+          startIcon={<AttachFileIcon />}
+          disabled={busy}
+        >
+          Hochladen
+          <input
+            type="file"
+            hidden
+            onChange={upload}
+            // The backend allow-list governs accepted types but we
+            // hint to the OS picker so users see PDFs first.
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.heic"
+          />
+        </Button>
+      </Stack>
+      {error && (
+        <Alert severity="error" sx={{ mb: 1 }}>
+          {error}
+        </Alert>
+      )}
+      {item.attachments.length === 0 ? (
+        <Typography variant="caption" color="text.secondary">
+          Noch keine Anhänge zu diesem TOP.
+        </Typography>
+      ) : (
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+          {item.attachments.map((att) => (
+            <Chip
+              key={att.id}
+              icon={<PictureAsPdfIcon />}
+              label={att.filename}
+              variant="outlined"
+              onDelete={() => void remove(att.id)}
+              disabled={busy}
+            />
+          ))}
         </Stack>
       )}
     </Box>

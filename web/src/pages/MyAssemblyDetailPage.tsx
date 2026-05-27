@@ -37,6 +37,7 @@ import {
   AGENDA_ITEM_TYPE_LABELS,
   VOTING_BASIS_LABELS,
   ASSEMBLY_STATUS_LABELS,
+  type AgendaItemAttachmentResponse,
   type AgendaItemResponse,
   type AgendaItemType,
   type AssemblyDetailResponse,
@@ -481,6 +482,12 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
             </Typography>
           </Box>
         )}
+        {item.attachments.length > 0 && (
+          <AgendaItemAttachmentsBlock
+            agendaItemId={item.id}
+            attachments={item.attachments}
+          />
+        )}
         {item.type === "BESCHLUSS" && hasVoteInfo && (
           <Box>
             <Typography
@@ -612,4 +619,93 @@ function VoteCell({
       </Typography>
     </Box>
   );
+}
+
+/// Per-TOP attachment chips. Each chip opens the file in a new tab
+/// — for PDFs that lands in the browser's built-in viewer (= preview);
+/// for non-PDF types it falls back to download. We deliberately don't
+/// build an in-modal previewer here: native browser tabs already do
+/// the right thing for the only file kinds that matter in practice.
+function AgendaItemAttachmentsBlock({
+  agendaItemId,
+  attachments,
+}: {
+  agendaItemId: string;
+  attachments: AgendaItemAttachmentResponse[];
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const openAttachment = async (att: AgendaItemAttachmentResponse) => {
+    setBusyId(att.id);
+    try {
+      const r = await api.get(
+        `/me/agenda-items/${agendaItemId}/attachments/${att.id}/download`,
+        { responseType: "blob" },
+      );
+      const blob = new Blob([r.data as Blob], {
+        // The backend sends the right mime type but axios already
+        // unpacks it; re-stamp from the row metadata so PDFs render
+        // inline and other types still download.
+        type: att.mime_type ?? "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      // Some pop-up blockers cancel window.open — fall back to
+      // a click-driven anchor so the user can still grab the file.
+      if (win == null) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = att.filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      // Revoke after a delay so the new tab can finish parsing the
+      // blob — immediate revoke breaks Firefox's PDF viewer.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      // Surface failures in the chip itself rather than the global
+      // error alert — one bad attachment shouldn't blank the page.
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Box>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          display: "block",
+          mb: 1,
+        }}
+      >
+        Anhänge
+      </Typography>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+        {attachments.map((att) => (
+          <Chip
+            key={att.id}
+            icon={<PictureAsPdfIcon />}
+            label={`${att.filename}${
+              att.size_bytes ? ` · ${formatBytes(att.size_bytes)}` : ""
+            }`}
+            variant="outlined"
+            clickable
+            disabled={busyId === att.id}
+            onClick={() => void openAttachment(att)}
+          />
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }

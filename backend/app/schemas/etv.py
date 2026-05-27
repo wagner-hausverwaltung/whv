@@ -81,6 +81,20 @@ class CreateDiscussionEntryRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=20_000)
 
 
+class AgendaItemAttachmentResponse(BaseModel):
+    """One supporting file attached to a Tagesordnungspunkt — PDF,
+    photo, spreadsheet. Returned in the assembly-detail tree under
+    each agenda item so the SPA + iOS render inline preview/download
+    buttons without an extra round-trip."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    filename: str
+    mime_type: str | None = None
+    size_bytes: int
+
+
 class AgendaItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,6 +113,9 @@ class AgendaItemResponse(BaseModel):
     voting_basis: AgendaItemVotingBasis | None = None
     present_count: int | None = None
     discussion: list[DiscussionEntryResponse] = []
+    # Files attached to this specific TOP. Empty when the
+    # Verwalter hasn't uploaded anything yet (the common case).
+    attachments: list[AgendaItemAttachmentResponse] = []
 
 
 # ---------- Assembly itself ----------

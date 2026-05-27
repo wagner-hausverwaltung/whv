@@ -125,6 +125,17 @@ struct DiscussionEntry: Codable, Identifiable, Hashable {
     let content: String
 }
 
+/// Supporting file attached to a single Tagesordnungspunkt — PDF,
+/// photo, spreadsheet. Rendered inline under the item in
+/// AssemblyDetailView so attendees see the context without
+/// hunting through the protocol at the end.
+struct AgendaItemAttachment: Codable, Identifiable, Hashable {
+    let id: String
+    let filename: String
+    let mime_type: String?
+    let size_bytes: Int
+}
+
 struct AgendaItem: Codable, Identifiable, Hashable {
     let id: String
     let position: Int
@@ -140,8 +151,75 @@ struct AgendaItem: Codable, Identifiable, Hashable {
     let voting_basis: AgendaItemVotingBasis?
     let present_count: Int?
     let discussion: [DiscussionEntry]
+    /// Files attached to this specific TOP. Defaulted to [] via the
+    /// custom decoder so older payloads without the field still
+    /// parse cleanly.
+    let attachments: [AgendaItemAttachment]
 
     var voteTotal: Int { vote_yes + vote_no + vote_abstain }
+
+    /// Memberwise init kept explicit because the custom Decodable
+    /// init disables Swift's auto-synthesised one. Demo seed data
+    /// constructs values directly via this initializer.
+    init(
+        id: String,
+        position: Int,
+        type: AgendaItemType,
+        title: String,
+        body: String,
+        beschluss_text: String?,
+        vote_yes: Int,
+        vote_no: Int,
+        vote_abstain: Int,
+        vote_required_quorum: Int?,
+        vote_result: AgendaItemVoteResult?,
+        voting_basis: AgendaItemVotingBasis?,
+        present_count: Int?,
+        discussion: [DiscussionEntry],
+        attachments: [AgendaItemAttachment] = []
+    ) {
+        self.id = id
+        self.position = position
+        self.type = type
+        self.title = title
+        self.body = body
+        self.beschluss_text = beschluss_text
+        self.vote_yes = vote_yes
+        self.vote_no = vote_no
+        self.vote_abstain = vote_abstain
+        self.vote_required_quorum = vote_required_quorum
+        self.vote_result = vote_result
+        self.voting_basis = voting_basis
+        self.present_count = present_count
+        self.discussion = discussion
+        self.attachments = attachments
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        position = try c.decode(Int.self, forKey: .position)
+        type = try c.decode(AgendaItemType.self, forKey: .type)
+        title = try c.decode(String.self, forKey: .title)
+        body = try c.decode(String.self, forKey: .body)
+        beschluss_text = try c.decodeIfPresent(String.self, forKey: .beschluss_text)
+        vote_yes = try c.decode(Int.self, forKey: .vote_yes)
+        vote_no = try c.decode(Int.self, forKey: .vote_no)
+        vote_abstain = try c.decode(Int.self, forKey: .vote_abstain)
+        vote_required_quorum = try c.decodeIfPresent(Int.self, forKey: .vote_required_quorum)
+        vote_result = try c.decodeIfPresent(AgendaItemVoteResult.self, forKey: .vote_result)
+        voting_basis = try c.decodeIfPresent(AgendaItemVotingBasis.self, forKey: .voting_basis)
+        present_count = try c.decodeIfPresent(Int.self, forKey: .present_count)
+        discussion = (try? c.decode([DiscussionEntry].self, forKey: .discussion)) ?? []
+        attachments = (try? c.decode([AgendaItemAttachment].self, forKey: .attachments)) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, type, title, body, beschluss_text
+        case vote_yes, vote_no, vote_abstain, vote_required_quorum
+        case vote_result, voting_basis, present_count
+        case discussion, attachments
+    }
 }
 
 /// One Q&A entry under an assembly. Lives on its own endpoint:

@@ -19,6 +19,14 @@ struct DemoSeed {
     let announcementDetails: [AnnouncementDetail]
     let tickets: [TicketSummary]
     let ticketDetails: [TicketDetail]
+    /// Units keyed by property id — drives the Einheiten section
+    /// inside PropertyDetailView (§8.3). UnitResponse uses a custom
+    /// decoder so we round-trip via JSON like ticketSummary().
+    let units: [String: [UnitResponse]]
+    /// Vendors keyed by property id — populates the Dienstleister
+    /// section of PropertyDetailView so App Store reviewers see a
+    /// realistic owner-side view of who has worked on the building.
+    let vendors: [String: [VendorSummary]]
 
     static func build(now: Date = Date()) -> DemoSeed {
         let cal = Calendar.current
@@ -201,6 +209,103 @@ struct DemoSeed {
         ]
         let ticketDetails = tickets.map { detailFor(ticket: $0) }
 
+        // Units + vendors for the WEG property. The MV property gets
+        // a thinner slice (1 unit, 1 vendor) so the demo still shows
+        // the section on both Liegenschaften without duplicating
+        // copy. PropertyDetailView gates each section on non-empty.
+        let units: [String: [UnitResponse]] = [
+            weg.id: [
+                unitResponse(id: "demo-unit-weg-1", hrId: "WE 01", type: "Wohnung",
+                             floor: "Erdgeschoss", position: "links",
+                             areaM2: 78.4, heatedAreaM2: 74.2, persons: 2, mea: 142,
+                             contracts: [
+                                ("OWNER", "h.mueller@example.com", "Hans Müller"),
+                             ]),
+                unitResponse(id: "demo-unit-weg-2", hrId: "WE 02", type: "Wohnung",
+                             floor: "1. OG", position: "rechts",
+                             areaM2: 92.1, heatedAreaM2: 88.0, persons: 3, mea: 167,
+                             contracts: [
+                                ("OWNER", "k.schmidt@example.com", "Klara Schmidt"),
+                                ("TENANT", "p.weber@example.com", "Paul Weber"),
+                             ]),
+                unitResponse(id: "demo-unit-weg-3", hrId: "WE 03", type: "Wohnung",
+                             floor: "2. OG", position: "Mitte",
+                             areaM2: 105.0, heatedAreaM2: 99.5, persons: 4, mea: 191,
+                             contracts: [
+                                ("OWNER", "a.becker@example.com", "Anna Becker"),
+                             ]),
+            ],
+            mv.id: [
+                unitResponse(id: "demo-unit-mv-1", hrId: "WE 04", type: "Wohnung",
+                             floor: "Erdgeschoss", position: nil,
+                             areaM2: 64.0, heatedAreaM2: 60.0, persons: 1, mea: nil,
+                             contracts: [
+                                ("TENANT", "l.koch@example.com", "Lisa Koch"),
+                             ]),
+            ],
+        ]
+        let vendors: [String: [VendorSummary]] = [
+            weg.id: [
+                VendorSummary(
+                    contact_id: "demo-vendor-1",
+                    name: "Schwarz Dachdeckerei GmbH",
+                    kind: "COMPANY",
+                    email: "info@schwarz-dach.example.com",
+                    phone: "+49 711 1234567",
+                    invoice_count: 4,
+                    total_amount: 47_200.0,
+                    first_service_date: "2025-03-12",
+                    last_service_date: "2026-04-22",
+                    recent_invoices: [
+                        VendorInvoiceSummary(
+                            id: "demo-inv-1",
+                            name: "Dachsanierung Rechnung 04/2026",
+                            issued_date: "2026-04-22",
+                            amount: 18_400.0
+                        ),
+                    ]
+                ),
+                VendorSummary(
+                    contact_id: "demo-vendor-2",
+                    name: "Schorn Heizungstechnik",
+                    kind: "COMPANY",
+                    email: "service@schorn-heizung.example.com",
+                    phone: "+49 711 9876543",
+                    invoice_count: 7,
+                    total_amount: 3_840.0,
+                    first_service_date: "2024-10-04",
+                    last_service_date: "2026-02-18",
+                    recent_invoices: []
+                ),
+                VendorSummary(
+                    contact_id: "demo-vendor-3",
+                    name: "Sauber GmbH",
+                    kind: "COMPANY",
+                    email: "buero@sauber-reinigung.example.com",
+                    phone: "+49 711 4422110",
+                    invoice_count: 12,
+                    total_amount: 5_760.0,
+                    first_service_date: "2025-09-01",
+                    last_service_date: "2026-05-26",
+                    recent_invoices: []
+                ),
+            ],
+            mv.id: [
+                VendorSummary(
+                    contact_id: "demo-vendor-4",
+                    name: "Schlüsseldienst Schnell",
+                    kind: "COMPANY",
+                    email: nil,
+                    phone: "+49 711 2233445",
+                    invoice_count: 1,
+                    total_amount: 220.0,
+                    first_service_date: "2026-05-02",
+                    last_service_date: "2026-05-02",
+                    recent_invoices: []
+                ),
+            ],
+        ]
+
         return DemoSeed(
             properties: [weg, mv],
             assemblies: assemblies,
@@ -209,8 +314,61 @@ struct DemoSeed {
             announcements: announcements,
             announcementDetails: announcementDetails,
             tickets: tickets,
-            ticketDetails: ticketDetails
+            ticketDetails: ticketDetails,
+            units: units,
+            vendors: vendors
         )
+    }
+
+    // MARK: - Unit builder
+
+    /// JSON round-trip because UnitResponse owns a custom decoder
+    /// (the `current_contracts` field falls back to [] when absent).
+    /// Same pattern as ticketSummary() — direct memberwise init isn't
+    /// available because the custom decoder hides the synthesized one.
+    private static func unitResponse(
+        id: String,
+        hrId: String,
+        type: String,
+        floor: String?,
+        position: String?,
+        areaM2: Double?,
+        heatedAreaM2: Double?,
+        persons: Double?,
+        mea: Double?,
+        contracts: [(String, String, String)]
+    ) -> UnitResponse {
+        let contractsJSON: [[String: Any?]] = contracts.enumerated().map { idx, tup in
+            let (type, email, label) = tup
+            return [
+                "contract_id": "\(id)-c\(idx)",
+                "contract_number": nil,
+                "type": type,
+                "contact_id": "\(id)-contact-\(idx)",
+                "contact_label": label,
+                "role": email,
+                "start_date": nil,
+                "end_date": nil,
+            ]
+        }
+        let dict: [String: Any?] = [
+            "id": id,
+            "unit_hr_id": hrId,
+            "type": type,
+            "floor": floor,
+            "position": position,
+            "unit_rank": nil,
+            "is_owned_by_weg": false,
+            "voting_share": mea,
+            "area_m2": areaM2,
+            "heated_area_m2": heatedAreaM2,
+            "persons": persons,
+            "rooms": nil,
+            "current_contracts": contractsJSON.map { $0.compactMapValues { $0 } },
+        ]
+        let cleaned = dict.compactMapValues { $0 }
+        let data = (try? JSONSerialization.data(withJSONObject: cleaned)) ?? Data()
+        return (try? APIClient.jsonDecoder.decode(UnitResponse.self, from: data))!
     }
 
     // MARK: - Builders
