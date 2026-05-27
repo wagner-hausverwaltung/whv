@@ -278,9 +278,7 @@ async def test_me_property_documents_mieter_cannot_see_other_units_doc(
         unit=unit_four,
     )
 
-    visible_doc = await make_document(
-        test_engine, org=org, prop=prop, name="Hausordnung.pdf"
-    )
+    visible_doc = await make_document(test_engine, org=org, prop=prop, name="Hausordnung.pdf")
     own_unit_doc = await make_document(
         test_engine,
         org=org,

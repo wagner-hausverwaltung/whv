@@ -195,9 +195,7 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
         .scalar_subquery()
     )
     caller_contact = (
-        select(Contact.id)
-        .where(Contact.impower_id == user.contact_id_impower)
-        .scalar_subquery()
+        select(Contact.id).where(Contact.impower_id == user.contact_id_impower).scalar_subquery()
     )
     return or_(
         and_(
@@ -546,7 +544,7 @@ async def download_my_document(
                     # `filename*=UTF-8'…` for umlauts in the Impower
                     # name. Browsers honor whichever they support.
                     "Content-Disposition": (
-                        f"attachment; filename=\"{_ascii_fallback(download_name)}\"; "
+                        f'attachment; filename="{_ascii_fallback(download_name)}"; '
                         f"filename*=UTF-8''{_rfc5987(download_name)}"
                     ),
                 },

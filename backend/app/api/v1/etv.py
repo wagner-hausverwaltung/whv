@@ -1396,9 +1396,7 @@ async def admin_upload_agenda_item_attachment(
     return AgendaItemAttachmentResponse.model_validate(att)
 
 
-@me_router.get(
-    "/agenda-items/{agenda_item_id}/attachments/{attachment_id}/download"
-)
+@me_router.get("/agenda-items/{agenda_item_id}/attachments/{attachment_id}/download")
 async def download_agenda_item_attachment(
     agenda_item_id: uuid.UUID,
     attachment_id: uuid.UUID,
