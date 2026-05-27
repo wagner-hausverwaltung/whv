@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WHV — App Privacy Manifest.
+
+  Required by Apple since May 2024 for any third-party app or SDK
+  that touches "required-reason" APIs. Apple verifies the manifest at
+  submission; mismatch with the App Store Connect "App Privacy"
+  questionnaire = automatic rejection.
+
+  Source-of-truth audit (kept verbatim so future devs can diff if a
+  refactor changes what we touch):
+
+  ── Required-reason APIs WHV uses ───────────────────────────────────
+  UserDefaults  — yes. SettingsStore, BiometricLockStore, AuthStore,
+                  WidgetSync (App Group), LiegenschaftStore.
+                  Reason: "CA92.1" — access info from the same app /
+                  its app group container. Covers both the host app's
+                  defaults and the widget IPC handoff via the App
+                  Group's shared UserDefaults.
+
+  ── Required-reason APIs WHV does NOT use ───────────────────────────
+  File timestamp     — no creationDate/modificationDate reads.
+  System boot time   — no systemUptime / mach_absolute_time.
+  Disk space         — no volumeAvailableCapacityKey.
+  Active keyboards   — no UITextInputMode.activeInputModes.
+
+  ── Data WHV collects from the user ─────────────────────────────────
+  Email address      — to authenticate the user against /auth/login.
+                       Linked to user, used for App Functionality,
+                       NOT used for tracking, NOT shared with third
+                       parties.
+  User content       — Tickets, announcement comments, ETV
+                       comments / questions the user posts. Linked
+                       to user, App Functionality only.
+  User ID            — Our own UUID7 user_id (NOT the IDFA / device
+                       ID). Linked, App Functionality only.
+
+  ── Tracking ────────────────────────────────────────────────────────
+  WHV does NOT track users across apps or websites. No IDFA. No
+  ATTrackingManager prompt. NSPrivacyTracking is false.
+
+  Re-check this manifest when:
+    * a new third-party SDK is added (each ships its own manifest)
+    * crash reporting / analytics (Sentry, Firebase) is enabled —
+      will add Diagnostic data + maybe required-reason entries
+    * push notifications launch — adds Identifiers/Device ID
+    * any new framework that touches Photos, Camera, Location,
+      Contacts, Microphone, HealthKit, Motion, etc.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!-- Contact Info → Email address (sign-in identity). -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- User Content → Tickets, ETV comments, announcement comments. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Identifiers → Our own user UUID. NOT the IDFA. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeUserID</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- UserDefaults: settings persistence + widget IPC via App Group. -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
