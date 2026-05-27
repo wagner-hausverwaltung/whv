@@ -170,13 +170,23 @@ struct EinstellungenView: View {
     }
 
     private var languageSection: some View {
-        Section("Sprache") {
+        Section {
             Picker("Sprache", selection: $settings.language) {
                 ForEach(LanguagePreference.allCases) { p in
                     Text(p.label).tag(p)
                 }
             }
             .pickerStyle(.segmented)
+        } header: {
+            Text("Sprache")
+        } footer: {
+            // iOS caches Bundle.main's localizations at process
+            // startup, so a language switch only takes effect on a
+            // true cold launch — not just background → foreground.
+            // Surfaced inline rather than as a popup so the picker
+            // doesn't feel broken when the labels don't change
+            // immediately.
+            Text("Die Sprachänderung wird erst nach einem vollständigen Neustart der App wirksam (App über den App-Switcher schließen und neu öffnen).")
         }
     }
 
