@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Avatar,
+  Box,
+  Button,
+  Checkbox,
   Chip,
   Paper,
   Stack,
@@ -20,18 +23,44 @@ import { useTranslation } from "react-i18next";
 import { api, API_BASE_URL } from "@/api/client";
 import type { AdminPropertyListItem } from "@/api/types";
 
+const EUR0 = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 0,
+});
+
+// Hardcoded management-fee step function of total units (Wagner's
+// internal schedule). 1100 € is the base tier; the fee steps up at 140,
+// 170 and 250 units and caps at 2000 €.
+function salaryForUnits(units: number): number {
+  if (units >= 250) return 2000;
+  if (units >= 170) return 1500;
+  if (units >= 140) return 1250;
+  return 1100;
+}
+
 export function AdminPropertiesPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<AdminPropertyListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Checked property ids → the units/salary summary box sums these.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api
       .get<AdminPropertyListItem[]>("/admin/properties")
-       
       .then((r) => setRows(r.data))
       .catch(() => setError(t("admin.stammdaten.loadFailed")));
   }, [t]);
+
+  const totalUnits = useMemo(
+    () =>
+      (rows ?? [])
+        .filter((p) => selected.has(p.id))
+        .reduce((sum, p) => sum + (p.units_count ?? 0), 0),
+    [rows, selected],
+  );
 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (rows === null) {
@@ -42,11 +71,63 @@ export function AdminPropertiesPage() {
     );
   }
 
+  const allSelected = rows.length > 0 && rows.every((p) => selected.has(p.id));
+  const someSelected = selected.size > 0 && !allSelected;
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(rows.map((p) => p.id)));
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
     <Stack spacing={3}>
       <Typography variant="h4" component="h1">
         {t("admin.propertiesPage.title")}
       </Typography>
+
+      {/* Selection summary: sum of the checked rows' units + the
+          hardcoded management fee for that unit count. */}
+      {selected.size > 0 && (
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Box>
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ display: "block", lineHeight: 1.4 }}
+            >
+              {t("admin.propertiesPage.summaryLabel")}
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {t("admin.propertiesPage.summaryValue", {
+                units: totalUnits,
+                salary: EUR0.format(salaryForUnits(totalUnits)),
+              })}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {t("admin.propertiesPage.summarySelected", {
+                count: selected.size,
+              })}
+            </Typography>
+          </Box>
+          <Button size="small" onClick={() => setSelected(new Set())}>
+            {t("admin.propertiesPage.clearSelection")}
+          </Button>
+        </Paper>
+      )}
 
       {rows.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
@@ -57,6 +138,14 @@ export function AdminPropertiesPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onChange={toggleAll}
+                  />
+                </TableCell>
                 <TableCell sx={{ width: 64 }} />
                 <TableCell>{t("admin.propertiesPage.name")}</TableCell>
                 <TableCell>{t("admin.propertiesPage.address")}</TableCell>
@@ -75,14 +164,19 @@ export function AdminPropertiesPage() {
                   <TableRow
                     key={p.id}
                     hover
-                    component={RouterLink}
-                    to={`/admin/properties/${p.id}`}
-                    sx={{
-                      textDecoration: "none",
-                      cursor: "pointer",
-                      "& td": { color: "text.primary" },
-                    }}
+                    onClick={() => navigate(`/admin/properties/${p.id}`)}
+                    sx={{ cursor: "pointer" }}
                   >
+                    <TableCell
+                      padding="checkbox"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        size="small"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggle(p.id)}
+                      />
+                    </TableCell>
                     <TableCell sx={{ width: 64 }}>
                       <Avatar
                         variant="rounded"
@@ -131,10 +225,7 @@ export function AdminPropertiesPage() {
                     <TableCell
                       sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
                     >
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
+                      <Typography variant="caption" color="text.secondary">
                         {p.property_hr_id ?? "—"}
                       </Typography>
                     </TableCell>

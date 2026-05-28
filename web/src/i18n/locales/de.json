@@ -370,8 +370,10 @@
       "address": "Adresse",
       "hrId": "HR-ID",
       "etvMissing": "ETV {{year}} offen",
-      "unitsSelected": "{{units}} Einheiten · {{count}} Objekte",
-      "salary": "{{units}} / {{salary}}"
+      "summaryLabel": "Einheiten / Vergütung",
+      "summarySelected": "{{count}} Objekte ausgewählt",
+      "summaryValue": "{{units}} / {{salary}}",
+      "clearSelection": "Auswahl aufheben"
     },
     "unitsPage": {
       "title": "Einheiten",
