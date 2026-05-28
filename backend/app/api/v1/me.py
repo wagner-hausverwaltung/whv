@@ -50,6 +50,7 @@ from app.schemas.vendor import VendorSummary
 from app.services import notification_prefs
 from app.services import units as units_svc
 from app.services import vendors as vendors_svc
+from app.services.access import active_contract_filter
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -271,6 +272,9 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
         .join(ContractContact, ContractContact.contract_id == Contract.id)
         .join(Contact, Contact.id == ContractContact.contact_id)
         .where(Contact.impower_id == user.contact_id_impower)
+        # Only contracts still in force — a sold/ended contract no
+        # longer grants access to the Liegenschaft.
+        .where(active_contract_filter())
         .distinct()
     )
 
@@ -304,6 +308,7 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
         .join(ContractContact, ContractContact.contract_id == Contract.id)
         .join(Contact, Contact.id == ContractContact.contact_id)
         .where(Contact.impower_id == user.contact_id_impower)
+        .where(active_contract_filter())
         .scalar_subquery()
     )
     caller_units = (
@@ -314,6 +319,7 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
             Contact.impower_id == user.contact_id_impower,
             Contract.unit_id.is_not(None),
         )
+        .where(active_contract_filter())
         .scalar_subquery()
     )
     caller_contact = (
@@ -431,6 +437,26 @@ async def get_my_contract_contact(
     contract = await session.scalar(contract_q)
     if contract is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    # Non-Verwalter callers must themselves still belong to this
+    # contract's property via an ACTIVE contract. This closes the
+    # former-owner case (their own contract carries a past end_date) and
+    # makes the property-membership check explicit rather than relying
+    # on the UI to only surface chips the caller could already see.
+    if current_user.role != UserRole.VERWALTER:
+        caller_on_property = await session.scalar(
+            select(Contract.id)
+            .join(ContractContact, ContractContact.contract_id == Contract.id)
+            .join(Contact, Contact.id == ContractContact.contact_id)
+            .where(
+                Contract.property_id == contract.property_id,
+                Contact.impower_id == current_user.contact_id_impower,
+                active_contract_filter(),
+            )
+            .limit(1)
+        )
+        if caller_on_property is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
     # Now the contact-on-contract link. Non-Verwalter callers must
     # themselves be on the contract chain — i.e. they share a contact

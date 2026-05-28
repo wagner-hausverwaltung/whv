@@ -5,7 +5,7 @@ without colliding, even though they share the same database.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -184,6 +184,7 @@ async def make_contact_with_contract_link(
     contact_impower_id: int,
     unit: Unit | None = None,
     contract_type: ContractType = ContractType.OWNER,
+    end_date: date | None = None,
 ) -> tuple[Contact, Contract]:
     """Wires up a Contact (with impower_id) → Contract → Property via the junction table.
 
@@ -208,6 +209,7 @@ async def make_contact_with_contract_link(
             property_id=prop.id,
             unit_id=unit.id if unit is not None else None,
             type=contract_type,
+            end_date=end_date,
         )
         s.add(contract)
         await s.flush()

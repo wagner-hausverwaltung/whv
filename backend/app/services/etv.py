@@ -415,6 +415,8 @@ async def resolve_assembly_invitation_recipients(
         )
     ).all()
 
+    from app.services.access import active_contract_filter
+
     owners = (
         await session.scalars(
             select(User)
@@ -428,6 +430,9 @@ async def resolve_assembly_invitation_recipients(
                 User.contact_id_impower.is_not(None),
                 Contact.organization_id == assembly.organization_id,
                 Contract.property_id == assembly.property_id,
+                # Former owners (ended contract) must not be pulled into
+                # the invitation fan-out.
+                active_contract_filter(),
             )
             .distinct()
         )

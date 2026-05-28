@@ -74,6 +74,8 @@ async def resolve_document_recipients(
     if document.property_id is None:
         return []
 
+    from app.services.access import active_contract_filter
+
     stmt = (
         select(User)
         .join(Contact, Contact.impower_id == User.contact_id_impower)
@@ -86,6 +88,8 @@ async def resolve_document_recipients(
             User.role != UserRole.VERWALTER,
             Contact.organization_id == document.organization_id,
             Contract.property_id == document.property_id,
+            # Former owners (ended contract) must not be notified.
+            active_contract_filter(),
         )
     )
 
