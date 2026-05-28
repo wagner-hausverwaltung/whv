@@ -12,6 +12,7 @@ status=ABGEHALTEN once scheduled_end has passed" task).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -22,13 +23,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     AgendaItemType,
     AssemblyStatus,
+    Contact,
+    Contract,
+    ContractContact,
     Document,
     EtvAgendaItem,
     EtvAssembly,
     EtvDiscussionEntry,
+    Property,
     User,
     UserRole,
 )
+
+logger = logging.getLogger(__name__)
+
+# Only nudge owners about invitations whose issued_date (= a fresh
+# stub's scheduled_start) is no older than this. Guards the very first
+# production backfill from blasting a push for every historical ETV in
+# the Impower archive — only genuinely-recent invitations notify, and
+# the idempotent backfill means each one fires exactly once.
+_INVITATION_NOTIFY_FRESHNESS_DAYS = 21
 
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
 
@@ -370,6 +384,177 @@ async def resolve_assembly_comment_notification_recipients(
         seen.add(u.id)
         merged.append(u)
     return merged
+
+
+async def resolve_assembly_invitation_recipients(
+    session: AsyncSession,
+    *,
+    assembly: EtvAssembly,
+) -> list[User]:
+    """Recipients for the "new Einladung available" nudge on a freshly
+    backfilled assembly.
+
+    Two sets, unioned + de-duped:
+      - Every active VERWALTER in the assembly's org (they own the ETV).
+      - Every active EIGENTUEMER / BEIRAT linked to the assembly's
+        property, resolved the same way the portal scopes property
+        visibility: user.contact_id_impower → contacts → contract_contacts
+        → contracts.property_id.
+
+    MIETER (tenants) and DIENSTLEISTER are deliberately excluded — they
+    are not invited to the Eigentümerversammlung, so pushing them an
+    invitation would be wrong.
+    """
+    verwalter = (
+        await session.scalars(
+            select(User).where(
+                User.organization_id == assembly.organization_id,
+                User.role == UserRole.VERWALTER,
+                User.deleted_at.is_(None),
+            )
+        )
+    ).all()
+
+    owners = (
+        await session.scalars(
+            select(User)
+            .join(Contact, Contact.impower_id == User.contact_id_impower)
+            .join(ContractContact, ContractContact.contact_id == Contact.id)
+            .join(Contract, Contract.id == ContractContact.contract_id)
+            .where(
+                User.organization_id == assembly.organization_id,
+                User.role.in_([UserRole.EIGENTUEMER, UserRole.BEIRAT]),
+                User.deleted_at.is_(None),
+                User.contact_id_impower.is_not(None),
+                Contact.organization_id == assembly.organization_id,
+                Contract.property_id == assembly.property_id,
+            )
+            .distinct()
+        )
+    ).all()
+
+    seen: set[uuid.UUID] = set()
+    merged: list[User] = []
+    for u in [*verwalter, *owners]:
+        if u.id in seen:
+            continue
+        seen.add(u.id)
+        merged.append(u)
+    return merged
+
+
+async def notify_owners_of_new_invitations(
+    session: AsyncSession,
+    *,
+    assembly_ids: list[uuid.UUID],
+    email_client: object,
+    freshness_days: int = _INVITATION_NOTIFY_FRESHNESS_DAYS,
+) -> int:
+    """Email + push each property's owners that a new ETV invitation is
+    available, for the assembly stubs just created by
+    `backfill_assemblies_from_invitations`.
+
+    Best-effort and idempotent-friendly:
+      - Skips deleted / ABGESAGT / ABGEHALTEN assemblies.
+      - Skips anything whose `scheduled_start` (= the invitation's
+        issued_date for a fresh stub) is older than `freshness_days`,
+        so a first-run historical backfill doesn't spam owners about
+        ETVs from years ago. Combined with the backfill's idempotency
+        (only newly-created ids are passed in), each new invitation
+        notifies exactly once.
+      - Per-recipient email send; a single bad address or a disabled
+        Resend key (EmailError) never sinks the batch. Push fans out
+        to the same recipient set and no-ops when APNs is unconfigured.
+
+    `email_client` is typed loosely (`object`) so this stays decoupled
+    from the concrete EmailClient — the Celery worker and the CLI both
+    hand in a live client; callers without one can pass a stub. Returns
+    the number of assemblies that triggered a notification.
+    """
+    if not assembly_ids:
+        return 0
+
+    from app.integrations.email.client import EmailError
+    from app.integrations.email.etv import render_assembly_invitation_notification_email
+    from app.models import NotificationCategory, NotificationChannel
+    from app.services import notification_prefs, push
+
+    cutoff = _now() - timedelta(days=freshness_days)
+    notified = 0
+    for assembly_id in assembly_ids:
+        try:
+            assembly = await session.get(EtvAssembly, assembly_id)
+            if assembly is None or assembly.deleted_at is not None:
+                continue
+            if assembly.status in (AssemblyStatus.ABGEHALTEN, AssemblyStatus.ABGESAGT):
+                continue
+            if assembly.scheduled_start < cutoff:
+                continue
+
+            recipients = await resolve_assembly_invitation_recipients(session, assembly=assembly)
+            if not recipients:
+                continue
+
+            # Honour each recipient's notification preferences: only
+            # email the users who haven't disabled ETV_INVITATION email,
+            # and only push to those who haven't disabled its push.
+            recipient_ids = [r.id for r in recipients]
+            email_ok = set(
+                await notification_prefs.filter_user_ids(
+                    session,
+                    user_ids=recipient_ids,
+                    category=NotificationCategory.ETV_INVITATION,
+                    channel=NotificationChannel.EMAIL,
+                )
+            )
+            push_ids = await notification_prefs.filter_user_ids(
+                session,
+                user_ids=recipient_ids,
+                category=NotificationCategory.ETV_INVITATION,
+                channel=NotificationChannel.PUSH,
+            )
+
+            prop = await session.get(Property, assembly.property_id)
+            property_name = prop.name if prop else "—"
+            subject, html_body, text_body = render_assembly_invitation_notification_email(
+                assembly_id=str(assembly.id),
+                assembly_title=assembly.title,
+                property_name=property_name,
+            )
+            for r in recipients:
+                if not r.email or r.id not in email_ok:
+                    continue
+                try:
+                    await email_client.send(  # type: ignore[attr-defined]
+                        to=r.email,
+                        subject=subject,
+                        html=html_body,
+                        text=text_body,
+                    )
+                except EmailError:
+                    logger.warning(
+                        "ETV invitation email failed for %s (assembly=%s)",
+                        r.email,
+                        assembly.id,
+                    )
+
+            await push.notify_users(
+                session,
+                user_ids=push_ids,
+                title="Neue Einladung zur Eigentümerversammlung",
+                body=f"{property_name}: {assembly.title}",
+                deep_link=f"whv://etv/{assembly.id}",
+                thread_id=f"etv-{assembly.id}",
+            )
+            notified += 1
+        except Exception:
+            # One assembly's notification failing must not stop the rest
+            # nor fail the surrounding sync task.
+            logger.exception(
+                "ETV invitation notify fan-out failed for assembly=%s",
+                assembly_id,
+            )
+    return notified
 
 
 def require_verwalter(user: User) -> None:

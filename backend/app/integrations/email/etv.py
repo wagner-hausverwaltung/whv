@@ -1,9 +1,14 @@
-"""Email templates for Eigentümerversammlung (ETV) — currently just
-the new-comment notification.
+"""Email templates for Eigentümerversammlung (ETV).
 
-Mirrors the announcement-comment notification shape. Sent on every
-new comment to (a) every active Verwalter in the org and (b) any
-prior commenter on the same thread, minus the new author.
+Two notifications live here:
+  - `render_assembly_comment_notification_email` — every new comment
+    to (a) every active Verwalter in the org and (b) any prior
+    commenter on the same thread, minus the new author.
+  - `render_assembly_invitation_notification_email` — fires once when
+    a new OWNERS_MEETING_INVITATION document from Impower is turned
+    into an assembly stub, nudging the property's owners + Beirat that
+    a fresh Einladung is available (push/email parity with the letter
+    Impower already sent — "Handy gleichziehen mit Email").
 """
 
 from datetime import datetime
@@ -110,6 +115,91 @@ Wagner Hausverwaltung GmbH
   </div>
   <p style="margin: 0 0 24px;">
     <a href="{link}" style="{_cta_style}">Im Portal öffnen + antworten</a>
+  </p>
+  <p style="margin: 0; font-size: 12px; color: #6e6e73;">
+    Wagner Hausverwaltung GmbH · support@wagner-hausverwaltung.com
+  </p>
+</body>
+</html>
+"""
+
+    return subject, html, text
+
+
+def render_assembly_invitation_notification_email(
+    *,
+    assembly_id: str,
+    assembly_title: str,
+    property_name: str,
+) -> tuple[str, str, str]:
+    """Returns (subject, html, text) for the "new ETV invitation
+    available" notification, sent to the property's Eigentümer + Beirat
+    (and the Verwalter) when Impower delivers a new
+    OWNERS_MEETING_INVITATION document.
+
+    Deliberately makes NO claim about the meeting date/time: at send
+    time the assembly is a fresh stub whose `scheduled_start` is still
+    the invitation's issued_date placeholder, not the real meeting date
+    (that lands later via the LLM extraction pass). So the copy points
+    owners to the portal for the actual Tagesordnung + termin rather
+    than risk stating a wrong date.
+    """
+    link = f"{_PORTAL_BASE}/assemblies/{assembly_id}"
+    subject = f"Neue Einladung zur Eigentümerversammlung: {property_name}"
+
+    text = f"""\
+Hallo,
+
+für Ihre Liegenschaft liegt eine neue Einladung zur
+Eigentümerversammlung vor:
+
+  Liegenschaft: {property_name}
+  Vorgang:      {assembly_title}
+
+Die vollständige Einladung samt Tagesordnung und Termin finden Sie
+im WHV-Portal:
+{link}
+
+Bei Fragen: support@wagner-hausverwaltung.com
+
+Mit freundlichen Grüßen,
+Wagner Hausverwaltung GmbH
+"""
+
+    title_html = _escape_html(assembly_title)
+    property_html = _escape_html(property_name)
+
+    _body_style = (
+        "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', "
+        "sans-serif; color: #1d1d1f; max-width: 640px; "
+        "margin: 0 auto; padding: 24px;"
+    )
+    _label_style = "padding: 4px 12px 4px 0; color: #6e6e73;"
+    _cta_style = (
+        "display: inline-block; padding: 10px 16px; "
+        "background: #0066cc; color: #fff; "
+        "text-decoration: none; border-radius: 6px;"
+    )
+    html = f"""\
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"></head>
+<body style="{_body_style}">
+  <h2 style="margin: 0 0 16px; font-size: 18px;">Neue Einladung zur Eigentümerversammlung</h2>
+  <p style="margin: 0 0 16px;">
+    Für Ihre Liegenschaft <strong>{property_html}</strong> liegt eine
+    neue Einladung zur Eigentümerversammlung vor.
+  </p>
+  <table style="border-collapse: collapse; margin: 0 0 16px; font-size: 14px;">
+    <tr><td style="{_label_style}">Liegenschaft:</td><td>{property_html}</td></tr>
+    <tr><td style="{_label_style}">Vorgang:</td><td>{title_html}</td></tr>
+  </table>
+  <p style="margin: 0 0 16px;">
+    Die vollständige Einladung samt Tagesordnung und Termin finden Sie
+    im Portal.
+  </p>
+  <p style="margin: 0 0 24px;">
+    <a href="{link}" style="{_cta_style}">Einladung im Portal öffnen</a>
   </p>
   <p style="margin: 0; font-size: 12px; color: #6e6e73;">
     Wagner Hausverwaltung GmbH · support@wagner-hausverwaltung.com

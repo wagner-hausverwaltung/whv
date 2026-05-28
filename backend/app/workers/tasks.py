@@ -23,11 +23,14 @@ from app.models import (
     AnnouncementAttachment,
     CircularResolution,
     Document,
+    NotificationCategory,
+    NotificationChannel,
     Property,
     ResolutionStatus,
     SendAttemptStatus,
 )
 from app.services import announcements as announcements_svc
+from app.services import notification_prefs, push
 from app.services.circular import (
     finalize_resolution,
     find_expired_open_resolutions,
@@ -75,10 +78,114 @@ async def _sync_all_async() -> dict[str, int]:
     return counts
 
 
+async def _backfill_etv_and_notify_async() -> dict[str, int]:
+    """Post-sync ETV step: turn freshly-imported OWNERS_MEETING_INVITATION
+    documents into EtvAssembly stubs, then nudge each property's owners +
+    Beirat (email + push) that a new Einladung is available.
+
+    Kept separate from `_sync_all_async` so the document sync stays a
+    pure mirror and this side-effecting step is independently testable.
+    Best-effort throughout: a notification hiccup logs but never fails
+    the nightly sync. The backfill is idempotent and the notify step
+    only fires for genuinely-recent invitations, so re-running nightly
+    doesn't re-spam owners.
+    """
+    from sqlalchemy import select
+
+    from app.models import Organization
+    from app.services.etv import (
+        backfill_assemblies_from_invitations,
+        notify_owners_of_new_invitations,
+    )
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    email_client = EmailClient(settings)
+    created_ids: list[uuid.UUID] = []
+    notified = 0
+    try:
+        async with session_factory() as session:
+            orgs = (await session.execute(select(Organization))).scalars().all()
+            for org in orgs:
+                _, _, ids = await backfill_assemblies_from_invitations(
+                    session, organization_id=org.id
+                )
+                created_ids.extend(ids)
+            await session.commit()
+            notified = await notify_owners_of_new_invitations(
+                session,
+                assembly_ids=created_ids,
+                email_client=email_client,
+            )
+    finally:
+        await engine.dispose()
+
+    # Auto-extract: enqueue an LLM extraction for each freshly-created
+    # stub so its agenda + metadata (Termin, Ort, Teams-URL, …) fill in
+    # automatically. The extraction task already falls back to the
+    # property+date OWNERS_MEETING_INVITATION document for the PDF bytes
+    # when no PDF was uploaded — so the full Impower-push → auto-create
+    # → auto-extract → notify chain needs nothing manual. Mirrors the
+    # CLI `--extract` flag. Enqueued after the engine is disposed (rows
+    # are committed) so workers find them. No-op if Gemini is
+    # unconfigured (the task logs + skips).
+    if created_ids:
+        for aid in created_ids:
+            extract_etv_metadata.delay(str(aid))
+
+    logger.info(
+        "etv backfill: created=%d owners_notified=%d extraction_enqueued=%d",
+        len(created_ids),
+        notified,
+        len(created_ids),
+    )
+    return {
+        "etv_assemblies_created": len(created_ids),
+        "etv_owners_notified": notified,
+    }
+
+
+async def _notify_new_documents_async() -> dict[str, int]:
+    """Post-sync pass: email + push owners about freshly-synced
+    relevant documents (Jahresabrechnung / Wirtschaftsplan / Protokoll /
+    Umlaufbeschluss), scoped to whoever may see each doc. Idempotent via
+    `documents.notified_at`. Best-effort — own session + engine."""
+    from app.services.document_notify import notify_new_documents
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    email_client = EmailClient(settings)
+    notified = 0
+    try:
+        async with session_factory() as session:
+            notified = await notify_new_documents(session, email_client=email_client)
+    finally:
+        await engine.dispose()
+    logger.info("document notify: docs_notified=%d", notified)
+    return {"documents_notified": notified}
+
+
 @celery_app.task(name="app.workers.tasks.sync_all_impower")
 def sync_all_impower() -> dict[str, int]:
-    """Celery task wrapper. Bridges Celery's sync model to our async sync layer."""
-    return asyncio.run(_sync_all_async())
+    """Celery task wrapper. Bridges Celery's sync model to our async sync layer.
+
+    Runs the full entity sync first, then two isolated post-sync
+    phases — the ETV invitation backfill + owner notification, and the
+    new-document notification — each in its own session so a problem in
+    one can't roll back the mirror sync or the other.
+    """
+    counts = asyncio.run(_sync_all_async())
+    try:
+        counts.update(asyncio.run(_backfill_etv_and_notify_async()))
+    except Exception:
+        logger.exception("etv backfill/notify phase failed")
+    try:
+        counts.update(asyncio.run(_notify_new_documents_async()))
+    except Exception:
+        logger.exception("document notify phase failed")
+    return counts
 
 
 async def _reconcile_impower_async() -> dict[str, dict[str, int]]:
@@ -318,6 +425,27 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                         attachment_count=len(resend_attachments),
                     )
 
+                    # Notification-preference split (category
+                    # ANNOUNCEMENT). recipient_user is None for
+                    # manually-added external extra_emails — those have
+                    # no account, so no preference: they always get the
+                    # email and never a push.
+                    pair_user_ids = [ru.id for ru, _ in recipient_pairs if ru is not None]
+                    email_ok_ids = set(
+                        await notification_prefs.filter_user_ids(
+                            session,
+                            user_ids=pair_user_ids,
+                            category=NotificationCategory.ANNOUNCEMENT,
+                            channel=NotificationChannel.EMAIL,
+                        )
+                    )
+                    push_ids = await notification_prefs.filter_user_ids(
+                        session,
+                        user_ids=pair_user_ids,
+                        category=NotificationCategory.ANNOUNCEMENT,
+                        channel=NotificationChannel.PUSH,
+                    )
+
                     # Per-recipient send — no BCC leak, per-address
                     # bounce tracking, and a single bad address can't
                     # take down the rest of the fan-out. Each outcome
@@ -325,6 +453,12 @@ async def _publish_due_announcements_async() -> dict[str, int]:
                     # admin UI can surface failures + offer a manual
                     # retry button.
                     for recipient_user, recipient_email in recipient_pairs:
+                        # Skip registered users who turned off the
+                        # Mitteilungen email channel (they may still get
+                        # the push below). External addresses (no user)
+                        # always proceed.
+                        if recipient_user is not None and recipient_user.id not in email_ok_ids:
+                            continue
                         try:
                             await email_client.send(
                                 to=[recipient_email],
@@ -360,6 +494,20 @@ async def _publish_due_announcements_async() -> dict[str, int]:
 
                     # Commit the per-recipient attempt rows in one go.
                     await session.commit()
+
+                    # Push fan-out to the preference-filtered user set —
+                    # net-new for Mitteilungen (previously email-only).
+                    # No-op when APNs is unconfigured. Deep-links to the
+                    # announcement so a tap opens it in the News tab.
+                    await push.notify_users(
+                        session,
+                        user_ids=push_ids,
+                        title="Neue Mitteilung",
+                        body=f"{property_name}: {fresh.title}",
+                        deep_link=f"whv://announcement/{fresh.id}",
+                        thread_id=f"announcement-{fresh.id}",
+                    )
+
                     sent += 1
                     logger.info(
                         "published announcement=%s recipients=%d attachments=%d",

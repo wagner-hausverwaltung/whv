@@ -156,5 +156,9 @@ class Document(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     raw_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped when owners were notified that this (relevant-kind) doc is
+    # available. NULL = not yet notified; the post-sync pass picks those
+    # up. Baselined to now() at migration time for the existing backlog.
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_documents_org_kind", "organization_id", "kind"),)

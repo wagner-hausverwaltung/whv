@@ -37,7 +37,7 @@ from app.models import EtvAssembly, Organization
 from app.services.etv import backfill_assemblies_from_invitations
 
 
-async def amain(*, extract: bool, reextract_all: bool) -> None:
+async def amain(*, extract: bool, reextract_all: bool, notify: bool) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, future=True)
     sm = async_sessionmaker(engine, expire_on_commit=False)
@@ -72,6 +72,22 @@ async def amain(*, extract: bool, reextract_all: bool) -> None:
             all_created_ids = [r[0] for r in rows]
         else:
             all_created_ids = backfill_ids
+
+        # --notify emails + pushes the property's owners/Beirat about the
+        # invitations *created in this run* (freshness-gated inside the
+        # service so old historical stubs stay silent). Opt-in so a plain
+        # re-run never re-pings anyone.
+        if notify:
+            from app.integrations.email.client import EmailClient
+            from app.services.etv import notify_owners_of_new_invitations
+
+            email_client = EmailClient(settings)
+            n = await notify_owners_of_new_invitations(
+                session,
+                assembly_ids=backfill_ids,
+                email_client=email_client,
+            )
+            print(f"--notify: nudged owners for {n} new invitation(s).")
 
     await engine.dispose()
 
@@ -110,8 +126,18 @@ def main() -> None:
             "--extract pass."
         ),
     )
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help=(
+            "Email + push each property's owners/Beirat about the "
+            "invitations created in THIS run (freshness-gated, so old "
+            "historical stubs stay silent). Off by default so a plain "
+            "re-run never re-pings anyone."
+        ),
+    )
     args = parser.parse_args()
-    asyncio.run(amain(extract=args.extract, reextract_all=args.reextract_all))
+    asyncio.run(amain(extract=args.extract, reextract_all=args.reextract_all, notify=args.notify))
 
 
 if __name__ == "__main__":
