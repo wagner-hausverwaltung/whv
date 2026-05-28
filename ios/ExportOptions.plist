@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Export options for `xcodebuild -exportArchive` → App Store Connect.
+     `destination: upload` makes the export step push straight to ASC
+     (TestFlight) instead of just writing an .ipa. Team K4KDX9GN74 is
+     Luis Wagner's Apple Distribution identity. -->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store-connect</string>
+    <key>destination</key>
+    <string>upload</string>
+    <key>teamID</key>
+    <string>K4KDX9GN74</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>uploadSymbols</key>
+    <true/>
+    <!-- Use the build number we archive with (script stamps a unique
+         one); don't let Xcode auto-manage it. -->
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
+</dict>
+</plist>
