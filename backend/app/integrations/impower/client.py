@@ -187,6 +187,53 @@ class ImpowerClient:
         result: dict[str, Any] = response.json()
         return result
 
+    async def get_accounts(
+        self,
+        *,
+        property_id: int,
+        source_ids: list[int] | None = None,
+        source_types: list[str] | None = None,
+        page: int = 0,
+        size: int = _DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """GET /v2/accounts — chart-of-accounts entries for a property.
+
+        Filter by `source_ids` (a contact id for sourceType=CONTACT, a
+        contract id for CONTRACT) + `source_types` to land on a single
+        owner's Hausgeld (Debitoren) account. Returns the raw paged
+        body; the caller pulls `content`.
+        """
+        params: dict[str, Any] = {"page": page, "size": size, "propertyIds": [property_id]}
+        if source_ids:
+            params["sourceIds"] = source_ids
+        if source_types:
+            params["accountSourceTypes"] = source_types
+        response = await self._request("GET", "/accounts", params=params)
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def get_posting_items(
+        self,
+        *,
+        account_ids: list[int],
+        page: int = 0,
+        size: int = _DEFAULT_PAGE_SIZE,
+        sort: str = "postDate",
+        order: str = "DESC",
+    ) -> dict[str, Any]:
+        """GET /v2/posting-items — bookings on the given account(s),
+        newest first. Returns the raw paged body (`content`)."""
+        params: dict[str, Any] = {
+            "page": page,
+            "size": size,
+            "accountIds": account_ids,
+            "sort": sort,
+            "order": order,
+        }
+        response = await self._request("GET", "/posting-items", params=params)
+        result: dict[str, Any] = response.json()
+        return result
+
     async def list_units(
         self,
         page: int = 0,

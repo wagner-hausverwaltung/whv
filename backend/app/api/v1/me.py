@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.models._mixins import uuid7_pk
 from app.models.property import PropertyState
+from app.schemas.account import HausgeldAccountResponse
 from app.schemas.auth import UserResponse
 from app.schemas.contact import ContactDetailResponse, ContractContextResponse
 from app.schemas.device import RegisterDeviceRequest
@@ -671,6 +672,59 @@ async def get_my_invoice_detail(
         await cache.set(invoice_id, data)
 
     return _impower_invoice_to_response(data)
+
+
+@router.get(
+    "/properties/{property_id}/account",
+    response_model=HausgeldAccountResponse,
+)
+async def get_my_account(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> HausgeldAccountResponse:
+    """The caller's own Hausgeldkonto for a property — balance (signed
+    sum of bookings) + booking history, pulled live from Impower's
+    accounts + posting-items.
+
+    Owner-facing: resolved via the caller's `contact_id_impower`, so a
+    user only ever sees their own account. Verwalter (no contact id)
+    have no personal Hausgeld account → 404. Property must be visible
+    via an active contract (same gate as everywhere else)."""
+    if current_user.contact_id_impower is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Kein Hausgeldkonto vorhanden."
+        )
+
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None or prop.impower_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Kein Hausgeldkonto vorhanden."
+        )
+
+    if not settings.impower_api_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Impower-Verbindung nicht konfiguriert.",
+        )
+
+    from app.integrations.impower.client import ImpowerClient, ImpowerError
+    from app.services import account as account_svc
+
+    try:
+        async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
+            return await account_svc.load_my_account(
+                client,
+                property_impower_id=prop.impower_id,
+                contact_id_impower=current_user.contact_id_impower,
+            )
+    except ImpowerError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Hausgeldkonto konnte nicht von Impower geladen werden.",
+        ) from None
 
 
 def _impower_invoice_to_response(data: dict[str, object]) -> InvoiceDetailResponse:
