@@ -25,9 +25,14 @@ import {
   useParams,
 } from "react-router-dom";
 import { Box, Stack, Tab, Tabs } from "@mui/material";
+import { useAuth } from "@/auth/AuthContext";
 
 const TAB_DEFS = [
   { value: "details", label: "Details" },
+  // "Hausgeldkonto" — the owner's own Impower account balance + booking
+  // history. Owner-facing only (hidden for Verwalter, who have no
+  // personal Hausgeld account); filtered out below by role.
+  { value: "account", label: "Hausgeldkonto" },
   { value: "announcements", label: "Mitteilungen" },
   { value: "assemblies", label: "Versammlungen" },
   { value: "documents", label: "Dokumente" },
@@ -44,6 +49,17 @@ export function PropertyWorkspace() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Hausgeldkonto is a personal owner account — hide the tab for
+  // Verwalter (they have none; the endpoint 404s for them anyway).
+  const tabs = useMemo(
+    () =>
+      TAB_DEFS.filter(
+        (t) => t.value !== "account" || user?.role !== "verwalter",
+      ),
+    [user?.role],
+  );
 
   // Pull the active tab off the URL segment, not from local state.
   // URL is the single source of truth so deep links + browser
@@ -84,7 +100,7 @@ export function PropertyWorkspace() {
           scrollButtons="auto"
           allowScrollButtonsMobile
         >
-          {TAB_DEFS.map((t) => (
+          {tabs.map((t) => (
             <Tab key={t.value} value={t.value} label={t.label} />
           ))}
         </Tabs>

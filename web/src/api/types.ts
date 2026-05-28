@@ -898,3 +898,20 @@ export interface NotificationSetting {
 export interface NotificationSettingsResponse {
   items: NotificationSetting[];
 }
+
+// --- Mein Hausgeldkonto (GET /me/properties/{id}/account) ---
+export interface PostingItem {
+  post_date: string | null;
+  booking_text: string | null;
+  amount: number | null;
+}
+
+export interface HausgeldAccountResponse {
+  account_id: number | null;
+  account_hr_id: string | null;
+  name: string | null;
+  // Signed sum of bookings. Shown neutrally as "Saldo" until the sign
+  // convention is confirmed.
+  balance: number | null;
+  bookings: PostingItem[];
+}

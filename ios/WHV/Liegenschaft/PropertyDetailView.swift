@@ -13,6 +13,7 @@ import SwiftUI
 final class PropertyDetailStore: ObservableObject {
     @Published private(set) var detail: PropertyDetailResponse?
     @Published private(set) var vendors: [VendorSummary] = []
+    @Published private(set) var account: HausgeldAccount?
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
@@ -33,6 +34,7 @@ final class PropertyDetailStore: ObservableObject {
             // fast.
             async let detailTask = api.getMyPropertyDetail(id: id)
             async let vendorsTask = api.getMyPropertyVendors(propertyId: id)
+            async let accountTask = api.getMyAccount(propertyId: id)
             self.detail = try await detailTask
             // A vendor-list failure shouldn't blank the property
             // detail. Swallow + log into lastError only if the detail
@@ -41,6 +43,13 @@ final class PropertyDetailStore: ObservableObject {
                 self.vendors = try await vendorsTask
             } catch {
                 self.vendors = []
+            }
+            // Hausgeldkonto is owner-only + demo-unavailable; a 404 /
+            // demo / transient error just hides the section.
+            do {
+                self.account = try await accountTask
+            } catch {
+                self.account = nil
             }
         } catch APIError.unauthorized {
             onUnauthorized?()
@@ -94,6 +103,9 @@ struct PropertyDetailView: View {
                 kontaktSection
                 if let units = store.detail?.units, !units.isEmpty {
                     einheitenSection(units: units)
+                }
+                if let account = store.account, account.account_id != nil {
+                    hausgeldkontoSection(account: account)
                 }
                 if !store.vendors.isEmpty {
                     dienstleisterSection(vendors: store.vendors)
@@ -357,6 +369,97 @@ struct PropertyDetailView: View {
                     .fill(Color(.secondarySystemBackground))
             )
         }
+    }
+
+    // MARK: - Hausgeldkonto
+
+    /// The owner's own account balance + recent bookings, pulled live
+    /// from Impower. Balance shown neutrally as "Saldo" (no
+    /// Guthaben/Forderung claim until the sign is confirmed). Capped to
+    /// the most recent bookings inline; the full history lives in the
+    /// portal.
+    private func hausgeldkontoSection(account: HausgeldAccount) -> some View {
+        let shown = Array(account.bookings.prefix(12))
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Hausgeldkonto")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Saldo")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                Text(formatEuro(account.balance))
+                    .font(.title2.bold())
+                if let label = account.name ?? account.account_hr_id {
+                    Text(label).font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Live aus Impower, ohne Gewähr.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground))
+            )
+
+            if !shown.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { idx, booking in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text(formatBookingDate(booking.post_date))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(booking.booking_text ?? "—")
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(formatEuro(booking.amount))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        if idx != shown.count - 1 {
+                            Divider().padding(.leading, 12)
+                        }
+                    }
+                    if account.bookings.count > shown.count {
+                        Text("+ \(account.bookings.count - shown.count) weitere Buchungen")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground))
+                )
+            }
+        }
+    }
+
+    private func formatEuro(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "EUR"
+        f.locale = Locale(identifier: "de_DE")
+        return f.string(from: NSNumber(value: value)) ?? String(format: "%.2f €", value)
+    }
+
+    private func formatBookingDate(_ iso: String?) -> String {
+        guard let iso else { return "" }
+        let parts = iso.split(separator: "-")
+        guard parts.count >= 3 else { return iso }
+        let day = parts[2].prefix(2)
+        return "\(day).\(parts[1]).\(parts[0])"
     }
 
     // MARK: - Wechseln

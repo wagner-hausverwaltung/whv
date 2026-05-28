@@ -275,6 +275,27 @@ struct NotificationSettingsResponse: Codable, Hashable {
     let items: [NotificationSetting]
 }
 
+/// One booking on the owner's Hausgeldkonto. `amount` is signed; the
+/// view shows it neutrally.
+struct PostingItem: Codable, Hashable {
+    let post_date: String?
+    let booking_text: String?
+    let amount: Double?
+}
+
+/// The owner's Hausgeldkonto for a property, from
+/// `GET /me/properties/{id}/account`. `account_id` is nil when the
+/// owner has no CONTACT account on the property (the view hides the
+/// section in that case). `balance` is the signed sum of bookings,
+/// shown neutrally as "Saldo".
+struct HausgeldAccount: Codable, Hashable {
+    let account_id: Int?
+    let account_hr_id: String?
+    let name: String?
+    let balance: Double?
+    let bookings: [PostingItem]
+}
+
 /// Full contact card returned by
 /// `GET /me/contracts/{contractId}/contacts/{contactId}`. Drives the
 /// sheet opened by tapping a contract chip on PropertyDetailView.
@@ -765,6 +786,15 @@ struct APIClient {
         return try await authedGET(
             "/me/properties/\(propertyId)/invoices/\(documentId)"
         )
+    }
+
+    /// GET /me/properties/{id}/account — the caller's own Hausgeldkonto
+    /// (balance + booking history), pulled live from Impower. 404 for
+    /// users without a personal account (Verwalter). Demo mode has no
+    /// real account, so it throws demoReadOnly and the section hides.
+    func getMyAccount(propertyId: String) async throws -> HausgeldAccount {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedGET("/me/properties/\(propertyId)/account")
     }
 
     /// GET /me/contracts/{contractId}/contacts/{contactId} —
