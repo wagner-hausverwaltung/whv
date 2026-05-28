@@ -262,23 +262,63 @@ function VendorAccordion({
                   mb: 0.5,
                 }}
               >
-                Letzte Rechnungen
+                Rechnungen
               </Typography>
-              <Stack divider={<Divider />} spacing={0}>
-                {vendor.recent_invoices.map((inv) => (
-                  <InvoiceRow
-                    key={inv.id}
-                    invoice={inv}
-                    onClick={() => onInvoiceClick(inv)}
-                  />
-                ))}
-              </Stack>
+              {/* Grouped by year (newest first) so old invoices sit
+                  under their own heading instead of mixed into the list. */}
+              {groupInvoicesByYear(vendor.recent_invoices).map((group) => (
+                <Box key={group.year} sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.secondary",
+                      display: "block",
+                      mt: 1,
+                    }}
+                  >
+                    {group.year}
+                  </Typography>
+                  <Stack divider={<Divider />} spacing={0}>
+                    {group.items.map((inv) => (
+                      <InvoiceRow
+                        key={inv.id}
+                        invoice={inv}
+                        onClick={() => onInvoiceClick(inv)}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              ))}
             </Box>
           )}
         </Stack>
       </AccordionDetails>
     </Accordion>
   );
+}
+
+// Bucket a vendor's invoices by issued-date year, newest year first,
+// undated rows ("Ohne Datum") last. The backend already returns them
+// newest-first, so order within a year is preserved.
+function groupInvoicesByYear(
+  invoices: VendorInvoiceSummary[],
+): { year: string; items: VendorInvoiceSummary[] }[] {
+  const byYear = new Map<string, VendorInvoiceSummary[]>();
+  for (const inv of invoices) {
+    const head = inv.issued_date?.slice(0, 4) ?? "";
+    const year = /^\d{4}$/.test(head) ? head : "Ohne Datum";
+    const bucket = byYear.get(year);
+    if (bucket) bucket.push(inv);
+    else byYear.set(year, [inv]);
+  }
+  return [...byYear.entries()]
+    .sort(([a], [b]) => {
+      if (a === "Ohne Datum") return 1;
+      if (b === "Ohne Datum") return -1;
+      return b.localeCompare(a);
+    })
+    .map(([year, items]) => ({ year, items }));
 }
 
 function InvoiceRow({

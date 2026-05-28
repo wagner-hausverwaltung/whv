@@ -811,49 +811,79 @@ private struct VendorRow: View {
         }
     }
 
+    /// Invoices bucketed by issued-date year, newest year first,
+    /// undated last. `recent_invoices` already arrives newest-first, so
+    /// order within a year is preserved.
+    private var invoicesByYear: [(year: String, items: [VendorInvoiceSummary])] {
+        var buckets: [String: [VendorInvoiceSummary]] = [:]
+        for inv in vendor.recent_invoices {
+            let head = inv.issued_date.map { String($0.prefix(4)) } ?? ""
+            let year = (head.count == 4 && Int(head) != nil) ? head : "Ohne Datum"
+            buckets[year, default: []].append(inv)
+        }
+        let years = buckets.keys.sorted { a, b in
+            if a == "Ohne Datum" { return false }
+            if b == "Ohne Datum" { return true }
+            return a > b
+        }
+        return years.map { (year: $0, items: buckets[$0] ?? []) }
+    }
+
     private var invoicesBlock: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Letzte Rechnungen")
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Rechnungen")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
                 .textCase(.uppercase)
-            ForEach(vendor.recent_invoices) { inv in
-                // Whole-row button — tap opens InvoiceDetailSheet
-                // via the parent's sheet binding. Plain button
-                // style keeps the surrounding chrome calm.
-                Button {
-                    onInvoiceTap(inv)
-                } label: {
-                    HStack(spacing: 6) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(inv.name)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            if let date = inv.issued_date,
-                               let formatted = formatDate(date)
-                            {
-                                Text(formatted)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        if let amount = inv.amount {
-                            Text(formatAmount(amount) + " €")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        Image(systemName: "chevron.right")
+            // Grouped by year so old invoices sit under their own
+            // heading instead of mixed into one flat list.
+            ForEach(invoicesByYear, id: \.year) { group in
+                Text(group.year)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                ForEach(group.items) { inv in
+                    invoiceRow(inv)
+                }
+            }
+        }
+    }
+
+    /// One tappable invoice row — opens InvoiceDetailSheet via the
+    /// parent's sheet binding.
+    @ViewBuilder
+    private func invoiceRow(_ inv: VendorInvoiceSummary) -> some View {
+        Button {
+            onInvoiceTap(inv)
+        } label: {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(inv.name)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let date = inv.issued_date,
+                       let formatted = formatDate(date)
+                    {
+                        Text(formatted)
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                Spacer(minLength: 0)
+                if let amount = inv.amount {
+                    Text(formatAmount(amount) + " €")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
     private func formatDate(_ iso: String) -> String? {
