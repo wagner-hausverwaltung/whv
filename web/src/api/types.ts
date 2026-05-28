@@ -917,6 +917,19 @@ export interface HausgeldAccountResponse {
   bookings: PostingItem[];
 }
 
+// --- Public Umlaufbeschluss ballot (GET/POST /public/resolutions/ballot/{token}) ---
+export interface BallotView {
+  resolution_title: string;
+  description: string;
+  property_name: string;
+  mode: string;
+  closes_at: string;
+  status: string;
+  owner_name: string | null;
+  already_voted: boolean;
+  open_for_voting: boolean;
+}
+
 // --- Mietabrechnung for MV-property owners (GET /me/properties/{id}/rent-settlements) ---
 export interface RentSettlement {
   period_from: string | null;

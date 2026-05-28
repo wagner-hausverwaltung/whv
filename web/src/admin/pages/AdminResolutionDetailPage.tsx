@@ -81,6 +81,11 @@ export function AdminResolutionDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{
+    sent: number;
+    no_email: { owner_contact_id_impower: number; owner_name: string | null }[];
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -114,6 +119,24 @@ export function AdminResolutionDetailPage() {
       setError(t("admin.resolutionDetail.actionFailed"));
     } finally {
       setClosing(false);
+    }
+  };
+
+  const sendNow = async () => {
+    if (!id) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await api.post<{
+        sent: number;
+        no_email: { owner_contact_id_impower: number; owner_name: string | null }[];
+      }>(`/admin/resolutions/${id}/send`);
+      setSendResult(res.data);
+      await refresh();
+    } catch {
+      setError(t("admin.resolutionDetail.actionFailed"));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -219,6 +242,36 @@ export function AdminResolutionDetailPage() {
           }
         />
       </Box>
+
+      {(r.status === "ENTWURF" || r.status === "OFFEN") && (
+        <Box>
+          <Button variant="contained" onClick={sendNow} disabled={sending}>
+            {sending ? t("common.loading") : t("admin.resolutionDetail.sendAction")}
+          </Button>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+            {t("admin.resolutionDetail.sendHint")}
+          </Typography>
+          {sendResult && (
+            <Alert severity="success" sx={{ mt: 1.5 }}>
+              {t("admin.resolutionDetail.sendResult", { sent: sendResult.sent })}
+              {sendResult.no_email.length > 0 && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {t("admin.resolutionDetail.noEmailTitle")}
+                  </Typography>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+                    {sendResult.no_email.map((o) => (
+                      <li key={o.owner_contact_id_impower}>
+                        {o.owner_name ?? `Kontakt ${o.owner_contact_id_impower}`}
+                      </li>
+                    ))}
+                  </ul>
+                </Box>
+              )}
+            </Alert>
+          )}
+        </Box>
+      )}
 
       {isOpen && (
         <Box>

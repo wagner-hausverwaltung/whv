@@ -22,8 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_role
 from app.db import get_session
-from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.integrations.email.resolutions import render_invitation_email
+from app.integrations.email.client import EmailClient, get_email_client
 from app.models import (
     AuditLog,
     CircularResolution,
@@ -48,7 +47,12 @@ from app.schemas.circular import (
     VoteRequest,
     VoteResponse,
 )
-from app.services.circular import finalize_resolution, resolve_result_pdf_path
+from app.services.circular import (
+    finalize_resolution,
+    generate_ballots,
+    resolve_result_pdf_path,
+    send_ballot_invitations,
+)
 
 me_router = APIRouter(prefix="/me/resolutions", tags=["resolutions"])
 admin_router = APIRouter(prefix="/admin/resolutions", tags=["resolutions"])
@@ -444,24 +448,14 @@ async def create_resolution(
         )
     )
 
-    # Fan out invitation email to every eligible owner with a portal account.
-    # Best-effort — failed send is logged but doesn't roll back the resolution.
+    # If it opens immediately, fan out via ballots — reaches EVERY
+    # eligible owner (registered or not) with a no-login voting link, not
+    # just portal accounts. A draft (opens_at in future) waits for the
+    # explicit "Jetzt versenden" action. Best-effort send.
     if initial_status == ResolutionStatus.OFFEN:
-        recipients = await _eligible_owner_emails(
-            session, current_user.organization_id, req.property_id
-        )
-        for recipient in recipients:
-            try:
-                subject, html, text = render_invitation_email(
-                    resolution_title=req.title,
-                    property_name=prop.name,
-                    closes_at=req.closes_at,
-                    description=req.description,
-                    resolution_id=str(resolution.id),
-                )
-                await email_client.send(to=recipient, subject=subject, html=html, text=text)
-            except EmailError:
-                pass
+        await generate_ballots(session, resolution)
+        await session.flush()
+        await send_ballot_invitations(session, resolution, email_client)
 
     await session.commit()
     await session.refresh(resolution)
@@ -473,6 +467,77 @@ async def create_resolution(
         my_impower_id=None,
         am_eligible=False,
         include_all_votes=True,
+    )
+
+
+class NoEmailOwner(BaseModel):
+    owner_contact_id_impower: int
+    owner_name: str | None
+
+
+class ResolutionSendResponse(BaseModel):
+    status: str
+    sent: int
+    no_email: list[NoEmailOwner]
+
+
+@admin_router.post("/{resolution_id}/send", response_model=ResolutionSendResponse)
+async def send_resolution(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> ResolutionSendResponse:
+    """ "Jetzt versenden": open a draft (if needed), materialise ballots
+    for every eligible owner, and email the no-login voting link to each
+    one that has an address. Returns the count sent + the owners WITHOUT
+    an email (the Verwalter's postal-vote list). Idempotent — re-sending
+    only mails ballots not yet sent."""
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    if r.status not in (ResolutionStatus.ENTWURF, ResolutionStatus.OFFEN):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Beschluss ist bereits geschlossen.",
+        )
+
+    now = datetime.now(UTC)
+    if r.status == ResolutionStatus.ENTWURF:
+        r.status = ResolutionStatus.OFFEN
+        if r.opens_at > now:
+            r.opens_at = now
+
+    await generate_ballots(session, r)
+    await session.flush()
+    sent, no_email = await send_ballot_invitations(session, r, email_client)
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="resolution_sent",
+            target_type="circular_resolutions",
+            target_id=str(r.id),
+            payload_json={"sent": sent, "no_email": len(no_email)},
+        )
+    )
+    await session.commit()
+    return ResolutionSendResponse(
+        status=r.status.value,
+        sent=sent,
+        no_email=[
+            NoEmailOwner(
+                owner_contact_id_impower=b.owner_contact_id_impower,
+                owner_name=b.owner_name,
+            )
+            for b in no_email
+        ],
     )
 
 

@@ -30,6 +30,7 @@ import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
 import { MyAssembliesPage } from "@/pages/MyAssembliesPage";
 import { MyAssemblyDetailPage } from "@/pages/MyAssemblyDetailPage";
 import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
+import { PublicVotePage } from "@/pages/PublicVotePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
@@ -51,6 +52,7 @@ function App() {
           {/* Pre-auth */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/invite" element={<InviteRedeemPage />} />
+          <Route path="/abstimmung/:token" element={<PublicVotePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
