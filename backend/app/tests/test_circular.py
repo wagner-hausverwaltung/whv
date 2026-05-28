@@ -30,6 +30,7 @@ from app.models import (
     CircularVote,
     Organization,
     Property,
+    ResolutionBallot,
     ResolutionMode,
     ResolutionStatus,
     User,
@@ -125,6 +126,10 @@ class _Seed:
     outsider_pw: str
     impower_a: int
     impower_b: int
+    # Contact-level emails (Impower-synced) — the basis for ballot invitations,
+    # distinct from the owners' WHV-Portal account emails (owner_a.email …).
+    contact_email_a: str
+    contact_email_b: str
 
 
 def _fresh_impower_id() -> int:
@@ -142,15 +147,22 @@ async def _seed_two_owners_one_outsider(engine: AsyncEngine) -> _Seed:
     impower_b = _fresh_impower_id()
     impower_outsider = _fresh_impower_id()
 
+    contact_email_a = f"owner-a-{uuid.uuid4().hex[:8]}@example.de"
+    contact_email_b = f"owner-b-{uuid.uuid4().hex[:8]}@example.de"
+
     owner_a, _a_email, owner_a_pw = await make_user(
         engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_a
     )
-    await make_contact_with_contract_link(engine, org=org, prop=prop, contact_impower_id=impower_a)
+    await make_contact_with_contract_link(
+        engine, org=org, prop=prop, contact_impower_id=impower_a, contact_email=contact_email_a
+    )
 
     owner_b, _b_email, owner_b_pw = await make_user(
         engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_b
     )
-    await make_contact_with_contract_link(engine, org=org, prop=prop, contact_impower_id=impower_b)
+    await make_contact_with_contract_link(
+        engine, org=org, prop=prop, contact_impower_id=impower_b, contact_email=contact_email_b
+    )
 
     # Outsider — NO contract on this property
     outsider, _o_email, outsider_pw = await make_user(
@@ -170,6 +182,8 @@ async def _seed_two_owners_one_outsider(engine: AsyncEngine) -> _Seed:
         outsider_pw=outsider_pw,
         impower_a=impower_a,
         impower_b=impower_b,
+        contact_email_a=contact_email_a,
+        contact_email_b=contact_email_b,
     )
 
 
@@ -181,9 +195,12 @@ def _now_iso(offset_minutes: int = 0) -> str:
 
 
 @pytest.mark.asyncio
-async def test_create_resolution_fans_out_invitation_email(
+async def test_create_resolution_fans_out_ballot_invitations(
     test_engine: AsyncEngine, stub_email: _StubEmailClient
 ) -> None:
+    """Creating an OFFEN resolution materialises one ballot per eligible
+    owner and mails the tokenised voting link — to the owners' CONTACT
+    emails (Impower-synced), so even owners without a portal account vote."""
     seed = await _seed_two_owners_one_outsider(test_engine)
     token = _login(seed.verwalter.email, seed.verw_pw)
     body = {
@@ -203,9 +220,24 @@ async def test_create_resolution_fans_out_invitation_email(
     assert payload["mode"] == "MEHRHEITS"
     assert payload["tally"]["eligible_voters"] == 2
 
+    # Invitations go to the CONTACT emails (not the portal-account emails).
     recipients = sorted(s["to"] for s in stub_email.sent)
-    assert recipients == sorted([seed.owner_a.email, seed.owner_b.email])
+    assert recipients == sorted([seed.contact_email_a, seed.contact_email_b])
     assert all("Sanierung Heizung" in s["subject"] for s in stub_email.sent)
+
+    # One ballot per eligible owner, each with a distinct token + sent_at.
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        ballots = (
+            await s.scalars(
+                select(ResolutionBallot).where(
+                    ResolutionBallot.resolution_id == uuid.UUID(payload["id"])
+                )
+            )
+        ).all()
+    assert {b.owner_contact_id_impower for b in ballots} == {seed.impower_a, seed.impower_b}
+    assert all(b.sent_at is not None for b in ballots)
+    assert len({b.token for b in ballots}) == 2
 
 
 @pytest.mark.asyncio
