@@ -132,10 +132,12 @@ export function PropertyDetailPage() {
           color="text.secondary"
           sx={{ letterSpacing: "0.08em", display: "block", mb: 1.5 }}
         >
-          Stammdaten
+          {t("properties.detail.stammdaten")}
         </Typography>
         <Stack spacing={1}>
-          {address && <Row label="Adresse:" value={address} />}
+          {address && (
+            <Row label={`${t("properties.detail.address")}:`} value={address} />
+          )}
           {/* Render the human label (WEG / MV / SEV) — the raw
               OWNER/RENTAL/STRATA enum from Impower is opaque to
               owners and the prop.name already carries the same
@@ -143,7 +145,10 @@ export function PropertyDetailPage() {
               broken. Status row was removed: the portal is filtered
               to state == "READY" upstream, so showing "Status:
               READY" everywhere is noise. */}
-          <Row label="Typ:" value={propertyTypeLabel(prop.type)} />
+          <Row
+            label={`${t("properties.detail.type")}:`}
+            value={propertyTypeLabel(prop.type)}
+          />
         </Stack>
       </Paper>
 
@@ -153,11 +158,11 @@ export function PropertyDetailPage() {
           color="text.secondary"
           sx={{ letterSpacing: "0.08em", display: "block", mb: 1.5 }}
         >
-          Einheiten ({prop.units.length})
+          {t("properties.detail.units")} ({prop.units.length})
         </Typography>
         {prop.units.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            Keine Einheiten erfasst.
+            {t("properties.detail.noUnits")}
           </Typography>
         ) : (
           <TableContainer component={Paper} variant="outlined">
@@ -171,18 +176,28 @@ export function PropertyDetailPage() {
                     Personen) are universal so they're always
                     rendered, with "—" when the row is blank. */}
                 <TableRow>
-                  <TableCell>Bezeichnung</TableCell>
-                  {showUnitTypeColumn && <TableCell>Typ</TableCell>}
-                  <TableCell>Etage</TableCell>
-                  <TableCell>Lage</TableCell>
-                  <TableCell align="right">Fläche (m²)</TableCell>
-                  <TableCell align="right">Heizfl. (m²)</TableCell>
-                  <TableCell align="right">Personen</TableCell>
+                  <TableCell>{t("properties.detail.colName")}</TableCell>
+                  {showUnitTypeColumn && (
+                    <TableCell>{t("properties.detail.colType")}</TableCell>
+                  )}
+                  <TableCell>{t("properties.detail.colFloor")}</TableCell>
+                  <TableCell>{t("properties.detail.colPosition")}</TableCell>
+                  <TableCell align="right">
+                    {t("properties.detail.colArea")}
+                  </TableCell>
+                  <TableCell align="right">
+                    {t("properties.detail.colHeated")}
+                  </TableCell>
+                  <TableCell align="right">
+                    {t("properties.detail.colPersons")}
+                  </TableCell>
                   {propertyHasOwnershipShares(prop.type) && (
                     <TableCell align="right">MEA</TableCell>
                   )}
-                  <TableCell align="right">Zimmer</TableCell>
-                  <TableCell>Aktuelle Verträge</TableCell>
+                  <TableCell align="right">
+                    {t("properties.detail.colRooms")}
+                  </TableCell>
+                  <TableCell>{t("properties.detail.colContracts")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -277,10 +292,11 @@ function ContractChips({
   contracts: UnitContractSummary[];
   onContactClick: (target: ContactDialogTarget) => void;
 }) {
+  const { t } = useTranslation();
   if (contracts.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary">
-        leer
+        {t("properties.detail.contractsEmpty")}
       </Typography>
     );
   }

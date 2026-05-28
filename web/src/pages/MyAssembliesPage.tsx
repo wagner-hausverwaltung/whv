@@ -21,6 +21,7 @@ import CalendarIcon from "@mui/icons-material/CalendarMonthOutlined";
 import HomeWorkIcon from "@mui/icons-material/HomeWorkOutlined";
 import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import {
   ASSEMBLY_STATUS_LABELS,
@@ -74,6 +75,7 @@ function formatDateRange(startIso: string, endIso: string): string {
 }
 
 export function MyAssembliesPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [rows, setRows] = useState<AssemblyResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +89,9 @@ export function MyAssembliesPage() {
       );
       setRows(r.data);
     } catch {
-      setError("Versammlungen konnten nicht geladen werden.");
+      setError(t("properties.assemblies.loadFailed"));
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -119,21 +121,27 @@ export function MyAssembliesPage() {
 
       {rows === null ? (
         <Typography variant="body2" color="text.secondary">
-          Wird geladen…
+          {t("common.loading")}
         </Typography>
       ) : rows.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
           <Typography variant="body2" color="text.secondary">
-            Sobald die Verwaltung eine Versammlung anlegt, erscheint sie hier.
+            {t("properties.assemblies.empty")}
           </Typography>
         </Paper>
       ) : (
         <Stack spacing={4}>
           {upcoming.length > 0 && (
-            <AssemblySection title="Geplant" rows={upcoming} />
+            <AssemblySection
+              title={t("properties.assemblies.sectionUpcoming")}
+              rows={upcoming}
+            />
           )}
           {past.length > 0 && (
-            <AssemblySection title="Vergangen" rows={past} />
+            <AssemblySection
+              title={t("properties.assemblies.sectionPast")}
+              rows={past}
+            />
           )}
         </Stack>
       )}
@@ -148,6 +156,7 @@ function AssemblySection({
   title: string;
   rows: AssemblyResponse[];
 }) {
+  const { t } = useTranslation();
   return (
     <Box>
       <Typography
@@ -186,7 +195,7 @@ function AssemblySection({
                       size="small"
                       variant="outlined"
                       color="success"
-                      label="Protokoll vorhanden"
+                      label={t("properties.assemblies.protocolAvailable")}
                     />
                   )}
                 </Stack>

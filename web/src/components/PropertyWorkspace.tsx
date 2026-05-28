@@ -25,28 +25,30 @@ import {
   useParams,
 } from "react-router-dom";
 import { Box, Stack, Tab, Tabs } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 
+// Each `value` doubles as the URL segment AND the i18n key suffix
+// (properties.tabs.<value>), so the labels translate with the language
+// switch instead of staying hardcoded German.
+//   "account"  — owner's financial view: WEG Hausgeldkonto (balance +
+//                bookings) or MV Mietabrechnung. Owner-facing only
+//                (hidden for Verwalter; filtered by role below).
+//   "vendors"  — RECHNUNG documents aggregated per vendor contact so
+//                owners can see + call back who's worked on the property.
 const TAB_DEFS = [
-  { value: "details", label: "Details" },
-  // "Konto" — the owner's financial view for this property: WEG
-  // Hausgeldkonto (balance + bookings) or MV Mietabrechnung (payout
-  // statements), whichever applies. Owner-facing only (hidden for
-  // Verwalter); filtered out below by role.
-  { value: "account", label: "Konto" },
-  { value: "announcements", label: "Mitteilungen" },
-  { value: "assemblies", label: "Versammlungen" },
-  { value: "documents", label: "Dokumente" },
-  // "Dienstleister" — aggregates the property's RECHNUNG documents
-  // by vendor contact so owners see who's done work on the
-  // property + can call them back. Read-only; data comes for free
-  // from the existing Impower invoice mirror.
-  { value: "vendors", label: "Dienstleister" },
+  { value: "details" },
+  { value: "account" },
+  { value: "announcements" },
+  { value: "assemblies" },
+  { value: "documents" },
+  { value: "vendors" },
 ] as const;
 
 type TabValue = (typeof TAB_DEFS)[number]["value"];
 
 export function PropertyWorkspace() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,7 +59,7 @@ export function PropertyWorkspace() {
   const tabs = useMemo(
     () =>
       TAB_DEFS.filter(
-        (t) => t.value !== "account" || user?.role !== "verwalter",
+        (tab) => tab.value !== "account" || user?.role !== "verwalter",
       ),
     [user?.role],
   );
@@ -101,8 +103,12 @@ export function PropertyWorkspace() {
           scrollButtons="auto"
           allowScrollButtonsMobile
         >
-          {tabs.map((t) => (
-            <Tab key={t.value} value={t.value} label={t.label} />
+          {tabs.map((tab) => (
+            <Tab
+              key={tab.value}
+              value={tab.value}
+              label={t(`properties.tabs.${tab.value}`)}
+            />
           ))}
         </Tabs>
       </Box>

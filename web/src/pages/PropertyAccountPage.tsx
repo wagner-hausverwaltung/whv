@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Box, Divider, Paper, Stack, Typography } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { HausgeldAccountResponse, RentSettlement } from "@/api/types";
 
@@ -41,6 +42,7 @@ type LoadState = {
 };
 
 export function PropertyAccountPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [state, setState] = useState<LoadState | null>(null);
 
@@ -68,7 +70,7 @@ export function PropertyAccountPage() {
   if (!ready) {
     return (
       <Typography variant="body2" color="text.secondary">
-        Wird geladen…
+        {t("common.loading")}
       </Typography>
     );
   }
@@ -78,7 +80,7 @@ export function PropertyAccountPage() {
   if (!account && settlements.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
-        Für diese Liegenschaft ist kein Konto und keine Mietabrechnung hinterlegt.
+        {t("properties.account.none")}
       </Typography>
     );
   }
@@ -89,7 +91,7 @@ export function PropertyAccountPage() {
         <Stack spacing={2}>
           <Paper variant="outlined" sx={{ p: 2.5 }}>
             <Typography variant="overline" color="text.secondary">
-              Saldo Hausgeldkonto
+              {t("properties.account.saldoTitle")}
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
               {formatEur(account.balance)}
@@ -100,15 +102,14 @@ export function PropertyAccountPage() {
               </Typography>
             )}
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-              Live aus Impower, ohne Gewähr. Bei Fragen wenden Sie sich an die
-              Verwaltung.
+              {t("properties.account.liveDisclaimer")}
             </Typography>
           </Paper>
 
           {account.bookings.length > 0 && (
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                Buchungen
+                {t("properties.account.bookings")}
               </Typography>
               <Paper variant="outlined">
                 <Stack divider={<Divider />}>
@@ -138,7 +139,7 @@ export function PropertyAccountPage() {
       {settlements.length > 0 && (
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-            Mietabrechnung
+            {t("properties.account.rentSettlement")}
           </Typography>
           <Paper variant="outlined">
             <Stack divider={<Divider />}>
@@ -156,15 +157,17 @@ export function PropertyAccountPage() {
                     </Typography>
                   </Stack>
                   <Typography variant="caption" color="text.secondary">
-                    Mieteinnahmen {formatEur(s.rent_income)}
-                    {s.due_date ? ` · fällig ${formatDate(s.due_date)}` : ""}
+                    {t("properties.account.rentIncome")} {formatEur(s.rent_income)}
+                    {s.due_date
+                      ? ` · ${t("properties.account.due")} ${formatDate(s.due_date)}`
+                      : ""}
                   </Typography>
                 </Stack>
               ))}
             </Stack>
           </Paper>
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-            Auszahlung = Betrag an Sie als Eigentümer. Live aus Impower, ohne Gewähr.
+            {t("properties.account.payoutDisclaimer")}
           </Typography>
         </Box>
       )}

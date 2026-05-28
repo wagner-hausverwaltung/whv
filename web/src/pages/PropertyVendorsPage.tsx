@@ -100,19 +100,17 @@ export function PropertyVendorsPage() {
     <Stack spacing={3}>
       <Box>
         <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-          Dienstleister
+          {t("properties.vendors.title")}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Firmen, die für diese Liegenschaft gearbeitet haben — Karte
-          erweitern für die Rechnungen, Rechnung antippen für die
-          Buchungsdetails.
+          {t("properties.vendors.intro")}
         </Typography>
       </Box>
 
       {vendors.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Noch keine Rechnungen für diese Liegenschaft erfasst.
+            {t("properties.vendors.empty")}
           </Typography>
         </Paper>
       ) : (
@@ -158,6 +156,7 @@ function VendorAccordion({
   vendor: VendorSummary;
   onInvoiceClick: (invoice: VendorInvoiceSummary) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Accordion variant="outlined" disableGutters>
       <AccordionSummary
@@ -190,13 +189,17 @@ function VendorAccordion({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Zuletzt ${formatDate(vendor.last_service_date)}`}
+                label={t("properties.vendors.lastService", {
+                  date: formatDate(vendor.last_service_date),
+                })}
               />
             )}
             <Chip
               size="small"
               variant="outlined"
-              label={`${vendor.invoice_count} Rechnung${vendor.invoice_count === 1 ? "" : "en"}`}
+              label={t("properties.vendors.invoiceCount", {
+                count: vendor.invoice_count,
+              })}
             />
             {vendor.total_amount != null && (
               <Chip
@@ -262,7 +265,7 @@ function VendorAccordion({
                   mb: 0.5,
                 }}
               >
-                Rechnungen
+                {t("properties.vendors.invoicesHeader")}
               </Typography>
               {/* Grouped by year (newest first) so old invoices sit
                   under their own heading instead of mixed into the list. */}
@@ -277,7 +280,7 @@ function VendorAccordion({
                       mt: 1,
                     }}
                   >
-                    {group.year}
+                    {group.year || t("properties.vendors.noDate")}
                   </Typography>
                   <Stack divider={<Divider />} spacing={0}>
                     {group.items.map((inv) => (
@@ -299,23 +302,25 @@ function VendorAccordion({
 }
 
 // Bucket a vendor's invoices by issued-date year, newest year first,
-// undated rows ("Ohne Datum") last. The backend already returns them
-// newest-first, so order within a year is preserved.
+// undated rows last. Undated uses an empty-string key so the caller
+// renders a localized "no date" heading (the label can't live here —
+// this is a pure helper with no translation context). The backend
+// already returns them newest-first, so order within a year is preserved.
 function groupInvoicesByYear(
   invoices: VendorInvoiceSummary[],
 ): { year: string; items: VendorInvoiceSummary[] }[] {
   const byYear = new Map<string, VendorInvoiceSummary[]>();
   for (const inv of invoices) {
     const head = inv.issued_date?.slice(0, 4) ?? "";
-    const year = /^\d{4}$/.test(head) ? head : "Ohne Datum";
+    const year = /^\d{4}$/.test(head) ? head : "";
     const bucket = byYear.get(year);
     if (bucket) bucket.push(inv);
     else byYear.set(year, [inv]);
   }
   return [...byYear.entries()]
     .sort(([a], [b]) => {
-      if (a === "Ohne Datum") return 1;
-      if (b === "Ohne Datum") return -1;
+      if (a === "") return 1;
+      if (b === "") return -1;
       return b.localeCompare(a);
     })
     .map(([year, items]) => ({ year, items }));
@@ -328,6 +333,7 @@ function InvoiceRow({
   invoice: VendorInvoiceSummary;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Stack
       direction="row"
@@ -372,7 +378,7 @@ function InvoiceRow({
         color="primary"
         sx={{ textTransform: "uppercase", letterSpacing: 0.5, mr: 1 }}
       >
-        Details
+        {t("properties.vendors.details")}
       </Typography>
     </Stack>
   );
@@ -396,6 +402,7 @@ function InvoiceDetailDialog({
   vendorName: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [detail, setDetail] = useState<InvoiceDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -418,13 +425,13 @@ function InvoiceDetailDialog({
         const detailMsg = (
           err as { response?: { data?: { detail?: string } } }
         ).response?.data?.detail;
-        setError(detailMsg ?? "Buchungsdetails konnten nicht geladen werden.");
+        setError(detailMsg ?? t("properties.vendors.loadFailed"));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, propertyId, invoice.id]);
+  }, [open, propertyId, invoice.id, t]);
 
   const downloadPdf = async () => {
     setDownloadError(null);
@@ -446,7 +453,7 @@ function InvoiceDetailDialog({
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      setDownloadError("Download fehlgeschlagen.");
+      setDownloadError(t("properties.vendors.downloadFailed"));
     } finally {
       setDownloading(false);
     }
@@ -455,14 +462,14 @@ function InvoiceDetailDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pr: 6 }}>
-        Rechnung
+        {t("properties.vendors.sectionInvoice")}
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
           {vendorName}
         </Typography>
         <IconButton
           onClick={onClose}
           sx={{ position: "absolute", right: 8, top: 8 }}
-          aria-label="Schließen"
+          aria-label={t("properties.vendors.close")}
         >
           <CloseIcon />
         </IconButton>
@@ -471,7 +478,7 @@ function InvoiceDetailDialog({
         {error && <Alert severity="error">{error}</Alert>}
         {!error && detail === null && (
           <Typography variant="body2" color="text.secondary">
-            Lädt …
+            {t("properties.vendors.loading")}
           </Typography>
         )}
         {detail && <InvoiceBody detail={detail} fallback={invoice} />}
@@ -496,7 +503,9 @@ function InvoiceDetailDialog({
           }}
         >
           <DownloadIcon fontSize="small" />
-          {downloading ? "Lädt …" : "PDF herunterladen"}
+          {downloading
+            ? t("properties.vendors.loading")
+            : t("properties.vendors.downloadPdf")}
         </MuiLink>
       </DialogActions>
     </Dialog>
@@ -510,6 +519,7 @@ function InvoiceBody({
   detail: InvoiceDetailResponse;
   fallback: VendorInvoiceSummary;
 }) {
+  const { t } = useTranslation();
   // Falls back to the row metadata when the Impower detail came
   // back without that field — keeps the header useful even on
   // partial fetches.
@@ -518,11 +528,14 @@ function InvoiceBody({
 
   return (
     <Stack spacing={2.5}>
-      <Section title="Rechnung">
-        <Row label="Rechnungs-Nr." value={detail.invoice_number} />
-        <Row label="Datum" value={formatDate(date)} />
+      <Section title={t("properties.vendors.sectionInvoice")}>
         <Row
-          label="Betrag"
+          label={t("properties.vendors.invoiceNo")}
+          value={detail.invoice_number}
+        />
+        <Row label={t("properties.vendors.date")} value={formatDate(date)} />
+        <Row
+          label={t("properties.vendors.amount")}
           value={
             amount != null ? `${formatAmount(amount)} €` : null
           }
@@ -537,7 +550,7 @@ function InvoiceBody({
             color="text.secondary"
             sx={{ minWidth: 130, flexShrink: 0 }}
           >
-            Status
+            {t("properties.vendors.status")}
           </Typography>
           {detail.state ? (
             <Chip
@@ -558,7 +571,7 @@ function InvoiceBody({
           {detail.state === "BOOKED" && detail.order_required && (
             <Chip
               size="small"
-              label="An Bank übermittelt"
+              label={t("properties.vendors.sentToBank")}
               color="success"
               variant="outlined"
             />
@@ -566,18 +579,20 @@ function InvoiceBody({
         </Stack>
         {detail.order_statement && (
           <Row
-            label="Verwendungszweck"
+            label={t("properties.vendors.purpose")}
             value={detail.order_statement}
           />
         )}
         {detail.order_day_offset != null &&
           detail.order_required && (
             <Row
-              label="Ausführung"
+              label={t("properties.vendors.execution")}
               value={
                 detail.order_day_offset === 0
-                  ? "Sofort am Buchungstag"
-                  : `Buchungstag + ${detail.order_day_offset} Tage`
+                  ? t("properties.vendors.executionImmediate")
+                  : t("properties.vendors.executionOffset", {
+                      days: detail.order_day_offset,
+                    })
               }
             />
           )}
@@ -587,26 +602,38 @@ function InvoiceBody({
         detail.counterpart_bic ||
         detail.property_iban ||
         detail.property_bic) && (
-        <Section title="Bankverbindung">
+        <Section title={t("properties.vendors.sectionBank")}>
           {detail.property_iban && (
-            <Row label="Vom Konto (IBAN)" value={detail.property_iban} />
+            <Row
+              label={t("properties.vendors.fromIban")}
+              value={detail.property_iban}
+            />
           )}
           {detail.property_bic && (
-            <Row label="Vom Konto (BIC)" value={detail.property_bic} />
+            <Row
+              label={t("properties.vendors.fromBic")}
+              value={detail.property_bic}
+            />
           )}
           {detail.counterpart_iban && (
-            <Row label="Zum Konto (IBAN)" value={detail.counterpart_iban} />
+            <Row
+              label={t("properties.vendors.toIban")}
+              value={detail.counterpart_iban}
+            />
           )}
           {detail.counterpart_bic && (
-            <Row label="Zum Konto (BIC)" value={detail.counterpart_bic} />
+            <Row
+              label={t("properties.vendors.toBic")}
+              value={detail.counterpart_bic}
+            />
           )}
         </Section>
       )}
 
-      <Section title="Buchungsdetails">
+      <Section title={t("properties.vendors.sectionBookings")}>
         {detail.items.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            Keine Buchungspositionen erfasst.
+            {t("properties.vendors.noBookings")}
           </Typography>
         ) : (
           <Stack divider={<Divider />} spacing={0}>
@@ -628,10 +655,7 @@ function InvoiceBody({
         color="text.secondary"
         sx={{ fontStyle: "italic" }}
       >
-        Einzelne Banktransaktionen pro Rechnung sind über die
-        Impower-API derzeit nicht abrufbar. Der oben angezeigte
-        Status spiegelt den Buchungsstand wider — nicht den
-        tatsächlichen Geldfluss.
+        {t("properties.vendors.apiNote")}
       </Typography>
     </Stack>
   );
@@ -677,6 +701,7 @@ function invoiceStateColor(
 }
 
 function LineItemRow({ item }: { item: InvoiceLineItemResponse }) {
+  const { t } = useTranslation();
   return (
     <Stack spacing={0.5} sx={{ py: 1 }}>
       <Stack
@@ -685,7 +710,7 @@ function LineItemRow({ item }: { item: InvoiceLineItemResponse }) {
         sx={{ alignItems: "baseline", flexWrap: "wrap" }}
       >
         <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
-          {item.account_name ?? "Buchungsposition"}
+          {item.account_name ?? t("properties.vendors.lineItemFallback")}
         </Typography>
         {item.amount != null && (
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -701,12 +726,12 @@ function LineItemRow({ item }: { item: InvoiceLineItemResponse }) {
       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
         {item.account_code && (
           <Typography variant="caption" color="text.disabled">
-            Konto {item.account_code}
+            {t("properties.vendors.account")} {item.account_code}
           </Typography>
         )}
         {item.vat_percentage != null && (
           <Typography variant="caption" color="text.disabled">
-            MwSt. {formatPercent(item.vat_percentage)} %
+            {t("properties.vendors.vat")} {formatPercent(item.vat_percentage)} %
             {item.vat_amount != null && ` · ${formatAmount(item.vat_amount)} €`}
           </Typography>
         )}
