@@ -16,6 +16,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +33,7 @@ from app.models import (
     ContractContact,
     ContractType,
     Property,
+    ResolutionBallot,
     ResolutionMode,
     ResolutionStatus,
     User,
@@ -50,6 +52,10 @@ from app.services.circular import finalize_resolution, resolve_result_pdf_path
 
 me_router = APIRouter(prefix="/me/resolutions", tags=["resolutions"])
 admin_router = APIRouter(prefix="/admin/resolutions", tags=["resolutions"])
+# Unauthenticated — owners vote by email via a long random ballot token,
+# no portal account required. The token (256-bit) is the only credential
+# and exposes exactly one resolution + one vote.
+public_router = APIRouter(prefix="/public/resolutions", tags=["resolutions-public"])
 
 _verwalter_only = require_role(UserRole.VERWALTER)
 
@@ -649,3 +655,148 @@ async def download_admin_result_pdf(
         media_type="application/pdf",
         filename=f"Beschluss-{r.id.hex[:8]}.pdf",
     )
+
+
+# --- Public ballot endpoints (no auth — token is the credential) -------------
+
+
+class BallotView(BaseModel):
+    resolution_title: str
+    description: str
+    property_name: str
+    mode: str
+    closes_at: datetime
+    status: str
+    owner_name: str | None
+    already_voted: bool
+    open_for_voting: bool
+
+
+class BallotVoteRequest(BaseModel):
+    choice: VoteChoice
+
+
+async def _load_ballot(
+    session: AsyncSession, token: str
+) -> tuple[ResolutionBallot, CircularResolution]:
+    ballot = await session.scalar(select(ResolutionBallot).where(ResolutionBallot.token == token))
+    if ballot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ungültiger oder abgelaufener Abstimmungslink.",
+        )
+    resolution = await session.get(CircularResolution, ballot.resolution_id)
+    if resolution is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Beschluss nicht gefunden."
+        )
+    return ballot, resolution
+
+
+def _ballot_view(
+    ballot: ResolutionBallot, resolution: CircularResolution, property_name: str
+) -> BallotView:
+    now = datetime.now(UTC)
+    return BallotView(
+        resolution_title=resolution.title,
+        description=resolution.description,
+        property_name=property_name,
+        mode=resolution.mode.value,
+        closes_at=resolution.closes_at,
+        status=resolution.status.value,
+        owner_name=ballot.owner_name,
+        already_voted=ballot.voted_at is not None,
+        open_for_voting=(
+            resolution.status == ResolutionStatus.OFFEN and now < resolution.closes_at
+        ),
+    )
+
+
+@public_router.get("/ballot/{token}", response_model=BallotView)
+async def get_ballot(
+    token: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BallotView:
+    """Render one owner's ballot for the public voting page. No auth —
+    the long random token is the credential and maps to exactly one
+    resolution + one owner."""
+    ballot, resolution = await _load_ballot(session, token)
+    prop = await session.get(Property, resolution.property_id)
+    return _ballot_view(ballot, resolution, prop.name if prop else "—")
+
+
+@public_router.post(
+    "/ballot/{token}/vote",
+    response_model=BallotView,
+    status_code=status.HTTP_201_CREATED,
+)
+async def cast_ballot_vote(
+    token: str,
+    req: BallotVoteRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BallotView:
+    """Cast the owner's vote from the email link. One-shot: once this
+    owner has voted (here OR via the portal), it's locked."""
+    ballot, resolution = await _load_ballot(session, token)
+    now = datetime.now(UTC)
+    if resolution.status != ResolutionStatus.OFFEN or now >= resolution.closes_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Abstimmung ist nicht (mehr) offen.",
+        )
+    if ballot.voted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Sie haben bereits abgestimmt."
+        )
+    # One vote per owner across all channels: if a vote already exists
+    # (e.g. cast in the portal), lock this ballot rather than duplicate.
+    existing = await session.scalar(
+        select(CircularVote).where(
+            CircularVote.resolution_id == resolution.id,
+            CircularVote.owner_contact_id_impower == ballot.owner_contact_id_impower,
+        )
+    )
+    if existing is not None:
+        ballot.voted_at = now
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Für diesen Eigentümer wurde bereits abgestimmt.",
+        )
+
+    client_host = request.client.host if request.client else ""
+    ip_hash = hashlib.sha256((client_host + str(resolution.id)).encode("utf-8")).hexdigest()[:32]
+    session.add(
+        CircularVote(
+            resolution_id=resolution.id,
+            owner_contact_id_impower=ballot.owner_contact_id_impower,
+            choice=req.choice,
+            voter_user_id=None,
+            signature_method="EMAIL_TOKEN",
+            evidence_jsonb={
+                "ip_hash": ip_hash,
+                "user_agent": request.headers.get("user-agent", "")[:200],
+                "ballot_id": str(ballot.id),
+            },
+        )
+    )
+    ballot.voted_at = now
+    session.add(
+        AuditLog(
+            organization_id=resolution.organization_id,
+            actor_user_id=None,
+            action="resolution_voted_email",
+            target_type="circular_resolutions",
+            target_id=str(resolution.id),
+            payload_json={
+                "choice": req.choice.value,
+                "owner_contact_id_impower": ballot.owner_contact_id_impower,
+                "ballot_id": str(ballot.id),
+            },
+        )
+    )
+    await session.commit()
+    prop = await session.get(Property, resolution.property_id)
+    await session.refresh(ballot)
+    return _ballot_view(ballot, resolution, prop.name if prop else "—")

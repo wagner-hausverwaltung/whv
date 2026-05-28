@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import base64
 import logging
+import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,7 +32,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.integrations.email.client import EmailClient, EmailError
-from app.integrations.email.resolutions import render_result_email
+from app.integrations.email.resolutions import (
+    render_ballot_invitation_email,
+    render_result_email,
+)
 from app.integrations.pdf.resolution_result import render_result_pdf
 from app.models import (
     AuditLog,
@@ -41,6 +46,7 @@ from app.models import (
     ContractContact,
     ContractType,
     Property,
+    ResolutionBallot,
     ResolutionMode,
     ResolutionStatus,
     User,
@@ -93,6 +99,136 @@ async def eligible_owner_emails(
         )
     ).all()
     return list(rows)
+
+
+@dataclass(frozen=True)
+class EligibleOwner:
+    contact_id_impower: int
+    name: str | None
+    email: str | None  # None → no email on file (postal vote)
+
+
+async def eligible_owners(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> list[EligibleOwner]:
+    """All eligible OWNER contacts on the property at CONTACT level
+    (registered or not) — name + Impower-synced email. The basis for
+    email voting without a portal account: an owner without a User row
+    still gets a ballot, and the email comes from their contact."""
+    rows = (
+        await session.execute(
+            select(
+                Contact.impower_id,
+                Contact.first_name,
+                Contact.last_name,
+                Contact.company_name,
+                Contact.email,
+            )
+            .join(ContractContact, ContractContact.contact_id == Contact.id)
+            .join(Contract, Contract.id == ContractContact.contract_id)
+            .where(
+                Contract.organization_id == organization_id,
+                Contract.property_id == property_id,
+                Contract.type == ContractType.OWNER,
+                Contract.deleted_at.is_(None),
+                Contact.deleted_at.is_(None),
+                Contact.impower_id.is_not(None),
+            )
+            .distinct()
+        )
+    ).all()
+    seen: set[int] = set()
+    out: list[EligibleOwner] = []
+    for imp, first, last, company, email in rows:
+        if imp is None or int(imp) in seen:
+            continue
+        seen.add(int(imp))
+        name = company or " ".join(p for p in [first, last] if p) or None
+        out.append(EligibleOwner(int(imp), name, email or None))
+    return out
+
+
+async def generate_ballots(
+    session: AsyncSession,
+    resolution: CircularResolution,
+) -> list[ResolutionBallot]:
+    """Materialise one ballot per eligible owner (idempotent on
+    (resolution, owner)). Returns the freshly-created ballots. Does NOT
+    commit. Re-running refreshes name/email on existing rows so a
+    contact's updated email is picked up before the mail goes out."""
+    owners = await eligible_owners(session, resolution.organization_id, resolution.property_id)
+    existing = {
+        b.owner_contact_id_impower: b
+        for b in (
+            await session.scalars(
+                select(ResolutionBallot).where(ResolutionBallot.resolution_id == resolution.id)
+            )
+        ).all()
+    }
+    created: list[ResolutionBallot] = []
+    for owner in owners:
+        prior = existing.get(owner.contact_id_impower)
+        if prior is not None:
+            prior.owner_name = owner.name
+            prior.owner_email = owner.email
+            continue
+        ballot = ResolutionBallot(
+            resolution_id=resolution.id,
+            owner_contact_id_impower=owner.contact_id_impower,
+            owner_name=owner.name,
+            owner_email=owner.email,
+            token=secrets.token_urlsafe(32),
+        )
+        session.add(ballot)
+        created.append(ballot)
+    return created
+
+
+async def send_ballot_invitations(
+    session: AsyncSession,
+    resolution: CircularResolution,
+    email_client: EmailClient | None,
+) -> tuple[int, list[ResolutionBallot]]:
+    """Mail the tokenised voting link to every ballot that has an email
+    and hasn't been sent yet. Returns (sent_count, no_email_ballots) —
+    the latter is the Verwalter's 'kein E-Mail'-Liste (postal voters).
+    Best-effort per recipient; does NOT commit."""
+    ballots = (
+        await session.scalars(
+            select(ResolutionBallot).where(ResolutionBallot.resolution_id == resolution.id)
+        )
+    ).all()
+    prop = await session.scalar(select(Property).where(Property.id == resolution.property_id))
+    property_name = prop.name if prop else "—"
+
+    sent = 0
+    no_email: list[ResolutionBallot] = []
+    for ballot in ballots:
+        if not ballot.owner_email:
+            no_email.append(ballot)
+            continue
+        if ballot.sent_at is not None or email_client is None:
+            continue
+        try:
+            subject, html, text = render_ballot_invitation_email(
+                resolution_title=resolution.title,
+                property_name=property_name,
+                closes_at=resolution.closes_at,
+                description=resolution.description,
+                token=ballot.token,
+            )
+            await email_client.send(to=ballot.owner_email, subject=subject, html=html, text=text)
+            ballot.sent_at = datetime.now(UTC)
+            sent += 1
+        except EmailError:
+            logger.warning(
+                "ballot invitation email failed for resolution=%s ballot=%s",
+                resolution.id,
+                ballot.id,
+            )
+    return sent, no_email
 
 
 async def tally(session: AsyncSession, resolution: CircularResolution) -> ResolutionTally:

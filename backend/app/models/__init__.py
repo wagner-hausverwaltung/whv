@@ -11,6 +11,7 @@ from app.models.audit import AuditLog
 from app.models.circular import (
     CircularResolution,
     CircularVote,
+    ResolutionBallot,
     ResolutionMode,
     ResolutionStatus,
     VoteChoice,
@@ -109,6 +110,7 @@ __all__ = [
     "Property",
     "PropertyState",
     "PropertyType",
+    "ResolutionBallot",
     "ResolutionMode",
     "ResolutionStatus",
     "SendAttemptStatus",

@@ -180,3 +180,46 @@ class CircularVote(Base):
         # Tally + audit reads scan by resolution.
         Index("ix_circular_votes_resolution", "resolution_id", "voted_at"),
     )
+
+
+class ResolutionBallot(TimestampMixin, Base):
+    """One per eligible owner per resolution — the unit that lets an owner
+    vote by email WITHOUT a portal account.
+
+    On "send", we materialise a ballot for every eligible owner (from
+    their Impower contact). Owners WITH an email get a tokenised
+    magic-link mailed (`token` → public `/abstimmung/{token}` page, no
+    login); owners WITHOUT an email (`owner_email` NULL) surface as the
+    "kein E-Mail"-Liste for the Verwalter, who records their postal vote
+    manually. `voted_at` is stamped once a vote is cast (votes are
+    one-shot — see ADR / the public endpoint).
+    """
+
+    __tablename__ = "resolution_ballots"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7_pk)
+    resolution_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("circular_resolutions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    owner_contact_id_impower: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    owner_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # NULL → owner has no email on file: appears on the no-email list,
+    # gets no mail, votes via the Verwalter's manual paper entry.
+    owner_email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Long random URL-safe token; the only credential the public voting
+    # page needs. NULL is never used (always generated) but kept nullable
+    # for forward-safety.
+    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    voted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "resolution_id",
+            "owner_contact_id_impower",
+            name="uq_resolution_ballots_resolution_owner",
+        ),
+    )

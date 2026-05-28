@@ -108,6 +108,92 @@ text-decoration: none; border-radius: 6px; font-weight: 600;">Jetzt abstimmen</a
     return subject, html, text
 
 
+def render_ballot_invitation_email(
+    *,
+    resolution_title: str,
+    property_name: str,
+    closes_at: datetime,
+    description: str,
+    token: str,
+) -> tuple[str, str, str]:
+    """Like `render_invitation_email`, but the CTA is a tokenised
+    magic-link to the PUBLIC voting page — no portal account needed, so
+    every eligible owner can vote by email. The link encodes the
+    owner's ballot; the vote is binding and can be cast once."""
+    deadline = _fmt_berlin(closes_at)
+    link = f"{_PORTAL_BASE}/abstimmung/{token}"
+    subject = f"Umlaufbeschluss: {resolution_title} — Frist {deadline}"
+
+    text = f"""\
+Hallo,
+
+es liegt ein neuer Umlaufbeschluss zur Abstimmung vor:
+
+  Beschluss:    {resolution_title}
+  Liegenschaft: {property_name}
+  Frist:         {deadline}
+
+  ----- Beschlusstext -----
+{description}
+  -------------------------
+
+Stimmen Sie direkt über diesen persönlichen Link ab — kein Login nötig:
+{link}
+
+Hinweis: Der Link ist persönlich und die Stimme kann nur einmal
+abgegeben werden.
+
+Bei Fragen: support@wagner-hausverwaltung.com
+
+Mit freundlichen Grüßen,
+Wagner Hausverwaltung GmbH
+"""
+
+    description_html = _escape_html(description)
+    title_html = _escape_html(resolution_title)
+    property_html = _escape_html(property_name)
+
+    html = f"""\
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; \
+max-width: 560px; margin: 0 auto; padding: 24px; color: #212121;">
+<h1 style="font-size: 20px; margin-bottom: 16px;">Neuer Umlaufbeschluss</h1>
+<p><strong>{title_html}</strong></p>
+<p style="color: #4e4b66; font-size: 14px;">
+  Liegenschaft: {property_html}<br>
+  <strong>Frist: {deadline}</strong>
+</p>
+
+<div style="background: #f4f4f4; border-left: 4px solid #1863DC; \
+padding: 12px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5;">
+  {description_html}
+</div>
+
+<p style="margin: 24px 0;">
+  <a href="{link}" \
+style="display: inline-block; padding: 10px 20px; background: #1863DC; color: #fff; \
+text-decoration: none; border-radius: 6px; font-weight: 600;">Jetzt abstimmen</a>
+</p>
+
+<p style="color: #4e4b66; font-size: 13px;">
+  Kein Login nötig. Der Link ist persönlich; die Stimme kann nur einmal
+  abgegeben werden.
+</p>
+<p style="color: #4e4b66; font-size: 13px;">
+  Bei Fragen:
+  <a href="mailto:support@wagner-hausverwaltung.com">support@wagner-hausverwaltung.com</a>
+</p>
+<hr style="border: none; border-top: 1px solid #ebebeb; margin: 32px 0 16px;">
+<p style="color: #4e4b66; font-size: 12px;">Wagner Hausverwaltung GmbH</p>
+</body>
+</html>
+"""
+
+    return subject, html, text
+
+
 def render_result_email(
     *,
     resolution_title: str,
