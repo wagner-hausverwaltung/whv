@@ -22,6 +22,7 @@ struct EinstellungenView: View {
     @EnvironmentObject var biometricLock: BiometricLockStore
 
     @StateObject private var dsgvo = DsgvoActionsStore()
+    @StateObject private var prefs = NotificationPrefsStore()
     @State private var exportURL: URL?
     @State private var deletePrompt = false
 
@@ -32,6 +33,7 @@ struct EinstellungenView: View {
                 appearanceSection
                 languageSection
                 sicherheitSection
+                benachrichtigungenSection
                 // Konto + Datenschutz cluster together at the
                 // bottom — both are account-action pairs (sign out
                 // up top, export + delete just below).
@@ -65,6 +67,7 @@ struct EinstellungenView: View {
             ) { wrapped in
                 ShareSheet(url: wrapped.url)
             }
+            .task { await prefs.load() }
         }
     }
 
@@ -218,6 +221,71 @@ struct EinstellungenView: View {
         }
     }
 
+    // MARK: - Benachrichtigungen
+    //
+    // Per-event Push / E-Mail matrix, backed by /me/notification-settings
+    // (the same endpoint the web portal uses, so a change here follows
+    // the user to the browser). Two labels-hidden toggles per row keep it
+    // compact; a caption header aligns "Push" / "E-Mail" above them.
+
+    @ViewBuilder
+    private var benachrichtigungenSection: some View {
+        Section {
+            if !prefs.isLoaded && prefs.items.isEmpty {
+                HStack {
+                    ProgressView()
+                    Text("Wird geladen…").foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    Spacer()
+                    Text("Push")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56)
+                    Text("E-Mail")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56)
+                }
+                ForEach(NotificationPrefsStore.order, id: \.self) { cat in
+                    if let idx = prefs.items.firstIndex(where: { $0.category == cat }) {
+                        HStack(spacing: 0) {
+                            Text(NotificationPrefsStore.label(for: cat))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Toggle(
+                                "",
+                                isOn: Binding(
+                                    get: { prefs.items[idx].push },
+                                    set: { v in
+                                        Task { await prefs.set(category: cat, channel: .push, value: v) }
+                                    }
+                                )
+                            )
+                            .labelsHidden()
+                            .frame(width: 56)
+                            Toggle(
+                                "",
+                                isOn: Binding(
+                                    get: { prefs.items[idx].email },
+                                    set: { v in
+                                        Task { await prefs.set(category: cat, channel: .email, value: v) }
+                                    }
+                                )
+                            )
+                            .labelsHidden()
+                            .frame(width: 56)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Benachrichtigungen")
+        } footer: {
+            Text("Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten.")
+        }
+    }
+
     @ViewBuilder
     private var datenschutzSection: some View {
         Section {
@@ -349,6 +417,69 @@ final class DsgvoActionsStore: ObservableObject {
             lastError = err.errorDescription
         } catch {
             lastError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Notification preferences store
+
+@MainActor
+final class NotificationPrefsStore: ObservableObject {
+    enum Channel { case push, email }
+
+    @Published var items: [NotificationSetting] = []
+    @Published private(set) var isLoaded = false
+    @Published var lastError: String?
+
+    private let api: APIClient
+
+    init(api: APIClient = APIClient()) {
+        self.api = api
+    }
+
+    func load() async {
+        do {
+            items = try await api.getNotificationSettings()
+            isLoaded = true
+        } catch let err as APIError {
+            lastError = err.errorDescription
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Optimistically flip one channel for one category, then PUT the
+    /// whole set. Reverts on failure so the toggle never lies.
+    func set(category: String, channel: Channel, value: Bool) async {
+        guard let idx = items.firstIndex(where: { $0.category == category }) else { return }
+        let snapshot = items
+        switch channel {
+        case .push: items[idx].push = value
+        case .email: items[idx].email = value
+        }
+        lastError = nil
+        do {
+            items = try await api.updateNotificationSettings(items)
+        } catch let err as APIError {
+            items = snapshot
+            lastError = err.errorDescription
+        } catch {
+            items = snapshot
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Render order — mirrors the backend category enum.
+    static let order = ["ANNOUNCEMENT", "TICKET", "ETV_COMMENT", "ETV_INVITATION", "DOCUMENT"]
+
+    static func label(for category: String) -> String {
+        switch category {
+        case "ANNOUNCEMENT": return "Mitteilungen / News"
+        case "TICKET": return "Anliegen / Tickets"
+        case "ETV_COMMENT": return "ETV-Kommentare"
+        case "ETV_INVITATION": return "ETV-Einladungen"
+        case "DOCUMENT": return "Neue Dokumente"
+        default: return category
         }
     }
 }

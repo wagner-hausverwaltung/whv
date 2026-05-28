@@ -259,6 +259,22 @@ struct ContractContextResponse: Codable, Hashable {
     let role: String?
 }
 
+/// One row of the per-user notification matrix from
+/// `/me/notification-settings`. `category` is one of
+/// ANNOUNCEMENT / TICKET / ETV_COMMENT / ETV_INVITATION / DOCUMENT.
+/// `push` + `email` are mutable so the settings view can toggle them
+/// in place before PUT-ing the whole set back.
+struct NotificationSetting: Codable, Hashable, Identifiable {
+    let category: String
+    var push: Bool
+    var email: Bool
+    var id: String { category }
+}
+
+struct NotificationSettingsResponse: Codable, Hashable {
+    let items: [NotificationSetting]
+}
+
 /// Full contact card returned by
 /// `GET /me/contracts/{contractId}/contacts/{contactId}`. Drives the
 /// sheet opened by tapping a contract chip on PropertyDetailView.
@@ -863,6 +879,49 @@ struct APIClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await performWithMapping(request)
         try Self.throwIfNotOK(response: response, data: data)
+    }
+
+    /// All-on default — mirrors the backend's opt-out semantics so the
+    /// matrix renders correctly in demo mode (no backend account).
+    static let defaultNotificationSettings: [NotificationSetting] = [
+        NotificationSetting(category: "ANNOUNCEMENT", push: true, email: true),
+        NotificationSetting(category: "TICKET", push: true, email: true),
+        NotificationSetting(category: "ETV_COMMENT", push: true, email: true),
+        NotificationSetting(category: "ETV_INVITATION", push: true, email: true),
+        NotificationSetting(category: "DOCUMENT", push: true, email: true),
+    ]
+
+    /// GET /me/notification-settings → the caller's full Push/E-Mail
+    /// matrix (defaults filled server-side). Demo mode returns the
+    /// all-on default so the UI still renders.
+    func getNotificationSettings() async throws -> [NotificationSetting] {
+        if DemoFlag.isActive { return Self.defaultNotificationSettings }
+        let resp: NotificationSettingsResponse = try await authedGET("/me/notification-settings")
+        return resp.items
+    }
+
+    /// PUT /me/notification-settings — persist the whole matrix; the
+    /// backend returns the re-read effective set. Demo mode echoes the
+    /// input back (nothing to persist).
+    func updateNotificationSettings(
+        _ items: [NotificationSetting]
+    ) async throws -> [NotificationSetting] {
+        if DemoFlag.isActive { return items }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        let body = try JSONEncoder().encode(NotificationSettingsResponse(items: items))
+        let url = baseURL.appending(path: "/me/notification-settings")
+        do {
+            let (data, response) = try await sendAuthed(
+                url: url, method: "PUT", body: body, token: token)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(NotificationSettingsResponse.self, from: data).items
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let (data, response) = try await sendAuthed(
+                url: url, method: "PUT", body: body, token: fresh)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(NotificationSettingsResponse.self, from: data).items
+        }
     }
 
     /// GET /me/assemblies/{id}/protocol → local file URL. Streams the
