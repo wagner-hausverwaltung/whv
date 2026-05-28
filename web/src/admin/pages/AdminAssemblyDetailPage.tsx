@@ -18,6 +18,10 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   Link,
@@ -25,9 +29,11 @@ import {
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AddTaskOutlinedIcon from "@mui/icons-material/AddTaskOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
@@ -442,7 +448,13 @@ function AgendaSection({ assembly, onChanged }: AgendaSectionProps) {
           </Typography>
         ) : (
           assembly.agenda_items.map((item) => (
-            <AgendaItemRow key={item.id} item={item} onChanged={refresh} />
+            <AgendaItemRow
+              key={item.id}
+              item={item}
+              propertyId={assembly.property_id}
+              assemblyTitle={assembly.title}
+              onChanged={refresh}
+            />
           ))
         )}
         <Divider />
@@ -456,13 +468,134 @@ function AgendaSection({ assembly, onChanged }: AgendaSectionProps) {
   );
 }
 
+// Pre-filled "Aufgabe erstellen" dialog: turns an ETV agenda point into
+// a Ticket (category SONSTIGES_ETV, internal/PRIVATE) via the standard
+// ticket flow — which already notifies the Verwalter team. Mounted only
+// while open so the fields initialise fresh from the agenda item.
+function CreateTaskFromAgendaDialog({
+  item,
+  propertyId,
+  assemblyTitle,
+  onClose,
+}: {
+  item: AgendaItemResponse;
+  propertyId: string;
+  assemblyTitle: string;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [subject, setSubject] = useState(() => item.title.slice(0, 200));
+  const [body, setBody] = useState(() =>
+    item.body.trim()
+      ? item.body
+      : `Aufgabe aus der Eigentümerversammlung "${assemblyTitle}", Tagesordnungspunkt "${item.title}".`,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+
+  const canSubmit = subject.trim().length >= 3 && body.trim().length >= 3;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.post<{ id: string }>("/me/tickets", {
+        subject: subject.trim(),
+        body: body.trim(),
+        category: "SONSTIGES_ETV",
+        property_id: propertyId,
+        share_scope: "PRIVATE",
+      });
+      setCreatedId(r.data.id);
+    } catch {
+      setError("Aufgabe konnte nicht erstellt werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Aufgabe aus Tagesordnungspunkt</DialogTitle>
+      <DialogContent>
+        {createdId ? (
+          <Alert severity="success" sx={{ mt: 1 }}>
+            Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt.
+          </Alert>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField
+              label="Betreff"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              fullWidth
+              required
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+            />
+            <TextField
+              label="Beschreibung"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              fullWidth
+              required
+              multiline
+              minRows={4}
+            />
+            <Typography variant="caption" color="text.secondary">
+              Wird als internes Ticket (Kategorie "Eigentümerversammlung")
+              angelegt und an das Verwalter-Team gemeldet.
+            </Typography>
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {createdId ? (
+          <>
+            <Button onClick={onClose}>Schließen</Button>
+            <Button
+              variant="contained"
+              onClick={() => navigate(`/admin/tickets/${createdId}`)}
+            >
+              Zur Aufgabe
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={onClose} disabled={busy}>
+              Abbrechen
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => void submit()}
+              disabled={!canSubmit || busy}
+            >
+              Aufgabe erstellen
+            </Button>
+          </>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 interface AgendaItemRowProps {
   item: AgendaItemResponse;
+  propertyId: string;
+  assemblyTitle: string;
   onChanged: () => Promise<void>;
 }
 
-function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
+function AgendaItemRow({
+  item,
+  propertyId,
+  assemblyTitle,
+  onChanged,
+}: AgendaItemRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
   const [voteYes, setVoteYes] = useState(item.vote_yes);
   const [voteNo, setVoteNo] = useState(item.vote_no);
   const [voteAbstain, setVoteAbstain] = useState(item.vote_abstain);
@@ -534,10 +667,30 @@ function AgendaItemRow({ item, onChanged }: AgendaItemRowProps) {
             )}
           </Stack>
         </Box>
-        <IconButton color="error" onClick={remove} aria-label="TOP löschen">
-          <DeleteIcon />
-        </IconButton>
+        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+          <Tooltip title="Aufgabe erstellen">
+            <IconButton
+              color="primary"
+              onClick={() => setTaskOpen(true)}
+              aria-label="Aufgabe erstellen"
+            >
+              <AddTaskOutlinedIcon />
+            </IconButton>
+          </Tooltip>
+          <IconButton color="error" onClick={remove} aria-label="TOP löschen">
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
       </Box>
+
+      {taskOpen && (
+        <CreateTaskFromAgendaDialog
+          item={item}
+          propertyId={propertyId}
+          assemblyTitle={assemblyTitle}
+          onClose={() => setTaskOpen(false)}
+        />
+      )}
 
       {expanded && (
         <Stack spacing={2} sx={{ mt: 2 }}>
