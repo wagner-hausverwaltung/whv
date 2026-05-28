@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -11,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.constants import WHV_ORGANIZATION_ID
 from app.db import get_session
+from app.integrations.docuseal.client import get_docuseal_client
 from app.integrations.email.client import EmailClient, get_email_client
 from app.integrations.email.inbound import (
     InboundEmailParseError,
@@ -57,6 +61,7 @@ from app.models import (
 )
 from app.redis_client import get_redis
 from app.schemas.webhook import ImpowerEntityType, ImpowerWebhookPayload
+from app.services.signatures import complete_signature_request
 
 logger = logging.getLogger(__name__)
 
@@ -633,3 +638,81 @@ def _threading_headers(parsed: Any) -> dict[str, str]:
         else:
             headers["References"] = parsed.message_id
     return headers
+
+
+# --- DocuSeal e-signature webhook (ADR-0012) -------------------------------
+
+
+def _verify_docuseal_webhook(*, body: bytes, headers: Any, secret: str) -> bool:
+    """Accept the webhook only if it proves the shared secret. Supports
+    both DocuSeal's HMAC-SHA256 body signature AND a plain shared-secret
+    header (DocuSeal can be configured either way) — confirm which against
+    the live instance per ADR-0012."""
+    if not secret:
+        return False
+    sig = headers.get("x-docuseal-signature") or headers.get("x-signature")
+    if sig:
+        expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(sig.strip().lower(), expected.lower()):
+            return True
+    for name in ("x-webhook-secret", "x-docuseal-secret"):
+        value = headers.get(name)
+        if value and hmac.compare_digest(value, secret):
+            return True
+    return False
+
+
+@router.post("/docuseal", status_code=200)
+async def receive_docuseal_webhook(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, str]:
+    """DocuSeal `form.completed` → download the signed PDF, file it in the
+    document tree (kind SIGNATUR), flip the signature_requests row to
+    COMPLETED. Verified with DOCUSEAL_WEBHOOK_SECRET; the header + payload
+    shape follows DocuSeal's documented webhook (verify against the
+    deployed version — adjustments live here + in the client)."""
+    body = await request.body()
+    if not _verify_docuseal_webhook(
+        body=body, headers=request.headers, secret=settings.docuseal_webhook_secret
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid DocuSeal signature"
+        )
+
+    try:
+        payload = json.loads(body or b"{}")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid JSON"
+        ) from exc
+
+    event = payload.get("event_type") or payload.get("event")
+    if event != "form.completed":
+        return {"status": "ignored"}
+
+    raw_data = payload.get("data")
+    data: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
+    raw_submission = data.get("submission")
+    submission: dict[str, Any] = raw_submission if isinstance(raw_submission, dict) else {}
+    sub = data.get("submission_id") or submission.get("id") or data.get("id")
+
+    docs = data.get("documents")
+    url: str | None = None
+    if isinstance(docs, list) and docs and isinstance(docs[0], dict):
+        candidate = docs[0].get("url")
+        url = candidate if isinstance(candidate, str) else None
+
+    if not isinstance(sub, int) or not url:
+        logger.warning(
+            "docuseal webhook: missing submission_id/url (data keys=%s)", list(data.keys())
+        )
+        return {"status": "ignored"}
+
+    client = get_docuseal_client(settings)
+    row = await complete_signature_request(
+        session, submission_id=sub, signed_pdf_url=url, client=client
+    )
+    await session.commit()
+    return {"status": "completed" if row is not None else "unknown"}

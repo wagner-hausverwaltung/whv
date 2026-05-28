@@ -11,6 +11,7 @@ from app.auth.bootstrap import generate_invite_code
 from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.integrations.docuseal.client import DocuSealError, get_docuseal_client
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.invites import render_invite_email
 from app.integrations.storage.documents import (
@@ -44,6 +45,7 @@ from app.models import (
     OrganizationPropertySelection,
     Property,
     ResolutionStatus,
+    SignatureRequest,
     Ticket,
     TicketStatus,
     Unit,
@@ -81,6 +83,8 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUpdateRequest,
 )
+from app.schemas.signature import SignatureRequestResponse
+from app.services import signatures as signatures_svc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -926,6 +930,100 @@ async def put_property_selection(
         row.updated_by_user_id = current_user.id
     await session.commit()
     return AdminPropertySelectionResponse(property_ids=ordered)
+
+
+@router.post(
+    "/signature-requests",
+    response_model=SignatureRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_signature_request_endpoint(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile,
+    recipient_email: Annotated[str, Query()],
+    recipient_name: Annotated[str | None, Query()] = None,
+    property_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> SignatureRequestResponse:
+    """Send a PDF out for e-signature via DocuSeal — the signer is emailed
+    (through SES) and signs without a portal account. Gated: 503 until
+    DocuSeal is configured. Optional property_id files the signed PDF
+    under that Liegenschaft."""
+    client = get_docuseal_client(settings)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Signatur-Dienst ist nicht konfiguriert.",
+        )
+
+    email = recipient_email.strip()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Empfänger-E-Mail fehlt."
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Leere Datei.")
+    if len(raw) > settings.document_max_bytes:
+        max_mb = settings.document_max_bytes // 1024 // 1024
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Datei darf höchstens {max_mb} MB groß sein.",
+        )
+
+    if property_id is not None:
+        await _load_property_for_org(session, current_user.organization_id, property_id)
+
+    try:
+        row = await signatures_svc.create_signature_request(
+            session,
+            organization_id=current_user.organization_id,
+            created_by_user_id=current_user.id,
+            property_id=property_id,
+            pdf_bytes=raw,
+            filename=file.filename or "Dokument.pdf",
+            recipient_email=email,
+            recipient_name=(recipient_name or "").strip() or None,
+            client=client,
+        )
+    except DocuSealError as exc:
+        # Persist the FAILED row, then surface a 502 to the SPA.
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"DocuSeal-Fehler: {exc}",
+        ) from exc
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="signature_request_created",
+            target_type="signature_requests",
+            target_id=str(row.id),
+            payload_json={"recipient_email": email, "filename": row.source_filename},
+        )
+    )
+    await session.commit()
+    await session.refresh(row)
+    return SignatureRequestResponse.model_validate(row)
+
+
+@router.get("/signature-requests", response_model=list[SignatureRequestResponse])
+async def list_signature_requests(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[SignatureRequestResponse]:
+    rows = (
+        await session.scalars(
+            select(SignatureRequest)
+            .where(SignatureRequest.organization_id == current_user.organization_id)
+            .order_by(SignatureRequest.created_at.desc())
+        )
+    ).all()
+    return [SignatureRequestResponse.model_validate(r) for r in rows]
 
 
 @router.get("/units", response_model=list[AdminUnitListItem])
