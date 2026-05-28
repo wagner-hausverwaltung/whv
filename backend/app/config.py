@@ -180,6 +180,14 @@ class Settings(BaseSettings):
     apns_bundle_id: str = "com.wagner-hausverwaltung.portal"
     apns_use_sandbox: bool = True
 
+    # DocuSeal e-signature (ADR-0012). Empty `docuseal_api_key` →
+    # DocuSealClient.is_configured is False; the create endpoint 503s
+    # and the feature ships dark until the self-hosted instance exists.
+    # `docuseal_webhook_secret` HMAC-verifies the completion webhook.
+    docuseal_base_url: str = ""
+    docuseal_api_key: str = ""
+    docuseal_webhook_secret: str = ""
+
     # LLM extraction pipeline (ADR-0008). One API key per provider,
     # selected by `llm_provider`. Empty key → factory raises rather
     # than silently no-op — extraction tasks then short-circuit with
