@@ -41,6 +41,7 @@ from app.models import (
     DocumentVisibility,
     EtvAssembly,
     InviteCode,
+    OrganizationPropertySelection,
     Property,
     ResolutionStatus,
     Ticket,
@@ -62,6 +63,8 @@ from app.schemas.admin import (
     AdminPropertyDetailResponse,
     AdminPropertyListItem,
     AdminPropertySearchResult,
+    AdminPropertySelectionResponse,
+    AdminPropertySelectionUpdate,
     AdminUnitDistributionKeysUpdate,
     AdminUnitListItem,
     BulkInviteOutcome,
@@ -858,6 +861,71 @@ async def list_properties(
         )
         for p in rows
     ]
+
+
+@router.get("/property-selection", response_model=AdminPropertySelectionResponse)
+async def get_property_selection(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminPropertySelectionResponse:
+    """The org-wide checked-property set for the units/fee box. Shared by
+    every Verwalter of the org; empty when nothing's been selected yet."""
+    row = await session.scalar(
+        select(OrganizationPropertySelection).where(
+            OrganizationPropertySelection.organization_id == current_user.organization_id
+        )
+    )
+    ids = [uuid.UUID(p) for p in row.property_ids] if row else []
+    return AdminPropertySelectionResponse(property_ids=ids)
+
+
+@router.put("/property-selection", response_model=AdminPropertySelectionResponse)
+async def put_property_selection(
+    payload: AdminPropertySelectionUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AdminPropertySelectionResponse:
+    """Replace the org-wide checked-property set (last write wins). Stale
+    or foreign ids are dropped so the shared selection stays clean."""
+    org_id = current_user.organization_id
+    valid_ids: set[uuid.UUID] = set()
+    if payload.property_ids:
+        rows = await session.scalars(
+            select(Property.id).where(
+                Property.organization_id == org_id,
+                Property.deleted_at.is_(None),
+                Property.id.in_(payload.property_ids),
+            )
+        )
+        valid_ids = set(rows.all())
+
+    # Keep the caller's order, drop invalid ids + duplicates.
+    seen: set[uuid.UUID] = set()
+    ordered: list[uuid.UUID] = []
+    for pid in payload.property_ids:
+        if pid in valid_ids and pid not in seen:
+            seen.add(pid)
+            ordered.append(pid)
+    stored = [str(pid) for pid in ordered]
+
+    row = await session.scalar(
+        select(OrganizationPropertySelection).where(
+            OrganizationPropertySelection.organization_id == org_id
+        )
+    )
+    if row is None:
+        session.add(
+            OrganizationPropertySelection(
+                organization_id=org_id,
+                property_ids=stored,
+                updated_by_user_id=current_user.id,
+            )
+        )
+    else:
+        row.property_ids = stored
+        row.updated_by_user_id = current_user.id
+    await session.commit()
+    return AdminPropertySelectionResponse(property_ids=ordered)
 
 
 @router.get("/units", response_model=list[AdminUnitListItem])

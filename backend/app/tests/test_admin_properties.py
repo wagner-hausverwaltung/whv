@@ -4,6 +4,7 @@ in the current calendar year)."""
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -88,3 +89,43 @@ async def test_admin_properties_units_count_and_open_etv(
 
     # A prior-year ETV does not count as this year's.
     assert by_name["CCC Haus"]["needs_current_year_etv"] is True
+
+
+async def test_property_selection_persists_org_wide(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, v1email, v1pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _, v2email, v2pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop_a = await make_property(test_engine, org=org, name="Sel A")
+    prop_b = await make_property(test_engine, org=org, name="Sel B")
+
+    h1 = {"Authorization": f"Bearer {_login(v1email, v1pw)}"}
+    with TestClient(app) as client:
+        # Empty until something is selected.
+        r0 = client.get("/admin/property-selection", headers=h1)
+        assert r0.status_code == 200
+        assert r0.json()["property_ids"] == []
+
+        # V1 saves a selection containing a bogus id + a duplicate, which
+        # the endpoint must drop while preserving order.
+        bogus = str(uuid.uuid4())
+        r1 = client.put(
+            "/admin/property-selection",
+            headers=h1,
+            json={
+                "property_ids": [
+                    str(prop_a.id),
+                    bogus,
+                    str(prop_b.id),
+                    str(prop_a.id),
+                ]
+            },
+        )
+        assert r1.status_code == 200
+        assert r1.json()["property_ids"] == [str(prop_a.id), str(prop_b.id)]
+
+    # A second Verwalter of the same org sees the shared selection.
+    h2 = {"Authorization": f"Bearer {_login(v2email, v2pw)}"}
+    with TestClient(app) as client:
+        r2 = client.get("/admin/property-selection", headers=h2)
+        assert r2.status_code == 200
+        assert r2.json()["property_ids"] == [str(prop_a.id), str(prop_b.id)]

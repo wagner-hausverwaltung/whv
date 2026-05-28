@@ -48,11 +48,35 @@ export function AdminPropertiesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    api
-      .get<AdminPropertyListItem[]>("/admin/properties")
-      .then((r) => setRows(r.data))
-      .catch(() => setError(t("admin.stammdaten.loadFailed")));
+    let cancelled = false;
+    Promise.all([
+      api.get<AdminPropertyListItem[]>("/admin/properties"),
+      api.get<{ property_ids: string[] }>("/admin/property-selection"),
+    ])
+      .then(([propsRes, selRes]) => {
+        if (cancelled) return;
+        const ids = new Set(propsRes.data.map((p) => p.id));
+        setRows(propsRes.data);
+        // Drop any ids whose property no longer exists.
+        setSelected(new Set(selRes.data.property_ids.filter((id) => ids.has(id))));
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("admin.stammdaten.loadFailed"));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [t]);
+
+  // Persist the org-wide selection on every change (last write wins;
+  // best-effort — the next change retries, no intrusive error).
+  const saveSelection = (ids: string[]) => {
+    void api.put("/admin/property-selection", { property_ids: ids }).catch(() => {});
+  };
+  const applySelection = (next: Set<string>) => {
+    setSelected(next);
+    saveSelection([...next]);
+  };
 
   const totalUnits = useMemo(
     () =>
@@ -74,14 +98,13 @@ export function AdminPropertiesPage() {
   const allSelected = rows.length > 0 && rows.every((p) => selected.has(p.id));
   const someSelected = selected.size > 0 && !allSelected;
   const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(rows.map((p) => p.id)));
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    applySelection(allSelected ? new Set() : new Set(rows.map((p) => p.id)));
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applySelection(next);
+  };
 
   return (
     <Stack spacing={3}>
@@ -123,7 +146,7 @@ export function AdminPropertiesPage() {
               })}
             </Typography>
           </Box>
-          <Button size="small" onClick={() => setSelected(new Set())}>
+          <Button size="small" onClick={() => applySelection(new Set())}>
             {t("admin.propertiesPage.clearSelection")}
           </Button>
         </Paper>

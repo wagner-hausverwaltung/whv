@@ -53,6 +53,7 @@ from app.models.notification_preference import (
     UserNotificationPreference,
 )
 from app.models.organization import Organization
+from app.models.organization_property_selection import OrganizationPropertySelection
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.ticket import (
     Ticket,
@@ -105,6 +106,7 @@ __all__ = [
     "NotificationCategory",
     "NotificationChannel",
     "Organization",
+    "OrganizationPropertySelection",
     "PasswordResetToken",
     "PreferredChannel",
     "Property",

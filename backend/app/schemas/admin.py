@@ -212,6 +212,17 @@ class AdminPropertyListItem(BaseModel):
     needs_current_year_etv: bool = False
 
 
+class AdminPropertySelectionResponse(BaseModel):
+    """The org-wide set of property ids checked for the units/fee box —
+    shared by all Verwalter of the organization."""
+
+    property_ids: list[uuid.UUID]
+
+
+class AdminPropertySelectionUpdate(BaseModel):
+    property_ids: list[uuid.UUID]
+
+
 class AdminUnitListItem(BaseModel):
     """Unit row joined to its property name for the /admin/units table.
 
