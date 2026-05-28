@@ -379,7 +379,9 @@
     "signaturesPage": {
       "title": "Signaturen",
       "new": "Neue Signatur",
-      "intro": "Dokumente per E-Mail zur digitalen Unterschrift versenden — der Empfänger unterschreibt online, ganz ohne Portalzugang.",
+      "intro": "Erstellen und versenden Sie Signaturanfragen direkt unten in DocuSeal — der Empfänger unterschreibt per E-Mail, ganz ohne Portalzugang. Abgeschlossene Dokumente werden automatisch im Dokumentenarchiv abgelegt und unten aufgelistet.",
+      "openInNewTab": "In neuem Tab öffnen",
+      "completedTitle": "Abgeschlossene Signaturen",
       "empty": "Noch keine Signaturanfragen.",
       "loadFailed": "Signaturen konnten nicht geladen werden.",
       "colStatus": "Status",

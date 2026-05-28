@@ -76,7 +76,15 @@ staging.portal.wagner-hausverwaltung.com {
 sign.wagner-hausverwaltung.com {
     encode gzip zstd
 
-    reverse_proxy docuseal:3000
+    reverse_proxy docuseal:3000 {
+        # DocuSeal sends `X-Frame-Options: SAMEORIGIN`, which blocks the WHV
+        # admin from embedding its (free, Community-edition) UI in an iframe.
+        # Drop it and instead allow framing only from our own origins via a
+        # CSP frame-ancestors directive (admin + portal share this site, so
+        # DocuSeal's login cookie still works inside the frame).
+        header_down -X-Frame-Options
+        header_down Content-Security-Policy "frame-ancestors 'self' https://staging.admin.wagner-hausverwaltung.com https://staging.portal.wagner-hausverwaltung.com"
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"

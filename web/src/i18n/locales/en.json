@@ -379,7 +379,9 @@
     "signaturesPage": {
       "title": "Signatures",
       "new": "New signature",
-      "intro": "Send documents for digital signature by email — the recipient signs online, with no portal account.",
+      "intro": "Create and send signature requests directly in DocuSeal below — the recipient signs by email, with no portal account. Completed documents are archived automatically and listed below.",
+      "openInNewTab": "Open in new tab",
+      "completedTitle": "Completed signatures",
       "empty": "No signature requests yet.",
       "loadFailed": "Signatures could not be loaded.",
       "colStatus": "Status",

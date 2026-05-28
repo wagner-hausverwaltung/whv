@@ -1,19 +1,22 @@
-// Admin "Signaturen" tab (ADR-0012): send a PDF out for digital
-// signature via DocuSeal (recipient gets an SES email, no portal
-// account) and track status. Ships gated — creating returns 503 until
-// the DocuSeal instance + env are configured, which we surface plainly.
+// Admin "Signaturen" tab (ADR-0012). DocuSeal's open-source edition gates
+// the headless "PDF → signature" API behind Pro, so instead of driving it
+// from the backend we embed DocuSeal's full (free) UI in an iframe: the
+// Verwalter uploads a PDF, places fields, picks a recipient and sends —
+// all inside DocuSeal, which emails the signer via SES (no portal account).
+// On completion DocuSeal calls our webhook, which archives the signed PDF
+// into the document store; those completed signatures are listed below.
+//
+// sign. and admin. share the same site (*.wagner-hausverwaltung.com), so
+// DocuSeal's login cookie works inside the frame; Caddy strips DocuSeal's
+// X-Frame-Options + sets a frame-ancestors CSP so the admin may embed it.
 
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
-  Button,
+  Box,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
-  MenuItem,
+  Link,
   Paper,
   Stack,
   Table,
@@ -22,16 +25,17 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
-import UploadFileIcon from "@mui/icons-material/UploadFileOutlined";
+import OpenInNewIcon from "@mui/icons-material/OpenInNewOutlined";
 import { useTranslation } from "react-i18next";
 import { api, API_BASE_URL, getAccessToken } from "@/api/client";
 import type { AdminPropertyListItem, SignatureRequestResponse } from "@/api/types";
+
+// The self-hosted DocuSeal instance (Caddy allows framing it from here).
+const DOCUSEAL_URL = "https://sign.wagner-hausverwaltung.com";
 
 const STATUS_COLOR: Record<
   SignatureRequestResponse["status"],
@@ -66,7 +70,6 @@ export function AdminSignaturesPage() {
   const [rows, setRows] = useState<SignatureRequestResponse[] | null>(null);
   const [properties, setProperties] = useState<AdminPropertyListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -99,13 +102,15 @@ export function AdminSignaturesPage() {
         <Typography variant="h4" component="h1">
           {t("admin.signaturesPage.title")}
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogOpen(true)}
+        <Link
+          href={DOCUSEAL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
         >
-          {t("admin.signaturesPage.new")}
-        </Button>
+          <OpenInNewIcon fontSize="small" />
+          {t("admin.signaturesPage.openInNewTab")}
+        </Link>
       </Stack>
       <Typography variant="body2" color="text.secondary">
         {t("admin.signaturesPage.intro")}
@@ -113,6 +118,24 @@ export function AdminSignaturesPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
+      {/* Embedded DocuSeal — create + send signature requests here. */}
+      <Box
+        component="iframe"
+        src={DOCUSEAL_URL}
+        title="DocuSeal"
+        sx={{
+          width: "100%",
+          height: "78vh",
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 1,
+          bgcolor: "background.paper",
+        }}
+      />
+
+      <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 1 }}>
+        {t("admin.signaturesPage.completedTitle")}
+      </Typography>
       {rows === null ? (
         <Typography variant="body2" color="text.secondary">
           {t("common.loading")}
@@ -192,128 +215,6 @@ export function AdminSignaturesPage() {
           </Table>
         </TableContainer>
       )}
-
-      {dialogOpen && (
-        <NewSignatureDialog
-          properties={properties}
-          onClose={() => setDialogOpen(false)}
-          onCreated={() => {
-            setDialogOpen(false);
-            void load();
-          }}
-        />
-      )}
     </Stack>
-  );
-}
-
-function NewSignatureDialog({
-  properties,
-  onClose,
-  onCreated,
-}: {
-  properties: AdminPropertyListItem[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const { t } = useTranslation();
-  const [file, setFile] = useState<File | null>(null);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const canSubmit = file !== null && /\S+@\S+\.\S+/.test(email.trim());
-
-  const submit = async () => {
-    if (!canSubmit || !file) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ recipient_email: email.trim() });
-      if (name.trim()) params.set("recipient_name", name.trim());
-      if (propertyId) params.set("property_id", propertyId);
-      const form = new FormData();
-      form.append("file", file);
-      await api.post(`/admin/signature-requests?${params.toString()}`, form);
-      onCreated();
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } }).response?.status;
-      const detail = (err as { response?: { data?: { detail?: string } } })
-        .response?.data?.detail;
-      setError(
-        status === 503
-          ? t("admin.signaturesPage.notConfigured")
-          : (detail ?? t("admin.signaturesPage.createFailed")),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{t("admin.signaturesPage.new")}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
-            {file ? file.name : t("admin.signaturesPage.choosePdf")}
-            <input
-              hidden
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-          </Button>
-          <TextField
-            label={t("admin.signaturesPage.recipientEmail")}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            fullWidth
-          />
-          <TextField
-            label={t("admin.signaturesPage.recipientName")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            fullWidth
-          />
-          <TextField
-            select
-            label={t("admin.signaturesPage.property")}
-            value={propertyId}
-            onChange={(e) => setPropertyId(e.target.value)}
-            fullWidth
-          >
-            <MenuItem value="">
-              <em>{t("admin.signaturesPage.noProperty")}</em>
-            </MenuItem>
-            {properties.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.name}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Typography variant="caption" color="text.secondary">
-            {t("admin.signaturesPage.dialogHint")}
-          </Typography>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={busy}>
-          {t("common.cancel")}
-        </Button>
-        <Button
-          variant="contained"
-          onClick={() => void submit()}
-          disabled={!canSubmit || busy}
-        >
-          {t("admin.signaturesPage.send")}
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }
