@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -24,6 +25,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
   Paper,
   Stack,
   TextField,
@@ -66,6 +68,46 @@ function formatBytes(bytes: number | null): string {
     i++;
   }
   return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+// Per-class chip colour so the document tree is scannable at a glance.
+// Keys are the backend DocumentKind enum values; unknown kinds fall
+// back to a neutral chip.
+const KIND_COLOR: Record<
+  string,
+  "default" | "primary" | "secondary" | "success" | "info" | "warning"
+> = {
+  RECHNUNG: "warning",
+  JAHRESABRECHNUNG: "info",
+  WIRTSCHAFTSPLAN: "info",
+  PROTOKOLL: "success",
+  VERTRAG: "primary",
+  UMLAUFBESCHLUSS: "secondary",
+  HAUSORDNUNG: "default",
+  SONSTIGES: "default",
+};
+
+function kindColor(kind: string): (typeof KIND_COLOR)[string] {
+  return KIND_COLOR[kind] ?? "default";
+}
+
+// Year bucket for grouping — issued date wins, upload time is the
+// fallback (Impower imports don't always carry an issued date). Empty
+// string == "no date" so the caller renders a localized heading.
+function docYearKey(d: DocumentResponse): string {
+  const head = (d.issued_date ?? d.uploaded_at ?? "").slice(0, 4);
+  return /^\d{4}$/.test(head) ? head : "";
+}
+
+const EUR = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+});
+
+function formatDocAmount(amount: string | null | undefined): string | null {
+  if (!amount) return null;
+  const n = Number(amount);
+  return Number.isFinite(n) ? EUR.format(n) : null;
 }
 
 /** Shared Verwalter-managed document explorer used by both the admin
@@ -127,6 +169,17 @@ export function DocumentFoldersPanel({
     return null;
   };
 
+  // Invoice "name" from Impower is just the bare document number, which
+  // reads as a meaningless ID in the list. For RECHNUNG docs lead with
+  // the amount (the recognisable bit) and keep the number as context.
+  const docTitle = (d: DocumentResponse): string => {
+    if (d.kind === "RECHNUNG") {
+      const amount = formatDocAmount(d.amount);
+      if (amount) return d.name ? `${amount} · ${d.name}` : amount;
+    }
+    return d.name;
+  };
+
   const refresh = useCallback(async () => {
     setLoadError(null);
     try {
@@ -186,6 +239,22 @@ export function DocumentFoldersPanel({
           return bd.localeCompare(ad) || a.name.localeCompare(b.name);
         }),
     [docs, currentFolderId],
+  );
+
+  // Tag each doc with a year header when the year changes (docsHere is
+  // already sorted newest-first), so the list groups by year without a
+  // separate data structure. header === null means "same year as the
+  // row above"; "" is the undated bucket (rendered as a localized label).
+  // Derived from the previous row (not a mutable accumulator) so the
+  // React Compiler doesn't flag a reassignment during render.
+  const docRows = useMemo(
+    () =>
+      docsHere.map((d, idx) => {
+        const year = docYearKey(d);
+        const prevYear = idx > 0 ? docYearKey(docsHere[idx - 1]!) : null;
+        return { doc: d, header: year !== prevYear ? year : null };
+      }),
+    [docsHere],
   );
 
   const createFolder = async (e: FormEvent) => {
@@ -428,86 +497,114 @@ export function DocumentFoldersPanel({
                 </ListItemButton>
               </ListItem>
             ))}
-            {docsHere.map((d, i) => (
-              <ListItem
-                key={d.id}
-                disablePadding
-                divider={i < docsHere.length - 1}
-                secondaryAction={
-                  /* Always render a visible Download affordance — the
-                     whole row is also clickable but the icon makes
-                     the action discoverable. Admins additionally get
-                     a Delete icon to the right of it. The stopPropagation
-                     on each button keeps the row-level onClick from
-                     firing twice. */
-                  <Stack direction="row" spacing={0.5}>
-                    <Tooltip title={t("documents.docDownload")}>
-                      <IconButton
-                        edge="end"
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void downloadDoc(d);
-                        }}
-                        aria-label={t("documents.docDownload")}
-                      >
-                        <DownloadOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {mode === "admin" && (
-                      <Tooltip title={t("documents.docDelete")}>
+            {docRows.map(({ doc: d, header }, i) => (
+              <Fragment key={d.id}>
+                {header !== null && (
+                  <ListSubheader
+                    disableSticky
+                    sx={{
+                      bgcolor: "transparent",
+                      lineHeight: 2.2,
+                      fontWeight: 700,
+                      letterSpacing: 0.5,
+                      color: "text.secondary",
+                    }}
+                  >
+                    {header || t("documents.noDate")}
+                  </ListSubheader>
+                )}
+                <ListItem
+                  disablePadding
+                  divider={i < docRows.length - 1}
+                  secondaryAction={
+                    /* Always render a visible Download affordance — the
+                       whole row is also clickable but the icon makes
+                       the action discoverable. Admins additionally get
+                       a Delete icon to the right of it. The stopPropagation
+                       on each button keeps the row-level onClick from
+                       firing twice. */
+                    <Stack direction="row" spacing={0.5}>
+                      <Tooltip title={t("documents.docDownload")}>
                         <IconButton
                           edge="end"
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            void deleteDoc(d.id);
+                            void downloadDoc(d);
                           }}
-                          aria-label={t("documents.docDelete")}
+                          aria-label={t("documents.docDownload")}
                         >
-                          <DeleteOutlineIcon fontSize="small" />
+                          <DownloadOutlinedIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                    )}
-                  </Stack>
-                }
-              >
-                <ListItemButton onClick={() => void downloadDoc(d)}>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <DescriptionOutlinedIcon color="action" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Stack
-                        direction="row"
-                        sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}
-                      >
-                        <Typography variant="body2">{d.name}</Typography>
-                        {(() => {
-                          const chip = scopeChip(d);
-                          return chip ? (
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={chip.label}
-                            />
-                          ) : null;
-                        })()}
-                      </Stack>
-                    }
-                    secondary={
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        component="span"
-                      >
-                        {d.kind} · {formatBytes(d.size_bytes)}
-                        {d.issued_date ? ` · ${d.issued_date}` : ""}
-                      </Typography>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
+                      {mode === "admin" && (
+                        <Tooltip title={t("documents.docDelete")}>
+                          <IconButton
+                            edge="end"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void deleteDoc(d.id);
+                            }}
+                            aria-label={t("documents.docDelete")}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  }
+                >
+                  <ListItemButton onClick={() => void downloadDoc(d)}>
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      <DescriptionOutlinedIcon color="action" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Stack
+                          direction="row"
+                          sx={{
+                            alignItems: "center",
+                            gap: 1,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {/* Class pill (Rechnung / Protokoll / …) so the
+                              document type is obvious at a glance. */}
+                          <Chip
+                            size="small"
+                            color={kindColor(d.kind)}
+                            label={t(`documents.kind.${d.kind}`, {
+                              defaultValue: d.kind,
+                            })}
+                          />
+                          <Typography variant="body2">{docTitle(d)}</Typography>
+                          {(() => {
+                            const chip = scopeChip(d);
+                            return chip ? (
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                label={chip.label}
+                              />
+                            ) : null;
+                          })()}
+                        </Stack>
+                      }
+                      secondary={
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          component="span"
+                        >
+                          {formatBytes(d.size_bytes)}
+                          {d.issued_date ? ` · ${d.issued_date}` : ""}
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              </Fragment>
             ))}
           </List>
         )}

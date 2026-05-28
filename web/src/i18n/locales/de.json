@@ -142,7 +142,18 @@
     "scopePersonal": "Persönlich",
     "scopeContract": "Vertrag",
     "scopeUnitNamed": "Einheit {{name}}",
-    "scopeUnit": "Einheit"
+    "scopeUnit": "Einheit",
+    "noDate": "Ohne Datum",
+    "kind": {
+      "RECHNUNG": "Rechnung",
+      "JAHRESABRECHNUNG": "Jahresabrechnung",
+      "WIRTSCHAFTSPLAN": "Wirtschaftsplan",
+      "PROTOKOLL": "Protokoll",
+      "VERTRAG": "Vertrag",
+      "UMLAUFBESCHLUSS": "Umlaufbeschluss",
+      "HAUSORDNUNG": "Hausordnung",
+      "SONSTIGES": "Sonstiges"
+    }
   },
   "tickets": {
     "title": "Meine Tickets",
