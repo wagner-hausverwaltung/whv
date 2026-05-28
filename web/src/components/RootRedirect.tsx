@@ -22,6 +22,7 @@ import {
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import { api } from "@/api/client";
 import type { PropertyResponse } from "@/api/types";
+import { getRememberedPropertyId } from "@/lib/activeProperty";
 
 type State =
   | { kind: "loading" }
@@ -38,11 +39,17 @@ export function RootRedirect() {
       .get<PropertyResponse[]>("/me/properties")
       .then((r) => {
         if (cancelled) return;
-        const first = r.data[0];
-        if (first) {
+        // Prefer the last property the user looked at (set by the
+        // AppBar switcher) so "home" doesn't bounce them to a
+        // different Liegenschaft than the one they had open.
+        const remembered = getRememberedPropertyId();
+        const target =
+          (remembered && r.data.find((p) => p.id === remembered)) ||
+          r.data[0];
+        if (target) {
           setState({
             kind: "redirect",
-            to: `/properties/${first.id}/details`,
+            to: `/properties/${target.id}/details`,
           });
         } else {
           setState({ kind: "empty" });

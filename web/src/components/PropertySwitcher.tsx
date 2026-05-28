@@ -37,6 +37,10 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CheckIcon from "@mui/icons-material/Check";
 import { api, API_BASE_URL } from "@/api/client";
 import type { PropertyResponse } from "@/api/types";
+import {
+  getRememberedPropertyId,
+  rememberPropertyId,
+} from "@/lib/activeProperty";
 
 function formatAddress(p: PropertyResponse): string | null {
   const street = [p.street, p.number].filter(Boolean).join(" ");
@@ -113,10 +117,25 @@ export function PropertySwitcher() {
     return (m?.params.id as string | undefined) ?? null;
   }, [location.pathname]);
 
+  // Persist whichever property the URL points at, so the id-less global
+  // routes (/tickets, /resolutions, /settings) can fall back to it
+  // instead of snapping to the first property in the list.
+  useEffect(() => {
+    if (activeId) rememberPropertyId(activeId);
+  }, [activeId]);
+
   const active: PropertyResponse | null = useMemo(() => {
     if (!properties || properties.length === 0) return null;
+    // 1. A property route — the URL is the source of truth.
     if (activeId) {
       return properties.find((p) => p.id === activeId) ?? properties[0]!;
+    }
+    // 2. A global route (no :id) — keep showing the last property the
+    //    user actually visited rather than defaulting to the first.
+    const remembered = getRememberedPropertyId();
+    if (remembered) {
+      const found = properties.find((p) => p.id === remembered);
+      if (found) return found;
     }
     return properties[0] ?? null;
   }, [properties, activeId]);
