@@ -1,10 +1,11 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Avatar,
   Box,
   Button,
+  Divider,
   Paper,
   Stack,
   TextField,
@@ -13,7 +14,36 @@ import {
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
 import { api, API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { NotificationSettings } from "@/components/NotificationSettings";
 import type { UserResponse } from "@/api/types";
+
+// Compact card wrapper + section title, so every block shares the same
+// tight rhythm (less padding + smaller heading than the old h6 cards).
+function Section({ title, color, children }: { title: string; color?: "error"; children: ReactNode }) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={(theme) => ({
+        p: 2,
+        ...(color === "error" && {
+          borderColor:
+            theme.palette.mode === "dark"
+              ? "rgba(220, 38, 38, 0.4)"
+              : "rgba(220, 38, 38, 0.3)",
+        }),
+      })}
+    >
+      <Typography
+        variant="subtitle1"
+        color={color}
+        sx={{ fontWeight: 700, mb: 1.5 }}
+      >
+        {title}
+      </Typography>
+      {children}
+    </Paper>
+  );
+}
 
 function initialsOf(email: string): string {
   const local = email.split("@")[0] ?? email;
@@ -138,48 +168,47 @@ export function SettingsPage() {
   };
 
   return (
-    <Stack spacing={4}>
-      <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+    <Stack spacing={2.5} sx={{ maxWidth: 760, mx: "auto", width: "100%" }}>
+      <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
         Einstellungen
       </Typography>
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
-        <Typography variant="h6" gutterBottom>
-          Profilbild
-        </Typography>
+      {/* Profil & Konto — avatar + identity in one compact row. */}
+      <Section title="Profil">
         {avatarError && (
-          <Alert
-            severity="error"
-            onClose={() => setAvatarError(null)}
-            sx={{ mb: 2 }}
-          >
+          <Alert severity="error" onClose={() => setAvatarError(null)} sx={{ mb: 1.5 }}>
             {avatarError}
           </Alert>
         )}
-        <Stack direction="row" spacing={3} sx={{ alignItems: "center" }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Avatar
-            src={
-              user.avatar_url ? `${API_BASE_URL}${user.avatar_url}` : undefined
-            }
+            src={user.avatar_url ? `${API_BASE_URL}${user.avatar_url}` : undefined}
             sx={{
-              width: 80,
-              height: 80,
+              width: 64,
+              height: 64,
               bgcolor: "primary.main",
               color: "primary.contrastText",
-              fontSize: "1.5rem",
+              fontSize: "1.25rem",
             }}
           >
             {initialsOf(user.email)}
           </Avatar>
-          <Stack spacing={1}>
-            <Typography variant="body2" color="text.secondary">
-              JPEG, PNG oder WebP, max. 4 MB. Wir verkleinern automatisch auf
-              256×256.
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{ fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all" }}
+            >
+              {user.email}
             </Typography>
-            <Stack direction="row" spacing={1}>
+            <Typography variant="caption" color="text.secondary">
+              Rolle: {user.role}
+              {user.contact_id_impower !== null && ` · Impower-ID ${user.contact_id_impower}`}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
               <Button
+                size="small"
                 variant="outlined"
                 startIcon={<PhotoCameraOutlinedIcon />}
                 onClick={onPickAvatar}
@@ -193,6 +222,7 @@ export function SettingsPage() {
               </Button>
               {user.avatar_url && (
                 <Button
+                  size="small"
                   variant="text"
                   color="inherit"
                   onClick={onAvatarRemove}
@@ -202,147 +232,105 @@ export function SettingsPage() {
                 </Button>
               )}
             </Stack>
-            <input
-              ref={fileInputRef}
-              type="file"
-              // Broaden the picker hint to image/* so iPhone HEIC/HEIF
-              // shows up too. We still only persist what Pillow can
-              // decode server-side — if a HEIC slips through, the
-              // backend returns "Ungültige Bilddatei: …" which now
-              // renders in the inline Alert above.
-              accept="image/*"
-              hidden
-              onChange={onAvatarChange}
-            />
-          </Stack>
+          </Box>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={onAvatarChange}
+          />
         </Stack>
-      </Paper>
+      </Section>
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
-        <Typography variant="h6" gutterBottom>
-          Konto
+      {/* Benachrichtigungen — the Push/E-Mail matrix (shared with iOS). */}
+      <Section title="Benachrichtigungen">
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+          Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail
+          benachrichtigt werden möchten.
         </Typography>
-        <Stack spacing={1}>
-          <Box>
-            <Typography component="span" variant="body2" color="text.secondary">
-              E-Mail:{" "}
-            </Typography>
-            <Typography
-              component="span"
-              variant="body2"
-              sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
-            >
-              {user.email}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography component="span" variant="body2" color="text.secondary">
-              Rolle:{" "}
-            </Typography>
-            <Typography component="span" variant="body2">
-              {user.role}
-            </Typography>
-          </Box>
-          {user.contact_id_impower !== null && (
-            <Box>
-              <Typography
-                component="span"
-                variant="body2"
-                color="text.secondary"
-              >
-                Impower-Kontakt-ID:{" "}
+        <NotificationSettings />
+      </Section>
+
+      {/* Sicherheit & Daten — password reset + DSGVO export, two tight rows. */}
+      <Section title="Sicherheit & Daten">
+        <Stack divider={<Divider flexItem />} spacing={1.5}>
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Passwort ändern
               </Typography>
-              <Typography
-                component="span"
-                variant="body2"
-                sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
-              >
-                {user.contact_id_impower}
+              <Typography variant="caption" color="text.secondary">
+                Reset-Link an {user.email} — 30 Min. gültig, beendet alle Sitzungen.
               </Typography>
             </Box>
-          )}
+            {pwRequested ? (
+              <Typography variant="caption" color="success.main" sx={{ flexShrink: 0 }}>
+                ✓ E-Mail versandt
+              </Typography>
+            ) : (
+              <Button size="small" variant="outlined" onClick={requestPwReset} sx={{ flexShrink: 0 }}>
+                Reset-E-Mail
+              </Button>
+            )}
+          </Stack>
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Meine Daten exportieren
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                DSGVO Art. 20 — alle Kontodaten als JSON-Datei.
+              </Typography>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={downloadExport}
+              disabled={exporting}
+              sx={{ flexShrink: 0 }}
+            >
+              {exporting ? "Wird vorbereitet…" : "JSON-Export"}
+            </Button>
+          </Stack>
         </Stack>
-      </Paper>
+      </Section>
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
-        <Typography variant="h6" gutterBottom>
-          Passwort ändern
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Klicken Sie unten, um eine Reset-E-Mail an{" "}
-          <strong>{user.email}</strong> zu senden. Der Link ist 30 Minuten
-          gültig und beendet alle aktiven Sitzungen.
-        </Typography>
-        {pwRequested ? (
-          <Alert severity="success">
-            ✓ Reset-E-Mail wurde versandt. Bitte prüfen Sie Ihren Posteingang.
-          </Alert>
-        ) : (
-          <Button variant="outlined" onClick={requestPwReset}>
-            Reset-E-Mail anfordern
-          </Button>
-        )}
-      </Paper>
-
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
-        <Typography variant="h6" gutterBottom>
-          Meine Daten exportieren
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          DSGVO Art. 20 — alle zu Ihrem Konto gespeicherten Daten als
-          JSON-Datei herunterladen.
-        </Typography>
-        <Button
-          variant="outlined"
-          onClick={downloadExport}
-          disabled={exporting}
-        >
-          {exporting ? "Wird vorbereitet…" : "JSON-Export herunterladen"}
-        </Button>
-      </Paper>
-
-      <Paper
-        variant="outlined"
-        sx={(theme) => ({
-          p: 2.5,
-          borderColor:
-            theme.palette.mode === "dark"
-              ? "rgba(220, 38, 38, 0.4)"
-              : "rgba(220, 38, 38, 0.3)",
-        })}
-      >
-        <Typography variant="h6" color="error" gutterBottom>
-          Konto löschen
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          Ihr Konto wird zum Löschen markiert (30-Tage-Wiederherstellungsfenster).
-          Alle aktiven Sitzungen werden beendet. Die in Impower hinterlegten
-          Stammdaten bleiben unberührt.
-        </Typography>
+      {/* Danger zone. */}
+      <Section title="Konto löschen" color="error">
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-          Tippen Sie <strong>LÖSCHEN</strong> in das Feld unten, um zu bestätigen.
+          Markiert das Konto zum Löschen (30-Tage-Fenster) und beendet alle
+          Sitzungen. Die in Impower hinterlegten Stammdaten bleiben unberührt.
+          Tippen Sie <strong>LÖSCHEN</strong> zum Bestätigen.
         </Typography>
-        <Stack spacing={1.5}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             type="text"
             size="small"
             placeholder="LÖSCHEN"
             value={deleteConfirm}
             onChange={(e) => setDeleteConfirm(e.target.value)}
-            sx={{ maxWidth: 280 }}
+            sx={{ maxWidth: 200 }}
           />
-          <Box>
-            <Button
-              variant="contained"
-              color="error"
-              onClick={deleteAccount}
-              disabled={deleteConfirm !== "LÖSCHEN" || deleting}
-            >
-              {deleting ? "Wird gelöscht…" : "Konto unwiderruflich löschen"}
-            </Button>
-          </Box>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={deleteAccount}
+            disabled={deleteConfirm !== "LÖSCHEN" || deleting}
+          >
+            {deleting ? "Wird gelöscht…" : "Unwiderruflich löschen"}
+          </Button>
         </Stack>
-      </Paper>
+      </Section>
     </Stack>
   );
 }

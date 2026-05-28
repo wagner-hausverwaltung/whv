@@ -879,3 +879,21 @@ export interface AnnouncementCommentVersionResponse {
   // its replacement time is `edited_at`.
   recorded_at: string;
 }
+
+// --- Notification preferences (shared with iOS via /me/notification-settings) ---
+export type NotificationCategory =
+  | "ANNOUNCEMENT"
+  | "TICKET"
+  | "ETV_COMMENT"
+  | "ETV_INVITATION"
+  | "DOCUMENT";
+
+export interface NotificationSetting {
+  category: NotificationCategory;
+  push: boolean;
+  email: boolean;
+}
+
+export interface NotificationSettingsResponse {
+  items: NotificationSetting[];
+}
