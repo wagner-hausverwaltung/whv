@@ -236,3 +236,74 @@ async def test_admin_send_opens_draft_and_mails(
             await s.scalars(select(ResolutionBallot).where(ResolutionBallot.resolution_id == rid))
         ).all()
     assert len(ballots) == 2
+
+
+async def test_admin_edit_draft_and_record_paper_vote(
+    test_engine: AsyncEngine, stub_email: _StubEmail
+) -> None:
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    _, vemail, vpw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    c = _uid()  # owner WITHOUT email → postal voter
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=c, contact_email=None
+    )
+    async with sm() as s:
+        now = datetime.now(UTC)
+        r = CircularResolution(
+            organization_id=org.id,
+            property_id=prop.id,
+            title="Entwurf",
+            description="Erst Entwurf.",
+            mode=ResolutionMode.KLASSISCH,
+            status=ResolutionStatus.ENTWURF,
+            opens_at=now + timedelta(days=1),
+            closes_at=now + timedelta(days=15),
+            required_quorum=0,
+        )
+        s.add(r)
+        await s.commit()
+        rid = r.id
+
+    token = _login(vemail, vpw)
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as client:
+        # Edit the draft.
+        e = client.patch(f"/admin/resolutions/{rid}", headers=headers, json={"title": "Geändert"})
+        assert e.status_code == 200
+        assert e.json()["title"] == "Geändert"
+
+        # Send → opens + materialises the (no-email) ballot.
+        client.post(f"/admin/resolutions/{rid}/send", headers=headers)
+
+        # Ballot status: the owner has no email + hasn't voted yet.
+        bl = client.get(f"/admin/resolutions/{rid}/ballots", headers=headers).json()
+        row = next(o for o in bl if o["owner_contact_id_impower"] == c)
+        assert row["owner_email"] is None
+        assert row["has_voted"] is False
+
+        # Record the postal vote on the owner's behalf.
+        mv = client.post(
+            f"/admin/resolutions/{rid}/manual-vote",
+            headers=headers,
+            json={"owner_contact_id_impower": c, "choice": "JA"},
+        )
+        assert mv.status_code == 200
+        assert mv.json()["has_voted"] is True
+
+        # One-shot: a second manual vote is rejected.
+        mv2 = client.post(
+            f"/admin/resolutions/{rid}/manual-vote",
+            headers=headers,
+            json={"owner_contact_id_impower": c, "choice": "NEIN"},
+        )
+        assert mv2.status_code == 409
+
+    async with sm() as s:
+        votes = (
+            await s.scalars(select(CircularVote).where(CircularVote.resolution_id == rid))
+        ).all()
+    assert len(votes) == 1
+    assert votes[0].signature_method == "PAPER"

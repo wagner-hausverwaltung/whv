@@ -40,10 +40,13 @@ from app.models import (
     VoteChoice,
 )
 from app.schemas.circular import (
+    BallotStatus,
     CreateResolutionRequest,
+    ManualVoteRequest,
     ResolutionDetailResponse,
     ResolutionResponse,
     ResolutionTally,
+    UpdateResolutionRequest,
     VoteRequest,
     VoteResponse,
 )
@@ -538,6 +541,191 @@ async def send_resolution(
             )
             for b in no_email
         ],
+    )
+
+
+@admin_router.patch("/{resolution_id}", response_model=ResolutionDetailResponse)
+async def update_resolution(
+    resolution_id: uuid.UUID,
+    req: UpdateResolutionRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ResolutionDetailResponse:
+    """Edit a DRAFT resolution. Only ENTWURF is editable — once it's
+    been sent/opened, changing the text would invalidate cast votes."""
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    if r.status != ResolutionStatus.ENTWURF:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nur Entwürfe können bearbeitet werden.",
+        )
+    if req.title is not None:
+        r.title = req.title
+    if req.description is not None:
+        r.description = req.description
+    if req.mode is not None:
+        r.mode = req.mode
+    if req.opens_at is not None:
+        r.opens_at = req.opens_at
+        r.opens_on = req.opens_at.date()
+    if req.closes_at is not None:
+        r.closes_at = req.closes_at
+        r.closes_on = req.closes_at.date()
+    if req.required_quorum is not None:
+        r.required_quorum = req.required_quorum
+    if r.closes_at <= r.opens_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="closes_at muss nach opens_at liegen.",
+        )
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="resolution_updated",
+            target_type="circular_resolutions",
+            target_id=str(r.id),
+            payload_json={},
+        )
+    )
+    await session.commit()
+    await session.refresh(r)
+    tally = await _tally(session, r)
+    return _to_detail(
+        r,
+        votes=[],
+        tally=tally,
+        my_impower_id=None,
+        am_eligible=False,
+        include_all_votes=True,
+    )
+
+
+@admin_router.get("/{resolution_id}/ballots", response_model=list[BallotStatus])
+async def list_ballots(
+    resolution_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[BallotStatus]:
+    """Per-owner voting status — drives the admin no-email + paper-vote
+    list. Reflects votes cast through any channel (portal/email/paper)."""
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    ballots = (
+        await session.scalars(
+            select(ResolutionBallot).where(ResolutionBallot.resolution_id == r.id)
+        )
+    ).all()
+    votes = (
+        await session.scalars(select(CircularVote).where(CircularVote.resolution_id == r.id))
+    ).all()
+    by_owner = {v.owner_contact_id_impower: v for v in votes}
+    out: list[BallotStatus] = []
+    for b in sorted(ballots, key=lambda x: (x.owner_email is not None, x.owner_name or "")):
+        v = by_owner.get(b.owner_contact_id_impower)
+        out.append(
+            BallotStatus(
+                owner_contact_id_impower=b.owner_contact_id_impower,
+                owner_name=b.owner_name,
+                owner_email=b.owner_email,
+                has_voted=b.voted_at is not None or v is not None,
+                choice=v.choice if v else None,
+            )
+        )
+    return out
+
+
+@admin_router.post("/{resolution_id}/manual-vote", response_model=BallotStatus)
+async def manual_vote(
+    resolution_id: uuid.UUID,
+    req: ManualVoteRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BallotStatus:
+    """Record a postal/paper vote on an owner's behalf (for owners
+    without email). One-shot per owner, same as the email path."""
+    r = await session.scalar(
+        select(CircularResolution).where(
+            CircularResolution.id == resolution_id,
+            CircularResolution.organization_id == current_user.organization_id,
+        )
+    )
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resolution not found")
+    now = datetime.now(UTC)
+    if r.status != ResolutionStatus.OFFEN or now >= r.closes_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Abstimmung ist nicht (mehr) offen.",
+        )
+    eligible = await _eligible_owner_impower_ids(session, r.organization_id, r.property_id)
+    if req.owner_contact_id_impower not in eligible:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Eigentümer ist nicht stimmberechtigt.",
+        )
+    existing = await session.scalar(
+        select(CircularVote).where(
+            CircularVote.resolution_id == r.id,
+            CircularVote.owner_contact_id_impower == req.owner_contact_id_impower,
+        )
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Für diesen Eigentümer wurde bereits abgestimmt.",
+        )
+    session.add(
+        CircularVote(
+            resolution_id=r.id,
+            owner_contact_id_impower=req.owner_contact_id_impower,
+            choice=req.choice,
+            voter_user_id=None,
+            signature_method="PAPER",
+            evidence_jsonb={"recorded_by": str(current_user.id)},
+        )
+    )
+    ballot = await session.scalar(
+        select(ResolutionBallot).where(
+            ResolutionBallot.resolution_id == r.id,
+            ResolutionBallot.owner_contact_id_impower == req.owner_contact_id_impower,
+        )
+    )
+    if ballot is not None:
+        ballot.voted_at = now
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="resolution_manual_vote",
+            target_type="circular_resolutions",
+            target_id=str(r.id),
+            payload_json={
+                "owner_contact_id_impower": req.owner_contact_id_impower,
+                "choice": req.choice.value,
+            },
+        )
+    )
+    await session.commit()
+    return BallotStatus(
+        owner_contact_id_impower=req.owner_contact_id_impower,
+        owner_name=ballot.owner_name if ballot else None,
+        owner_email=ballot.owner_email if ballot else None,
+        has_voted=True,
+        choice=req.choice,
     )
 
 

@@ -22,6 +22,36 @@ class CreateResolutionRequest(BaseModel):
     required_quorum: int = Field(0, ge=0)
 
 
+class UpdateResolutionRequest(BaseModel):
+    """Edit a DRAFT resolution. All fields optional; only the provided
+    ones are applied."""
+
+    title: str | None = Field(None, min_length=3, max_length=300)
+    description: str | None = Field(None, min_length=3, max_length=50_000)
+    mode: ResolutionMode | None = None
+    opens_at: datetime | None = None
+    closes_at: datetime | None = None
+    required_quorum: int | None = Field(None, ge=0)
+
+
+class ManualVoteRequest(BaseModel):
+    """Verwalter records a postal/paper vote on an owner's behalf."""
+
+    owner_contact_id_impower: int
+    choice: VoteChoice
+
+
+class BallotStatus(BaseModel):
+    """Per-owner voting status for the admin (drives the no-email +
+    paper-vote list)."""
+
+    owner_contact_id_impower: int
+    owner_name: str | None
+    owner_email: str | None
+    has_voted: bool
+    choice: VoteChoice | None
+
+
 class VoteRequest(BaseModel):
     choice: VoteChoice
 
