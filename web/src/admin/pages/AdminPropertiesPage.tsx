@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router-dom";
 import {
   Alert,
   Avatar,
+  Chip,
   Paper,
   Stack,
   Table,
@@ -13,6 +14,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import { useTranslation } from "react-i18next";
 import { api, API_BASE_URL } from "@/api/client";
@@ -100,9 +102,26 @@ export function AdminPropertiesPage() {
                       </Avatar>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {p.name}
-                      </Typography>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {p.name}
+                        </Typography>
+                        {p.needs_current_year_etv && (
+                          <Chip
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            icon={<EventBusyOutlinedIcon />}
+                            label={t("admin.propertiesPage.etvMissing", {
+                              year: new Date().getFullYear(),
+                            })}
+                          />
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption" color="text.secondary">

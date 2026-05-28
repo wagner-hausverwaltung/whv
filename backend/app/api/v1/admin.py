@@ -27,6 +27,7 @@ from app.integrations.storage.property_images import (
     write_property_image,
 )
 from app.models import (
+    AssemblyStatus,
     AuditLog,
     CircularResolution,
     Contact,
@@ -38,6 +39,7 @@ from app.models import (
     DocumentFolder,
     DocumentKind,
     DocumentVisibility,
+    EtvAssembly,
     InviteCode,
     Property,
     ResolutionStatus,
@@ -791,17 +793,54 @@ async def list_properties(
     limit: int = 200,
 ) -> list[AdminPropertyListItem]:
     capped = max(1, min(limit, 1000))
+    org_id = current_user.organization_id
     rows = (
         await session.scalars(
             select(Property)
             .where(
-                Property.organization_id == current_user.organization_id,
+                Property.organization_id == org_id,
                 Property.deleted_at.is_(None),
             )
             .order_by(Property.name)
             .limit(capped)
         )
     ).all()
+    property_ids = [p.id for p in rows]
+
+    # Per-property unit counts (one grouped query, not N+1).
+    unit_counts: dict[uuid.UUID, int] = {}
+    if property_ids:
+        unit_rows = await session.execute(
+            select(Unit.property_id, func.count(Unit.id))
+            .where(
+                Unit.organization_id == org_id,
+                Unit.deleted_at.is_(None),
+                Unit.property_id.in_(property_ids),
+            )
+            .group_by(Unit.property_id)
+        )
+        unit_counts = {pid: int(n) for pid, n in unit_rows.all()}
+
+    # Properties that already have a (non-cancelled) ETV scheduled in the
+    # current calendar year — everything else "needs" one.
+    year_start = datetime(datetime.now(UTC).year, 1, 1, tzinfo=UTC)
+    next_year_start = datetime(year_start.year + 1, 1, 1, tzinfo=UTC)
+    props_with_etv: set[uuid.UUID] = set()
+    if property_ids:
+        etv_rows = await session.scalars(
+            select(EtvAssembly.property_id)
+            .where(
+                EtvAssembly.organization_id == org_id,
+                EtvAssembly.deleted_at.is_(None),
+                EtvAssembly.property_id.in_(property_ids),
+                EtvAssembly.status != AssemblyStatus.ABGESAGT,
+                EtvAssembly.scheduled_start >= year_start,
+                EtvAssembly.scheduled_start < next_year_start,
+            )
+            .distinct()
+        )
+        props_with_etv = set(etv_rows.all())
+
     return [
         AdminPropertyListItem(
             id=p.id,
@@ -814,6 +853,8 @@ async def list_properties(
             number=p.number,
             postal_code=p.postal_code,
             image_url=p.image_url,
+            units_count=unit_counts.get(p.id, 0),
+            needs_current_year_etv=p.id not in props_with_etv,
         )
         for p in rows
     ]

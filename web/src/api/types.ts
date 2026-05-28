@@ -674,6 +674,9 @@ export interface AdminPropertyListItem {
   number: string | null;
   postal_code: string | null;
   image_url: string | null;
+  units_count: number;
+  // True = no non-cancelled ETV scheduled this calendar year (open ETV).
+  needs_current_year_etv: boolean;
 }
 
 export interface AdminUnitListItem {

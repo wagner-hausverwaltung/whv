@@ -203,6 +203,13 @@ class AdminPropertyListItem(BaseModel):
     number: str | None = None
     postal_code: str | None = None
     image_url: str | None = None
+    # Number of (non-deleted) units — drives the selectable units/salary
+    # summary box in the admin table.
+    units_count: int = 0
+    # True when the property has NO non-cancelled ETV scheduled in the
+    # current calendar year (one ETV/year is expected), so the Verwalter
+    # can spot open ETVs at a glance.
+    needs_current_year_etv: bool = False
 
 
 class AdminUnitListItem(BaseModel):

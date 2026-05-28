@@ -368,7 +368,10 @@
       "name": "Name",
       "type": "Typ",
       "address": "Adresse",
-      "hrId": "HR-ID"
+      "hrId": "HR-ID",
+      "etvMissing": "ETV {{year}} offen",
+      "unitsSelected": "{{units}} Einheiten · {{count}} Objekte",
+      "salary": "{{units}} / {{salary}}"
     },
     "unitsPage": {
       "title": "Einheiten",
