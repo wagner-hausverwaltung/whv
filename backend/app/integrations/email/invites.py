@@ -1,10 +1,22 @@
+from urllib.parse import quote
+
+_PORTAL_BASE = "https://portal.wagner-hausverwaltung.com"
+
+
 def render_invite_email(email: str, code: str, role: str) -> tuple[str, str, str]:
     """Returns (subject, html, text) for an invite email.
 
     German primary (WHV's market); plain-text fallback below the HTML for
     clients that don't render HTML or for accessibility tools.
+
+    The CTA links to the portal's invite-redeem page with the code
+    pre-filled (`/invite?code=…`); the code box stays as a manual
+    fallback. Same redeem page for every role — owners stay in the
+    portal, a Verwalter continues to the admin area after setting their
+    password.
     """
     subject = f"Einladung zum WHV-Portal — Code {code}"
+    redeem_url = f"{_PORTAL_BASE}/invite?code={quote(code)}"
 
     text = f"""\
 Hallo,
@@ -17,8 +29,11 @@ Rolle:           {role}
 
 Diese Einladung ist 14 Tage gültig.
 
-Anleitung zum Einlösen folgt, sobald das Web-Portal oder die iOS-App verfügbar ist.
-Bis dahin: bewahren Sie den Code auf.
+Jetzt einlösen + Konto einrichten:
+{redeem_url}
+
+Falls der Link nicht funktioniert, öffnen Sie {_PORTAL_BASE}/invite und
+geben Sie den Code oben ein.
 
 Bei Fragen: support@wagner-hausverwaltung.com
 
@@ -45,9 +60,15 @@ letter-spacing: 2px;">{code}</p>
   <strong>Rolle:</strong> {role}<br>
   <strong>Gültigkeit:</strong> 14 Tage
 </p>
+<p style="margin: 24px 0;">
+  <a href="{redeem_url}" \
+style="display: inline-block; padding: 12px 22px; background: #1863DC; color: #fff; \
+text-decoration: none; border-radius: 6px; font-weight: 600;">Einladung einlösen</a>
+</p>
 <p style="color: #666; font-size: 14px;">
-  Anleitung zum Einlösen folgt, sobald das Web-Portal oder die iOS-App
-  verfügbar ist. Bis dahin den Code bitte aufbewahren.
+  Falls der Button nicht funktioniert, öffnen Sie
+  <a href="{_PORTAL_BASE}/invite">{_PORTAL_BASE}/invite</a> und geben Sie
+  den Code oben ein.
 </p>
 <p style="color: #666; font-size: 14px;">
   Bei Fragen:
