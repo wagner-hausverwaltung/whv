@@ -15,6 +15,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -86,6 +87,10 @@ export function AdminResolutionDetailPage() {
     sent: number;
     no_email: { owner_contact_id_impower: number; owner_name: string | null }[];
   } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -119,6 +124,24 @@ export function AdminResolutionDetailPage() {
       setError(t("admin.resolutionDetail.actionFailed"));
     } finally {
       setClosing(false);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!id) return;
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await api.patch(`/admin/resolutions/${id}`, {
+        title: editTitle,
+        description: editDescription,
+      });
+      await refresh();
+      setEditing(false);
+    } catch {
+      setError(t("admin.resolutionDetail.actionFailed"));
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -242,6 +265,53 @@ export function AdminResolutionDetailPage() {
           }
         />
       </Box>
+
+      {r.status === "ENTWURF" && (
+        <Box>
+          {editing ? (
+            <Stack spacing={1.5}>
+              <TextField
+                label={t("admin.resolutionDetail.editTitle")}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <TextField
+                label={t("admin.resolutionDetail.editDescription")}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                fullWidth
+                multiline
+                minRows={4}
+              />
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="contained"
+                  onClick={saveEdit}
+                  disabled={savingEdit || editTitle.trim().length < 3}
+                >
+                  {savingEdit ? t("common.loading") : t("admin.resolutionDetail.editSave")}
+                </Button>
+                <Button onClick={() => setEditing(false)} disabled={savingEdit}>
+                  {t("admin.resolutionDetail.editCancel")}
+                </Button>
+              </Stack>
+            </Stack>
+          ) : (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setEditTitle(r.title);
+                setEditDescription(r.description);
+                setEditing(true);
+              }}
+            >
+              {t("admin.resolutionDetail.editAction")}
+            </Button>
+          )}
+        </Box>
+      )}
 
       {(r.status === "ENTWURF" || r.status === "OFFEN") && (
         <Box>
@@ -369,6 +439,146 @@ export function AdminResolutionDetailPage() {
           </TableContainer>
         )}
       </Box>
+
+      <BallotsPanel resolutionId={id ?? ""} isOpen={isOpen} onChanged={refresh} />
     </Stack>
+  );
+}
+
+interface BallotStatusRow {
+  owner_contact_id_impower: number;
+  owner_name: string | null;
+  owner_email: string | null;
+  has_voted: boolean;
+  choice: VoteChoice | null;
+}
+
+/// Per-owner voting status — shows who's voted (and how), flags owners
+/// without an email ("ohne E-Mail"), and lets the Verwalter record a
+/// postal vote for anyone still open while the resolution is OFFEN.
+/// Self-hides until ballots exist (i.e. after "Jetzt versenden").
+function BallotsPanel({
+  resolutionId,
+  isOpen,
+  onChanged,
+}: {
+  resolutionId: string;
+  isOpen: boolean;
+  onChanged: () => void | Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<BallotStatusRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    if (!resolutionId) return;
+    try {
+      const r = await api.get<BallotStatusRow[]>(
+        `/admin/resolutions/${resolutionId}/ballots`,
+      );
+      setRows(r.data);
+    } catch {
+      setError(t("admin.resolutionDetail.actionFailed"));
+    }
+  }, [resolutionId, t]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
+
+  const recordVote = async (owner: number, choice: VoteChoice) => {
+    setBusy(owner);
+    setError(null);
+    try {
+      await api.post(`/admin/resolutions/${resolutionId}/manual-vote`, {
+        owner_contact_id_impower: owner,
+        choice,
+      });
+      await load();
+      await onChanged();
+    } catch {
+      setError(t("admin.resolutionDetail.actionFailed"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (rows === null || rows.length === 0) return null;
+
+  const choices: VoteChoice[] = ["JA", "NEIN", "ENTHALTUNG"];
+
+  return (
+    <Box>
+      <Typography variant="subtitle1" gutterBottom>
+        {t("admin.resolutionDetail.ballotStatus")} ({rows.length})
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ mb: 1 }}>
+          {error}
+        </Alert>
+      )}
+      <Paper variant="outlined">
+        <Stack divider={<Box sx={{ borderBottom: 1, borderColor: "divider" }} />}>
+          {rows.map((b) => (
+            <Stack
+              key={b.owner_contact_id_impower}
+              direction="row"
+              spacing={2}
+              sx={{ p: 1.5, alignItems: "center", flexWrap: "wrap", gap: 1 }}
+            >
+              <Box sx={{ flex: 1, minWidth: 160 }}>
+                <Typography variant="body2">
+                  {b.owner_name ?? `Kontakt ${b.owner_contact_id_impower}`}
+                </Typography>
+                {b.owner_email ? (
+                  <Typography variant="caption" color="text.secondary">
+                    {b.owner_email}
+                  </Typography>
+                ) : (
+                  <Chip
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    label={t("admin.resolutionDetail.noEmailChip")}
+                  />
+                )}
+              </Box>
+              {b.has_voted ? (
+                <Chip
+                  size="small"
+                  color="success"
+                  label={b.choice ? VOTE_CHOICE_LABELS[b.choice] : "✓"}
+                />
+              ) : isOpen ? (
+                <Stack direction="row" spacing={0.5}>
+                  {choices.map((c) => (
+                    <Button
+                      key={c}
+                      size="small"
+                      variant="outlined"
+                      disabled={busy === b.owner_contact_id_impower}
+                      onClick={() => recordVote(b.owner_contact_id_impower, c)}
+                    >
+                      {VOTE_CHOICE_LABELS[c]}
+                    </Button>
+                  ))}
+                </Stack>
+              ) : (
+                <Typography variant="caption" color="text.secondary">
+                  —
+                </Typography>
+              )}
+            </Stack>
+          ))}
+        </Stack>
+      </Paper>
+      {isOpen && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+          {t("admin.resolutionDetail.paperVoteHint")}
+        </Typography>
+      )}
+    </Box>
   );
 }
