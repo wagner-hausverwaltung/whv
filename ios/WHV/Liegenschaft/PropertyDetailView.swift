@@ -777,7 +777,10 @@ private struct VendorRow: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                     if let total = vendor.total_amount {
-                        Text("· \(formatAmount(total)) €")
+                        // Backend now reports the CURRENT calendar year's
+                        // total only — label it with the year so it's not
+                        // mistaken for the all-time figure.
+                        Text("· \(formatAmount(total)) € (\(Calendar.current.component(.year, from: Date())))")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
