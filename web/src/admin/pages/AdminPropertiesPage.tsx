@@ -57,7 +57,6 @@ export function AdminPropertiesPage() {
               <TableRow>
                 <TableCell sx={{ width: 64 }} />
                 <TableCell>{t("admin.propertiesPage.name")}</TableCell>
-                <TableCell>{t("admin.propertiesPage.type")}</TableCell>
                 <TableCell>{t("admin.propertiesPage.address")}</TableCell>
                 <TableCell>{t("admin.propertiesPage.hrId")}</TableCell>
               </TableRow>
@@ -103,11 +102,6 @@ export function AdminPropertiesPage() {
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {p.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary">
-                        {p.type}
                       </Typography>
                     </TableCell>
                     <TableCell>
