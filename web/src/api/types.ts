@@ -679,6 +679,18 @@ export interface AdminPropertyListItem {
   needs_current_year_etv: boolean;
 }
 
+export interface SignatureRequestResponse {
+  id: string;
+  property_id: string | null;
+  recipient_email: string;
+  recipient_name: string | null;
+  source_filename: string;
+  status: "PENDING" | "SENT" | "COMPLETED" | "FAILED";
+  signed_document_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
 export interface AdminUnitListItem {
   id: string;
   unit_hr_id: string | null;

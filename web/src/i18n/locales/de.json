@@ -222,6 +222,7 @@
     "tickets": "Tickets",
     "resolutions": "Beschlüsse",
     "assemblies": "Versammlungen",
+    "signatures": "Signaturen",
     "announcements": "Mitteilungen",
     "invites": "Einladungen",
     "audit": "Audit-Log",
@@ -374,6 +375,35 @@
       "summarySelected": "{{count}} Objekte ausgewählt",
       "summaryValue": "{{units}} / {{salary}}",
       "clearSelection": "Auswahl aufheben"
+    },
+    "signaturesPage": {
+      "title": "Signaturen",
+      "new": "Neue Signatur",
+      "intro": "Dokumente per E-Mail zur digitalen Unterschrift versenden — der Empfänger unterschreibt online, ganz ohne Portalzugang.",
+      "empty": "Noch keine Signaturanfragen.",
+      "loadFailed": "Signaturen konnten nicht geladen werden.",
+      "colStatus": "Status",
+      "colRecipient": "Empfänger",
+      "colDocument": "Dokument",
+      "colProperty": "Objekt",
+      "colCreated": "Erstellt",
+      "colSigned": "Signiert",
+      "status": {
+        "PENDING": "Ausstehend",
+        "SENT": "Versendet",
+        "COMPLETED": "Signiert",
+        "FAILED": "Fehlgeschlagen"
+      },
+      "downloadSigned": "Signiertes PDF herunterladen",
+      "choosePdf": "PDF auswählen",
+      "recipientEmail": "E-Mail des Empfängers",
+      "recipientName": "Name (optional)",
+      "property": "Objekt (optional)",
+      "noProperty": "Keine Zuordnung",
+      "dialogHint": "Der Empfänger erhält eine E-Mail von Wagner Hausverwaltung und unterschreibt online. Das signierte PDF wird automatisch in den Dokumenten gespeichert.",
+      "send": "Senden",
+      "notConfigured": "Der Signatur-Dienst ist noch nicht eingerichtet.",
+      "createFailed": "Signaturanfrage fehlgeschlagen."
     },
     "unitsPage": {
       "title": "Einheiten",

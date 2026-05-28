@@ -222,6 +222,7 @@
     "tickets": "Tickets",
     "resolutions": "Resolutions",
     "assemblies": "Assemblies",
+    "signatures": "Signatures",
     "announcements": "Announcements",
     "invites": "Invitations",
     "audit": "Audit log",
@@ -374,6 +375,35 @@
       "summarySelected": "{{count}} properties selected",
       "summaryValue": "{{units}} / {{salary}}",
       "clearSelection": "Clear selection"
+    },
+    "signaturesPage": {
+      "title": "Signatures",
+      "new": "New signature",
+      "intro": "Send documents for digital signature by email — the recipient signs online, with no portal account.",
+      "empty": "No signature requests yet.",
+      "loadFailed": "Signatures could not be loaded.",
+      "colStatus": "Status",
+      "colRecipient": "Recipient",
+      "colDocument": "Document",
+      "colProperty": "Property",
+      "colCreated": "Created",
+      "colSigned": "Signed",
+      "status": {
+        "PENDING": "Pending",
+        "SENT": "Sent",
+        "COMPLETED": "Signed",
+        "FAILED": "Failed"
+      },
+      "downloadSigned": "Download signed PDF",
+      "choosePdf": "Choose PDF",
+      "recipientEmail": "Recipient email",
+      "recipientName": "Name (optional)",
+      "property": "Property (optional)",
+      "noProperty": "None",
+      "dialogHint": "The recipient gets an email from Wagner Hausverwaltung and signs online. The signed PDF is filed automatically in Documents.",
+      "send": "Send",
+      "notConfigured": "The signature service is not set up yet.",
+      "createFailed": "Signature request failed."
     },
     "unitsPage": {
       "title": "Units",

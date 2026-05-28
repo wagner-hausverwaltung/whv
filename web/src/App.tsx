@@ -15,6 +15,7 @@ import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
 import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
 import { AdminResolutionNewPage } from "@/admin/pages/AdminResolutionNewPage";
 import { AdminResolutionsPage } from "@/admin/pages/AdminResolutionsPage";
+import { AdminSignaturesPage } from "@/admin/pages/AdminSignaturesPage";
 import { AdminTicketDetailPage } from "@/admin/pages/AdminTicketDetailPage";
 import { AdminTicketsPage } from "@/admin/pages/AdminTicketsPage";
 import { AdminUnitsPage } from "@/admin/pages/AdminUnitsPage";
@@ -236,6 +237,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminResolutionDetailPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/signatures"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminSignaturesPage />
                 </AdminLayout>
               </AdminRoute>
             }
