@@ -2,16 +2,17 @@
 
 Builds VendorSummary rows from `documents` where `kind = RECHNUNG`
 + `property_id = …`. One vendor = one `contact_id`; aggregates
-invoice count + total + first/last service dates + the 5 most
-recent invoices in two queries.
+invoice count + a CURRENT-YEAR cost total + first/last service dates +
+the full invoice list in two queries.
 """
 
 import uuid
 from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Contact, Document
@@ -25,27 +26,47 @@ async def load_vendors_for_property(
     session: AsyncSession,
     *,
     property_id: uuid.UUID,
-    recent_limit: int = 5,
+    recent_limit: int | None = None,
 ) -> list[VendorSummary]:
     """Aggregate invoice docs by vendor contact + return one row per
     vendor, ordered by most-recent service first.
 
+    `total_amount` is the CURRENT calendar year's cost only (a
+    conditional sum) — owners care about "what did this vendor cost us
+    this year", not the all-time figure. `invoice_count` and the
+    returned invoice list stay all-time so the full history is visible
+    (the clients group them by year).
+
     Two round-trips:
-      1. Aggregate query (count, sum, min/max issued_date) joined to
-         contacts so we can render the label + contact bits in the
-         same pass.
-      2. Recent-invoices fetch keyed on the vendor ids we just
-         found — limited to `recent_limit` per vendor via Python-side
-         truncation. With typical Verwalter inventories (≤ ~30
-         vendors per property, ≤ ~200 invoices total) this is cheap;
-         a DISTINCT ON / window function would be more correct at
-         scale but adds Postgres-specific syntax for negligible win.
+      1. Aggregate query (count, current-year sum, min/max issued_date)
+         joined to contacts so we can render the label + contact bits in
+         the same pass.
+      2. Invoice fetch keyed on the vendor ids we just found. By default
+         ALL invoices come back (clients group by year); pass
+         `recent_limit` to truncate to the N most recent per vendor.
+         With typical Verwalter inventories (≤ ~30 vendors per property,
+         ≤ ~200 invoices total) this is cheap.
 
     Vendors with NULL contact_id on every invoice are skipped — they
     show up as "unbekannt" on the admin side, but owners shouldn't
     see them in a "who do I call?" list because there's nothing to
     call.
     """
+    # Current-year window for the cost total. Invoices outside it still
+    # count toward invoice_count + the list, but not the € total.
+    year_start = date(date.today().year, 1, 1)
+    next_year_start = date(date.today().year + 1, 1, 1)
+    current_year_amount = case(
+        (
+            and_(
+                Document.issued_date >= year_start,
+                Document.issued_date < next_year_start,
+            ),
+            Document.amount,
+        ),
+        else_=0,
+    )
+
     # ----- 1. Per-vendor aggregate -----
     agg_q = (
         select(
@@ -62,7 +83,7 @@ async def load_vendors_for_property(
             Contact.company_name,
             Contact.recipient_name,
             func.count(Document.id).label("invoice_count"),
-            func.sum(Document.amount).label("total_amount"),
+            func.sum(current_year_amount).label("total_amount"),
             func.min(Document.issued_date).label("first_service_date"),
             func.max(Document.issued_date).label("last_service_date"),
         )
@@ -82,10 +103,10 @@ async def load_vendors_for_property(
 
     vendor_ids = [r.contact_id for r in rows]
 
-    # ----- 2. Recent invoices per vendor -----
-    # One flat fetch ordered by date; bucket into per-vendor lists
-    # in Python, trim to `recent_limit`. Avoids DISTINCT ON gymnastics
-    # for a feature with small N.
+    # ----- 2. Invoices per vendor -----
+    # One flat fetch ordered by date; bucket into per-vendor lists in
+    # Python. By default keep ALL of them (the clients group by year);
+    # only trim when the caller passes `recent_limit`.
     inv_q = (
         select(
             Document.id,
@@ -105,7 +126,7 @@ async def load_vendors_for_property(
     recent_by_vendor: dict[uuid.UUID, list[VendorInvoiceSummary]] = defaultdict(list)
     for r in (await session.execute(inv_q)).all():
         bucket = recent_by_vendor[r.contact_id]
-        if len(bucket) >= recent_limit:
+        if recent_limit is not None and len(bucket) >= recent_limit:
             continue
         bucket.append(
             VendorInvoiceSummary(
@@ -191,9 +212,3 @@ class _ContactRowShim:
 # Re-export so wildcard imports from `app.services.vendors` work the
 # same as `from app.services.vendors import load_vendors_for_property`.
 __all__ = ["load_vendors_for_property"]
-
-
-# Quiet unused-import lint without removing the and_ alias — kept
-# because future expansions (per-vendor invoice-date filter) will
-# need it and tests cover the unused-import rule.
-_ = and_

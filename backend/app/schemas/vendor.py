@@ -50,12 +50,13 @@ class VendorSummary(BaseModel):
     # data hygiene means some contacts have only one or neither.
     email: str | None = None
     phone: str | None = None
-    # Aggregate stats — drives the "last service" date on the card
-    # header and the running total in the expanded body.
+    # Aggregate stats. invoice_count is all-time; total_amount is the
+    # CURRENT calendar year's cost only (what the vendor cost us this
+    # year), driving the € chip on the card header.
     invoice_count: int
     total_amount: Decimal | None = None
     first_service_date: date | None = None
     last_service_date: date | None = None
-    # Most-recent 5 invoices — enough for the expandable card body
-    # without forcing the SPA to fetch a paginated list.
+    # The vendor's full invoice list (clients group it by year). Name
+    # kept for backward compatibility; no longer capped to 5.
     recent_invoices: list[VendorInvoiceSummary] = []

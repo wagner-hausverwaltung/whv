@@ -205,7 +205,7 @@ function VendorAccordion({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`${formatAmount(vendor.total_amount)} €`}
+                label={`${formatAmount(vendor.total_amount)} € (${new Date().getFullYear()})`}
               />
             )}
           </Stack>
