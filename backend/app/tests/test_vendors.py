@@ -63,17 +63,32 @@ async def test_vendor_total_is_current_year_only_and_lists_all(
     # 2 current-year invoices (sum 150) + 4 prior-year (sum 999). Six
     # total proves the old 5-row cap is gone.
     await _add_invoice(
-        sm, org_id=org.id, property_id=prop.id, contact_id=cid,
-        issued=date(this_year, 3, 1), amount="100.00", name="cur-1",
+        sm,
+        org_id=org.id,
+        property_id=prop.id,
+        contact_id=cid,
+        issued=date(this_year, 3, 1),
+        amount="100.00",
+        name="cur-1",
     )
     await _add_invoice(
-        sm, org_id=org.id, property_id=prop.id, contact_id=cid,
-        issued=date(this_year, 6, 1), amount="50.00", name="cur-2",
+        sm,
+        org_id=org.id,
+        property_id=prop.id,
+        contact_id=cid,
+        issued=date(this_year, 6, 1),
+        amount="50.00",
+        name="cur-2",
     )
     for i, amt in enumerate(("400.00", "300.00", "200.00", "99.00")):
         await _add_invoice(
-            sm, org_id=org.id, property_id=prop.id, contact_id=cid,
-            issued=date(this_year - 1, 1 + i, 1), amount=amt, name=f"prior-{i}",
+            sm,
+            org_id=org.id,
+            property_id=prop.id,
+            contact_id=cid,
+            issued=date(this_year - 1, 1 + i, 1),
+            amount=amt,
+            name=f"prior-{i}",
         )
 
     async with sm() as s:
@@ -107,8 +122,13 @@ async def test_vendor_total_zero_when_no_current_year_invoices(
 
     last_year = date.today().year - 1
     await _add_invoice(
-        sm, org_id=org.id, property_id=prop.id, contact_id=cid,
-        issued=date(last_year, 5, 1), amount="500.00", name="old",
+        sm,
+        org_id=org.id,
+        property_id=prop.id,
+        contact_id=cid,
+        issued=date(last_year, 5, 1),
+        amount="500.00",
+        name="old",
     )
 
     async with sm() as s:

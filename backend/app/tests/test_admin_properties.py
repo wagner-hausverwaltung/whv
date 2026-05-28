@@ -71,15 +71,11 @@ async def test_admin_properties_units_count_and_open_etv(
 
     # C: only a PRIOR-year ETV → open (missing this year's).
     prop_c = await make_property(test_engine, org=org, name="CCC Haus")
-    await _add_assembly(
-        sm, org_id=org.id, property_id=prop_c.id, start=now - timedelta(days=400)
-    )
+    await _add_assembly(sm, org_id=org.id, property_id=prop_c.id, start=now - timedelta(days=400))
 
     token = _login(vemail, vpw)
     with TestClient(app) as client:
-        r = client.get(
-            "/admin/properties", headers={"Authorization": f"Bearer {token}"}
-        )
+        r = client.get("/admin/properties", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200, r.text
     by_name = {p["name"]: p for p in r.json()}
 
