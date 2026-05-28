@@ -55,12 +55,18 @@ function formatAddress(p: PropertyResponse): string | null {
 /// subtitle.
 function addressRedundantWith(name: string, p: PropertyResponse): boolean {
   if (!p.street || !p.city) return false;
+  // Normalise so the abbreviated form in the name ("Schmidener Str.")
+  // and the spelled-out form in the address field ("Schmidener
+  // Straße") tokenise to the same thing. ß→ss, then collapse the
+  // common street suffixes (straße/strasse/str) to a single token.
   const tokens = (s: string) =>
     s
       .toLowerCase()
+      .replace(/ß/g, "ss")
       .replace(/[.,·]/g, " ")
       .split(/\s+/)
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((t) => t.replace(/strasse/g, "str"));
   const nameTokens = new Set(tokens(name));
   const streetTokens = tokens(p.street);
   const cityToken = tokens(p.city)[0];

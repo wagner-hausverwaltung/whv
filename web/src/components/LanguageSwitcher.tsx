@@ -3,6 +3,7 @@ import {
   IconButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
   Menu,
   MenuItem,
   Tooltip,
@@ -40,6 +41,19 @@ export function LanguageSwitcher() {
         </IconButton>
       </Tooltip>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close}>
+        <ListSubheader
+          disableSticky
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            lineHeight: 2.5,
+            bgcolor: "transparent",
+          }}
+        >
+          <LanguageIcon fontSize="small" />
+          {t("common.language")}
+        </ListSubheader>
         {LANGUAGES.map((l) => (
           <MenuItem
             key={l.code}
@@ -52,10 +66,6 @@ export function LanguageSwitcher() {
             <ListItemText>{l.label}</ListItemText>
           </MenuItem>
         ))}
-        <MenuItem divider disabled sx={{ fontSize: "0.75rem" }}>
-          <LanguageIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("common.language")}
-        </MenuItem>
       </Menu>
     </>
   );
