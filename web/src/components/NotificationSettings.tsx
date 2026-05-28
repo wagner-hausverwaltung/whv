@@ -14,6 +14,7 @@ const ORDER: NotificationCategory[] = [
   "ETV_COMMENT",
   "ETV_INVITATION",
   "DOCUMENT",
+  "INVOICE",
 ];
 
 const LABELS: Record<NotificationCategory, string> = {
@@ -22,6 +23,7 @@ const LABELS: Record<NotificationCategory, string> = {
   ETV_COMMENT: "ETV-Kommentare",
   ETV_INVITATION: "ETV-Einladungen",
   DOCUMENT: "Neue Dokumente",
+  INVOICE: "Rechnungen",
 };
 
 /// Compact Push / E-Mail matrix backed by GET/PUT

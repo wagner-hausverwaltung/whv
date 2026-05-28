@@ -16,11 +16,13 @@ NULL `end_date` = open-ended = active.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
-from sqlalchemy import ColumnElement, or_
+from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Contract
+from app.models import Contact, Contract, ContractContact, User, UserRole
 
 
 def active_contract_filter(today: date | None = None) -> ColumnElement[bool]:
@@ -28,3 +30,32 @@ def active_contract_filter(today: date | None = None) -> ColumnElement[bool]:
     if today is None:
         today = date.today()
     return or_(Contract.end_date.is_(None), Contract.end_date >= today)
+
+
+async def owner_users_for_property(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> list[User]:
+    """Portal users who are owners of a property: EIGENTUEMER + BEIRAT
+    (Beirat members are elected owners) reachable via an ACTIVE contract
+    on that property. Excludes Mieter and former owners. Used by
+    owner-facing fan-outs (ETV invitations, booked-invoice alerts)."""
+    rows = await session.scalars(
+        select(User)
+        .join(Contact, Contact.impower_id == User.contact_id_impower)
+        .join(ContractContact, ContractContact.contact_id == Contact.id)
+        .join(Contract, Contract.id == ContractContact.contract_id)
+        .where(
+            User.organization_id == organization_id,
+            User.role.in_([UserRole.EIGENTUEMER, UserRole.BEIRAT]),
+            User.deleted_at.is_(None),
+            User.contact_id_impower.is_not(None),
+            Contact.organization_id == organization_id,
+            Contract.property_id == property_id,
+            active_contract_filter(),
+        )
+        .distinct()
+    )
+    return list(rows.all())

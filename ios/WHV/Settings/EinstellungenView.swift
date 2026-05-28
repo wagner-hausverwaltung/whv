@@ -470,7 +470,9 @@ final class NotificationPrefsStore: ObservableObject {
     }
 
     /// Render order — mirrors the backend category enum.
-    static let order = ["ANNOUNCEMENT", "TICKET", "ETV_COMMENT", "ETV_INVITATION", "DOCUMENT"]
+    static let order = [
+        "ANNOUNCEMENT", "TICKET", "ETV_COMMENT", "ETV_INVITATION", "DOCUMENT", "INVOICE",
+    ]
 
     static func label(for category: String) -> String {
         switch category {
@@ -479,6 +481,7 @@ final class NotificationPrefsStore: ObservableObject {
         case "ETV_COMMENT": return "ETV-Kommentare"
         case "ETV_INVITATION": return "ETV-Einladungen"
         case "DOCUMENT": return "Neue Dokumente"
+        case "INVOICE": return "Rechnungen"
         default: return category
         }
     }

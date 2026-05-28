@@ -40,6 +40,7 @@ class NotificationCategory(enum.StrEnum):
     ETV_COMMENT = "ETV_COMMENT"
     ETV_INVITATION = "ETV_INVITATION"
     DOCUMENT = "DOCUMENT"
+    INVOICE = "INVOICE"
 
 
 class NotificationChannel(enum.StrEnum):

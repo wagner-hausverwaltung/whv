@@ -178,6 +178,7 @@ async def receive_impower_webhook(
     session: Annotated[AsyncSession, Depends(get_session)],
     client: Annotated[ImpowerClient, Depends(get_impower_client)],
     settings: Annotated[Settings, Depends(get_settings)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> dict[str, Any]:
     # Read the raw body once for both HMAC verification AND payload
     # parsing — FastAPI's automatic body-binding consumes the stream,
@@ -229,6 +230,31 @@ async def receive_impower_webhook(
     key = _dedupe_key(payload)
     if await _is_duplicate(redis, key):
         return {"status": "duplicate", "key": key}
+
+    # Invoices aren't mirrored as a table — we don't re-sync them. Instead
+    # a booked invoice fans a "Rechnung gebucht" notification out to the
+    # property's owners (best-effort; the service owns its own per-invoice
+    # Redis dedupe so repeated BOOKED updates don't re-notify).
+    if payload.entity_type == "invoices" and payload.event_type in ("CREATE", "UPDATE"):
+        from app.services import invoice_notify
+
+        try:
+            await invoice_notify.notify_booked_invoice(
+                session,
+                client=client,
+                invoice_id=payload.entity_id,
+                email_client=email_client,
+                redis=redis,
+            )
+        except Exception:
+            logger.exception("impower webhook: invoice notify failed for %s", payload.entity_id)
+        await _mark_processed(redis, key)
+        return {
+            "status": "processed",
+            "entity_type": payload.entity_type,
+            "entity_id": payload.entity_id,
+            "event_type": payload.event_type,
+        }
 
     handled = payload.entity_type in _HANDLED_ENTITY_TYPES
     if handled:

@@ -82,7 +82,7 @@ async def test_get_effective_defaults_all_on(test_engine: AsyncEngine) -> None:
     sm = async_sessionmaker(test_engine, expire_on_commit=False)
     async with sm() as s:
         eff = await notification_prefs.get_effective_settings(s, user_id=u.id)
-    assert len(eff) == 5
+    assert len(eff) == 6
     assert all(push and email for (push, email) in eff.values())
 
 
@@ -94,7 +94,7 @@ async def test_settings_api_get_put_roundtrip(test_engine: AsyncEngine) -> None:
         r = client.get("/me/notification-settings", headers=headers)
         assert r.status_code == 200
         items = r.json()["items"]
-        assert len(items) == 5
+        assert len(items) == 6
         assert all(i["push"] and i["email"] for i in items)
 
         new_items = [

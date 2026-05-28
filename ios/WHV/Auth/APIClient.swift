@@ -889,6 +889,7 @@ struct APIClient {
         NotificationSetting(category: "ETV_COMMENT", push: true, email: true),
         NotificationSetting(category: "ETV_INVITATION", push: true, email: true),
         NotificationSetting(category: "DOCUMENT", push: true, email: true),
+        NotificationSetting(category: "INVOICE", push: true, email: true),
     ]
 
     /// GET /me/notification-settings → the caller's full Push/E-Mail

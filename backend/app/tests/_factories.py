@@ -105,6 +105,7 @@ async def make_property(
     *,
     org: Organization,
     name: str | None = None,
+    impower_id: int | None = None,
 ) -> Property:
     sm = async_sessionmaker(engine, expire_on_commit=False)
     async with sm() as s:
@@ -114,6 +115,7 @@ async def make_property(
             type=PropertyType.STRATA,
             state=PropertyState.READY,
             city="Stuttgart",
+            impower_id=impower_id,
         )
         s.add(prop)
         await s.commit()
