@@ -39,20 +39,34 @@ Add an **A record** `sign.wagner-hausverwaltung.com → <Hetzner host IP>`
 
 ## 3. Deploy DocuSeal (Hetzner)
 
-```sh
-# on the Hetzner host
-git pull                      # gets infra/docuseal/
-cd <repo>/infra/docuseal
-cp .env.example .env
-#  → DOCUSEAL_SECRET_KEY_BASE = openssl rand -hex 64
-#  → SES_SMTP_HOST / USERNAME / PASSWORD from step 2
-docker compose up -d
+DocuSeal is a service in `docker-compose.staging.yml` (`docuseal`),
+sharing the stack network so the existing Caddy reverse-proxies
+`sign.wagner-hausverwaltung.com → docuseal:3000` with auto-TLS. It's
+**not** in the deploy auto-up list — bring it up once, then
+`restart: unless-stopped` keeps it.
+
+On the Hetzner host, add to the stack's `.env` (same file the backend
+secrets live in — gitignored):
+
+```
+DOCUSEAL_SECRET_KEY_BASE=<openssl rand -hex 64>
+SES_SMTP_HOST=email-smtp.<region>.amazonaws.com   # e.g. eu-central-1
+SES_SMTP_USERNAME=<SES SMTP username>
+SES_SMTP_PASSWORD=<SES SMTP password>
 ```
 
-Add the `sign.` vhost to the host's Caddy (see
-`infra/docuseal/Caddyfile.snippet`) and reload Caddy. Open
-`https://sign.wagner-hausverwaltung.com`, create the **first admin
+Then (a fresh Caddyfile with the `sign.` vhost lands on the next deploy,
+or `git pull` it) start DocuSeal:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d docuseal
+docker compose -f docker-compose.yml -f docker-compose.staging.yml logs -f docuseal
+```
+
+Open `https://sign.wagner-hausverwaltung.com`, create the **first admin
 user**, and send a test signing email to yourself to confirm SES works.
+(If SES is still in sandbox, verify your own address in SES first, or
+request production access.)
 
 ## 4. DocuSeal API token + webhook
 

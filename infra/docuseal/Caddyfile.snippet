@@ -1,7 +1,0 @@
-# Add to the host's Caddy config (or the repo Caddyfile if DocuSeal shares
-# the Caddy docker network). DocuSeal listens on 127.0.0.1:3000.
-#
-# DNS prerequisite: A record  sign.wagner-hausverwaltung.com → <Hetzner host IP>
-sign.wagner-hausverwaltung.com {
-    reverse_proxy 127.0.0.1:3000
-}

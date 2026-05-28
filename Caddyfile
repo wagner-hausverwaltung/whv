@@ -69,3 +69,23 @@ staging.portal.wagner-hausverwaltung.com {
         level INFO
     }
 }
+
+# Self-hosted DocuSeal for e-signatures (ADR-0012). The `docuseal`
+# service (docker-compose.staging.yml) signs documents and emails the
+# signer via SES; signers use this host directly, never the portal.
+sign.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    reverse_proxy docuseal:3000
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
