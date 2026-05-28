@@ -154,6 +154,32 @@ class Settings(BaseSettings):
     # can run into the tens of MB.
     etv_invitation_max_bytes: int = 50 * 1024 * 1024
 
+    # APNs push notifications (token-based auth, ADR-0010). Empty
+    # apns_key_p8 → the push service short-circuits to a no-op,
+    # mirroring how an empty Resend key disables email. So staging
+    # without the key configured simply doesn't push; the rest of
+    # the request path is unaffected.
+    #
+    #   apns_key_p8   — the .p8 auth-key contents (PEM). We take the
+    #                   contents (not a path) so it can live in the
+    #                   .env / secret manager like every other secret.
+    #   apns_key_id   — the 10-char Key ID shown next to the key in
+    #                   the Developer Portal.
+    #   apns_team_id  — the 10-char Apple Team ID (Membership page).
+    #   apns_bundle_id— the app bundle id; becomes the APNs `topic`
+    #                   header. Defaults to the prod bundle id.
+    #   apns_use_sandbox — true routes to api.development.push.apple.com
+    #                   (dev builds installed via Xcode / debug).
+    #                   false → api.push.apple.com (TestFlight + App
+    #                   Store). A device token is environment-specific,
+    #                   so this must match the build the token came
+    #                   from.
+    apns_key_p8: str = ""
+    apns_key_id: str = ""
+    apns_team_id: str = ""
+    apns_bundle_id: str = "com.wagner-hausverwaltung.portal"
+    apns_use_sandbox: bool = True
+
     # LLM extraction pipeline (ADR-0008). One API key per provider,
     # selected by `llm_provider`. Empty key → factory raises rather
     # than silently no-op — extraction tasks then short-circuit with

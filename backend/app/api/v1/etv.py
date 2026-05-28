@@ -83,6 +83,7 @@ from app.schemas.etv import (
     UpdateAssemblyRequest,
 )
 from app.services import etv as svc
+from app.services import push
 
 logger = logging.getLogger(__name__)
 
@@ -451,6 +452,18 @@ async def create_assembly_comment(
                         "Failed to send assembly comment notification to %s",
                         r.email,
                     )
+
+            # Push fan-out to the same recipients — mirrors the email
+            # set. No-op when APNs isn't configured. Deep-links to the
+            # assembly so the tap lands on the right ETV.
+            await push.notify_users(
+                session,
+                user_ids=[r.id for r in recipients],
+                title="Neuer Kommentar zur ETV",
+                body=f"{property_name}: {a.title}",
+                deep_link=f"whv://etv/{a.id}",
+                thread_id=f"etv-{a.id}",
+            )
     except Exception:
         # Notification path must never break the comment write.
         logger.exception(

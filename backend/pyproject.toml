@@ -13,7 +13,10 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.6",
     "redis[hiredis]>=5.2",
-    "httpx>=0.28",
+    # http2 extra (h2) required for APNs — Apple's push gateway is
+    # HTTP/2-only. Same client also talks to Impower (HTTP/1.1 is
+    # fine there; httpx negotiates per-connection).
+    "httpx[http2]>=0.28",
     "uuid-utils>=0.10",
     "argon2-cffi>=25.1.0",
     "pyjwt[crypto]>=2.13.0",

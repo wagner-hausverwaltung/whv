@@ -22,6 +22,11 @@ from app.models.contact import (
     PreferredChannel,
 )
 from app.models.contract import Contract, ContractContact, ContractType
+from app.models.device import (
+    DeviceEnvironment,
+    DevicePlatform,
+    UserDevice,
+)
 from app.models.document import (
     Document,
     DocumentFolder,
@@ -77,6 +82,8 @@ __all__ = [
     "Contract",
     "ContractContact",
     "ContractType",
+    "DeviceEnvironment",
+    "DevicePlatform",
     "Document",
     "DocumentFolder",
     "DocumentKind",
@@ -110,6 +117,7 @@ __all__ = [
     "Unit",
     "UnitType",
     "User",
+    "UserDevice",
     "UserRole",
     "VoteChoice",
 ]

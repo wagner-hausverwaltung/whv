@@ -16,13 +16,49 @@ import SwiftUI
 
 @main
 struct WHVApp: App {
-    @StateObject private var authStore = AuthStore()
-    @StateObject private var liegenschaftStore = LiegenschaftStore()
-    @StateObject private var settings = SettingsStore()
-    @StateObject private var deepLinkRouter = DeepLinkRouter()
-    @StateObject private var biometricLock = BiometricLockStore()
-    @StateObject private var demoStore = DemoStore.shared
+    @StateObject private var authStore: AuthStore
+    @StateObject private var liegenschaftStore: LiegenschaftStore
+    @StateObject private var settings: SettingsStore
+    @StateObject private var deepLinkRouter: DeepLinkRouter
+    @StateObject private var biometricLock: BiometricLockStore
+    @StateObject private var demoStore: DemoStore
+    // UIKit shim for the APNs device-token callbacks SwiftUI's
+    // App lifecycle doesn't surface. Forwards to PushManager.shared.
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        // Single launch-arg gate. UI test runs (see WHVUITests)
+        // inject -UITestScreenshots to neutralise environment state
+        // that would otherwise interfere with screenshot capture:
+        // biometric lock overlay, a stale signed-in session from a
+        // previous run, and any accidental backend traffic if the
+        // test taps Demo. Production launches early-return.
+        Self.applyUITestScreenshotOverridesIfNeeded()
+        // Construct the @StateObjects AFTER the override has touched
+        // UserDefaults + Keychain, so each store's init reads the
+        // neutralised state (BiometricLockStore + AuthStore both
+        // hydrate from those layers in their initializer).
+        _authStore = StateObject(wrappedValue: AuthStore())
+        _liegenschaftStore = StateObject(wrappedValue: LiegenschaftStore())
+        _settings = StateObject(wrappedValue: SettingsStore())
+        _deepLinkRouter = StateObject(wrappedValue: DeepLinkRouter())
+        _biometricLock = StateObject(wrappedValue: BiometricLockStore())
+        _demoStore = StateObject(wrappedValue: DemoStore.shared)
+    }
+
+    private static func applyUITestScreenshotOverridesIfNeeded() {
+        guard ProcessInfo.processInfo.arguments.contains("-UITestScreenshots") else { return }
+        UserDefaults.standard.set(false, forKey: "WHV.biometrics.enabled")
+        UserDefaults.standard.removeObject(forKey: "WHV.cachedUser")
+        let keychain = Keychain()
+        keychain.delete("access_token")
+        keychain.delete("refresh_token")
+        // Pre-arm the demo flag so any accidental authenticated call
+        // (e.g. revalidate() if a token slipped through) short-circuits
+        // to seed data rather than reaching staging.
+        DemoFlag.isActive = true
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -88,9 +124,24 @@ struct WHVApp: App {
                     // see the previous account's data.
                     authStore.onSignIn = { [weak liegenschaftStore] in
                         await liegenschaftStore?.load()
+                        // Ask for push permission + register the
+                        // device token now that there's a backend
+                        // session to attach it to. No-ops in demo.
+                        await PushManager.shared.requestAuthorizationAndRegister()
                     }
                     authStore.onSignOut = { [weak liegenschaftStore] in
                         liegenschaftStore?.reset()
+                        // Drop this device's token so a signed-out
+                        // phone stops getting the previous user's
+                        // pushes.
+                        PushManager.shared.unregister()
+                    }
+                    // Notification taps route through the same
+                    // DeepLinkRouter the widget + universal links
+                    // use — PushManager converts the payload's
+                    // whv.deep_link to a URL and calls this.
+                    PushManager.shared.onDeepLink = { [weak deepLinkRouter] url in
+                        deepLinkRouter?.handle(url)
                     }
                     // Any 401 from a downstream call (after one
                     // refresh attempt) bounces the user to the login

@@ -825,6 +825,46 @@ struct APIClient {
         try Self.throwIfNotOK(response: response, data: data)
     }
 
+    /// POST /me/devices — register this device's APNs token for push.
+    /// `environment` is "SANDBOX" for Debug/Xcode installs,
+    /// "PRODUCTION" for TestFlight / App Store; the backend routes
+    /// to the matching APNs host. Demo mode no-ops (no real token,
+    /// no backend session to attach it to). 204 → no body to decode.
+    func registerDevice(apnsToken: String, environment: String) async throws {
+        if DemoFlag.isActive { return }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        var request = URLRequest(url: baseURL.appending(path: "/me/devices"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "apns_token": apnsToken,
+            "environment": environment,
+        ])
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+    }
+
+    /// DELETE /me/devices/{token} — drop the token on sign-out so a
+    /// signed-out phone stops receiving the previous user's pushes.
+    /// Best-effort: errors are swallowed by the caller (sign-out
+    /// shouldn't block on a notification-bookkeeping call).
+    func unregisterDevice(apnsToken: String) async throws {
+        if DemoFlag.isActive { return }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        // Percent-encode the token for the path segment (it's hex so
+        // usually safe, but defensive).
+        let encoded =
+            apnsToken.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? apnsToken
+        var request = URLRequest(url: baseURL.appending(path: "/me/devices/\(encoded)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+    }
+
     /// GET /me/assemblies/{id}/protocol → local file URL. Streams the
     /// PDF into the caller's temporary directory under a stable name
     /// (one file per assembly) so re-opens hit the same path. The

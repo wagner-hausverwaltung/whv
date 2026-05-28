@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import and_, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,19 +19,24 @@ from app.models import (
     Contact,
     Contract,
     ContractContact,
+    DeviceEnvironment,
+    DevicePlatform,
     Document,
     DocumentFolder,
     Property,
     Unit,
     User,
+    UserDevice,
     UserRole,
 )
 from app.models import (
     Session as DbSession,
 )
+from app.models._mixins import uuid7_pk
 from app.models.property import PropertyState
 from app.schemas.auth import UserResponse
 from app.schemas.contact import ContactDetailResponse, ContractContextResponse
+from app.schemas.device import RegisterDeviceRequest
 from app.schemas.document import DocumentFolderResponse, DocumentResponse
 from app.schemas.invoice import InvoiceDetailResponse, InvoiceLineItemResponse
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
@@ -56,6 +62,74 @@ def _to_user_response(user: User) -> UserResponse:
 @router.get("", response_model=UserResponse)
 async def get_me(current_user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
     return _to_user_response(current_user)
+
+
+@router.post("/devices", status_code=status.HTTP_204_NO_CONTENT)
+async def register_device(
+    body: RegisterDeviceRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Register (or refresh) this device's APNs token for push.
+
+    Upsert on the token: a re-register from the same device just
+    bumps `last_seen_at` + re-points the row at the current user (so
+    a shared iPad that switches accounts moves the token to whoever
+    is signed in) + un-deletes it if it had been pruned. The unique
+    constraint on `apns_token` makes the conflict target stable.
+    """
+    now = datetime.now(UTC)
+    env = (
+        DeviceEnvironment.SANDBOX if body.environment == "SANDBOX" else DeviceEnvironment.PRODUCTION
+    )
+    stmt = (
+        pg_insert(UserDevice)
+        .values(
+            id=uuid7_pk(),
+            user_id=current_user.id,
+            apns_token=body.apns_token,
+            platform=DevicePlatform.IOS,
+            environment=env,
+            created_at=now,
+            last_seen_at=now,
+            deleted_at=None,
+        )
+        .on_conflict_do_update(
+            index_elements=["apns_token"],
+            set_={
+                "user_id": current_user.id,
+                "environment": env,
+                "last_seen_at": now,
+                "deleted_at": None,
+            },
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/devices/{apns_token}", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_device(
+    apns_token: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Drop this device's token — called on sign-out so a signed-out
+    phone stops receiving the previous user's notifications. Scoped
+    to the caller's own tokens so one user can't unregister another's
+    device. Idempotent: unknown / already-gone tokens 204 anyway."""
+    await session.execute(
+        update(UserDevice)
+        .where(
+            UserDevice.apns_token == apns_token,
+            UserDevice.user_id == current_user.id,
+            UserDevice.deleted_at.is_(None),
+        )
+        .values(deleted_at=datetime.now(UTC))
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/avatar", response_model=UserResponse)

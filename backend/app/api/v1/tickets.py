@@ -55,6 +55,7 @@ from app.schemas.ticket import (
     TicketShareScopeUpdateRequest,
     TicketStatusUpdateRequest,
 )
+from app.services import push
 
 logger = logging.getLogger(__name__)
 
@@ -415,6 +416,51 @@ def _attachments_for_resend(
     return out
 
 
+async def _push_ticket_notification(
+    session: AsyncSession,
+    *,
+    ticket: Ticket,
+    recipients: list[str],
+    sender_email: str,
+    is_new_ticket: bool,
+) -> None:
+    """Mirror the email ticket-notification with a push to the same
+    recipients who happen to be app users.
+
+    The ticket notification path resolves recipients as bare email
+    strings (it has to — external senders aren't users). We map the
+    in-app subset back to User rows by email, minus the sender, and
+    push to their devices. External-only recipients simply don't
+    match a user row and get email only, which is correct.
+
+    Best-effort: never raises into the caller's notification path.
+    """
+    targets = [e for e in recipients if e and e != sender_email]
+    if not targets:
+        return
+    try:
+        users = (
+            await session.scalars(
+                select(User).where(
+                    User.email.in_(targets),
+                    User.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        if not users:
+            return
+        await push.notify_users(
+            session,
+            user_ids=[u.id for u in users],
+            title="Neues Anliegen" if is_new_ticket else "Neue Antwort zu Ihrem Anliegen",
+            body=ticket.subject,
+            deep_link=f"whv://tickets/{ticket.id}",
+            thread_id=f"ticket-{ticket.id}",
+        )
+    except Exception:
+        logger.exception("ticket push fan-out failed for ticket=%s", ticket.id)
+
+
 async def _send_message_notification(
     *,
     email_client: EmailClient,
@@ -425,6 +471,7 @@ async def _send_message_notification(
     headers: dict[str, str] | None = None,
     message_attachments: list[TicketMessageAttachment] | None = None,
     is_new_ticket: bool = False,
+    session: AsyncSession | None = None,
 ) -> tuple[str | None, str | None]:
     """Best-effort send — returns (message_id, error_string). Caller is
     responsible for capturing the outcome in audit if desired.
@@ -440,6 +487,17 @@ async def _send_message_notification(
     """
     if not recipients:
         return None, "no recipients"
+    # Push fan-out runs independently of the email outcome — a Resend
+    # hiccup shouldn't suppress the push and vice versa. Only when a
+    # session was threaded through (all in-request callers do).
+    if session is not None:
+        await _push_ticket_notification(
+            session,
+            ticket=ticket,
+            recipients=recipients,
+            sender_email=sender_email,
+            is_new_ticket=is_new_ticket,
+        )
     try:
         subject, html, text = render_ticket_notification_email(
             # 16 hex chars (no dashes) — reaches into UUIDv7's version + rand_a
@@ -586,6 +644,7 @@ async def create_my_ticket(
         recipients=recipients,
         sender_email=current_user.email,
         is_new_ticket=True,
+        session=session,
     )
 
     await session.commit()
@@ -696,6 +755,7 @@ async def post_my_message(
             recipients=recipients,
             sender_email=current_user.email,
             headers=await _latest_email_thread_headers(session, ticket.id),
+            session=session,
         )
 
     await session.commit()
@@ -845,6 +905,7 @@ async def post_admin_message(
                 recipients=recipients,
                 sender_email=current_user.email,
                 headers=await _latest_email_thread_headers(session, ticket.id),
+                session=session,
             )
 
     await session.commit()
@@ -1642,6 +1703,7 @@ async def _send_deferred_notification(
         sender_email=actor.email,
         headers=await _latest_email_thread_headers(session, ticket.id),
         message_attachments=attachments,
+        session=session,
     )
 
 

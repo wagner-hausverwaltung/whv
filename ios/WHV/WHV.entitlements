@@ -6,5 +6,12 @@
 	<array>
 		<string>group.com.wagner-hausverwaltung.portal</string>
 	</array>
+	<!-- APNs environment. "development" for Debug / Xcode installs
+	     (sandbox gateway), flipped to "production" by Xcode at
+	     archive time for TestFlight / App Store builds. The device
+	     registers its token with the matching `environment` value so
+	     the backend routes to the right APNs host. -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>
