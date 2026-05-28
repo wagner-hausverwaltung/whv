@@ -29,7 +29,6 @@ import {
   Paper,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -667,16 +666,19 @@ function AgendaItemRow({
             )}
           </Stack>
         </Box>
-        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-          <Tooltip title="Aufgabe erstellen">
-            <IconButton
-              color="primary"
-              onClick={() => setTaskOpen(true)}
-              aria-label="Aufgabe erstellen"
-            >
-              <AddTaskOutlinedIcon />
-            </IconButton>
-          </Tooltip>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ flexShrink: 0, alignItems: "center" }}
+        >
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<AddTaskOutlinedIcon />}
+            onClick={() => setTaskOpen(true)}
+          >
+            Aufgabe erstellen
+          </Button>
           <IconButton color="error" onClick={remove} aria-label="TOP löschen">
             <DeleteIcon />
           </IconButton>
