@@ -167,6 +167,40 @@ async def _notify_new_documents_async() -> dict[str, int]:
     return {"documents_notified": notified}
 
 
+async def _notify_plan_adjustments_async() -> dict[str, int]:
+    """Post-sync pass: poll each active owner contract for INFORMED
+    plan-adjustment suggestions and notify the owner(s) that their
+    Hausgeld is changing. Own engine + Redis client (the module Redis is
+    request-scoped and not initialised in the worker)."""
+    from redis.asyncio import from_url
+
+    from app.integrations.impower.client import ImpowerClient
+    from app.services.plan_adjustment_notify import notify_plan_adjustments
+
+    settings = get_settings()
+    if not settings.impower_api_token:
+        return {"plan_adjustments_notified": 0}
+
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    email_client = EmailClient(settings)
+    redis = from_url(settings.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
+    notified = 0
+    try:
+        async with (
+            ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client,
+            session_factory() as session,
+        ):
+            notified = await notify_plan_adjustments(
+                session, client=client, redis=redis, email_client=email_client
+            )
+    finally:
+        await redis.aclose()
+        await engine.dispose()
+    logger.info("plan-adjustment notify: notified=%d", notified)
+    return {"plan_adjustments_notified": notified}
+
+
 @celery_app.task(name="app.workers.tasks.sync_all_impower")
 def sync_all_impower() -> dict[str, int]:
     """Celery task wrapper. Bridges Celery's sync model to our async sync layer.
@@ -185,6 +219,10 @@ def sync_all_impower() -> dict[str, int]:
         counts.update(asyncio.run(_notify_new_documents_async()))
     except Exception:
         logger.exception("document notify phase failed")
+    try:
+        counts.update(asyncio.run(_notify_plan_adjustments_async()))
+    except Exception:
+        logger.exception("plan-adjustment notify phase failed")
     return counts
 
 

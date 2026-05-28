@@ -187,6 +187,7 @@ async def make_contact_with_contract_link(
     unit: Unit | None = None,
     contract_type: ContractType = ContractType.OWNER,
     end_date: date | None = None,
+    contract_impower_id: int | None = None,
 ) -> tuple[Contact, Contract]:
     """Wires up a Contact (with impower_id) → Contract → Property via the junction table.
 
@@ -212,6 +213,7 @@ async def make_contact_with_contract_link(
             unit_id=unit.id if unit is not None else None,
             type=contract_type,
             end_date=end_date,
+            impower_id=contract_impower_id,
         )
         s.add(contract)
         await s.flush()

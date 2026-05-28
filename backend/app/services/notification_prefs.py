@@ -37,6 +37,7 @@ ALL_CATEGORIES: tuple[NotificationCategory, ...] = (
     NotificationCategory.ETV_INVITATION,
     NotificationCategory.DOCUMENT,
     NotificationCategory.INVOICE,
+    NotificationCategory.PLAN_ADJUSTMENT,
 )
 
 

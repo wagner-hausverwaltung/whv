@@ -41,6 +41,7 @@ class NotificationCategory(enum.StrEnum):
     ETV_INVITATION = "ETV_INVITATION"
     DOCUMENT = "DOCUMENT"
     INVOICE = "INVOICE"
+    PLAN_ADJUSTMENT = "PLAN_ADJUSTMENT"
 
 
 class NotificationChannel(enum.StrEnum):

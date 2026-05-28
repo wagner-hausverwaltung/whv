@@ -887,7 +887,8 @@ export type NotificationCategory =
   | "ETV_COMMENT"
   | "ETV_INVITATION"
   | "DOCUMENT"
-  | "INVOICE";
+  | "INVOICE"
+  | "PLAN_ADJUSTMENT";
 
 export interface NotificationSetting {
   category: NotificationCategory;

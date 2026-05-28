@@ -234,6 +234,23 @@ class ImpowerClient:
         result: dict[str, Any] = response.json()
         return result
 
+    async def get_plan_adjustment_suggestions(
+        self,
+        *,
+        contract_id: int,
+        page: int = 0,
+        size: int = _DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """GET /v2/plan-adjustments/suggestions for one contract —
+        proposed Hausgeld adjustments (previousCost, amount, targetDate,
+        ownerCommunicationState). Filtered per contract because the
+        suggestion body itself carries no contract/property id. Returns
+        the raw paged body (`content`)."""
+        params: dict[str, Any] = {"page": page, "size": size, "contractId": contract_id}
+        response = await self._request("GET", "/plan-adjustments/suggestions", params=params)
+        result: dict[str, Any] = response.json()
+        return result
+
     async def list_units(
         self,
         page: int = 0,
