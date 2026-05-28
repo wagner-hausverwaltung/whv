@@ -31,6 +31,8 @@ from app.models import (
     AuditLog,
     Contact,
     ContactKind,
+    NotificationCategory,
+    NotificationChannel,
     Property,
     Ticket,
     TicketCategory,
@@ -55,7 +57,7 @@ from app.schemas.ticket import (
     TicketShareScopeUpdateRequest,
     TicketStatusUpdateRequest,
 )
-from app.services import push
+from app.services import notification_prefs, push
 
 logger = logging.getLogger(__name__)
 
@@ -449,9 +451,18 @@ async def _push_ticket_notification(
         ).all()
         if not users:
             return
-        await push.notify_users(
+        # Honour the TICKET push preference — drop users who turned it
+        # off. (External, non-user recipients never reach here; they
+        # only ever get email.)
+        push_ids = await notification_prefs.filter_user_ids(
             session,
             user_ids=[u.id for u in users],
+            category=NotificationCategory.TICKET,
+            channel=NotificationChannel.PUSH,
+        )
+        await push.notify_users(
+            session,
+            user_ids=push_ids,
             title="Neues Anliegen" if is_new_ticket else "Neue Antwort zu Ihrem Anliegen",
             body=ticket.subject,
             deep_link=f"whv://tickets/{ticket.id}",
@@ -459,6 +470,36 @@ async def _push_ticket_notification(
         )
     except Exception:
         logger.exception("ticket push fan-out failed for ticket=%s", ticket.id)
+
+
+async def _filter_ticket_email_recipients(
+    session: AsyncSession, recipients: list[str]
+) -> list[str]:
+    """Drop registered users who turned TICKET email off; keep external
+    (non-user) addresses untouched — they have no account, so no
+    preference, and must still receive the mail."""
+    if not recipients:
+        return recipients
+    rows = (
+        await session.execute(
+            select(User.id, User.email).where(
+                User.email.in_(recipients),
+                User.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    email_to_id = {email: uid for uid, email in rows}
+    if not email_to_id:
+        return recipients
+    ok_ids = set(
+        await notification_prefs.filter_user_ids(
+            session,
+            user_ids=list(email_to_id.values()),
+            category=NotificationCategory.TICKET,
+            channel=NotificationChannel.EMAIL,
+        )
+    )
+    return [e for e in recipients if e not in email_to_id or email_to_id[e] in ok_ids]
 
 
 async def _send_message_notification(
@@ -498,6 +539,12 @@ async def _send_message_notification(
             sender_email=sender_email,
             is_new_ticket=is_new_ticket,
         )
+        # Honour the TICKET email preference for registered recipients.
+        # If everyone in-app opted out (and there's no external address
+        # left), skip the email entirely — push already went out above.
+        recipients = await _filter_ticket_email_recipients(session, recipients)
+        if not recipients:
+            return None, None
     try:
         subject, html, text = render_ticket_notification_email(
             # 16 hex chars (no dashes) — reaches into UUIDv7's version + rand_a

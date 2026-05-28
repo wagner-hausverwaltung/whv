@@ -46,6 +46,11 @@ from app.models.etv import (
     EtvDiscussionEntry,
 )
 from app.models.llm_audit import LLMAuditLog
+from app.models.notification_preference import (
+    NotificationCategory,
+    NotificationChannel,
+    UserNotificationPreference,
+)
 from app.models.organization import Organization
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.ticket import (
@@ -96,6 +101,8 @@ __all__ = [
     "EtvDiscussionEntry",
     "InviteCode",
     "LLMAuditLog",
+    "NotificationCategory",
+    "NotificationChannel",
     "Organization",
     "PasswordResetToken",
     "PreferredChannel",
@@ -118,6 +125,7 @@ __all__ = [
     "UnitType",
     "User",
     "UserDevice",
+    "UserNotificationPreference",
     "UserRole",
     "VoteChoice",
 ]

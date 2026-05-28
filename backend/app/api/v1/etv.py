@@ -61,6 +61,8 @@ from app.models import (
     EtvAssembly,
     EtvAssemblyComment,
     EtvDiscussionEntry,
+    NotificationCategory,
+    NotificationChannel,
     Property,
     User,
     UserRole,
@@ -83,7 +85,7 @@ from app.schemas.etv import (
     UpdateAssemblyRequest,
 )
 from app.services import etv as svc
-from app.services import push
+from app.services import notification_prefs, push
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +429,26 @@ async def create_assembly_comment(
             new_author_user_id=current_user.id,
         )
         if recipients:
+            # Split by per-user notification preference (category
+            # ETV_COMMENT): email only those who keep its email on,
+            # push only those who keep its push on. Opt-out — a user
+            # with no saved preference stays in both sets.
+            recipient_ids = [r.id for r in recipients]
+            email_ok = set(
+                await notification_prefs.filter_user_ids(
+                    session,
+                    user_ids=recipient_ids,
+                    category=NotificationCategory.ETV_COMMENT,
+                    channel=NotificationChannel.EMAIL,
+                )
+            )
+            push_ids = await notification_prefs.filter_user_ids(
+                session,
+                user_ids=recipient_ids,
+                category=NotificationCategory.ETV_COMMENT,
+                channel=NotificationChannel.PUSH,
+            )
+
             prop = await session.get(Property, a.property_id)
             property_name = prop.name if prop else "—"
             subject, html_body, text_body = render_assembly_comment_notification_email(
@@ -438,7 +460,7 @@ async def create_assembly_comment(
                 commented_at=c.created_at,
             )
             for r in recipients:
-                if not r.email:
+                if not r.email or r.id not in email_ok:
                     continue
                 try:
                     await email_client.send(
@@ -453,12 +475,12 @@ async def create_assembly_comment(
                         r.email,
                     )
 
-            # Push fan-out to the same recipients — mirrors the email
-            # set. No-op when APNs isn't configured. Deep-links to the
-            # assembly so the tap lands on the right ETV.
+            # Push fan-out to the preference-filtered set — mirrors the
+            # email set. No-op when APNs isn't configured. Deep-links to
+            # the assembly so the tap lands on the right ETV.
             await push.notify_users(
                 session,
-                user_ids=[r.id for r in recipients],
+                user_ids=push_ids,
                 title="Neuer Kommentar zur ETV",
                 body=f"{property_name}: {a.title}",
                 deep_link=f"whv://etv/{a.id}",

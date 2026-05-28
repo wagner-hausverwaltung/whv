@@ -16,6 +16,7 @@ from app.db import Base
 _ENUM_TYPES = (
     "contact_kind",
     "preferred_channel",
+    "notification_category",
     "contract_type",
     "document_kind",
     "document_state",

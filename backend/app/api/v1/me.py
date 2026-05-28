@@ -39,9 +39,15 @@ from app.schemas.contact import ContactDetailResponse, ContractContextResponse
 from app.schemas.device import RegisterDeviceRequest
 from app.schemas.document import DocumentFolderResponse, DocumentResponse
 from app.schemas.invoice import InvoiceDetailResponse, InvoiceLineItemResponse
+from app.schemas.notification import (
+    NotificationSetting,
+    NotificationSettingsResponse,
+    UpdateNotificationSettingsRequest,
+)
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
 from app.schemas.unit import UnitResponse
 from app.schemas.vendor import VendorSummary
+from app.services import notification_prefs
 from app.services import units as units_svc
 from app.services import vendors as vendors_svc
 
@@ -130,6 +136,47 @@ async def unregister_device(
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/notification-settings", response_model=NotificationSettingsResponse)
+async def get_notification_settings(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> NotificationSettingsResponse:
+    """The caller's full Push/E-Mail matrix. Categories without a saved
+    row come back as all-on (opt-out default), so the client always
+    renders the complete set. Shared by the portal + iOS settings."""
+    effective = await notification_prefs.get_effective_settings(session, user_id=current_user.id)
+    return NotificationSettingsResponse(
+        items=[
+            NotificationSetting(category=category, push=push, email=email)
+            for category, (push, email) in effective.items()
+        ]
+    )
+
+
+@router.put("/notification-settings", response_model=NotificationSettingsResponse)
+async def update_notification_settings(
+    body: UpdateNotificationSettingsRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> NotificationSettingsResponse:
+    """Upsert the caller's matrix. The client sends the full set; we
+    persist one row per category. Returns the re-read effective matrix
+    so the client can confirm what stuck."""
+    await notification_prefs.set_settings(
+        session,
+        user_id=current_user.id,
+        settings={item.category: (item.push, item.email) for item in body.items},
+    )
+    await session.commit()
+    effective = await notification_prefs.get_effective_settings(session, user_id=current_user.id)
+    return NotificationSettingsResponse(
+        items=[
+            NotificationSetting(category=category, push=push, email=email)
+            for category, (push, email) in effective.items()
+        ]
+    )
 
 
 @router.put("/avatar", response_model=UserResponse)
