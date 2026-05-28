@@ -55,6 +55,7 @@ from app.models.notification_preference import (
 from app.models.organization import Organization
 from app.models.organization_property_selection import OrganizationPropertySelection
 from app.models.property import Building, Property, PropertyState, PropertyType
+from app.models.signature_request import SignatureRequest, SignatureRequestStatus
 from app.models.ticket import (
     Ticket,
     TicketCategory,
@@ -117,6 +118,8 @@ __all__ = [
     "ResolutionStatus",
     "SendAttemptStatus",
     "Session",
+    "SignatureRequest",
+    "SignatureRequestStatus",
     "Ticket",
     "TicketCategory",
     "TicketMessage",

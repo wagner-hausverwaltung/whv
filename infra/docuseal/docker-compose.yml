@@ -1,0 +1,39 @@
+# Self-hosted DocuSeal for WHV e-signatures (ADR-0012).
+#
+# Runs on the Hetzner host alongside the app stack. SQLite-backed (the
+# `docuseal_data` volume holds the DB + uploaded/signed PDFs) — plenty
+# for our volume and the "dead-simple self-host" the ADR picked.
+#
+# Outbound mail goes through AWS SES SMTP so signing invitations come
+# from the Wagner-Hausverwaltung sender. Bound to 127.0.0.1 so only the
+# host's Caddy reverse-proxies it (see Caddyfile.snippet).
+#
+# Bring up:
+#   cd infra/docuseal
+#   cp .env.example .env   # fill SES creds + a strong SECRET_KEY_BASE
+#   docker compose up -d
+services:
+  docuseal:
+    image: docuseal/docuseal:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      # Public URL (Caddy terminates TLS in front of this).
+      HOST: sign.wagner-hausverwaltung.com
+      FORCE_SSL: "true"
+      # Rails secret — generate once: `openssl rand -hex 64`.
+      SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE}
+      # --- AWS SES SMTP (signing-invite emails) ---
+      SMTP_ADDRESS: ${SES_SMTP_HOST}          # e.g. email-smtp.eu-central-1.amazonaws.com
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ${SES_SMTP_USERNAME}
+      SMTP_PASSWORD: ${SES_SMTP_PASSWORD}
+      SMTP_FROM: "Wagner Hausverwaltung <noreply@wagner-hausverwaltung.com>"
+      SMTP_AUTHENTICATION: login
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+    volumes:
+      - docuseal_data:/data
+
+volumes:
+  docuseal_data:

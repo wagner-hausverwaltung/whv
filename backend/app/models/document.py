@@ -64,6 +64,9 @@ class DocumentKind(enum.StrEnum):
     RECHNUNG = "RECHNUNG"
     UMLAUFBESCHLUSS = "UMLAUFBESCHLUSS"
     HAUSORDNUNG = "HAUSORDNUNG"
+    # Signed PDF returned by DocuSeal (ADR-0012). Stored back in the
+    # document tree so signed contracts/Vollmachten are auditable.
+    SIGNATUR = "SIGNATUR"
     SONSTIGES = "SONSTIGES"
 
 

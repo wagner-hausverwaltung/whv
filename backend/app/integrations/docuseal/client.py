@@ -109,6 +109,21 @@ class DocuSealClient:
 
         return {"template_id": template_id, "submission_id": submission_id, "raw": data}
 
+    async def download_document(self, url: str) -> bytes:
+        """Fetch a signed-document PDF (the `documents[].url` from the
+        `form.completed` webhook). Sends the auth token in case the URL
+        is gated; harmless if it's already a public/expiring link."""
+        if not self.is_configured:
+            raise DocuSealError("DocuSeal is not configured")
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            try:
+                resp = await client.get(url, headers={"X-Auth-Token": self._key})
+            except httpx.HTTPError as exc:
+                raise DocuSealError(f"document download failed: {exc}") from exc
+        if resp.status_code >= 400:
+            raise DocuSealError(f"document download {resp.status_code}: {resp.text[:200]}")
+        return resp.content
+
 
 def get_docuseal_client(settings: Settings) -> DocuSealClient:
     return DocuSealClient(settings)
