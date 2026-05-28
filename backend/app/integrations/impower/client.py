@@ -234,6 +234,29 @@ class ImpowerClient:
         result: dict[str, Any] = response.json()
         return result
 
+    async def get_rent_settlements(
+        self,
+        *,
+        contract_ids: list[int],
+        page: int = 0,
+        size: int = _DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """GET /v2/rent-settlement — the MV-property owner's payout
+        statements (Mietabrechnung) for the given owner contract(s):
+        rentIncomeAmount, payoutAmount, balanceAmount, timeframe,
+        dueDate. Filtered by the caller's own contract ids so a tenant
+        / other owner never sees someone else's. Raw paged body."""
+        params: dict[str, Any] = {
+            "page": page,
+            "size": size,
+            "contractIds": contract_ids,
+            "sort": "dueDate",
+            "order": "DESC",
+        }
+        response = await self._request("GET", "/rent-settlement", params=params)
+        result: dict[str, Any] = response.json()
+        return result
+
     async def get_plan_adjustment_suggestions(
         self,
         *,

@@ -296,6 +296,19 @@ struct HausgeldAccount: Codable, Hashable {
     let bookings: [PostingItem]
 }
 
+/// One Mietabrechnung period for an MV-property owner, from
+/// `GET /me/properties/{id}/rent-settlements`. `payout` is the amount
+/// transferred to the owner; amounts shown as-is (neutral).
+struct RentSettlement: Codable, Hashable {
+    let period_from: String?
+    let period_until: String?
+    let due_date: String?
+    let rent_income: Double?
+    let payout: Double?
+    let balance: Double?
+    let state: String?
+}
+
 /// Full contact card returned by
 /// `GET /me/contracts/{contractId}/contacts/{contactId}`. Drives the
 /// sheet opened by tapping a contract chip on PropertyDetailView.
@@ -795,6 +808,14 @@ struct APIClient {
     func getMyAccount(propertyId: String) async throws -> HausgeldAccount {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedGET("/me/properties/\(propertyId)/account")
+    }
+
+    /// GET /me/properties/{id}/rent-settlements — MV-property owner
+    /// Mietabrechnung (payout statements per period). Empty for WEG
+    /// properties / tenants. Demo: empty.
+    func getMyRentSettlements(propertyId: String) async throws -> [RentSettlement] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/me/properties/\(propertyId)/rent-settlements")
     }
 
     /// GET /me/contracts/{contractId}/contacts/{contactId} —

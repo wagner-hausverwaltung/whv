@@ -916,3 +916,14 @@ export interface HausgeldAccountResponse {
   balance: number | null;
   bookings: PostingItem[];
 }
+
+// --- Mietabrechnung for MV-property owners (GET /me/properties/{id}/rent-settlements) ---
+export interface RentSettlement {
+  period_from: string | null;
+  period_until: string | null;
+  due_date: string | null;
+  rent_income: number | null;
+  payout: number | null;
+  balance: number | null;
+  state: string | null;
+}

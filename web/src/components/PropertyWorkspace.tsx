@@ -29,10 +29,11 @@ import { useAuth } from "@/auth/AuthContext";
 
 const TAB_DEFS = [
   { value: "details", label: "Details" },
-  // "Hausgeldkonto" — the owner's own Impower account balance + booking
-  // history. Owner-facing only (hidden for Verwalter, who have no
-  // personal Hausgeld account); filtered out below by role.
-  { value: "account", label: "Hausgeldkonto" },
+  // "Konto" — the owner's financial view for this property: WEG
+  // Hausgeldkonto (balance + bookings) or MV Mietabrechnung (payout
+  // statements), whichever applies. Owner-facing only (hidden for
+  // Verwalter); filtered out below by role.
+  { value: "account", label: "Konto" },
   { value: "announcements", label: "Mitteilungen" },
   { value: "assemblies", label: "Versammlungen" },
   { value: "documents", label: "Dokumente" },

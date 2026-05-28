@@ -14,6 +14,7 @@ final class PropertyDetailStore: ObservableObject {
     @Published private(set) var detail: PropertyDetailResponse?
     @Published private(set) var vendors: [VendorSummary] = []
     @Published private(set) var account: HausgeldAccount?
+    @Published private(set) var rentSettlements: [RentSettlement] = []
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
@@ -35,6 +36,7 @@ final class PropertyDetailStore: ObservableObject {
             async let detailTask = api.getMyPropertyDetail(id: id)
             async let vendorsTask = api.getMyPropertyVendors(propertyId: id)
             async let accountTask = api.getMyAccount(propertyId: id)
+            async let rentTask = api.getMyRentSettlements(propertyId: id)
             self.detail = try await detailTask
             // A vendor-list failure shouldn't blank the property
             // detail. Swallow + log into lastError only if the detail
@@ -50,6 +52,12 @@ final class PropertyDetailStore: ObservableObject {
                 self.account = try await accountTask
             } catch {
                 self.account = nil
+            }
+            // Mietabrechnung (MV-owner only); empty otherwise.
+            do {
+                self.rentSettlements = try await rentTask
+            } catch {
+                self.rentSettlements = []
             }
         } catch APIError.unauthorized {
             onUnauthorized?()
@@ -106,6 +114,9 @@ struct PropertyDetailView: View {
                 }
                 if let account = store.account, account.account_id != nil {
                     hausgeldkontoSection(account: account)
+                }
+                if !store.rentSettlements.isEmpty {
+                    mietabrechnungSection(settlements: store.rentSettlements)
                 }
                 if !store.vendors.isEmpty {
                     dienstleisterSection(vendors: store.vendors)
@@ -442,6 +453,50 @@ struct PropertyDetailView: View {
                     RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground))
                 )
             }
+        }
+    }
+
+    // MARK: - Mietabrechnung (MV owner)
+
+    /// MV-property owner payout statements per period. Shown only when
+    /// Impower returns settlements (i.e. a rented-out object the caller
+    /// owns). Amounts neutral.
+    private func mietabrechnungSection(settlements: [RentSettlement]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Mietabrechnung")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            VStack(spacing: 0) {
+                ForEach(Array(settlements.prefix(12).enumerated()), id: \.offset) { idx, s in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("\(formatBookingDate(s.period_from)) – \(formatBookingDate(s.period_until))")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text(formatEuro(s.payout))
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.primary)
+                                .monospacedDigit()
+                        }
+                        Text("Mieteinnahmen \(formatEuro(s.rent_income))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    if idx != min(settlements.count, 12) - 1 {
+                        Divider().padding(.leading, 12)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground))
+            )
+            Text("Auszahlung = Betrag an Sie als Eigentümer. Ohne Gewähr.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 

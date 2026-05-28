@@ -46,6 +46,7 @@ from app.schemas.notification import (
     UpdateNotificationSettingsRequest,
 )
 from app.schemas.property import PropertyDetailResponse, PropertyResponse
+from app.schemas.rent_settlement import RentSettlementResponse
 from app.schemas.unit import UnitResponse
 from app.schemas.vendor import VendorSummary
 from app.services import notification_prefs
@@ -724,6 +725,69 @@ async def get_my_account(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Hausgeldkonto konnte nicht von Impower geladen werden.",
+        ) from None
+
+
+@router.get(
+    "/properties/{property_id}/rent-settlements",
+    response_model=list[RentSettlementResponse],
+)
+async def get_my_rent_settlements(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> list[RentSettlementResponse]:
+    """MV-property owner Mietabrechnung — rental-income / payout
+    statements per period for the caller's OWN owner contract(s) on the
+    property. Empty for WEG properties or tenants (no owner
+    settlements). 404 only when the property isn't visible to the
+    caller; scoped to the caller's contract ids so no one sees another
+    party's settlement."""
+    if current_user.contact_id_impower is None:
+        return []
+
+    prop_stmt = _visible_properties_stmt(current_user).where(Property.id == property_id)
+    prop = await session.scalar(prop_stmt)
+    if prop is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Liegenschaft nicht gefunden."
+        )
+    if prop.impower_id is None:
+        return []
+
+    rows = await session.scalars(
+        select(Contract.impower_id)
+        .join(ContractContact, ContractContact.contract_id == Contract.id)
+        .join(Contact, Contact.id == ContractContact.contact_id)
+        .where(
+            Contact.impower_id == current_user.contact_id_impower,
+            Contract.property_id == prop.id,
+            Contract.impower_id.is_not(None),
+            Contract.deleted_at.is_(None),
+            active_contract_filter(),
+        )
+    )
+    contract_ids = [c for c in rows.all() if c is not None]
+    if not contract_ids:
+        return []
+
+    if not settings.impower_api_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Impower-Verbindung nicht konfiguriert.",
+        )
+
+    from app.integrations.impower.client import ImpowerClient, ImpowerError
+    from app.services import rent_settlement as rs_svc
+
+    try:
+        async with ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client:
+            return await rs_svc.load_my_rent_settlements(client, contract_impower_ids=contract_ids)
+    except ImpowerError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Mietabrechnung konnte nicht von Impower geladen werden.",
         ) from None
 
 
