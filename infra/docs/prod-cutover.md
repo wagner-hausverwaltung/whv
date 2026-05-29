@@ -34,21 +34,38 @@ The scaffolding assumes prod owns signing. Volume migration:
 `docker run --rm -v docuseal-data:/from -v $PWD:/to alpine tar czf /to/docuseal.tgz -C /from .`
 then restore into the prod volume.
 
-## 1. Provision the prod server
+## 1. Provision the prod server — ✅ DONE (2026-05-29)
 
-- New Hetzner Cloud box (Nürnberg), same class as staging (cax21 / arm64 — the
-  images are built `linux/arm64`).
-- Install Docker + compose plugin; create the `whv` user; `mkdir -p /home/whv/whv`.
-- Open ports 80 + 443 only.
+Provisioned via `hcloud` with a cloud-init that created the `whv` user (sudo +
+both SSH keys: `luis-mbp` and `whv-ci-deploy`), installed Docker CE + the
+compose plugin, and made `/home/whv/whv`. Firewall `whv-prod-public` allows
+inbound 22/80/443 + ICMP (mirrors `whv-staging-public`).
+
+| | |
+|---|---|
+| Server | `whv-prod-api` (ID 134034607) |
+| IPv4 / IPv6 | `91.99.123.40` / `2a01:4f8:c015:7fd7::1` |
+| Type / image | **cax11** (2 vCPU / 4 GB) · ubuntu-24.04 · arm64 |
+| Location | `fsn1` (Falkenstein, Germany) |
+
+> ⚠️ **cax11, not cax21.** `cax21`/`cax31` were capacity-unavailable in every
+> CAX location at provisioning time (recurring Hetzner ARM shortage), so this
+> box is smaller than staging — 4 GB is tight once DocuSeal (Rails) runs.
+> Resize when capacity returns: `hcloud server change-type whv-prod-api cax21 --keep-disk` (needs a reboot). cax11 is fine for initial low-load prod.
+>
+> Different DC from staging (`fsn1` vs `nbg1`) — both Germany, DSGVO-equivalent.
 
 ## 2. DNS (A records → prod box IP)
 
-| Host | → |
-|------|---|
-| `api.wagner-hausverwaltung.com` | prod IP |
-| `admin.wagner-hausverwaltung.com` | prod IP |
-| `portal.wagner-hausverwaltung.com` | prod IP |
-| `sign.wagner-hausverwaltung.com` | prod IP *(if prod owns DocuSeal — §0)* |
+Point A records (+ optional AAAA) at the prod box `91.99.123.40`
+(`2a01:4f8:c015:7fd7::1`):
+
+| Host | A → |
+|------|-----|
+| `api.wagner-hausverwaltung.com` | `91.99.123.40` |
+| `admin.wagner-hausverwaltung.com` | `91.99.123.40` |
+| `portal.wagner-hausverwaltung.com` | `91.99.123.40` |
+| `sign.wagner-hausverwaltung.com` | `91.99.123.40` *(if prod owns DocuSeal — §0)* |
 
 Records must resolve **before** the first deploy, or Caddy's Let's Encrypt
 HTTP-01 challenge fails. Leave the `staging.*` records pointing at staging.
@@ -69,8 +86,11 @@ Generate fresh for prod and put in the host `.env` (see `.env.prod.example`):
 ## 4. GitHub secrets for `deploy-prod.yml`
 
 Add repo secrets:
-- `PROD_SSH_HOST` — prod box IP / hostname
-- `PROD_SSH_KEY` — private key whose public half is in the prod `whv` user's `authorized_keys`
+- `PROD_SSH_HOST` = `91.99.123.40`
+- `PROD_SSH_KEY` — the **`whv-ci-deploy`** private key (its public half is
+  already in the prod `whv` user's `authorized_keys`, installed by cloud-init).
+  This is the same CI key staging uses; issue a dedicated prod key later if you
+  want stronger isolation.
 
 (Staging keeps using `STAGING_SSH_HOST` / `STAGING_SSH_KEY`.)
 
