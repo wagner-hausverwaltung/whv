@@ -34,6 +34,9 @@
                        to user, App Functionality only.
   User ID            — Our own UUID7 user_id (NOT the IDFA / device
                        ID). Linked, App Functionality only.
+  Device ID          — APNs push token, registered per device to
+                       deliver notifications. Linked to user, App
+                       Functionality only, NOT tracking.
 
   ── Tracking ────────────────────────────────────────────────────────
   WHV does NOT track users across apps or websites. No IDFA. No
@@ -43,7 +46,7 @@
     * a new third-party SDK is added (each ships its own manifest)
     * crash reporting / analytics (Sentry, Firebase) is enabled —
       will add Diagnostic data + maybe required-reason entries
-    * push notifications launch — adds Identifiers/Device ID
+    * (done) push notifications — Device ID (APNs token) declared below
     * any new framework that touches Photos, Camera, Location,
       Contacts, Microphone, HealthKit, Motion, etc.
 -->
