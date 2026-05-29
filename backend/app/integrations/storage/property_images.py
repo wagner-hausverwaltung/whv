@@ -26,6 +26,13 @@ def _path_for(property_id: uuid.UUID) -> Path:
     return Path(settings.property_image_dir) / f"{property_id}.png"
 
 
+def property_image_path(property_id: uuid.UUID) -> Path:
+    """On-disk path of a property's hero photo. Public wrapper used by the
+    authenticated download endpoint (it rebuilds the path from a parsed
+    UUID so a crafted filename can't traverse the storage dir)."""
+    return _path_for(property_id)
+
+
 def write_property_image(property_id: uuid.UUID, raw: bytes) -> str:
     """Persist a Verwalter-uploaded image as a normalised PNG and return
     the relative URL the SPA + `<img>` tag can fetch.

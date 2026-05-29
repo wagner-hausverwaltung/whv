@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
-  Avatar,
   Box,
   Button,
   Checkbox,
@@ -20,8 +19,9 @@ import {
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import { useTranslation } from "react-i18next";
-import { api, API_BASE_URL } from "@/api/client";
+import { api } from "@/api/client";
 import type { AdminPropertyListItem } from "@/api/types";
+import { AuthedAvatar } from "@/components/AuthedImage";
 
 const EUR0 = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -201,13 +201,9 @@ export function AdminPropertiesPage() {
                       />
                     </TableCell>
                     <TableCell sx={{ width: 64 }}>
-                      <Avatar
+                      <AuthedAvatar
                         variant="rounded"
-                        src={
-                          p.image_url
-                            ? `${API_BASE_URL}${p.image_url}`
-                            : undefined
-                        }
+                        relativeUrl={p.image_url}
                         sx={{
                           width: 40,
                           height: 40,
@@ -216,7 +212,7 @@ export function AdminPropertiesPage() {
                         }}
                       >
                         <HomeWorkOutlinedIcon fontSize="small" />
-                      </Avatar>
+                      </AuthedAvatar>
                     </TableCell>
                     <TableCell>
                       <Stack

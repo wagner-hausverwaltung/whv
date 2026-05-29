@@ -21,7 +21,6 @@ import {
   useNavigate,
 } from "react-router-dom";
 import {
-  Avatar,
   Box,
   ButtonBase,
   Divider,
@@ -35,8 +34,9 @@ import {
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CheckIcon from "@mui/icons-material/Check";
-import { api, API_BASE_URL } from "@/api/client";
+import { api } from "@/api/client";
 import type { PropertyResponse } from "@/api/types";
+import { AuthedAvatar } from "@/components/AuthedImage";
 import {
   getRememberedPropertyId,
   rememberPropertyId,
@@ -183,10 +183,8 @@ export function PropertySwitcher() {
         aria-expanded={hasMultiple && Boolean(anchor) ? "true" : undefined}
         disableRipple={!hasMultiple}
       >
-        <Avatar
-          src={
-            active.image_url ? `${API_BASE_URL}${active.image_url}` : undefined
-          }
+        <AuthedAvatar
+          relativeUrl={active.image_url}
           sx={{
             width: 32,
             height: 32,
@@ -195,7 +193,7 @@ export function PropertySwitcher() {
           }}
         >
           <HomeWorkOutlinedIcon sx={{ fontSize: 18 }} />
-        </Avatar>
+        </AuthedAvatar>
         <Stack spacing={0} sx={{ lineHeight: 1.2, minWidth: 0 }}>
           {active.name && isWide && (
             <Typography
@@ -247,8 +245,8 @@ export function PropertySwitcher() {
                 onClick={() => pick(p)}
                 selected={isActive}
               >
-                <Avatar
-                  src={p.image_url ? `${API_BASE_URL}${p.image_url}` : undefined}
+                <AuthedAvatar
+                  relativeUrl={p.image_url}
                   sx={{
                     width: 28,
                     height: 28,
@@ -258,7 +256,7 @@ export function PropertySwitcher() {
                   }}
                 >
                   <HomeWorkOutlinedIcon sx={{ fontSize: 16 }} />
-                </Avatar>
+                </AuthedAvatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
                     {p.name}

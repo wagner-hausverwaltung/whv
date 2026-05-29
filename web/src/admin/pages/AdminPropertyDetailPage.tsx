@@ -32,11 +32,12 @@ import {
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import PhotoCameraOutlined from "@mui/icons-material/PhotoCameraOutlined";
 import { useTranslation } from "react-i18next";
-import { api, API_BASE_URL } from "@/api/client";
+import { api } from "@/api/client";
 import type {
   AdminPropertyCompanyResponse,
   AdminPropertyDetailResponse,
 } from "@/api/types";
+import { useAuthedImageUrl } from "@/lib/useAuthedImageUrl";
 import { AdminAnnouncementsTab } from "@/components/AdminAnnouncementsTab";
 import { PropertyInvitesTab } from "@/admin/components/PropertyInvitesTab";
 import { DocumentFoldersPanel } from "@/components/DocumentFoldersPanel";
@@ -63,6 +64,8 @@ function PropertyImageEditor({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hero photo is served auth-gated now, so fetch it with the JWT.
+  const heroUrl = useAuthedImageUrl(property.image_url);
 
   const pick = () => fileRef.current?.click();
 
@@ -114,9 +117,7 @@ function PropertyImageEditor({
           maxHeight: 320,
           width: "100%",
           bgcolor: "action.hover",
-          backgroundImage: property.image_url
-            ? `url(${API_BASE_URL}${property.image_url})`
-            : undefined,
+          backgroundImage: heroUrl ? `url(${heroUrl})` : undefined,
           backgroundSize: "cover",
           backgroundPosition: "center",
           display: "flex",

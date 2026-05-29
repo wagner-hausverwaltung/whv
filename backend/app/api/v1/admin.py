@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.bootstrap import generate_invite_code
-from app.auth.dependencies import require_role
+from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.docuseal.client import DocuSealError, get_docuseal_client
@@ -25,6 +25,7 @@ from app.integrations.storage.documents import (
 from app.integrations.storage.property_images import (
     PropertyImageError,
     delete_property_image,
+    property_image_path,
     write_property_image,
 )
 from app.models import (
@@ -1741,6 +1742,40 @@ async def download_document(
         media_type=doc.mime_type or "application/octet-stream",
         filename=f"{doc.name}{suffix}",
     )
+
+
+@router.get("/property-images/{filename}")
+async def download_property_image(
+    filename: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Authenticated read of a property hero photo. Replaces the old public
+    StaticFiles mount: any signed-in user in the org may fetch (portal owners
+    see the photo in the property switcher, Verwalter in the admin), but it's
+    no longer world-readable.
+
+    `filename` is `{property_id}.png`; we parse the id and rebuild the path
+    via the storage helper, so a crafted filename can't traverse the dir.
+    Not VERWALTER-only on purpose — owners/tenants render the same photo.
+    """
+    stem = filename[:-4] if filename.endswith(".png") else filename
+    try:
+        property_id = uuid.UUID(stem)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from None
+    prop = await session.scalar(
+        select(Property).where(
+            Property.id == property_id,
+            Property.organization_id == current_user.organization_id,
+        )
+    )
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    path = property_image_path(property_id)
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return FileResponse(path, media_type="image/png")
 
 
 # =================================================================

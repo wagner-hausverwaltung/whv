@@ -97,20 +97,10 @@ try:
 except OSError:
     pass
 
-# Verwalter-uploaded property photos. Same lazy-mount pattern as avatars.
-# Publicly readable URLs (the property id is a UUIDv7, effectively
-# unguessable) so the portal property-list cards can render thumbnails
-# without needing an authenticated GET per row.
-_property_image_dir = Path(_settings.property_image_dir)
-try:
-    _property_image_dir.mkdir(parents=True, exist_ok=True)
-    app.mount(
-        "/admin/property-images",
-        StaticFiles(directory=str(_property_image_dir)),
-        name="property-images",
-    )
-except OSError:
-    pass
+# Property hero photos are NOT mounted as public StaticFiles — they're
+# served by the authenticated GET /admin/property-images/{file} endpoint
+# (app/api/v1/admin.py) so the bytes aren't world-readable. The storage
+# dir is created lazily on first upload (write_property_image).
 
 
 @app.get("/healthz", tags=["meta"])
