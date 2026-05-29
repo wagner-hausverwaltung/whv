@@ -1,0 +1,91 @@
+# WHV PRODUCTION reverse proxy (separate Hetzner box from staging).
+# Caddy 2 auto-provisions Let's Encrypt certs; each host's DNS A record
+# must resolve to THIS server before first start or the HTTP-01 challenge
+# fails. Mirrors the staging Caddyfile but on the bare domains.
+#
+# Deployed to the prod host as /home/whv/whv/Caddyfile by deploy-prod.yml.
+# NOTE: header changes (and new-vhost cert issuance) only take effect on a
+# Caddy container RESTART, not `reload` — see infra/docs/prod-cutover.md.
+
+api.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    reverse_proxy backend:8000
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Admin host. Serves the same SPA bundle as portal.* but a root visit
+# 302-redirects to `/admin` so the SPA lands on the admin dashboard.
+admin.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    @root path /
+    redir @root /admin 302
+
+    reverse_proxy web:80
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# React SPA for Eigentümer / Mieter / Beirat. The bundle is built with
+# VITE_API_BASE_URL=https://api.wagner-hausverwaltung.com (see deploy-prod.yml).
+portal.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    reverse_proxy web:80
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Self-hosted DocuSeal for e-signatures (ADR-0012). `sign.*` is a single
+# bare host — its DNS A record must point at whichever box runs DocuSeal.
+# If prod owns signing, repoint sign.* here and migrate the docuseal-data
+# volume off staging (see the runbook). The admin embeds this in an iframe,
+# so we drop X-Frame-Options and allow framing from our own prod origins.
+sign.wagner-hausverwaltung.com {
+    encode gzip zstd
+
+    reverse_proxy docuseal:3000 {
+        header_down -X-Frame-Options
+        header_down Content-Security-Policy "frame-ancestors 'self' https://admin.wagner-hausverwaltung.com https://portal.wagner-hausverwaltung.com"
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
