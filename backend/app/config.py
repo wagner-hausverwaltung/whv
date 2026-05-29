@@ -1,8 +1,14 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Sentinel default for `jwt_secret`. Outside dev the app refuses to boot
+# while this (or an empty string) is the effective value — a publicly
+# known signing key would let anyone forge a VERWALTER access token.
+# Enforced by Settings._require_real_jwt_secret below.
+DEFAULT_JWT_SECRET = "change-me-in-prod"
 
 
 class Settings(BaseSettings):
@@ -53,7 +59,7 @@ class Settings(BaseSettings):
     # header unset so we don't direct staging replies into a void.
     email_inbound_address: str = ""
 
-    jwt_secret: str = "change-me-in-prod"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
@@ -205,6 +211,21 @@ class Settings(BaseSettings):
     # truncated mid-string. 32 KB fits even multi-TOP protocols with
     # plenty of margin; Gemini 2.5 Flash supports up to 65 K.
     llm_max_output_tokens: int = 32768
+
+    @model_validator(mode="after")
+    def _require_real_jwt_secret(self) -> Self:
+        # In staging/prod a forgeable signing key is a critical hole: with the
+        # default (or empty) secret anyone can mint a VERWALTER access token and
+        # impersonate any user. Refuse to boot rather than silently trust forged
+        # JWTs. Dev keeps the convenient default so local runs + tests need no
+        # extra setup.
+        if self.app_env != "dev" and self.jwt_secret in ("", DEFAULT_JWT_SECRET):
+            raise ValueError(
+                "jwt_secret must be set to a strong, non-default value when "
+                f"app_env={self.app_env!r}; refusing to boot with the default "
+                "or empty signing key."
+            )
+        return self
 
 
 @lru_cache
