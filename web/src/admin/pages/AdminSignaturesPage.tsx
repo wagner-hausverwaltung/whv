@@ -35,7 +35,11 @@ import { api, API_BASE_URL, getAccessToken } from "@/api/client";
 import type { AdminPropertyListItem, SignatureRequestResponse } from "@/api/types";
 
 // The self-hosted DocuSeal instance (Caddy allows framing it from here).
-const DOCUSEAL_URL = "https://sign.wagner-hausverwaltung.com";
+// Overridable at build time via VITE_DOCUSEAL_URL; the default is the shared
+// sign.* host, which is the same in staging + prod.
+const DOCUSEAL_URL =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (import.meta as any).env?.VITE_DOCUSEAL_URL ?? "https://sign.wagner-hausverwaltung.com";
 
 const STATUS_COLOR: Record<
   SignatureRequestResponse["status"],
@@ -123,6 +127,11 @@ export function AdminSignaturesPage() {
         component="iframe"
         src={DOCUSEAL_URL}
         title="DocuSeal"
+        // DocuSeal is our own trusted service, but scope the frame's powers
+        // as defense-in-depth. allow-same-origin is required for its login
+        // cookie + own storage; we deliberately omit allow-top-navigation so
+        // a compromised frame can't redirect the whole admin SPA elsewhere.
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-popups-to-escape-sandbox"
         sx={{
           width: "100%",
           height: "78vh",
