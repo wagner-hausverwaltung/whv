@@ -227,6 +227,26 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _require_safe_cors_in_prod(self) -> Self:
+        # The CORS allow-list (portal_base_url + admin_base_url) feeds
+        # straight into Access-Control-Allow-Origin. A leftover localhost or
+        # plain-http origin in prod would either break the real SPA or open
+        # the API to an http origin, so refuse to boot until they're real
+        # https hosts. Dev/staging keep the convenient localhost defaults.
+        if self.app_env != "prod":
+            return self
+        origins = [self.portal_base_url]
+        if self.admin_base_url:
+            origins.append(self.admin_base_url)
+        for origin in origins:
+            if not origin.startswith("https://") or "localhost" in origin or "127.0.0.1" in origin:
+                raise ValueError(
+                    f"CORS origin {origin!r} is not allowed in prod: origins must be "
+                    "https and non-localhost (check portal_base_url / admin_base_url)."
+                )
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:

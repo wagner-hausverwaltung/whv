@@ -27,6 +27,7 @@ from app.models import (
     Session,
     User,
 )
+from app.ratelimit import rate_limit
 from app.schemas.auth import (
     ForgotPasswordRequest,
     InviteInfoResponse,
@@ -80,7 +81,11 @@ def _issue_tokens(settings: Settings, user: User, session: AsyncSession) -> Toke
     )
 
 
-@router.get("/invite/{code}", response_model=InviteInfoResponse)
+@router.get(
+    "/invite/{code}",
+    response_model=InviteInfoResponse,
+    dependencies=[Depends(rate_limit("auth_invite_lookup", limit=30, window_seconds=300))],
+)
 async def get_invite_info(
     code: str,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -119,7 +124,11 @@ async def get_invite_info(
     )
 
 
-@router.post("/invite/redeem", response_model=TokenResponse)
+@router.post(
+    "/invite/redeem",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("auth_invite_redeem", limit=10, window_seconds=900))],
+)
 async def redeem_invite(
     req: InviteRedeemRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -162,7 +171,11 @@ async def redeem_invite(
     return tokens
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("auth_login", limit=10, window_seconds=300))],
+)
 async def login(
     req: LoginRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -239,7 +252,11 @@ async def logout(
     await session.commit()
 
 
-@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("auth_forgot_password", limit=5, window_seconds=900))],
+)
 async def forgot_password(
     req: ForgotPasswordRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -285,7 +302,11 @@ async def forgot_password(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("auth_reset_password", limit=10, window_seconds=900))],
+)
 async def reset_password(
     req: ResetPasswordRequest,
     session: Annotated[AsyncSession, Depends(get_session)],

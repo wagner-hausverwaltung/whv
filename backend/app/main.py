@@ -32,11 +32,22 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await close_engine()
 
 
+# Cached settings drive both the docs gate and the CORS allow-list below;
+# this is the same instance the rest of the app sees.
+_settings = get_settings()
+_is_dev = _settings.app_env == "dev"
+
 app = FastAPI(
     title="WHV Backend",
     description="Wagner Hausverwaltung GmbH internal API",
     version="0.1.0",
     lifespan=lifespan,
+    # Swagger / ReDoc / the OpenAPI schema enumerate the entire API surface
+    # (every route, every model). Useful in dev, needless attack-surface in
+    # prod — serve them only when app_env is dev.
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
 )
 
 # CORS: allow the SPA to call the API cross-origin. credentials=False —
@@ -44,10 +55,9 @@ app = FastAPI(
 # same SPA bundle is served from two hosts (portal.* + admin.*), so both
 # origins need to be in the allow-list. admin_base_url is empty in dev
 # (single Vite origin); on staging/prod it points at admin.*.
-_cors_settings = get_settings()
-_cors_allowed = [_cors_settings.portal_base_url]
-if _cors_settings.admin_base_url:
-    _cors_allowed.append(_cors_settings.admin_base_url)
+_cors_allowed = [_settings.portal_base_url]
+if _settings.admin_base_url:
+    _cors_allowed.append(_settings.admin_base_url)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allowed,
@@ -76,7 +86,7 @@ app.include_router(etv_router.admin_router)
 # in dev when the default /var/lib path needs root). On failure the mount
 # is skipped — the upload endpoint still works as long as the writer can
 # eventually create the dir.
-_avatar_dir = Path(_cors_settings.avatar_dir)
+_avatar_dir = Path(_settings.avatar_dir)
 try:
     _avatar_dir.mkdir(parents=True, exist_ok=True)
     app.mount(
@@ -91,7 +101,7 @@ except OSError:
 # Publicly readable URLs (the property id is a UUIDv7, effectively
 # unguessable) so the portal property-list cards can render thumbnails
 # without needing an authenticated GET per row.
-_property_image_dir = Path(_cors_settings.property_image_dir)
+_property_image_dir = Path(_settings.property_image_dir)
 try:
     _property_image_dir.mkdir(parents=True, exist_ok=True)
     app.mount(

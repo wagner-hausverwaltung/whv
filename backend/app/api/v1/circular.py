@@ -39,6 +39,7 @@ from app.models import (
     UserRole,
     VoteChoice,
 )
+from app.ratelimit import rate_limit
 from app.schemas.circular import (
     BallotStatus,
     CreateResolutionRequest,
@@ -965,7 +966,11 @@ def _ballot_view(
     )
 
 
-@public_router.get("/ballot/{token}", response_model=BallotView)
+@public_router.get(
+    "/ballot/{token}",
+    response_model=BallotView,
+    dependencies=[Depends(rate_limit("ballot_view", limit=30, window_seconds=300))],
+)
 async def get_ballot(
     token: str,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -982,6 +987,7 @@ async def get_ballot(
     "/ballot/{token}/vote",
     response_model=BallotView,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("ballot_vote", limit=10, window_seconds=300))],
 )
 async def cast_ballot_vote(
     token: str,

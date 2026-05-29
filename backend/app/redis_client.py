@@ -32,3 +32,11 @@ async def get_redis() -> AsyncIterator[Redis]:
     if _redis is None:
         raise RuntimeError("Redis not initialized — call init_redis first")
     yield _redis
+
+
+def current_redis() -> Redis | None:
+    """The shared client if initialized, else None. Unlike `get_redis` (a
+    FastAPI dependency that raises when unset), this lets callers degrade
+    gracefully when Redis isn't available — e.g. the rate limiter, which
+    fails open rather than locking everyone out during a cache outage."""
+    return _redis
