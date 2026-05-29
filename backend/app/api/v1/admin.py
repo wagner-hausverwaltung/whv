@@ -1110,9 +1110,9 @@ async def update_unit_distribution_keys(
             organization_id=current_user.organization_id,
             actor_user_id=current_user.id,
             action="unit.distribution_keys.updated",
-            resource_type="unit",
-            resource_id=unit.id,
-            details={
+            target_type="units",
+            target_id=str(unit.id),
+            payload_json={
                 "voting_share": body.voting_share,
                 "area_m2": body.area_m2,
                 "heated_area_m2": body.heated_area_m2,
