@@ -39,6 +39,25 @@ _ENUM_TYPES = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _block_outbound_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Safety net: NO test may hit the real Resend API.
+
+    The per-file ``stub_email`` fixtures only cover the FastAPI dependency
+    path, but the Celery tasks construct ``EmailClient(settings)`` inline
+    (app/workers/tasks.py). With a real RESEND_API_KEY in a dev .env that
+    silently sent live mail to the ``user-*@test.de`` fixture addresses on
+    every run. We no-op the send at the source for every test. Tests that
+    assert on email use ``_StubEmailClient`` (a separate class), so this does
+    not interfere with them.
+    """
+
+    async def _noop_send(self: object, **_kwargs: object) -> str:
+        return "test-noop-message-id"
+
+    monkeypatch.setattr("app.integrations.email.client.EmailClient.send", _noop_send)
+
+
 @pytest_asyncio.fixture(scope="session")
 async def test_engine() -> AsyncIterator[AsyncEngine]:
     settings = get_settings()
