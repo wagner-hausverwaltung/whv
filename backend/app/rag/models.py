@@ -84,9 +84,7 @@ class RagChunk(RagBase):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
 
     # --- §2 ACL scope columns — the hard pre-filter applied BEFORE ANN ---
     organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)

@@ -272,9 +272,7 @@ class Settings(BaseSettings):
         # A half-enabled assistant (feature on, no store DSN) would 500 on
         # the first query rather than fail at boot. Refuse to start instead.
         if self.rag_enabled and not self.rag_database_url:
-            raise ValueError(
-                "rag_enabled=true requires rag_database_url (the pgvector store DSN)."
-            )
+            raise ValueError("rag_enabled=true requires rag_database_url (the pgvector store DSN).")
         return self
 
 

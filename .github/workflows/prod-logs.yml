@@ -1,0 +1,42 @@
+name: prod-logs
+
+# On-demand: tail a prod service's container logs (debugging). Read-only.
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service (backend / worker / beat / caddy / web / vectordb)"
+        required: false
+        default: "backend"
+      tail:
+        description: "Lines to show"
+        required: false
+        default: "150"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  logs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Tail logs
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          SVC: ${{ github.event.inputs.service }}
+          TAIL: ${{ github.event.inputs.tail }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && ${COMPOSE} logs --no-color --tail ${TAIL} ${SVC}"

@@ -32,15 +32,24 @@ async def test_enqueue_document_indexing(
     sessionmaker = async_sessionmaker(test_engine, expire_on_commit=False)
     async with sessionmaker() as setup:
         doc_a = Document(
-            organization_id=org.id, property_id=prop.id, name="A",
-            kind=DocumentKind.RECHNUNG, impower_id=910001,
+            organization_id=org.id,
+            property_id=prop.id,
+            name="A",
+            kind=DocumentKind.RECHNUNG,
+            impower_id=910001,
         )
         doc_b = Document(
-            organization_id=org.id, property_id=prop.id, name="B",
-            kind=DocumentKind.RECHNUNG, impower_id=910002,
+            organization_id=org.id,
+            property_id=prop.id,
+            name="B",
+            kind=DocumentKind.RECHNUNG,
+            impower_id=910002,
         )
         doc_no_source = Document(
-            organization_id=org.id, property_id=prop.id, name="C", kind=DocumentKind.RECHNUNG,
+            organization_id=org.id,
+            property_id=prop.id,
+            name="C",
+            kind=DocumentKind.RECHNUNG,
         )
         setup.add_all([doc_a, doc_b, doc_no_source])
         await setup.commit()

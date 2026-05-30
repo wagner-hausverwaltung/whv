@@ -121,8 +121,10 @@ async def test_reindex_document_resolves_labels_and_persists(
 
     assert result is not None and not result.skipped
     rows = (
-        await rag_session.execute(select(RagChunk).where(RagChunk.document_id == doc_id))
-    ).scalars().all()
+        (await rag_session.execute(select(RagChunk).where(RagChunk.document_id == doc_id)))
+        .scalars()
+        .all()
+    )
     assert rows
     assert all(r.organization_id == org.id and r.property_id == prop.id for r in rows)
     assert all(r.visibility == "OWNERS" and r.source_kind == "RECHNUNG" for r in rows)

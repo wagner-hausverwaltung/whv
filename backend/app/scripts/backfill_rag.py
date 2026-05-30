@@ -54,9 +54,7 @@ def main() -> None:
     args = parser.parse_args()
 
     property_id = uuid.UUID(args.property) if args.property else None
-    count = asyncio.run(
-        _run(only_new=not args.all, property_id=property_id, limit=args.limit)
-    )
+    count = asyncio.run(_run(only_new=not args.all, property_id=property_id, limit=args.limit))
     print(f"enqueued {count} document(s) for RAG indexing.")
 
 

@@ -79,10 +79,14 @@ async def test_index_document_persists_chunks_with_scope(rag_session: AsyncSessi
     assert doc_count == 1
 
     rows = (
-        await rag_session.execute(
-            select(RagChunk).where(RagChunk.document_id == meta.document_id)
+        (
+            await rag_session.execute(
+                select(RagChunk).where(RagChunk.document_id == meta.document_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == result.chunk_count
     # every chunk carries the §2 ACL scope + copied-down metadata
     assert all(r.organization_id == org and r.property_id == prop for r in rows)

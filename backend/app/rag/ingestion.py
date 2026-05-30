@@ -126,18 +126,13 @@ async def index_document(
 
     extraction, chunks = build_chunks(meta, pdf_bytes)
     texts = [chunk.text for chunk in chunks]
-    embeddings = (
-        await embedder.embed_texts(texts, task_type="retrieval_document") if texts else []
-    )
+    embeddings = await embedder.embed_texts(texts, task_type="retrieval_document") if texts else []
     if len(embeddings) != len(texts):
-        raise IngestionError(
-            f"embedder returned {len(embeddings)} vectors for {len(texts)} chunks"
-        )
+        raise IngestionError(f"embedder returned {len(embeddings)} vectors for {len(texts)} chunks")
     for vector in embeddings:
         if len(vector) != EMBEDDING_DIM:
             raise IngestionError(
-                f"embedding has dim {len(vector)}, expected {EMBEDDING_DIM} "
-                "(model/column mismatch)"
+                f"embedding has dim {len(vector)}, expected {EMBEDDING_DIM} (model/column mismatch)"
             )
 
     # Replace any prior index rows for this document (no cross-table FK).
