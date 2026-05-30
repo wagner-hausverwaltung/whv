@@ -253,11 +253,26 @@ Two options considered:
    generation (it already covers extraction) and that Google is listed as
    a sub-processor in the Datenschutzerklärung. Carve out a self-hosted
    LLM for `sensitivity=high` only if a later DSGVO review requires it.
-6. **Embeddings: Google `text-embedding-004`** (decided 2026-05-30 —
+6. **Embeddings: Google `gemini-embedding-001`** (decided 2026-05-30 —
    amends D7/§5) — same Google API + AVV as generation; cax11 can't
    self-host e5-large, and it's the same AVV envelope. Fallback to
    self-hosted e5-large only if a DSGVO review requires embeddings to stay
    on our infra (§5).
+   - **Correction (2026-05-30, same day):** first shipped pointing at
+     `text-embedding-004`, then `embedding-001`; both **404** on the live
+     `generativelanguage` v1beta endpoint ("not found / not supported for
+     embedContent") — the legacy embedding models were retired server-side
+     (the `google-generativeai` SDK's support window ended in 2025).
+     `list_models` against the prod key shows only `gemini-embedding-001`
+     and `gemini-embedding-2*`. Two consequences baked into the provider:
+     (a) `gemini-embedding-001` supports single-input `embedContent` (+
+     long-running `asyncBatchEmbedContent`) but **not** the synchronous
+     `batchEmbedContents` the SDK uses for a list, so we embed one chunk per
+     call (bounded concurrency); (b) it emits 3072 dims, so we request
+     `output_dimensionality=EMBEDDING_DIM` (768) to fit the pgvector column —
+     cosine is scale-invariant, so the truncated MRL vectors need no
+     re-normalisation. A future migration to the `google-genai` SDK is the
+     clean long-term fix but was out of scope for unblocking the MVP.
 7. **MVP shape: backend-first, dedicated pgvector container** (decided
    2026-05-30) — ingestion + retrieval as backend Celery tasks +
    `POST /assistant/query`, reusing `_document_visibility_filter`
