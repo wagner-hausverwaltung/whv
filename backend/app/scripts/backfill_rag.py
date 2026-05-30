@@ -18,10 +18,16 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import get_settings
 from app.rag.db import provision_rag_store
-from app.rag.service import enqueue_document_indexing
+from app.rag.service import enqueue_document_indexing, enqueue_masterdata_indexing
 
 
-async def _run(*, only_new: bool, property_id: uuid.UUID | None, limit: int | None) -> int:
+async def _run(
+    *,
+    only_new: bool,
+    property_id: uuid.UUID | None,
+    limit: int | None,
+    masterdata: bool,
+) -> int:
     settings = get_settings()
     if not settings.rag_enabled:
         print("rag_enabled is off — nothing to do.")
@@ -33,6 +39,15 @@ async def _run(*, only_new: bool, property_id: uuid.UUID | None, limit: int | No
         app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
         rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
         async with app_factory() as app_session, rag_factory() as rag_session:
+            if masterdata:
+                # Master-data enqueue only reads the app DB (vendors) — the
+                # rag_session isn't needed, but we keep the store provisioned.
+                return await enqueue_masterdata_indexing(
+                    app_session,
+                    settings=settings,
+                    property_id=property_id,
+                    limit=limit,
+                )
             return await enqueue_document_indexing(
                 app_session,
                 rag_session,
@@ -47,15 +62,28 @@ async def _run(*, only_new: bool, property_id: uuid.UUID | None, limit: int | No
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Enqueue RAG document indexing.")
+    parser = argparse.ArgumentParser(description="Enqueue RAG indexing.")
     parser.add_argument("--all", action="store_true", help="re-index all docs, not just new ones")
+    parser.add_argument(
+        "--masterdata",
+        action="store_true",
+        help="index Dienstleister master-data cards instead of documents (ADR-0013 §4)",
+    )
     parser.add_argument("--property", type=str, default=None, help="one property id (UUID)")
-    parser.add_argument("--limit", type=int, default=None, help="cap how many documents to enqueue")
+    parser.add_argument("--limit", type=int, default=None, help="cap how many items to enqueue")
     args = parser.parse_args()
 
     property_id = uuid.UUID(args.property) if args.property else None
-    count = asyncio.run(_run(only_new=not args.all, property_id=property_id, limit=args.limit))
-    print(f"enqueued {count} document(s) for RAG indexing.")
+    count = asyncio.run(
+        _run(
+            only_new=not args.all,
+            property_id=property_id,
+            limit=args.limit,
+            masterdata=args.masterdata,
+        )
+    )
+    unit = "Dienstleister card" if args.masterdata else "document"
+    print(f"enqueued {count} {unit}(s) for RAG indexing.")
 
 
 if __name__ == "__main__":

@@ -57,6 +57,11 @@ class Citation:
     page: int | None
     source_kind: str | None
     contact_name: str | None
+    # "document" → open via the auth-gated download; "dienstleister"/… → a
+    # master-data card the SPA deep-links to (contact_id/property_id locate it).
+    source_type: str = "document"
+    contact_id: uuid.UUID | None = None
+    property_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +96,9 @@ def _citations(chunks: list[RetrievedChunk]) -> list[Citation]:
                 page=chunk.page,
                 source_kind=chunk.source_kind,
                 contact_name=chunk.contact_name,
+                source_type=chunk.source_type,
+                contact_id=chunk.contact_id,
+                property_id=chunk.property_id,
             )
     return list(seen.values())
 

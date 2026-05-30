@@ -50,6 +50,12 @@ class RetrievedChunk:
     issued_date: date | None
     amount: Decimal | None
     similarity: float
+    # "document" | "dienstleister" | … — lets the caller (and the SPA) tell a
+    # real document (open via download) from a master-data card (deep-link to
+    # the entity). For master-data, contact_id/property_id locate that entity.
+    source_type: str = "document"
+    contact_id: uuid.UUID | None = None
+    property_id: uuid.UUID | None = None
 
 
 async def resolve_caller_scope(app_session: AsyncSession, user: User) -> CallerScope:
@@ -141,6 +147,9 @@ async def retrieve(
                 issued_date=chunk.issued_date,
                 amount=chunk.amount,
                 similarity=similarity,
+                source_type=chunk.source_type,
+                contact_id=chunk.contact_id,
+                property_id=chunk.property_id,
             )
         )
     return results

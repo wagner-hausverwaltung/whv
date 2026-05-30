@@ -190,3 +190,85 @@ async def index_document(
         skipped=False,
         ocr_engine=extraction.ocr_engine,
     )
+
+
+async def index_masterdata_card(
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    document_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    source_type: str,
+    card_text: str,
+    contact_id: uuid.UUID | None = None,
+    contact_name: str | None = None,
+    property_id: uuid.UUID | None = None,
+    visibility: str = "ALL",
+    sensitivity: str = "normal",
+    source_kind: str | None = None,
+    force: bool = False,
+) -> IndexResult:
+    """Index one master-data "card" (ADR-0013 §4) as a single chunk.
+
+    Unlike ``index_document`` there's no PDF to extract — the card is already
+    rendered German text (see ``app.rag.masterdata``). We embed it as one
+    chunk and persist it under a SYNTHETIC ``document_id`` (deterministic per
+    entity) with the §2 ACL scope columns. Skips re-embedding when the card
+    text is unchanged (content hash). Flushes; the caller commits.
+    """
+    digest = content_hash(card_text.encode("utf-8"))
+    existing = (
+        await rag_session.execute(
+            select(RagDocument.content_hash).where(RagDocument.document_id == document_id)
+        )
+    ).scalar_one_or_none()
+    if existing is not None and existing == digest and not force:
+        return IndexResult(document_id, chunk_count=0, skipped=True, ocr_engine="")
+
+    embeddings = await embedder.embed_texts([card_text], task_type="retrieval_document")
+    if len(embeddings) != 1:
+        raise IngestionError(f"embedder returned {len(embeddings)} vectors for 1 card")
+    vector = embeddings[0]
+    if len(vector) != EMBEDDING_DIM:
+        raise IngestionError(
+            f"embedding has dim {len(vector)}, expected {EMBEDDING_DIM} (model/column mismatch)"
+        )
+
+    # Replace any prior rows for this card (idempotent re-index).
+    await rag_session.execute(delete(RagChunk).where(RagChunk.document_id == document_id))
+    await rag_session.execute(delete(RagDocument).where(RagDocument.document_id == document_id))
+
+    rag_session.add(
+        RagDocument(
+            document_id=document_id,
+            organization_id=organization_id,
+            extracted_text=card_text,
+            content_hash=digest,
+            ocr_engine="masterdata",
+            page_count=None,
+            source_kind=source_kind,
+            contact_id=contact_id,
+            contact_name=contact_name,
+            property_id=property_id,
+            visibility=visibility,
+            sensitivity=sensitivity,
+        )
+    )
+    rag_session.add(
+        RagChunk(
+            document_id=document_id,
+            organization_id=organization_id,
+            property_id=property_id,
+            contact_id=contact_id,
+            visibility=visibility,
+            source_type=source_type,
+            sensitivity=sensitivity,
+            chunk_text=card_text,
+            page=None,
+            embedding=vector,
+            source_kind=source_kind,
+            contact_name=contact_name,
+        )
+    )
+    await rag_session.flush()
+    return IndexResult(document_id, chunk_count=1, skipped=False, ocr_engine="masterdata")

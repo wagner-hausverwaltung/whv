@@ -40,6 +40,12 @@ class CitationResponse(BaseModel):
     page: int | None
     source_kind: str | None
     contact_name: str | None
+    # "document" (open via /me/documents/{id}/file) vs a master-data card like
+    # "dienstleister" (the client deep-links to the entity using contact_id +
+    # property_id instead of downloading a file). ADR-0013 §4.
+    source_type: str = "document"
+    contact_id: uuid.UUID | None = None
+    property_id: uuid.UUID | None = None
 
 
 class AssistantQueryResponse(BaseModel):

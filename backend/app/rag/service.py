@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import date
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +22,20 @@ from app.integrations.storage.documents import document_path
 from app.models.contact import Contact, ContactKind
 from app.models.document import Document
 from app.models.property import Property
-from app.rag.ingestion import DocumentMeta, Embedder, IndexResult, index_document
+from app.rag.ingestion import (
+    DocumentMeta,
+    Embedder,
+    IndexResult,
+    index_document,
+    index_masterdata_card,
+)
+from app.rag.masterdata import (
+    SOURCE_TYPE_DIENSTLEISTER,
+    build_dienstleister_card,
+    dienstleister_doc_id,
+)
 from app.rag.models import RagDocument
+from app.services.vendors import load_vendors_for_property
 
 logger = logging.getLogger(__name__)
 
@@ -160,3 +173,88 @@ async def enqueue_document_indexing(
     for doc_id in document_ids:
         index_rag_document.delay(str(doc_id))
     return len(document_ids)
+
+
+# --- master-data cards (ADR-0013 §4) ---------------------------------------
+
+
+async def reindex_dienstleister_card(
+    app_session: AsyncSession,
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    property_id: uuid.UUID,
+    contact_id: uuid.UUID,
+    force: bool = False,
+) -> IndexResult | None:
+    """Render one vendor's aggregate on one property to a German card and index
+    it as master-data. Returns None if the property is gone or the vendor has no
+    invoices there. Flushes the rag_session; the caller commits."""
+    prop = await app_session.get(Property, property_id)
+    if prop is None:
+        return None
+    vendors = await load_vendors_for_property(app_session, property_id=property_id)
+    vendor = next((v for v in vendors if v.contact_id == contact_id), None)
+    if vendor is None:
+        return None
+
+    card = build_dienstleister_card(
+        name=vendor.name,
+        property_label=_property_label(prop),
+        invoice_count=vendor.invoice_count,
+        current_year=date.today().year,
+        total_amount=vendor.total_amount,
+        last_service_date=(
+            vendor.last_service_date.isoformat() if vendor.last_service_date else None
+        ),
+        email=vendor.email,
+        phone=vendor.phone,
+        recent_services=[inv.name for inv in vendor.recent_invoices],
+    )
+    return await index_masterdata_card(
+        rag_session,
+        embedder,
+        document_id=dienstleister_doc_id(property_id, contact_id),
+        organization_id=prop.organization_id,
+        source_type=SOURCE_TYPE_DIENSTLEISTER,
+        card_text=card,
+        contact_id=contact_id,
+        contact_name=vendor.name,
+        property_id=property_id,
+        source_kind="DIENSTLEISTER",
+        force=force,
+    )
+
+
+async def enqueue_masterdata_indexing(
+    app_session: AsyncSession,
+    *,
+    settings: Settings,
+    property_id: uuid.UUID | None = None,
+    limit: int | None = None,
+) -> int:
+    """Enqueue ``index_rag_masterdata`` for every (property, Dienstleister) pair
+    — one vendor card per property. No-op returning 0 when rag is off. Unlike
+    documents there's no "only_new" gate: cards are cheap to re-render and the
+    content-hash skip in ``index_masterdata_card`` makes re-runs idempotent."""
+    if not settings.rag_enabled:
+        return 0
+
+    prop_stmt = select(Property.id)
+    if property_id is not None:
+        prop_stmt = prop_stmt.where(Property.id == property_id)
+    property_ids = list((await app_session.scalars(prop_stmt)).all())
+
+    pairs: list[tuple[uuid.UUID, uuid.UUID]] = []
+    for pid in property_ids:
+        vendors = await load_vendors_for_property(app_session, property_id=pid)
+        pairs.extend((pid, vendor.contact_id) for vendor in vendors)
+    if limit is not None:
+        pairs = pairs[:limit]
+
+    # Lazy import avoids an import cycle (tasks imports this module).
+    from app.workers.tasks import index_rag_masterdata
+
+    for pid, cid in pairs:
+        index_rag_masterdata.delay(str(pid), str(cid))
+    return len(pairs)
