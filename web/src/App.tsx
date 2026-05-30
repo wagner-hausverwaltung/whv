@@ -25,6 +25,7 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { PropertyWorkspace } from "@/components/PropertyWorkspace";
 import { RootRedirect } from "@/components/RootRedirect";
+import { AssistantPage } from "@/pages/AssistantPage";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
 import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
@@ -178,6 +179,16 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/assistant"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AssistantPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Admin SPA — Verwalter-only, mounted under /admin/*. Served
               from the admin.* host via Caddy rewrite root → /admin. */}
@@ -187,6 +198,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminDashboardPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assistant"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AssistantPage />
                 </AdminLayout>
               </AdminRoute>
             }

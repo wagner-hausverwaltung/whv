@@ -20,7 +20,8 @@
   "nav": {
     "properties": "Properties",
     "tickets": "Tickets",
-    "resolutions": "Resolutions"
+    "resolutions": "Resolutions",
+    "assistant": "Assistant"
   },
   "login": {
     "title": "Sign in",
@@ -216,9 +217,24 @@
       "versionRecordedAt": "Replaced at {{when}}"
     }
   },
+  "assistant": {
+    "title": "Assistant",
+    "subtitle": "Ask about your documents and master data — with source citations.",
+    "empty": "Ask a question, e.g. “How much was the 2025 heating invoice?”",
+    "placeholder": "Your question…",
+    "send": "Send",
+    "you": "You",
+    "assistant": "Assistant",
+    "thinking": "Searching your documents…",
+    "unavailable": "The assistant is currently unavailable.",
+    "error": "The request failed. Please try again.",
+    "documentError": "The document could not be opened.",
+    "disclaimer": "Answers may contain errors — the linked documents are authoritative."
+  },
   "admin": {
     "title": "Admin",
     "dashboard": "Dashboard",
+    "assistant": "Assistant",
     "tickets": "Tickets",
     "resolutions": "Resolutions",
     "assemblies": "Assemblies",

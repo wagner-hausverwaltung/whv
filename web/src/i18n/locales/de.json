@@ -20,7 +20,8 @@
   "nav": {
     "properties": "Objekte",
     "tickets": "Tickets",
-    "resolutions": "Beschlüsse"
+    "resolutions": "Beschlüsse",
+    "assistant": "Assistent"
   },
   "login": {
     "title": "Anmelden",
@@ -216,9 +217,24 @@
       "versionRecordedAt": "Ersetzt am {{when}}"
     }
   },
+  "assistant": {
+    "title": "Assistent",
+    "subtitle": "Fragen Sie zu Ihren Dokumenten und Stammdaten — mit Quellenangaben.",
+    "empty": "Stellen Sie eine Frage, z. B. „Wie hoch war die Heizungsrechnung 2025?“",
+    "placeholder": "Ihre Frage…",
+    "send": "Senden",
+    "you": "Sie",
+    "assistant": "Assistent",
+    "thinking": "Suche in Ihren Dokumenten…",
+    "unavailable": "Der Assistent ist derzeit nicht verfügbar.",
+    "error": "Die Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "documentError": "Das Dokument konnte nicht geöffnet werden.",
+    "disclaimer": "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente."
+  },
   "admin": {
     "title": "Admin",
     "dashboard": "Dashboard",
+    "assistant": "Assistent",
     "tickets": "Tickets",
     "resolutions": "Beschlüsse",
     "assemblies": "Versammlungen",

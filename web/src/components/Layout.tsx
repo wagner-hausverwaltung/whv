@@ -133,6 +133,14 @@ export function Layout({ children }: { children: ReactNode }) {
                     >
                       {t("nav.resolutions")}
                     </Button>
+                    <Button
+                      component={RouterLink}
+                      to="/assistant"
+                      color="inherit"
+                      size="small"
+                    >
+                      {t("nav.assistant")}
+                    </Button>
                   </Stack>
                 )}
                 <LanguageSwitcher />

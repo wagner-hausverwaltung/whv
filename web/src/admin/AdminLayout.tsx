@@ -68,6 +68,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   // fontWeight + add a subtle background.
   const NAV: { to: string; label: string }[] = [
     { to: "/admin", label: t("admin.dashboard") },
+    { to: "/admin/assistant", label: t("admin.assistant") },
     { to: "/admin/tickets", label: t("admin.tickets") },
     { to: "/admin/resolutions", label: t("admin.resolutions") },
     { to: "/admin/assemblies", label: t("admin.assemblies") },
