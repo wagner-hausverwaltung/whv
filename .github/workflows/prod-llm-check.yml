@@ -1,0 +1,65 @@
+name: prod-llm-check
+
+# On-demand diagnostic (ADR-0013 debugging): list the Gemini models the prod
+# GEMINI_API_KEY can see + their supported methods — specifically which ones
+# support embedding (embedContent / batchEmbedContents). Read-only: no app or
+# RAG-store state changes. Runs inside the already-deployed backend container
+# (uses its installed google-generativeai + the in-container GEMINI_API_KEY),
+# so no rebuild/redeploy is needed.
+on:
+  workflow_dispatch:
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: List Gemini models visible to the prod key
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && ${COMPOSE} exec -T backend python -" <<'PY'
+          import os
+          import sys
+
+          import google.generativeai as genai
+
+          try:
+              import importlib.metadata as md
+
+              print("google-generativeai version:", md.version("google-generativeai"))
+          except Exception as exc:  # noqa: BLE001
+              print("version lookup failed:", exc)
+
+          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+          try:
+              models = list(genai.list_models())
+          except Exception as exc:  # noqa: BLE001
+              print("list_models FAILED:", type(exc).__name__, exc)
+              sys.exit(1)
+
+          print("=== EMBEDDING-CAPABLE MODELS ===")
+          for m in models:
+              methods = list(getattr(m, "supported_generation_methods", []))
+              if any("mbed" in x for x in methods):
+                  print(m.name, "->", methods)
+
+          print("=== ALL MODELS (name -> methods) ===")
+          for m in models:
+              print(m.name, "->", list(getattr(m, "supported_generation_methods", [])))
+          PY
