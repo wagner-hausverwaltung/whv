@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.config import get_settings
 from app.main import app
-from app.models import DocumentFolder, UserRole
+from app.models import Document, DocumentFolder, DocumentKind, UserRole
 from app.tests._factories import make_org, make_property, make_user
 
 
@@ -274,3 +274,86 @@ async def test_folder_row_persists_to_db(test_engine: AsyncEngine, tmp_doc_dir: 
     assert row.name == "Stammdaten"
     assert row.property_id == prop.id
     assert row.organization_id == org.id
+
+
+# --- Admin document download: Impower on-demand fallback ----------------------
+
+
+async def test_admin_download_falls_back_to_impower(
+    test_engine: AsyncEngine, tmp_doc_dir: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Impower-synced docs have no local bytes (storage_url NULL); the admin
+    download endpoint must fetch them from Impower on demand (regression:
+    it used to 404 'Datei ist nicht lokal hinterlegt')."""
+    org = await make_org(test_engine)
+    _, vemail, vpw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        doc = Document(
+            organization_id=org.id,
+            property_id=prop.id,
+            name="Hausgeldabrechnung 2025",
+            kind=DocumentKind.SONSTIGES,
+            impower_id=999001,
+            storage_url=None,
+        )
+        s.add(doc)
+        await s.commit()
+        await s.refresh(doc)
+        doc_id = doc.id
+
+    # The Impower branch only runs when a token is configured; mock the fetch.
+    monkeypatch.setenv("IMPOWER_API_TOKEN", "test-token")
+    get_settings.cache_clear()
+
+    async def fake_content(_self: object, document_id: int) -> bytes:
+        assert document_id == 999001
+        return b"%PDF-1.4 impower-bytes"
+
+    monkeypatch.setattr(
+        "app.integrations.impower.client.ImpowerClient.download_document_content",
+        fake_content,
+    )
+
+    token = _login(vemail, vpw)
+    with TestClient(app) as client:
+        r = client.get(f"/admin/documents/{doc_id}/file", headers=_auth(token))
+    # Shared test DB has no rollback — drop this non-null-impower_id doc now so
+    # it doesn't bleed into test_impower_sync_documents' exact-match assertion.
+    async with sm() as s:
+        stale = await s.get(Document, doc_id)
+        if stale is not None:
+            await s.delete(stale)
+            await s.commit()
+    assert r.status_code == 200, r.text
+    assert r.content == b"%PDF-1.4 impower-bytes"
+    assert r.headers["content-type"].startswith("application/pdf")
+
+
+async def test_admin_download_404_when_no_source(
+    test_engine: AsyncEngine, tmp_doc_dir: str
+) -> None:
+    """No local bytes and no impower_id → clean 404."""
+    org = await make_org(test_engine)
+    _, vemail, vpw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        doc = Document(
+            organization_id=org.id,
+            property_id=prop.id,
+            name="ohne Datei",
+            kind=DocumentKind.SONSTIGES,
+            impower_id=None,
+            storage_url=None,
+        )
+        s.add(doc)
+        await s.commit()
+        await s.refresh(doc)
+        doc_id = doc.id
+
+    token = _login(vemail, vpw)
+    with TestClient(app) as client:
+        r = client.get(f"/admin/documents/{doc_id}/file", headers=_auth(token))
+    assert r.status_code == 404, r.text

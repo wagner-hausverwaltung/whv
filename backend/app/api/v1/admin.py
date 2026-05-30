@@ -1707,12 +1707,18 @@ async def download_document(
     document_id: uuid.UUID,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> FileResponse:
-    """Authenticated download of a Verwalter-uploaded doc.
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Authenticated document download for the Verwalter.
 
-    Not a StaticFiles mount because documents carry visibility scopes —
-    even with a UUIDv7 path, we want every read to re-prove the caller
-    is allowed to see it. Verwalter can see anything in their org.
+    Not a StaticFiles mount because documents carry visibility scopes.
+    Verwalter can see anything in their org. Source order mirrors the
+    portal endpoint (me.py `download_my_document`):
+      1. Local-disk cache (Verwalter-uploaded docs) when storage_url
+         carries the `local-disk:` marker and the file is present.
+      2. Impower's `/documents/{impower_id}/download` on demand — most
+         Impower-synced docs (Abrechnungen, Rechnungen) live ONLY on
+         Impower's side, so this is the common path, not the exception.
     """
     doc = await session.scalar(
         select(Document).where(
@@ -1723,24 +1729,52 @@ async def download_document(
     )
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    if not doc.storage_url or not doc.storage_url.startswith("local-disk:"):
-        # Impower-imported rows don't have on-disk bytes yet — surface a
-        # clean 404 instead of trying to FileResponse a non-existent path.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Datei ist nicht lokal hinterlegt.",
-        )
-    suffix = doc.storage_url[len("local-disk:") :]
-    path = document_path(doc.id, suffix)
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Datei wurde nicht gefunden.",
-        )
-    return FileResponse(
-        path,
-        media_type=doc.mime_type or "application/octet-stream",
-        filename=f"{doc.name}{suffix}",
+
+    # Filename / RFC 6266 helpers are shared with the portal endpoint.
+    from app.api.v1.me import _ascii_fallback, _rfc5987, _safe_download_filename
+
+    download_name = _safe_download_filename(doc.name, doc.mime_type, doc.storage_url)
+
+    # 1. Local-disk cache — fastest, no Impower round-trip.
+    if doc.storage_url and doc.storage_url.startswith("local-disk:"):
+        suffix = doc.storage_url[len("local-disk:") :]
+        path = document_path(doc.id, suffix)
+        if path.exists():
+            return FileResponse(
+                path,
+                media_type=doc.mime_type or "application/octet-stream",
+                filename=download_name,
+            )
+
+    # 2. Impower on-demand fallback (the common path for synced docs).
+    if doc.impower_id is not None and settings.impower_api_token:
+        from app.integrations.impower.client import ImpowerClient, ImpowerError
+
+        try:
+            async with ImpowerClient(
+                settings.impower_api_base, settings.impower_api_token
+            ) as client:
+                data = await client.download_document_content(int(doc.impower_id))
+        except ImpowerError:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Datei konnte nicht von Impower geladen werden.",
+            ) from None
+        if data is not None:
+            return Response(
+                content=data,
+                media_type=doc.mime_type or "application/pdf",
+                headers={
+                    "Content-Disposition": (
+                        f'attachment; filename="{_ascii_fallback(download_name)}"; '
+                        f"filename*=UTF-8''{_rfc5987(download_name)}"
+                    ),
+                },
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Datei ist nicht verfügbar.",
     )
 
 
