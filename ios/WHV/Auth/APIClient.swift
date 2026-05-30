@@ -548,11 +548,23 @@ enum APIError: Error, LocalizedError {
 
 /// Async URLSession-based client for the WHV backend.
 ///
-/// `baseURL` defaults to staging — Phase 2 wires this to a build
-/// config or Info.plist key so the same binary can target prod
-/// without recompilation.
+/// `baseURL` is build-config driven: Debug builds (Xcode / simulator)
+/// target staging; Release builds (TestFlight / App Store) target prod.
+/// Pass an explicit `baseURL` to the init to override (tests / demo).
 struct APIClient {
     static let stagingBaseURL = URL(string: "https://staging.api.wagner-hausverwaltung.com")!
+    static let prodBaseURL = URL(string: "https://api.wagner-hausverwaltung.com")!
+
+    /// Debug → staging, Release → prod.
+    #if DEBUG
+    static let defaultBaseURL = stagingBaseURL
+    static let portalForgotPasswordURL = URL(
+        string: "https://staging.portal.wagner-hausverwaltung.com/forgot-password")!
+    #else
+    static let defaultBaseURL = prodBaseURL
+    static let portalForgotPasswordURL = URL(
+        string: "https://portal.wagner-hausverwaltung.com/forgot-password")!
+    #endif
 
     let baseURL: URL
     let session: URLSession
@@ -572,7 +584,7 @@ struct APIClient {
     let onTokenRefreshed: ((TokenResponse) -> Void)?
 
     init(
-        baseURL: URL = APIClient.stagingBaseURL,
+        baseURL: URL = APIClient.defaultBaseURL,
         session: URLSession = .shared,
         tokenProvider: @escaping () -> String? = APIClient.defaultTokenProvider,
         refreshTokenProvider: @escaping () -> String? = APIClient.defaultRefreshTokenProvider,

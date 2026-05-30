@@ -117,7 +117,7 @@ struct LoginView: View {
                         // setup we haven't done yet).
                         Link(
                             "Passwort vergessen?",
-                            destination: URL(string: "https://staging.portal.wagner-hausverwaltung.com/forgot-password")!
+                            destination: APIClient.portalForgotPasswordURL
                         )
                         .font(.subheadline)
 
