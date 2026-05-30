@@ -27,6 +27,7 @@ import { PropertyWorkspace } from "@/components/PropertyWorkspace";
 import { RootRedirect } from "@/components/RootRedirect";
 import { AssistantPage } from "@/pages/AssistantPage";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
+import { HomePage } from "@/pages/HomePage";
 import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
 import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
 import { MyAssembliesPage } from "@/pages/MyAssembliesPage";
@@ -65,6 +66,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <RootRedirect />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <HomePage />
                 </Layout>
               </ProtectedRoute>
             }

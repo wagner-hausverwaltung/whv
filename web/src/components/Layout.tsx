@@ -119,6 +119,14 @@ export function Layout({ children }: { children: ReactNode }) {
                   <Stack direction="row" spacing={0.5} sx={{ mr: 1 }}>
                     <Button
                       component={RouterLink}
+                      to="/home"
+                      color="inherit"
+                      size="small"
+                    >
+                      {t("nav.home")}
+                    </Button>
+                    <Button
+                      component={RouterLink}
                       to="/tickets"
                       color="inherit"
                       size="small"

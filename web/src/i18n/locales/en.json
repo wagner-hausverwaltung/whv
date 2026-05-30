@@ -18,6 +18,7 @@
     "error": "Something went wrong."
   },
   "nav": {
+    "home": "Home",
     "properties": "Properties",
     "tickets": "Tickets",
     "resolutions": "Resolutions",
@@ -216,6 +217,17 @@
       "hideCommentVersions": "Hide prior versions",
       "versionRecordedAt": "Replaced at {{when}}"
     }
+  },
+  "home": {
+    "title": "Overview",
+    "subtitle": "Recent announcements, meetings, and requests at a glance.",
+    "announcements": "Announcements",
+    "etv": "Meetings",
+    "tickets": "Requests",
+    "seeAll": "See all",
+    "noAnnouncements": "No recent announcements.",
+    "noEtv": "No meetings.",
+    "noTickets": "No open requests."
   },
   "assistant": {
     "title": "Assistant",

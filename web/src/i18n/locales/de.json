@@ -18,6 +18,7 @@
     "error": "Ein Fehler ist aufgetreten."
   },
   "nav": {
+    "home": "Start",
     "properties": "Objekte",
     "tickets": "Tickets",
     "resolutions": "Beschlüsse",
@@ -216,6 +217,17 @@
       "hideCommentVersions": "Vorherige Versionen ausblenden",
       "versionRecordedAt": "Ersetzt am {{when}}"
     }
+  },
+  "home": {
+    "title": "Übersicht",
+    "subtitle": "Aktuelle Mitteilungen, Versammlungen und Anliegen auf einen Blick.",
+    "announcements": "Mitteilungen",
+    "etv": "Versammlungen",
+    "tickets": "Anliegen",
+    "seeAll": "Alle anzeigen",
+    "noAnnouncements": "Keine aktuellen Mitteilungen.",
+    "noEtv": "Keine Versammlungen.",
+    "noTickets": "Keine offenen Anliegen."
   },
   "assistant": {
     "title": "Assistent",
