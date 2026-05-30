@@ -780,3 +780,56 @@ def extract_etv_protocol(assembly_id: str) -> str:
     /admin/assemblies/{id}/protocol upload endpoint immediately after
     the bytes hit disk."""
     return asyncio.run(_extract_etv_protocol_async(assembly_id))
+
+
+async def _index_rag_document_async(document_id_str: str) -> str:
+    """Index one Document into the pgvector RAG store (ADR-0013).
+
+    No-op ("rag_disabled") unless rag_enabled, so this ships dark in prod.
+    Provisions the store on its own engine (the worker doesn't run the app
+    lifespan), then resolves + embeds + persists the document. Returns
+    "indexed:<n>", "skipped" (unchanged hash), "no_source" (no bytes), or
+    "rag_disabled"."""
+    settings = get_settings()
+    if not settings.rag_enabled:
+        return "rag_disabled"
+
+    from app.integrations.llm import get_llm_provider
+    from app.rag.db import provision_rag_store
+    from app.rag.service import reindex_document
+
+    document_id = uuid.UUID(document_id_str)
+    app_engine = create_async_engine(settings.database_url)
+    rag_engine = create_async_engine(settings.rag_database_url)
+    try:
+        await provision_rag_store(rag_engine)
+        app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
+        rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
+        async with app_factory() as app_session, rag_factory() as rag_session:
+            result = await reindex_document(
+                app_session,
+                rag_session,
+                get_llm_provider(),
+                document_id=document_id,
+                settings=settings,
+            )
+            if result is None:
+                return "no_source"
+            await rag_session.commit()
+            return "skipped" if result.skipped else f"indexed:{result.chunk_count}"
+    finally:
+        await app_engine.dispose()
+        await rag_engine.dispose()
+
+
+@celery_app.task(
+    name="app.workers.tasks.index_rag_document",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def index_rag_document(document_id: str) -> str:
+    """Index one Document into the RAG store (ADR-0013). Enqueued by a manual
+    backfill or the post-sync hook (later); no-op when rag_enabled is off."""
+    return asyncio.run(_index_rag_document_async(document_id))

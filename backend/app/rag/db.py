@@ -58,17 +58,24 @@ async def ping_rag_db() -> bool:
     return True
 
 
-async def init_rag_store() -> None:
-    """Provision the pgvector extension + the RAG tables/indexes.
+async def provision_rag_store(engine: AsyncEngine) -> None:
+    """Idempotently create the pgvector extension + the RAG tables/indexes
+    on ``engine``.
 
-    Idempotent: ``CREATE EXTENSION IF NOT EXISTS`` + ``create_all``
-    (which checks the catalog first). Safe to call on every boot while
-    ``rag_enabled``. The extension is created in the same transaction,
-    BEFORE ``create_all``, so the ``vector`` column type + HNSW operator
-    class exist when the table/index DDL runs.
+    Shared by the app lifespan (the global engine) and the Celery worker
+    (its own per-task engine, since the worker doesn't run the lifespan).
+    Idempotent: ``CREATE EXTENSION IF NOT EXISTS`` + ``create_all`` (which
+    checks the catalog first). The extension is created in the same
+    transaction, BEFORE ``create_all``, so the ``vector`` column type + HNSW
+    operator class exist when the table/index DDL runs.
     """
-    if _rag_engine is None:
-        raise RuntimeError("RAG store not initialized — call init_rag_engine first")
-    async with _rag_engine.begin() as conn:
+    async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(RagBase.metadata.create_all)
+
+
+async def init_rag_store() -> None:
+    """Provision the global RAG engine's store (app lifespan path)."""
+    if _rag_engine is None:
+        raise RuntimeError("RAG store not initialized — call init_rag_engine first")
+    await provision_rag_store(_rag_engine)
