@@ -223,11 +223,13 @@ class Settings(BaseSettings):
     # docker-compose sets it. OCR text + chunk embeddings live here.
     rag_database_url: str = ""
     # Google embedding model — same API key + AVV as Gemini generation
-    # (`gemini_api_key`). `embedding-001` is the 768-dim model the
-    # (deprecated) google-generativeai SDK serves on v1beta; text-embedding-004
-    # 404s there ("not supported for embedContent"). Keep the 768 dims in sync
-    # with app/rag/constants.EMBEDDING_DIM (a change re-embeds the corpus).
-    rag_embedding_model: str = "models/embedding-001"
+    # (`gemini_api_key`). gemini-embedding-001 is the current model served on
+    # v1beta; the legacy embedding-001 / text-embedding-004 were retired and
+    # now 404 ("not found for API version v1beta"). It emits 3072 dims by
+    # default — the provider requests output_dimensionality=EMBEDDING_DIM (768)
+    # so vectors fit app/rag/constants.EMBEDDING_DIM and the pgvector column.
+    # Note: only embedContent (single) is supported, not batchEmbedContents.
+    rag_embedding_model: str = "models/gemini-embedding-001"
     # Retrieval knobs: top_k chunks handed to the generator; min_similarity
     # is the abstain threshold (cosine) — below it the assistant answers
     # "Dazu habe ich nichts gefunden" instead of guessing (ADR-0013).

@@ -28,14 +28,18 @@ def get_llm_provider() -> LLMProvider:
         return NullProvider()
     # Lazy import: the Gemini SDK pulls in tensorflow-lite-friendly
     # protobuf wheels that we don't want loaded on a host with the
-    # provider disabled (e.g. local dev without a key).
+    # provider disabled (e.g. local dev without a key). EMBEDDING_DIM is
+    # imported here too so the embedder produces vectors that fit the RAG
+    # store's Vector(EMBEDDING_DIM) column (single source of truth).
     from app.integrations.llm.gemini import GeminiProvider
+    from app.rag.constants import EMBEDDING_DIM
 
     return GeminiProvider(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         max_output_tokens=settings.llm_max_output_tokens,
         embedding_model=settings.rag_embedding_model,
+        embedding_dim=EMBEDDING_DIM,
     )
 
 

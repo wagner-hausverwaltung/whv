@@ -16,9 +16,9 @@ ValueError. We translate Pydantic → Gemini's accepted shape in
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Sequence
-from itertools import batched
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -31,8 +31,11 @@ from app.integrations.llm.base import (
 
 T = TypeVar("T", bound=BaseModel)
 
-# Google's batch-embed endpoint accepts up to 100 inputs per request.
-_EMBED_BATCH = 100
+# gemini-embedding-001 supports single-input embedContent (+ the long-running
+# asyncBatchEmbedContent) but NOT the synchronous batchEmbedContents the SDK
+# uses when you hand it a list — so we embed one text per call. This caps how
+# many of those per-chunk calls run concurrently (RPM-friendly, not serial).
+_EMBED_CONCURRENCY = 8
 
 
 # Keys Gemini's protobuf-backed Schema accepts. Anything outside this
@@ -164,7 +167,8 @@ class GeminiProvider:
         api_key: str,
         model: str,
         max_output_tokens: int,
-        embedding_model: str = "models/text-embedding-004",
+        embedding_model: str = "models/gemini-embedding-001",
+        embedding_dim: int = 768,
     ) -> None:
         if not api_key:
             # Belt + braces — the factory already guards against this,
@@ -176,6 +180,11 @@ class GeminiProvider:
         self._model_name = model
         self._max_output_tokens = max_output_tokens
         self._embedding_model = embedding_model
+        # gemini-embedding-001 emits 3072-dim vectors by default; we ask for
+        # output_dimensionality so they match the RAG store's Vector(EMBEDDING_DIM)
+        # column. Cosine retrieval is scale-invariant, so the truncated (and not
+        # re-normalised) MRL vectors are fine without extra normalisation.
+        self._embedding_dim = embedding_dim
 
     async def extract_from_pdf(
         self,
@@ -243,23 +252,23 @@ class GeminiProvider:
         import google.generativeai as genai
 
         genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
-        out: list[list[float]] = []
-        # The batch-embed endpoint caps at 100 inputs per call; chunk to it.
-        for batch in batched(texts, _EMBED_BATCH):
-            resp = await genai.embed_content_async(  # type: ignore[attr-defined]
-                model=self._embedding_model,
-                content=list(batch),
-                task_type=task_type,
-            )
-            # The SDK return type is a single-vs-batch union; defer to the
-            # runtime shape check below rather than fight the static type.
-            vectors: Any = resp["embedding"]
-            # A single-item batch can come back as a flat vector — normalise
-            # to a list-of-vectors so each input lines up with one output.
-            if vectors and isinstance(vectors[0], (int, float)):
-                vectors = [vectors]
-            out.extend([float(x) for x in v] for v in vectors)
-        return out
+        sem = asyncio.Semaphore(_EMBED_CONCURRENCY)
+
+        async def _embed_one(text: str) -> list[float]:
+            async with sem:
+                resp = await genai.embed_content_async(  # type: ignore[attr-defined]
+                    model=self._embedding_model,
+                    content=text,
+                    task_type=task_type,
+                    output_dimensionality=self._embedding_dim,
+                )
+            # Single-content embedContent returns a flat vector.
+            vector: Any = resp["embedding"]
+            return [float(x) for x in vector]
+
+        # gather preserves input order regardless of completion order, so the
+        # i-th vector still lines up with the i-th text the caller passed.
+        return list(await asyncio.gather(*(_embed_one(text) for text in texts)))
 
     async def generate(
         self,

@@ -1,6 +1,6 @@
 """Unit tests for the RAG ingestion building blocks (ADR-0013 §3):
 page-aware chunking, the German metadata header, and the Gemini
-embedding client (batching + ordering + shape normalisation).
+embedding client (per-text embedContent + ordering + output dim).
 """
 
 from datetime import date
@@ -89,34 +89,47 @@ async def test_gemini_embed_empty_returns_empty() -> None:
     assert await provider.embed_texts([]) == []
 
 
-async def test_gemini_embed_batches_and_preserves_order(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[str, list[str], str]] = []
+async def test_gemini_embed_one_per_text_preserves_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    # gemini-embedding-001 only supports single-content embedContent, so each
+    # text is embedded in its own call. Concurrency means call order is
+    # non-deterministic — but gather keeps the *result* order aligned to input.
+    calls: list[tuple[str, str, str, int | None]] = []
 
-    async def fake_embed(*, model: str, content: list[str], task_type: str) -> dict[str, object]:
-        calls.append((model, list(content), task_type))
-        # one 2-d vector per input, encoding len(text) so order is checkable
-        return {"embedding": [[float(len(c)), 1.0] for c in content]}
+    async def fake_embed(
+        *, model: str, content: str, task_type: str, output_dimensionality: int | None = None
+    ) -> dict[str, object]:
+        assert isinstance(content, str)  # never a list — that would 404
+        calls.append((model, content, task_type, output_dimensionality))
+        # 2-d vector encoding len(text) so result→input alignment is checkable
+        return {"embedding": [float(len(content)), 1.0]}
 
     monkeypatch.setattr("google.generativeai.configure", lambda **_: None)
     monkeypatch.setattr("google.generativeai.embed_content_async", fake_embed)
-    monkeypatch.setattr("app.integrations.llm.gemini._EMBED_BATCH", 2)
 
-    provider = GeminiProvider(api_key="k", model="m", max_output_tokens=8, embedding_model="emb")
+    provider = GeminiProvider(
+        api_key="k", model="m", max_output_tokens=8, embedding_model="emb", embedding_dim=768
+    )
     out = await provider.embed_texts(
         ["a", "bb", "ccc", "dddd", "eeeee"], task_type="retrieval_query"
     )
 
+    # gather preserves input order regardless of completion order
     assert out == [[1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0]]
-    # batched 2/2/1, embedding model + query task_type forwarded
-    assert [len(content) for _, content, _ in calls] == [2, 2, 1]
-    assert calls[0][0] == "emb"
-    assert calls[0][2] == "retrieval_query"
+    # one embedContent call per text; model + task_type + output dim forwarded
+    assert len(calls) == 5
+    assert sorted(c[1] for c in calls) == ["a", "bb", "ccc", "dddd", "eeeee"]
+    assert {c[0] for c in calls} == {"emb"}
+    assert {c[2] for c in calls} == {"retrieval_query"}
+    assert {c[3] for c in calls} == {768}
 
 
-async def test_gemini_embed_normalises_flat_single(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_embed(*, model: str, content: list[str], task_type: str) -> dict[str, object]:
-        # the SDK returns a FLAT vector for a single content item
-        assert len(content) == 1
+async def test_gemini_embed_single_text_returns_flat_vector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_embed(
+        *, model: str, content: str, task_type: str, output_dimensionality: int | None = None
+    ) -> dict[str, object]:
+        assert isinstance(content, str)
         return {"embedding": [0.5, 0.6, 0.7]}
 
     monkeypatch.setattr("google.generativeai.configure", lambda **_: None)
