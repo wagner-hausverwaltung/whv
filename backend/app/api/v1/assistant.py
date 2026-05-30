@@ -1,0 +1,112 @@
+"""RAG assistant endpoint (ADR-0013) — POST /assistant/query.
+
+The backend is the only gateway: it authenticates the caller, resolves
+their ACL scope, retrieves only permitted chunks, and asks Gemini to answer
+with required citations (or abstain). Ships dark behind `rag_enabled`.
+Citations are ACL-gated by construction — they carry a document id the SPA
+opens via the existing auth-gated download endpoint, which re-checks access.
+"""
+
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.dependencies import get_current_user
+from app.config import Settings, get_settings
+from app.db import get_session
+from app.integrations.llm import get_llm_provider
+from app.models import AuditLog, User
+from app.rag.db import rag_session_scope
+from app.rag.generation import answer_question
+from app.ratelimit import rate_limit
+
+router = APIRouter(prefix="/assistant", tags=["assistant"])
+
+
+class AssistantQueryRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    # Optional structured filters (the "hybrid" half) — the SPA can pass these
+    # from UI facets; free-text questions work without them.
+    issued_year: int | None = None
+    kind: str | None = None
+    contact: str | None = None
+
+
+class CitationResponse(BaseModel):
+    document_id: uuid.UUID
+    page: int | None
+    source_kind: str | None
+    contact_name: str | None
+
+
+class AssistantQueryResponse(BaseModel):
+    answer: str
+    abstained: bool
+    sources: list[CitationResponse]
+
+
+@router.post(
+    "/query",
+    response_model=AssistantQueryResponse,
+    dependencies=[Depends(rate_limit("assistant_query", limit=30, window_seconds=300))],
+)
+async def assistant_query(
+    body: AssistantQueryRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    app_session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AssistantQueryResponse:
+    if not settings.rag_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Der Assistent ist derzeit nicht verfügbar.",
+        )
+
+    provider = get_llm_provider()
+    async with rag_session_scope() as rag_session:
+        answer = await answer_question(
+            app_session,
+            rag_session,
+            user=current_user,
+            question=body.question,
+            embedder=provider,
+            generator=provider,
+            settings=settings,
+            issued_year=body.issued_year,
+            kind=body.kind,
+            contact_query=body.contact,
+        )
+
+    # Query audit log — DSGVO accountability + a source for the eval set.
+    app_session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="assistant_query",
+            target_type="assistant",
+            target_id=None,
+            payload_json={
+                "question": body.question,
+                "abstained": answer.abstained,
+                "retrieved_document_ids": [str(d) for d in answer.retrieved_document_ids],
+            },
+        )
+    )
+    await app_session.commit()
+
+    return AssistantQueryResponse(
+        answer=answer.answer,
+        abstained=answer.abstained,
+        sources=[
+            CitationResponse(
+                document_id=citation.document_id,
+                page=citation.page,
+                source_kind=citation.source_kind,
+                contact_name=citation.contact_name,
+            )
+            for citation in answer.sources
+        ],
+    )

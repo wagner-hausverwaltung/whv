@@ -86,6 +86,21 @@ class LLMProvider(Protocol):
         """
         ...
 
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        system: str | None = None,
+        max_output_tokens: int = 1024,
+        temperature: float = 0.2,
+    ) -> str:
+        """Free-form text generation for the RAG assistant (ADR-0013).
+
+        The caller supplies the full grounded prompt + a system
+        instruction; the implementation returns the model's answer text.
+        """
+        ...
+
 
 # --- Null implementation ----------------------------------------------------
 
@@ -122,6 +137,18 @@ class NullProvider:
     ) -> list[list[float]]:
         raise LLMProviderUnavailableError(
             "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Embedding skipped."
+        )
+
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        system: str | None = None,
+        max_output_tokens: int = 1024,
+        temperature: float = 0.2,
+    ) -> str:
+        raise LLMProviderUnavailableError(
+            "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Generation skipped."
         )
 
 

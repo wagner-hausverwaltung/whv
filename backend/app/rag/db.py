@@ -11,6 +11,7 @@ then nothing here ever opens a connection.
 """
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -41,6 +42,18 @@ async def close_rag_engine() -> None:
 
 
 async def get_rag_session() -> AsyncIterator[AsyncSession]:
+    if _rag_sessionmaker is None:
+        raise RuntimeError("RAG store not initialized — call init_rag_engine first")
+    async with _rag_sessionmaker() as session:
+        yield session
+
+
+@asynccontextmanager
+async def rag_session_scope() -> AsyncIterator[AsyncSession]:
+    """Context-manager form of the RAG session — for call sites that open a
+    session imperatively (e.g. the /assistant endpoint, which checks
+    rag_enabled BEFORE touching the store) rather than via a FastAPI
+    dependency, which would resolve before the gate."""
     if _rag_sessionmaker is None:
         raise RuntimeError("RAG store not initialized — call init_rag_engine first")
     async with _rag_sessionmaker() as session:

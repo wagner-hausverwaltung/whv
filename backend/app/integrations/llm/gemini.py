@@ -261,6 +261,34 @@ class GeminiProvider:
             out.extend([float(x) for x in v] for v in vectors)
         return out
 
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        system: str | None = None,
+        max_output_tokens: int = 1024,
+        temperature: float = 0.2,
+    ) -> str:
+        import google.generativeai as genai
+
+        genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
+        model = genai.GenerativeModel(  # type: ignore[attr-defined]
+            self._model_name,
+            system_instruction=system,
+            generation_config={
+                "max_output_tokens": max_output_tokens,
+                "temperature": temperature,
+            },
+        )
+        response = await model.generate_content_async(prompt)
+        # `.text` raises if the candidate was blocked (safety) or empty; treat
+        # that as "no answer" rather than a 500 — the caller already abstains
+        # on an empty answer.
+        try:
+            return str(response.text or "")
+        except (ValueError, AttributeError):
+            return ""
+
 
 def _coerce_usage(meta: Any) -> dict[str, int]:
     """Normalise SDK usage metadata to plain ints. Gemini occasionally
