@@ -212,6 +212,26 @@ class Settings(BaseSettings):
     # plenty of margin; Gemini 2.5 Flash supports up to 65 K.
     llm_max_output_tokens: int = 32768
 
+    # --- RAG assistant (ADR-0013) -------------------------------------
+    # Off by default: the assistant ships dark until the vector store +
+    # ingestion exist and the ACL cross-user red-team test passes.
+    # rag_enabled=true makes the backend init + bootstrap the pgvector
+    # store on boot (lifespan) and (later) expose /assistant/*.
+    rag_enabled: bool = False
+    # Async DSN for the SEPARATE pgvector store (the `vectordb`
+    # container) — NOT the app database. Empty in plain local runs;
+    # docker-compose sets it. OCR text + chunk embeddings live here.
+    rag_database_url: str = ""
+    # Google embedding model — same API key + AVV as Gemini generation
+    # (`gemini_api_key`). text-embedding-004 → 768 dims; keep in sync
+    # with app/rag/constants.EMBEDDING_DIM (a change re-embeds the corpus).
+    rag_embedding_model: str = "models/text-embedding-004"
+    # Retrieval knobs: top_k chunks handed to the generator; min_similarity
+    # is the abstain threshold (cosine) — below it the assistant answers
+    # "Dazu habe ich nichts gefunden" instead of guessing (ADR-0013).
+    rag_retrieval_top_k: int = 8
+    rag_min_similarity: float = 0.35
+
     @model_validator(mode="after")
     def _require_real_jwt_secret(self) -> Self:
         # In staging/prod a forgeable signing key is a critical hole: with the
@@ -245,6 +265,16 @@ class Settings(BaseSettings):
                     f"CORS origin {origin!r} is not allowed in prod: origins must be "
                     "https and non-localhost (check portal_base_url / admin_base_url)."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _require_rag_store_when_enabled(self) -> Self:
+        # A half-enabled assistant (feature on, no store DSN) would 500 on
+        # the first query rather than fail at boot. Refuse to start instead.
+        if self.rag_enabled and not self.rag_database_url:
+            raise ValueError(
+                "rag_enabled=true requires rag_database_url (the pgvector store DSN)."
+            )
         return self
 
 

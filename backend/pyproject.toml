@@ -35,6 +35,10 @@ dependencies = [
     # out point lives in app/integrations/llm/__init__.py if we ever
     # add Anthropic / OpenAI.
     "google-generativeai>=0.8",
+    # pgvector SQLAlchemy types for the RAG vector store (ADR-0013).
+    # Provides the `Vector` column + cosine/HNSW operators used by
+    # app/rag/models.py.
+    "pgvector>=0.3",
 ]
 
 [dependency-groups]
@@ -91,6 +95,12 @@ ignore_missing_imports = true
 # We only use a small platypus surface that we wrap inside our own
 # typed render_result_pdf — accept the untyped imports.
 module = ["reportlab", "reportlab.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pgvector's SQLAlchemy integration ships partial/no stubs; we wrap the
+# Vector type in our own typed mapped columns in app/rag/models.py.
+module = ["pgvector", "pgvector.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

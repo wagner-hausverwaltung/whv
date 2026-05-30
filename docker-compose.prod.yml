@@ -32,6 +32,11 @@ services:
     ports: !reset []
   redis:
     ports: !reset []
+  # Only runs when the `rag` profile is enabled (ADR-0013). When it does,
+  # keep it off the public internet + auto-restart like the other stores.
+  vectordb:
+    ports: !reset []
+    restart: unless-stopped
   backend:
     ports: !reset []
     restart: unless-stopped

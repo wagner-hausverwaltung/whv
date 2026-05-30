@@ -17,6 +17,7 @@ from app.api.v1 import tickets as tickets_router
 from app.api.v1 import webhooks as webhooks_router
 from app.config import get_settings
 from app.db import close_engine, init_engine, ping_db
+from app.rag.db import close_rag_engine, init_rag_engine, init_rag_store
 from app.redis_client import close_redis, init_redis, ping_redis
 
 
@@ -25,11 +26,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     init_engine(settings.database_url)
     init_redis(settings.redis_url)
+    # RAG assistant ships dark until rag_enabled; only then do we connect
+    # to + bootstrap the separate pgvector store (ADR-0013).
+    if settings.rag_enabled:
+        init_rag_engine(settings.rag_database_url)
+        await init_rag_store()
     try:
         yield
     finally:
         await close_redis()
         await close_engine()
+        if settings.rag_enabled:
+            await close_rag_engine()
 
 
 # Cached settings drive both the docs gate and the CORS allow-list below;
