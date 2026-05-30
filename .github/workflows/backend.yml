@@ -71,9 +71,26 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # pgvector store for the RAG ingestion/retrieval tests (ADR-0013).
+      # Separate from the app postgres above; conftest skips RAG tests if
+      # this is absent, so it must be present for the ACL red-team test.
+      vectordb:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: rag
+          POSTGRES_PASSWORD: rag
+          POSTGRES_DB: rag
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U rag -d rag"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://whv:whv@localhost:5432/whv
       REDIS_URL: redis://localhost:6379/0
+      RAG_DATABASE_URL: postgresql+asyncpg://rag:rag@localhost:5433/rag
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
