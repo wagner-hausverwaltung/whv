@@ -118,24 +118,39 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}:${{ env.PROD_REPO_DIR }}/Caddyfile"
 
-      - name: Pull images + apply migrations + restart services
+      - name: Pull images + migrate + up (cold-start safe)
         env:
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.deploy.yml
+          TAGS: IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }} WEB_IMAGE_TAG=prod-${{ needs.build-and-push.outputs.image_tag }}
         run: |
+          # Works on a fresh box (first boot) AND warm redeploys:
+          #  1. pull the new app images
+          #  2. up + WAIT for postgres/redis to be healthy, so the migration
+          #     can connect even when nothing was running before
+          #  3. apply migrations
+          #  4. full `up -d` — starts/updates everything incl. caddy (which
+          #     provisions Let's Encrypt certs on its first container start)
+          #     and docuseal; unchanged infra containers are left running.
           ssh -i ~/.ssh/deploy_key "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}" \
             "cd ${{ env.PROD_REPO_DIR }} && \
-             IMAGE_TAG=${IMAGE_TAG} WEB_IMAGE_TAG=prod-${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.deploy.yml pull backend worker beat web && \
-             IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.deploy.yml run --rm backend alembic upgrade head && \
-             IMAGE_TAG=${IMAGE_TAG} WEB_IMAGE_TAG=prod-${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.deploy.yml up -d --no-deps backend worker beat web"
+             ${TAGS} ${COMPOSE} pull backend worker beat web && \
+             ${TAGS} ${COMPOSE} up -d --wait postgres redis && \
+             ${TAGS} ${COMPOSE} run --rm backend alembic upgrade head && \
+             ${TAGS} ${COMPOSE} up -d"
 
       - name: Reload Caddy to pick up Caddyfile changes
         # NOTE: header / frame-ancestors changes and new-vhost cert issuance
         # need a RESTART, not reload (see infra/docs/prod-cutover.md). Reload
         # is enough for upstream/routing tweaks.
         run: |
+          # Non-fatal: on a cold start the full `up -d` already started caddy
+          # with the current Caddyfile, so a reload race here shouldn't fail
+          # the deploy. On warm deploys it picks up Caddyfile edits.
           ssh -i ~/.ssh/deploy_key "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}" \
             "cd ${{ env.PROD_REPO_DIR }} && \
-             docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile" \
+            || echo '::warning ::caddy reload skipped (fresh container already loaded the config)'
 
       - name: Verify /healthz over HTTPS
         run: |
