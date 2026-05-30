@@ -522,7 +522,15 @@ struct AssistantCitation: Codable, Hashable, Identifiable {
     let page: Int?
     let source_kind: String?
     let contact_name: String?
+    // ADR-0013 §4: "document" → open via /me/documents/{id}/file; a master-data
+    // card like "dienstleister" has no file (contact_id/property_id locate the
+    // entity). Optional so a newer client tolerates an older backend that
+    // omits them (decodes to nil → treated as a document).
+    let source_type: String?
+    let contact_id: String?
+    let property_id: String?
     var id: String { document_id }
+    var isMasterData: Bool { (source_type ?? "document") != "document" }
 }
 
 struct AssistantQueryResponse: Codable {

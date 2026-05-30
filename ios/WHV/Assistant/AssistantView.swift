@@ -232,15 +232,17 @@ private struct MessageBubble: View {
             if !message.sources.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(message.sources) { source in
-                        Button { onOpenCitation(source) } label: {
-                            Label(label(for: source), systemImage: "doc.text")
-                                .font(.caption)
-                                .lineLimit(1)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Capsule().fill(Color(.tertiarySystemFill)))
+                        if source.isMasterData {
+                            // Master-data card (Dienstleister) — no file to open.
+                            // Shown as a labelled, non-tappable source; a full
+                            // deep-link to the vendor entity is a follow-up.
+                            citationChip(label: label(for: source), icon: "wrench.and.screwdriver.fill")
+                        } else {
+                            Button { onOpenCitation(source) } label: {
+                                citationChip(label: label(for: source), icon: "doc.text")
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -253,10 +255,22 @@ private struct MessageBubble: View {
     }
 
     private func label(for source: AssistantCitation) -> String {
+        if source.isMasterData {
+            return "Dienstleister: \(source.contact_name ?? "?")"
+        }
         let parts = [source.source_kind, source.contact_name].compactMap { $0 }
         let base = parts.isEmpty ? "Dokument" : parts.joined(separator: " · ")
         if let page = source.page { return "\(base) · S.\(page)" }
         return base
+    }
+
+    private func citationChip(label: String, icon: String) -> some View {
+        Label(label, systemImage: icon)
+            .font(.caption)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Color(.tertiarySystemFill)))
     }
 }
 
