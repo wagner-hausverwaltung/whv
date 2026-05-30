@@ -220,14 +220,16 @@
   },
   "home": {
     "title": "Overview",
-    "subtitle": "Recent announcements, meetings, and requests at a glance.",
+    "subtitle": "Recent announcements, meetings, requests, and documents at a glance.",
     "announcements": "Announcements",
     "etv": "Meetings",
     "tickets": "Requests",
+    "documents": "Documents",
     "seeAll": "See all",
     "noAnnouncements": "No recent announcements.",
     "noEtv": "No meetings.",
-    "noTickets": "No open requests."
+    "noTickets": "No open requests.",
+    "noDocuments": "No documents."
   },
   "assistant": {
     "title": "Assistant",

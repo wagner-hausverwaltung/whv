@@ -16,12 +16,14 @@ import {
 } from "@mui/material";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import DescriptionIcon from "@mui/icons-material/Description";
 import EventIcon from "@mui/icons-material/Event";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type {
   AnnouncementResponse,
   AssemblyResponse,
+  DocumentResponse,
   PropertyResponse,
   TicketResponse,
 } from "@/api/types";
@@ -94,6 +96,7 @@ export function HomePage() {
   const [announcements, setAnnouncements] = useState<AnnouncementResponse[]>([]);
   const [assemblies, setAssemblies] = useState<AssemblyResponse[]>([]);
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
+  const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -103,15 +106,17 @@ export function HomePage() {
       const pid =
         properties.find((p) => p.id === remembered)?.id ?? properties[0]?.id ?? null;
       const empty = { data: [] as never[] };
-      const [ann, asm, tks] = await Promise.all([
+      const [ann, asm, tks, docs] = await Promise.all([
         pid ? api.get<AnnouncementResponse[]>(`/me/properties/${pid}/announcements`) : empty,
         pid ? api.get<AssemblyResponse[]>(`/me/properties/${pid}/assemblies`) : empty,
         api.get<TicketResponse[]>("/me/tickets"),
+        pid ? api.get<DocumentResponse[]>(`/me/properties/${pid}/documents`) : empty,
       ]);
       setPropertyId(pid);
       setAnnouncements(ann.data as AnnouncementResponse[]);
       setAssemblies(asm.data as AssemblyResponse[]);
       setTickets(tks.data as TicketResponse[]);
+      setDocuments(docs.data as DocumentResponse[]);
     } catch {
       // Cards fall back to their empty state on a transient failure.
     } finally {
@@ -124,6 +129,19 @@ export function HomePage() {
     void load();
   }, [load]);
 
+  const openDocument = async (documentId: string) => {
+    try {
+      const res = await api.get<Blob>(`/me/documents/${documentId}/file`, {
+        responseType: "blob",
+      });
+      const objectUrl = URL.createObjectURL(res.data);
+      window.open(objectUrl, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      // Best-effort open; a failure just doesn't open the tab.
+    }
+  };
+
   const publishedAnnouncements = [...announcements]
     .filter((a) => a.notification_sent_at)
     .sort((a, b) => b.scheduled_publish_at.localeCompare(a.scheduled_publish_at))
@@ -134,6 +152,11 @@ export function HomePage() {
   const openTickets = [...tickets]
     .filter((tk) => tk.status !== "GESCHLOSSEN")
     .sort((a, b) => b.last_message_at.localeCompare(a.last_message_at))
+    .slice(0, 5);
+  const latestDocuments = [...documents]
+    .sort((a, b) =>
+      (b.issued_date ?? b.uploaded_at ?? "").localeCompare(a.issued_date ?? a.uploaded_at ?? ""),
+    )
     .slice(0, 5);
 
   if (loading) {
@@ -153,7 +176,15 @@ export function HomePage() {
         {t("home.subtitle")}
       </Typography>
 
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, alignItems: "stretch" }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", md: "row" },
+          flexWrap: "wrap",
+          gap: 2,
+          alignItems: "stretch",
+        }}
+      >
         <SectionCard
           icon={<CampaignIcon color="primary" />}
           title={t("home.announcements")}
@@ -196,6 +227,23 @@ export function HomePage() {
             <ListItemButton key={tk.id} onClick={() => navigate(`/tickets/${tk.id}`)}>
               <ListItemText primary={tk.subject} secondary={fmtDate(tk.last_message_at)} />
               <Chip size="small" label={tk.status} sx={{ ml: 1 }} />
+            </ListItemButton>
+          ))}
+        </SectionCard>
+
+        <SectionCard
+          icon={<DescriptionIcon color="primary" />}
+          title={t("home.documents")}
+          seeAllTo={propertyId ? `/properties/${propertyId}/documents` : null}
+          isEmpty={latestDocuments.length === 0}
+          emptyText={t("home.noDocuments")}
+        >
+          {latestDocuments.map((doc) => (
+            <ListItemButton key={doc.id} onClick={() => void openDocument(doc.id)}>
+              <ListItemText
+                primary={doc.name}
+                secondary={doc.issued_date ? fmtDate(doc.issued_date) : doc.kind}
+              />
             </ListItemButton>
           ))}
         </SectionCard>
