@@ -17,9 +17,11 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import CloseIcon from "@mui/icons-material/Close";
 import DescriptionIcon from "@mui/icons-material/Description";
+import HandymanIcon from "@mui/icons-material/Handyman";
 import SendIcon from "@mui/icons-material/Send";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 
@@ -29,6 +31,11 @@ interface Citation {
   page: number | null;
   source_kind: string | null;
   contact_name: string | null;
+  // "document" → open via download; "dienstleister"/… → a master-data card we
+  // deep-link to the entity (contact_id + property_id locate it). ADR-0013 §4.
+  source_type: string;
+  contact_id: string | null;
+  property_id: string | null;
 }
 
 interface AssistantResponse {
@@ -44,7 +51,15 @@ interface ChatMessage {
   sources?: Citation[];
 }
 
+function isMasterData(source: Citation): boolean {
+  return source.source_type !== "document";
+}
+
 function citationLabel(source: Citation): string {
+  if (isMasterData(source)) {
+    // A Dienstleister/contact card — name it, no page number.
+    return `Dienstleister: ${source.contact_name ?? "?"}`;
+  }
   const parts = [source.source_kind, source.contact_name].filter(Boolean);
   const base = parts.length > 0 ? parts.join(" · ") : "Dokument";
   return source.page != null ? `${base} · S.${source.page}` : base;
@@ -65,6 +80,7 @@ function citationLabel(source: Citation): string {
 export function AssistantWidget() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -128,6 +144,19 @@ export function AssistantWidget() {
     } catch {
       setError(t("assistant.documentError"));
     }
+  };
+
+  const openCitation = (source: Citation) => {
+    if (isMasterData(source)) {
+      // Master-data card (Dienstleister) → deep-link to that vendor on its
+      // property. Close the panel so the destination isn't hidden behind it.
+      if (source.property_id) {
+        setOpen(false);
+        navigate(`/properties/${source.property_id}/vendors`);
+      }
+      return;
+    }
+    void openDocument(source.document_id);
   };
 
   return (
@@ -225,9 +254,9 @@ export function AssistantWidget() {
                         <Chip
                           key={source.document_id}
                           size="small"
-                          icon={<DescriptionIcon />}
+                          icon={isMasterData(source) ? <HandymanIcon /> : <DescriptionIcon />}
                           clickable
-                          onClick={() => void openDocument(source.document_id)}
+                          onClick={() => openCitation(source)}
                           label={citationLabel(source)}
                         />
                       ))}
