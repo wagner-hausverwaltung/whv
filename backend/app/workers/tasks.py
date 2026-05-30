@@ -832,6 +832,7 @@ async def _index_rag_document_async(document_id_str: str) -> str:
 
     from app.integrations.llm import get_llm_provider
     from app.rag.db import provision_rag_store
+    from app.rag.extraction import ExtractionError
     from app.rag.service import reindex_document
 
     document_id = uuid.UUID(document_id_str)
@@ -842,13 +843,27 @@ async def _index_rag_document_async(document_id_str: str) -> str:
         app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
         rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
         async with app_factory() as app_session, rag_factory() as rag_session:
-            result = await reindex_document(
-                app_session,
-                rag_session,
-                get_llm_provider(),
-                document_id=document_id,
-                settings=settings,
-            )
+            try:
+                result = await reindex_document(
+                    app_session,
+                    rag_session,
+                    get_llm_provider(),
+                    document_id=document_id,
+                    settings=settings,
+                )
+            except ExtractionError as exc:
+                # Unrecoverable: the source bytes aren't a readable PDF
+                # (truncated / corrupt). Retrying can't un-corrupt them, so
+                # skip this document gracefully instead of burning the retry
+                # budget and logging an ERROR traceback on every corpus
+                # backfill. Transient failures (network fetch, Gemini 429/503)
+                # are other exception types and still autoretry as before.
+                logger.warning(
+                    "RAG indexing skipped for document %s — unreadable PDF: %s",
+                    document_id,
+                    exc,
+                )
+                return "skipped_unreadable"
             if result is None:
                 return "no_source"
             await rag_session.commit()
