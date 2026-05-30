@@ -1,0 +1,49 @@
+name: rag-backfill
+
+# On-demand RAG document indexing on PROD (ADR-0013). Enqueues
+# index_rag_document Celery tasks via the running backend container; the
+# worker does the OCR + embedding + persist asynchronously. Idempotent —
+# the content-hash skip means re-runs only touch changed docs. Requires
+# RAG to be enabled (deploy-prod sets RAG_ENABLED + starts vectordb) and
+# GEMINI_API_KEY present in the prod .env (embeddings reuse it).
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max documents to enqueue (blank = the whole corpus)"
+        required: false
+        default: "50"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Enqueue backfill on prod
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          LIMIT: ${{ github.event.inputs.limit }}
+        run: |
+          FLAG=""
+          if [ -n "$LIMIT" ]; then FLAG="--limit $LIMIT"; fi
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && \
+             grep -Eq '^GEMINI_API_KEY=.+' .env || { echo '::error ::GEMINI_API_KEY missing in prod .env — embeddings would fail'; exit 1; } && \
+             ${COMPOSE} exec -T backend python -m app.scripts.backfill_rag ${FLAG}"
+          echo "::notice ::Backfill enqueued. The worker now runs OCR + embedding; check the Assistent tab in a few minutes."

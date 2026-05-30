@@ -48,9 +48,18 @@ services:
       EMAIL_INBOUND_ADDRESS: support@wagner-hausverwaltung.com
       EMAIL_FROM_ADDRESS: support@wagner-hausverwaltung.com
       EMAIL_FROM_NAME: Wagner Hausverwaltung Support
+      # RAG assistant (ADR-0013) — ON in prod. RAG_DATABASE_URL comes from
+      # the base compose; the deploy sets COMPOSE_PROFILES=rag so the
+      # vectordb container is up before the backend boots + provisions it.
+      # Embeddings reuse GEMINI_API_KEY (from .env). Flip to "false" to
+      # disable without removing the infra.
+      RAG_ENABLED: "true"
 
   worker:
     restart: unless-stopped
+    # RAG ingestion (OCR + embed) runs in the worker — same flag.
+    environment:
+      RAG_ENABLED: "true"
   beat:
     restart: unless-stopped
 

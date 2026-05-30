@@ -132,10 +132,14 @@ jobs:
           #  4. full `up -d` — starts/updates everything incl. caddy (which
           #     provisions Let's Encrypt certs on its first container start)
           #     and docuseal; unchanged infra containers are left running.
+          # COMPOSE_PROFILES=rag includes the pgvector `vectordb` container
+          # (ADR-0013); it's added to --wait so it's healthy BEFORE the
+          # backend boots (the backend provisions the RAG store on startup
+          # when RAG_ENABLED=true, set in docker-compose.prod.yml).
           ssh -i ~/.ssh/deploy_key "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}" \
-            "cd ${{ env.PROD_REPO_DIR }} && \
+            "cd ${{ env.PROD_REPO_DIR }} && export COMPOSE_PROFILES=rag && \
              ${TAGS} ${COMPOSE} pull backend worker beat web && \
-             ${TAGS} ${COMPOSE} up -d --wait postgres redis && \
+             ${TAGS} ${COMPOSE} up -d --wait postgres redis vectordb && \
              ${TAGS} ${COMPOSE} run --rm backend alembic upgrade head && \
              ${TAGS} ${COMPOSE} up -d"
 
