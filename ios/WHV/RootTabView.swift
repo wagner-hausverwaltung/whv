@@ -25,6 +25,7 @@ struct RootTabView: View {
     @State private var selection = 2  // start on ETV — the most
                                        // load-bearing tab today
     @State private var newTicketSheetOpen = false
+    @State private var assistantOpen = false
 
     private let tabCount = 4
 
@@ -34,12 +35,12 @@ struct RootTabView: View {
         // it sits ABOVE the navigation bar instead of fighting it
         // for safe-area space. Removed from here.
         tabs
-            // Floating Verwaltung-Hotline button — bottom-right,
-            // pinned above the tab bar via .safeAreaInset so it
-            // never collides with the tab bar items and never sits
-            // under the home indicator. Same shape on every tab.
+            // Floating assistant bubble — bottom-right, pinned above the
+            // tab bar on every tab. Opens the RAG document assistant; the
+            // old standalone "Dirk Ullrich anrufen" button was folded into
+            // that dialog's toolbar so the two affordances no longer collide.
             .overlay(alignment: .bottomTrailing) {
-                CallVerwaltungButton()
+                AssistantBubble(isOpen: $assistantOpen)
                     .padding(.trailing, 16)
                     .padding(.bottom, 64)  // floats above the tab bar
             }
@@ -59,6 +60,9 @@ struct RootTabView: View {
                 // and will refresh itself on next appear. The
                 // deep-link sheet is purely an entry point.
                 NewTicketSheet { _ in }
+            }
+            .sheet(isPresented: $assistantOpen) {
+                AssistantView()
             }
     }
 

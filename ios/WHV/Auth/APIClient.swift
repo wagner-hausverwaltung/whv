@@ -512,6 +512,29 @@ struct RefreshRequest: Codable {
 
 // MARK: - Errors
 
+// MARK: - Assistant (ADR-0013)
+
+/// One source citation in an assistant answer. Mirrors the backend
+/// AssistantQueryResponse.sources entries. Backend de-dupes by document,
+/// so `document_id` is a stable Identifiable id for the chip list.
+struct AssistantCitation: Codable, Hashable, Identifiable {
+    let document_id: String
+    let page: Int?
+    let source_kind: String?
+    let contact_name: String?
+    var id: String { document_id }
+}
+
+struct AssistantQueryResponse: Codable {
+    let answer: String
+    let abstained: Bool
+    let sources: [AssistantCitation]
+}
+
+struct AssistantQueryRequest: Codable {
+    let question: String
+}
+
 enum APIError: Error, LocalizedError {
     case invalidURL
     case network(Error)
@@ -748,6 +771,30 @@ struct APIClient {
     /// cold start to detect a server-revoked session.
     func getMe() async throws -> UserResponse {
         try await authedGET("/me")
+    }
+
+    // MARK: Assistant (ADR-0013)
+
+    /// POST /assistant/query — ask the RAG document assistant. The backend
+    /// resolves the caller's ACL scope from the JWT, so we send only the
+    /// question. 503 (assistant disabled server-side) surfaces as
+    /// APIError.http(status: 503, …); demo mode short-circuits read-only.
+    func askAssistant(question: String) async throws -> AssistantQueryResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/assistant/query",
+            method: "POST",
+            body: AssistantQueryRequest(question: question)
+        )
+    }
+
+    /// GET /me/documents/{id}/file → local file URL for QuickLook. The
+    /// backend re-checks access, so a citation can't open a document the
+    /// caller can't see. RAG-indexed documents are always PDFs (ingestion
+    /// only handles PDF), so the .pdf suffix picks the right QL renderer.
+    func downloadDocument(id: String) async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedDownload("/me/documents/\(id)/file", saveAs: "dokument-\(id).pdf")
     }
 
     /// GET /me/properties — list properties visible to the signed-in

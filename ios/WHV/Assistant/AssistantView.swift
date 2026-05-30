@@ -1,0 +1,290 @@
+// RAG document assistant (ADR-0013) — the iOS counterpart of the web
+// assistant. Presented as a sheet from the floating bubble in RootTabView.
+//
+// Harmonisation note: the app used to carry a standalone floating
+// "Dirk Ullrich anrufen" button across every tab. To avoid two competing
+// floating affordances, that button is gone and the call action now lives
+// in THIS dialog's toolbar (the phone icon, top-left) — so "ask the
+// assistant" and "ring a human" share one entry point.
+//
+// The backend resolves the caller's ACL scope from the JWT, so we only
+// send the question. Citations open via /me/documents/{id}/file, which
+// re-checks access server-side, then render in QuickLook (FilePreview).
+
+import SwiftUI
+
+// MARK: - Model
+
+struct AssistantChatMessage: Identifiable {
+    enum Role { case user, assistant }
+    let id = UUID()
+    let role: Role
+    let text: String
+    var sources: [AssistantCitation] = []
+}
+
+@MainActor
+final class AssistantChatModel: ObservableObject {
+    @Published var messages: [AssistantChatMessage] = []
+    @Published var input: String = ""
+    @Published var isLoading = false
+    @Published var errorText: String?
+    /// Set when a citation has been downloaded — drives the QuickLook sheet.
+    @Published var previewURL: URL?
+    /// Document id currently downloading, so its chip can show progress.
+    @Published var openingDocumentId: String?
+
+    private let api = APIClient()
+
+    var canSend: Bool {
+        !isLoading && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func send() {
+        let question = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isLoading else { return }
+        errorText = nil
+        messages.append(AssistantChatMessage(role: .user, text: question))
+        input = ""
+        isLoading = true
+        Task {
+            do {
+                let res = try await api.askAssistant(question: question)
+                messages.append(
+                    AssistantChatMessage(role: .assistant, text: res.answer, sources: res.sources)
+                )
+            } catch {
+                errorText = Self.message(for: error)
+            }
+            isLoading = false
+        }
+    }
+
+    func openCitation(_ citation: AssistantCitation) {
+        guard openingDocumentId == nil else { return }
+        errorText = nil
+        openingDocumentId = citation.document_id
+        Task {
+            do {
+                previewURL = try await api.downloadDocument(id: citation.document_id)
+            } catch {
+                errorText = String(localized: "Das Dokument konnte nicht geöffnet werden.")
+            }
+            openingDocumentId = nil
+        }
+    }
+
+    /// Map transport errors to a friendly German line. A 503 means the
+    /// assistant is switched off server-side (rag_enabled=false).
+    private static func message(for error: Error) -> String {
+        if let api = error as? APIError {
+            switch api {
+            case .http(let status, _) where status == 503:
+                return String(localized: "Der Assistent ist derzeit nicht verfügbar.")
+            case .demoReadOnly:
+                return String(localized: "Im Demo-Modus nicht verfügbar.")
+            default:
+                break
+            }
+        }
+        return String(localized: "Die Anfrage ist fehlgeschlagen. Bitte erneut versuchen.")
+    }
+}
+
+// MARK: - Sheet
+
+struct AssistantView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var model = AssistantChatModel()
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                conversation
+                Divider()
+                composer
+            }
+            .navigationTitle("Assistent")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Harmonised call action — ring Dirk Ullrich without leaving
+                // the assistant. tel: opens the system Phone app.
+                ToolbarItem(placement: .topBarLeading) {
+                    Link(destination: WHVContact.telURL) {
+                        Image(systemName: "phone.fill")
+                    }
+                    .accessibilityLabel("Dirk Ullrich anrufen")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { model.previewURL != nil },
+                    set: { if !$0 { model.previewURL = nil } }
+                )
+            ) {
+                if let url = model.previewURL {
+                    FilePreview(url: url).ignoresSafeArea()
+                }
+            }
+        }
+    }
+
+    private var conversation: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if model.messages.isEmpty && !model.isLoading {
+                        emptyState
+                    }
+                    ForEach(model.messages) { message in
+                        MessageBubble(message: message) { model.openCitation($0) }
+                            .id(message.id)
+                    }
+                    if model.isLoading {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Suche in Ihren Dokumenten…")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .id("loading")
+                    }
+                    if let errorText = model.errorText {
+                        Label(errorText, systemImage: "exclamationmark.triangle")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                            .padding(.top, 4)
+                    }
+                }
+                .padding()
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: model.messages.count) { _, _ in
+                if let last = model.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+            .onChange(of: model.isLoading) { _, loading in
+                if loading { withAnimation { proxy.scrollTo("loading", anchor: .bottom) } }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Fragen Sie zu Ihren Dokumenten", systemImage: "sparkles")
+                .font(.headline)
+            Text("z. B. „Wie hoch war die Heizungsrechnung 2025?“ — mit Quellenangaben.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+    }
+
+    private var composer: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Ihre Frage…", text: $model.input, axis: .vertical)
+                    .lineLimit(1...4)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($inputFocused)
+                    .onSubmit { model.send() }
+                Button {
+                    model.send()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .disabled(!model.canSend)
+            }
+            Text("Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Message bubble
+
+private struct MessageBubble: View {
+    let message: AssistantChatMessage
+    let onOpenCitation: (AssistantCitation) -> Void
+
+    var body: some View {
+        VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
+            Text(message.text)
+                .font(.body)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(bubbleBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .frame(maxWidth: 300, alignment: message.role == .user ? .trailing : .leading)
+            if !message.sources.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(message.sources) { source in
+                        Button { onOpenCitation(source) } label: {
+                            Label(label(for: source), systemImage: "doc.text")
+                                .font(.caption)
+                                .lineLimit(1)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(Color(.tertiarySystemFill)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+
+    private var bubbleBackground: Color {
+        message.role == .user ? Color.accentColor.opacity(0.15) : Color(.secondarySystemBackground)
+    }
+
+    private func label(for source: AssistantCitation) -> String {
+        let parts = [source.source_kind, source.contact_name].compactMap { $0 }
+        let base = parts.isEmpty ? "Dokument" : parts.joined(separator: " · ")
+        if let page = source.page { return "\(base) · S.\(page)" }
+        return base
+    }
+}
+
+// MARK: - Floating launcher
+
+/// Bottom-right floating bubble that opens the assistant. Replaces the old
+/// standalone CallVerwaltungButton overlay (the call action moved into the
+/// dialog). Mounted once in RootTabView so it rides above every tab.
+struct AssistantBubble: View {
+    @Binding var isOpen: Bool
+
+    var body: some View {
+        Button {
+            isOpen = true
+        } label: {
+            Image(systemName: "bubble.left.and.bubble.right.fill")
+                .font(.title2)
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(Color.accentColor))
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Assistent öffnen")
+        .accessibilityHint("Fragen zu Ihren Dokumenten — oder die Verwaltung anrufen")
+    }
+}
+
+#Preview {
+    AssistantView()
+}
