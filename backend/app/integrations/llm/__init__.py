@@ -35,6 +35,7 @@ def get_llm_provider() -> LLMProvider:
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         max_output_tokens=settings.llm_max_output_tokens,
+        embedding_model=settings.rag_embedding_model,
     )
 
 

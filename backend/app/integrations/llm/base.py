@@ -9,6 +9,7 @@ real (a half-implemented `chat()` is worse than no chat at all).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
@@ -70,6 +71,21 @@ class LLMProvider(Protocol):
         """
         ...
 
+    async def embed_texts(
+        self,
+        texts: Sequence[str],
+        *,
+        task_type: str = "retrieval_document",
+    ) -> list[list[float]]:
+        """Embed each text → a dense vector, one per input, in order.
+
+        Used by the RAG ingestion + retrieval paths (ADR-0013). The
+        caller (app.rag) validates dimensionality before persisting.
+        `task_type` is the provider's retrieval hint —
+        "retrieval_document" at index time, "retrieval_query" at query.
+        """
+        ...
+
 
 # --- Null implementation ----------------------------------------------------
 
@@ -96,6 +112,16 @@ class NullProvider:
     ) -> LLMResult[T]:
         raise LLMProviderUnavailableError(
             "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Extraction skipped."
+        )
+
+    async def embed_texts(
+        self,
+        texts: Sequence[str],
+        *,
+        task_type: str = "retrieval_document",
+    ) -> list[list[float]]:
+        raise LLMProviderUnavailableError(
+            "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Embedding skipped."
         )
 
 

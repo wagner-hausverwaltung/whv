@@ -24,6 +24,15 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 
+# OCR toolchain for RAG ingestion (ADR-0013): Tesseract + German trained
+# data + poppler (pdf2image rasterizes scanned pages). Only the Celery
+# worker uses these, but backend + worker share this image. Clean the apt
+# lists in the same layer to keep it small.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-deu poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd -r app && useradd -r -g app -d /app -s /usr/sbin/nologin app
 
 # Storage tree for user uploads: avatars, property images, document

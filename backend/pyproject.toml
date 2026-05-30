@@ -39,6 +39,12 @@ dependencies = [
     # Provides the `Vector` column + cosine/HNSW operators used by
     # app/rag/models.py.
     "pgvector>=0.3",
+    # RAG ingestion text extraction (ADR-0013): pypdf reads born-digital
+    # PDF text layers; pdf2image (poppler) rasterizes scanned pages for
+    # pytesseract → Tesseract `deu` OCR. All permissively licensed (no AGPL).
+    "pypdf>=5.1",
+    "pdf2image>=1.17",
+    "pytesseract>=0.3.13",
 ]
 
 [dependency-groups]
@@ -101,6 +107,12 @@ ignore_missing_imports = true
 # pgvector's SQLAlchemy integration ships partial/no stubs; we wrap the
 # Vector type in our own typed mapped columns in app/rag/models.py.
 module = ["pgvector", "pgvector.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pdf2image + pytesseract are thin wrappers over the poppler / tesseract
+# CLIs and ship no type stubs.
+module = ["pdf2image", "pdf2image.*", "pytesseract", "pytesseract.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

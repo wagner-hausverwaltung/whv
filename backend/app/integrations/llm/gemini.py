@@ -17,6 +17,8 @@ ValueError. We translate Pydantic → Gemini's accepted shape in
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
+from itertools import batched
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -28,6 +30,9 @@ from app.integrations.llm.base import (
 )
 
 T = TypeVar("T", bound=BaseModel)
+
+# Google's batch-embed endpoint accepts up to 100 inputs per request.
+_EMBED_BATCH = 100
 
 
 # Keys Gemini's protobuf-backed Schema accepts. Anything outside this
@@ -159,6 +164,7 @@ class GeminiProvider:
         api_key: str,
         model: str,
         max_output_tokens: int,
+        embedding_model: str = "models/text-embedding-004",
     ) -> None:
         if not api_key:
             # Belt + braces — the factory already guards against this,
@@ -169,6 +175,7 @@ class GeminiProvider:
         self._api_key = api_key
         self._model_name = model
         self._max_output_tokens = max_output_tokens
+        self._embedding_model = embedding_model
 
     async def extract_from_pdf(
         self,
@@ -224,6 +231,35 @@ class GeminiProvider:
             latency_ms=elapsed_ms,
         )
         return LLMResult(payload=payload, stats=stats)
+
+    async def embed_texts(
+        self,
+        texts: Sequence[str],
+        *,
+        task_type: str = "retrieval_document",
+    ) -> list[list[float]]:
+        if not texts:
+            return []
+        import google.generativeai as genai
+
+        genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
+        out: list[list[float]] = []
+        # The batch-embed endpoint caps at 100 inputs per call; chunk to it.
+        for batch in batched(texts, _EMBED_BATCH):
+            resp = await genai.embed_content_async(  # type: ignore[attr-defined]
+                model=self._embedding_model,
+                content=list(batch),
+                task_type=task_type,
+            )
+            # The SDK return type is a single-vs-batch union; defer to the
+            # runtime shape check below rather than fight the static type.
+            vectors: Any = resp["embedding"]
+            # A single-item batch can come back as a flat vector — normalise
+            # to a list-of-vectors so each input lines up with one output.
+            if vectors and isinstance(vectors[0], (int, float)):
+                vectors = [vectors]
+            out.extend([float(x) for x in v] for v in vectors)
+        return out
 
 
 def _coerce_usage(meta: Any) -> dict[str, int]:
