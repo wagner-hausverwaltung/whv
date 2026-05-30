@@ -26,6 +26,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { AssistantWidget } from "@/components/AssistantWidget";
 import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -141,14 +142,6 @@ export function Layout({ children }: { children: ReactNode }) {
                     >
                       {t("nav.resolutions")}
                     </Button>
-                    <Button
-                      component={RouterLink}
-                      to="/assistant"
-                      color="inherit"
-                      size="small"
-                    >
-                      {t("nav.assistant")}
-                    </Button>
                   </Stack>
                 )}
                 <LanguageSwitcher />
@@ -223,6 +216,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </Container>
 
       <Footer />
+
+      {/* Floating RAG assistant — reachable from every portal page. */}
+      <AssistantWidget />
     </Box>
   );
 }

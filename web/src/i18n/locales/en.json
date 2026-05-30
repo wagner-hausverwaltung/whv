@@ -243,7 +243,9 @@
     "unavailable": "The assistant is currently unavailable.",
     "error": "The request failed. Please try again.",
     "documentError": "The document could not be opened.",
-    "disclaimer": "Answers may contain errors — the linked documents are authoritative."
+    "disclaimer": "Answers may contain errors — the linked documents are authoritative.",
+    "open": "Open assistant",
+    "close": "Close"
   },
   "admin": {
     "title": "Admin",

@@ -24,6 +24,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { AssistantWidget } from "@/components/AssistantWidget";
 import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -68,14 +69,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   // fontWeight + add a subtle background.
   const NAV: { to: string; label: string }[] = [
     { to: "/admin", label: t("admin.dashboard") },
-    { to: "/admin/assistant", label: t("admin.assistant") },
     { to: "/admin/tickets", label: t("admin.tickets") },
     { to: "/admin/resolutions", label: t("admin.resolutions") },
     { to: "/admin/assemblies", label: t("admin.assemblies") },
     { to: "/admin/signatures", label: t("admin.signatures") },
     { to: "/admin/announcements", label: t("admin.announcements") },
     { to: "/admin/invites", label: t("admin.invites") },
-    { to: "/admin/audit", label: t("admin.audit") },
   ];
   const activePath = (() => {
     const sorted = [...NAV].sort((a, b) => b.to.length - a.to.length);
@@ -246,6 +245,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       </Container>
 
       <Footer />
+
+      {/* Floating RAG assistant — reachable from every admin page. */}
+      <AssistantWidget />
     </Box>
   );
 }

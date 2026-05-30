@@ -243,7 +243,9 @@
     "unavailable": "Der Assistent ist derzeit nicht verfügbar.",
     "error": "Die Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "documentError": "Das Dokument konnte nicht geöffnet werden.",
-    "disclaimer": "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente."
+    "disclaimer": "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente.",
+    "open": "Assistent öffnen",
+    "close": "Schließen"
   },
   "admin": {
     "title": "Admin",
