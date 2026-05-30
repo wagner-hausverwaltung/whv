@@ -201,6 +201,38 @@ async def _notify_plan_adjustments_async() -> dict[str, int]:
     return {"plan_adjustments_notified": notified}
 
 
+async def _enqueue_rag_indexing_async() -> dict[str, int]:
+    """Post-sync: enqueue RAG indexing for newly-synced documents (ADR-0013).
+
+    No-op when rag_enabled is off, so it stays dormant until the assistant is
+    switched on. Only enqueues docs not yet in the RAG store; the content-hash
+    skip in index_rag_document is the second line of defence so a re-enqueue
+    of an unchanged doc costs no embedding call.
+    """
+    settings = get_settings()
+    if not settings.rag_enabled:
+        return {}
+
+    from app.rag.db import provision_rag_store
+    from app.rag.service import enqueue_document_indexing
+
+    app_engine = create_async_engine(settings.database_url)
+    rag_engine = create_async_engine(settings.rag_database_url)
+    try:
+        await provision_rag_store(rag_engine)
+        app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
+        rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
+        async with app_factory() as app_session, rag_factory() as rag_session:
+            enqueued = await enqueue_document_indexing(
+                app_session, rag_session, settings=settings, only_new=True
+            )
+    finally:
+        await app_engine.dispose()
+        await rag_engine.dispose()
+    logger.info("rag indexing: enqueued=%d new documents", enqueued)
+    return {"rag_indexing_enqueued": enqueued}
+
+
 @celery_app.task(name="app.workers.tasks.sync_all_impower")
 def sync_all_impower() -> dict[str, int]:
     """Celery task wrapper. Bridges Celery's sync model to our async sync layer.
@@ -223,6 +255,10 @@ def sync_all_impower() -> dict[str, int]:
         counts.update(asyncio.run(_notify_plan_adjustments_async()))
     except Exception:
         logger.exception("plan-adjustment notify phase failed")
+    try:
+        counts.update(asyncio.run(_enqueue_rag_indexing_async()))
+    except Exception:
+        logger.exception("rag indexing enqueue phase failed")
     return counts
 
 

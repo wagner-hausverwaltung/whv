@@ -13,6 +13,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -21,6 +22,7 @@ from app.models.contact import Contact, ContactKind
 from app.models.document import Document
 from app.models.property import Property
 from app.rag.ingestion import DocumentMeta, Embedder, IndexResult, index_document
+from app.rag.models import RagDocument
 
 logger = logging.getLogger(__name__)
 
@@ -118,3 +120,43 @@ async def reindex_document(
         return None
     meta = await build_document_meta(app_session, doc)
     return await index_document(rag_session, embedder, meta=meta, pdf_bytes=pdf_bytes, force=force)
+
+
+async def enqueue_document_indexing(
+    app_session: AsyncSession,
+    rag_session: AsyncSession,
+    *,
+    settings: Settings,
+    only_new: bool = True,
+    property_id: uuid.UUID | None = None,
+    limit: int | None = None,
+) -> int:
+    """Enqueue ``index_rag_document`` for every Document with a fetchable
+    source (an Impower id or a local file). With ``only_new`` (the default),
+    skip documents already present in the RAG store — so the nightly post-sync
+    hook only indexes genuinely-new docs and doesn't re-download the whole
+    corpus. Returns the count enqueued; a no-op returning 0 when rag is off.
+    """
+    if not settings.rag_enabled:
+        return 0
+
+    stmt = select(Document.id).where(
+        Document.deleted_at.is_(None),
+        or_(Document.impower_id.is_not(None), Document.storage_url.is_not(None)),
+    )
+    if property_id is not None:
+        stmt = stmt.where(Document.property_id == property_id)
+    document_ids = list((await app_session.scalars(stmt)).all())
+
+    if only_new:
+        indexed = set((await rag_session.scalars(select(RagDocument.document_id))).all())
+        document_ids = [doc_id for doc_id in document_ids if doc_id not in indexed]
+    if limit is not None:
+        document_ids = document_ids[:limit]
+
+    # Lazy import avoids an import cycle (tasks imports this module).
+    from app.workers.tasks import index_rag_document
+
+    for doc_id in document_ids:
+        index_rag_document.delay(str(doc_id))
+    return len(document_ids)
