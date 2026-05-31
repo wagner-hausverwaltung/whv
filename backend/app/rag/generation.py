@@ -85,6 +85,9 @@ class ConversationTurn:
 
 @dataclass(frozen=True, slots=True)
 class Citation:
+    # The source number the answer cited as [index]. The SPA labels the chip
+    # "[index] …" so the inline marker maps to a clickable source.
+    index: int
     document_id: uuid.UUID
     page: int | None
     source_kind: str | None
@@ -157,15 +160,17 @@ def _build_prompt(
 
 
 def _citations(chunks: list[RetrievedChunk], used_indices: set[int]) -> list[Citation]:
-    """One citation per source document the answer actually cited ([n]), in
-    first-seen (best-ranked) order. Empty when the model cited nothing — the UI
-    then shows no chips instead of every retrieved chunk."""
-    seen: dict[uuid.UUID, Citation] = {}
+    """One citation per source NUMBER the answer cited ([n]), ascending. We do
+    NOT dedupe by document: each [n] is its own footnote, so the SPA can render
+    a chip "[n] …" that maps 1:1 to the inline marker (and opens that source).
+    Empty when the model cited nothing — the UI then shows no chips."""
+    out: list[Citation] = []
     for index, chunk in enumerate(chunks, start=1):
         if index not in used_indices:
             continue
-        if chunk.document_id not in seen:
-            seen[chunk.document_id] = Citation(
+        out.append(
+            Citation(
+                index=index,
                 document_id=chunk.document_id,
                 page=chunk.page,
                 source_kind=chunk.source_kind,
@@ -174,7 +179,8 @@ def _citations(chunks: list[RetrievedChunk], used_indices: set[int]) -> list[Cit
                 contact_id=chunk.contact_id,
                 property_id=chunk.property_id,
             )
-    return list(seen.values())
+        )
+    return out
 
 
 async def answer_question(

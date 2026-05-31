@@ -47,6 +47,9 @@ class AssistantQueryRequest(BaseModel):
 
 
 class CitationResponse(BaseModel):
+    # The [index] the answer cited — the SPA labels the chip "[index] …" so the
+    # inline marker maps to a clickable source.
+    index: int
     document_id: uuid.UUID
     page: int | None
     source_kind: str | None
@@ -121,6 +124,7 @@ async def assistant_query(
         abstained=answer.abstained,
         sources=[
             CitationResponse(
+                index=citation.index,
                 document_id=citation.document_id,
                 page=citation.page,
                 source_kind=citation.source_kind,

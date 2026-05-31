@@ -157,8 +157,10 @@ async def test_answer_question_grounds_and_cites(
     assert not answer.abstained
     assert answer.answer == "Die Heizung wurde 2025 gewartet [1]."
     assert doc.id in answer.retrieved_document_ids
-    # the answer cited [1] → exactly that source is surfaced as a chip
+    # the answer cited [1] → exactly that source is surfaced as a chip, tagged
+    # with its number so the SPA can label "[1] …" and map it to the marker
     assert [c.document_id for c in answer.sources] == [doc.id]
+    assert [c.index for c in answer.sources] == [1]
     # grounded: the chunk text + the injection-guard system prompt were sent
     assert provider.last_prompt is not None
     assert "Heizung wurde laut Rechnung 2025 gewartet" in provider.last_prompt
