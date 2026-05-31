@@ -1,0 +1,112 @@
+name: prod-doc-acl-stats
+
+# On-demand, READ-ONLY diagnostic for the document-ACL exposure (#153).
+# The portal/assistant ACL gate (app/api/v1/me.py _document_visibility_filter)
+# treats a document with ALL THREE owner FKs NULL (unit_id, contract_id,
+# contact_id) as "property-wide" — visible to everyone who can see the
+# property. Per-user financial docs (Hausgeld-/Betriebskosten-/Heizkosten-
+# abrechnung) map to kind=JAHRESABRECHNUNG; if any landed without an FK they
+# are currently cross-user visible. The DocumentVisibility enum is NOT
+# enforced today. This job quantifies the blast radius (counts only — no
+# names, no content, no PII) so we can design the right stopgap.
+#
+# Runs inside the already-deployed backend container using the app's
+# settings.database_url (asyncpg). No app/RAG-store state is changed.
+on:
+  workflow_dispatch:
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  stats:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Aggregate document ACL exposure (read-only)
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && ${COMPOSE} exec -T backend python -" <<'PY'
+          import asyncio
+
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+
+          from app.config import settings
+
+          # "Property-wide": none of the per-owner FKs set -> the ACL filter
+          # makes the doc visible to every caller who can see the property.
+          WIDE = "unit_id IS NULL AND contract_id IS NULL AND contact_id IS NULL"
+
+
+          async def main() -> None:
+              engine = create_async_engine(settings.database_url)
+              async with engine.connect() as conn:
+
+                  async def rows(sql: str):
+                      res = await conn.execute(text(sql))
+                      return res.fetchall()
+
+                  total = (await rows("SELECT count(*) FROM documents WHERE deleted_at IS NULL"))[0][0]
+                  wide_total = (
+                      await rows(f"SELECT count(*) FROM documents WHERE deleted_at IS NULL AND {WIDE}")
+                  )[0][0]
+                  print(f"LIVE DOCUMENTS: {total}")
+                  print(f"PROPERTY-WIDE (all owner FKs NULL): {wide_total}  "
+                        f"({(100*wide_total//total) if total else 0}% of corpus)")
+
+                  print("\n=== BY KIND (total | property-wide | fk-scoped) ===")
+                  for k, tot, wide, scoped in await rows(
+                      f"""SELECT kind, count(*) AS total,
+                                count(*) FILTER (WHERE {WIDE}) AS wide,
+                                count(*) FILTER (WHERE NOT ({WIDE})) AS scoped
+                          FROM documents WHERE deleted_at IS NULL
+                          GROUP BY kind ORDER BY total DESC"""
+                  ):
+                      print(f"  {str(k):20s} {tot:6d} | wide={wide:6d} | scoped={scoped:6d}")
+
+                  print("\n=== BY VISIBILITY ENUM (currently UNENFORCED) ===")
+                  for v, c in await rows(
+                      "SELECT visibility, count(*) FROM documents WHERE deleted_at IS NULL "
+                      "GROUP BY visibility ORDER BY count(*) DESC"
+                  ):
+                      print(f"  {str(v):20s} {c:6d}")
+
+                  print("\n=== BY IMPOWER SOURCE TYPE (total | property-wide) — exposure surface ===")
+                  for src, tot, wide in await rows(
+                      f"""SELECT coalesce(impower_source_type, '(null)') AS src,
+                                count(*) AS total,
+                                count(*) FILTER (WHERE {WIDE}) AS wide
+                          FROM documents WHERE deleted_at IS NULL
+                          GROUP BY src ORDER BY total DESC LIMIT 40"""
+                  ):
+                      print(f"  {str(src):42s} {tot:6d} | wide={wide:6d}")
+
+                  print("\n=== HEADLINE EXPOSURE ===")
+                  jahr_wide = (
+                      await rows(
+                          f"SELECT count(*) FROM documents WHERE deleted_at IS NULL "
+                          f"AND kind = 'JAHRESABRECHNUNG' AND {WIDE}"
+                      )
+                  )[0][0]
+                  print(f"  JAHRESABRECHNUNG that are property-wide (per-user financial, "
+                        f"currently cross-user visible): {jahr_wide}")
+
+              await engine.dispose()
+
+
+          asyncio.run(main())
+          PY
