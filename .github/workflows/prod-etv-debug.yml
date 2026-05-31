@@ -1,0 +1,116 @@
+name: prod-etv-debug
+
+# Read-only: why does the assistant abstain on ETV topics for a property?
+# Shows, for properties matching NEEDLE: their assemblies + agenda-item counts
+# (app DB) and the ETV cards actually in the RAG store (text). Plus a global
+# tally of how many ETV cards carry a Tagesordnung / Beschlüsse. No PII beyond
+# meeting metadata; no state changes.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "Property name substring"
+        required: false
+        default: "Hasenberg"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Inspect ETV assemblies + cards
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import func, select, text
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.models.etv import EtvAgendaItem, EtvAssembly
+          from app.models.property import Property
+
+          NEEDLE = os.environ.get("NEEDLE", "Hasenberg")
+
+
+          async def main() -> None:
+              s = get_settings()
+              app_engine = create_async_engine(s.database_url)
+              rag_engine = create_async_engine(s.rag_database_url)
+              prop_ids = []
+              sm = async_sessionmaker(app_engine, expire_on_commit=False)
+              async with sm() as sess:
+                  props = (
+                      await sess.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                  ).all()
+                  for p in props:
+                      prop_ids.append(p.id)
+                      print(f"\nPROPERTY {p.id} :: {p.name}")
+                      assemblies = (
+                          await sess.scalars(
+                              select(EtvAssembly)
+                              .where(EtvAssembly.property_id == p.id, EtvAssembly.deleted_at.is_(None))
+                              .order_by(EtvAssembly.scheduled_start)
+                          )
+                      ).all()
+                      print(f"  assemblies (app DB): {len(assemblies)}")
+                      for a in assemblies:
+                          n = await sess.scalar(
+                              select(func.count())
+                              .select_from(EtvAgendaItem)
+                              .where(EtvAgendaItem.assembly_id == a.id)
+                          )
+                          print(f"    {a.scheduled_start:%Y-%m-%d} [{a.status}] '{a.title}' agenda_items={n}")
+
+              async with rag_engine.connect() as rconn:
+                  # Global: how many ETV cards carry topics / decisions?
+                  total = (
+                      await rconn.execute(text("SELECT count(*) FROM rag_chunks WHERE source_type='etv'"))
+                  ).scalar_one()
+                  with_top = (
+                      await rconn.execute(
+                          text("SELECT count(*) FROM rag_chunks WHERE source_type='etv' AND chunk_text LIKE '%Tagesordnung%'")
+                      )
+                  ).scalar_one()
+                  with_bes = (
+                      await rconn.execute(
+                          text("SELECT count(*) FROM rag_chunks WHERE source_type='etv' AND chunk_text LIKE '%Beschl%'")
+                      )
+                  ).scalar_one()
+                  print(f"\nGLOBAL etv cards: {total} | with Tagesordnung: {with_top} | with Beschlüsse: {with_bes}")
+                  for pid in prop_ids:
+                      rows = (
+                          await rconn.execute(
+                              text("SELECT chunk_text FROM rag_chunks WHERE source_type='etv' AND property_id = :pid"),
+                              {"pid": pid},
+                          )
+                      ).fetchall()
+                      print(f"\nRAG etv cards for {pid}: {len(rows)}")
+                      for (ct,) in rows[:12]:
+                          print("   CARD:", ct[:400])
+
+              await app_engine.dispose()
+              await rag_engine.dispose()
+
+
+          asyncio.run(main())
+          PY
