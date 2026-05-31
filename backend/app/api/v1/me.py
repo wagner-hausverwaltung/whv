@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import ColumnElement, and_, not_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -23,6 +23,7 @@ from app.models import (
     DevicePlatform,
     Document,
     DocumentFolder,
+    DocumentKind,
     Property,
     Unit,
     User,
@@ -281,6 +282,41 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
     )
 
 
+# Impower source types whose documents are inherently personal to ONE
+# owner/tenant — their own Abrechnung / Sonderumlage. These must never reach
+# another member of the property through the "property-wide" (all-FKs-NULL)
+# branch below. See ADR-0014: when such a doc lands without an owner FK we
+# fail CLOSED (hide it from every non-Verwalter) rather than leak PII, until a
+# Verwalter files the unit/contract/contact that attributes it to its owner.
+_PERSONAL_FINANCIAL_SOURCE_TYPES = frozenset(
+    {
+        "HOUSE_MONEY_SETTLEMENT",  # Hausgeldabrechnung (per owner)
+        "HEATING_COST_DISTRIBUTION",  # Heizkostenabrechnung (per unit/tenant)
+        "OPS_COST_REPORT",  # Betriebskostenabrechnung (per tenant)
+        "RENT_SETTLEMENT_EXCHANGE",  # Mietabrechnung (per tenant)
+        "SPECIAL_CONTRIBUTION",  # Sonderumlage (per owner)
+    }
+)
+
+
+def _is_owner_private_document() -> ColumnElement[bool]:
+    """True for docs that belong to a single owner/tenant, not the whole WEG.
+
+    kind == JAHRESABRECHNUNG already covers the Hausgeld-/Heizkosten-/
+    Betriebskostenabrechnungen synced from Impower; the source-type set adds
+    the few (e.g. Sonderumlage) that the kind mapping files under SONSTIGES.
+    The ``is_not(None)`` guard keeps the predicate NULL-safe so an ordinary
+    doc with no source type still evaluates to FALSE (i.e. stays shareable).
+    """
+    return or_(
+        Document.kind == DocumentKind.JAHRESABRECHNUNG,
+        and_(
+            Document.impower_source_type.is_not(None),
+            Document.impower_source_type.in_(_PERSONAL_FINANCIAL_SOURCE_TYPES),
+        ),
+    )
+
+
 def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     """Row-scope filter for non-Verwalter callers on the documents tab.
 
@@ -290,7 +326,11 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     pinned to Unit 1 must NOT show up in the documents tab for the Mieter
     of Unit 4. The rule:
 
-    * Property-wide docs (all three FKs NULL) — always visible.
+    * Property-wide docs (all three FKs NULL) — visible to every member of
+      the property, EXCEPT personal-financial docs (see
+      `_is_owner_private_document`): a Hausgeld-/Heizkostenabrechnung that
+      arrived without an owner FK is hidden from everyone but the Verwalter
+      so it can't leak across owners (#153 / ADR-0014).
     * Unit-scoped docs — visible only if the caller is on a contract for
       that unit.
     * Contract-scoped docs — visible only if the caller is on that
@@ -304,6 +344,10 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     semantically.
 
     Verwalter sees everything — call this only after the role check.
+
+    This filter is the single source of truth for document ACL: the RAG
+    assistant reuses it verbatim (app/rag/retrieval.py), so the fail-closed
+    rule applies to the assistant too.
     """
     caller_contracts = (
         select(Contract.id)
@@ -332,6 +376,11 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
             Document.unit_id.is_(None),
             Document.contract_id.is_(None),
             Document.contact_id.is_(None),
+            # Fail closed: an unattributed personal-financial doc is NOT
+            # property-wide. It stays hidden until a Verwalter files its
+            # owner FK (then the unit/contract/contact branches below let
+            # the right owner — and only them — see it).
+            not_(_is_owner_private_document()),
         ),
         Document.unit_id.in_(caller_units),
         Document.contract_id.in_(caller_contracts),
