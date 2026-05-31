@@ -1,9 +1,7 @@
 name: prod-assistant-probe
 
-# Read-only: reproduce the assistant's retrieval for a question on a property
-# and dump the raw signals (query-vector sanity, chunk counts behind the
-# filters, raw cosine nearest-neighbours, and retrieve() results) to tell a
-# similarity miss from an ACL/filter miss. No writes.
+# Read-only: confirm the pgvector HNSW filtered-query starvation + which knob
+# fixes it (ef_search vs iterative_scan). No writes.
 on:
   workflow_dispatch:
     inputs:
@@ -44,7 +42,6 @@ jobs:
           ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
             "cd ${PROD_REPO_DIR} && Q='${Q_INPUT}' NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e Q -e NEEDLE backend python -" <<'PY'
           import asyncio
-          import math
           import os
 
           from sqlalchemy import select, text
@@ -69,46 +66,33 @@ jobs:
                       prop = (
                           await sess.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
                       ).first()
-                  print(f"property: {prop.id} | org: {prop.organization_id} | {prop.name}")
-                  print(f"question: {Q!r}")
-
+                  print(f"property: {prop.id} | {prop.name}")
                   qvec = (await get_llm_provider().embed_texts([Q], task_type="retrieval_query"))[0]
-                  norm = math.sqrt(sum(x * x for x in qvec))
-                  print(f"qvec: dim={len(qvec)} norm={norm:.4f} head={[round(x, 4) for x in qvec[:3]]}")
+                  scope = CallerScope(
+                      organization_id=prop.organization_id, is_verwalter=True, visible_document_ids=None
+                  )
 
-                  vlit = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
+                  async def attempt(rag, label):  # type: ignore[no-untyped-def]
+                      got = await retrieve(
+                          rag, scope=scope, query_embedding=qvec, top_k=8, min_similarity=0.0, property_id=prop.id
+                      )
+                      etv = sum(1 for c in got if c.source_type == "etv")
+                      print(f"  [{label}] property-filtered hits={len(got)} (etv={etv}) types={[c.source_type for c in got]}")
+
                   rm = async_sessionmaker(rag_engine, expire_on_commit=False)
                   async with rm() as rag:
-                      for label, sql, params in [
-                          ("chunks org+prop", "SELECT count(*) FROM rag_chunks WHERE organization_id=:o AND property_id=:p", {"o": prop.organization_id, "p": prop.id}),
-                          ("chunks prop-only", "SELECT count(*) FROM rag_chunks WHERE property_id=:p", {"p": prop.id}),
-                          ("chunks org-only", "SELECT count(*) FROM rag_chunks WHERE organization_id=:o", {"o": prop.organization_id}),
-                          ("etv chunks org", "SELECT count(*) FROM rag_chunks WHERE organization_id=:o AND source_type='etv'", {"o": prop.organization_id}),
-                      ]:
-                          n = (await rag.execute(text(sql), params)).scalar_one()
-                          print(f"  {label}: {n}")
-
-                      rows = (
-                          await rag.execute(
-                              text(
-                                  "SELECT source_type, source_kind, (embedding <=> (:v)::vector) AS dist "
-                                  "FROM rag_chunks WHERE property_id=:p ORDER BY dist LIMIT 8"
-                              ),
-                              {"v": vlit, "p": prop.id},
-                          )
-                      ).fetchall()
-                      print(f"  raw NN for property: {len(rows)}")
-                      for st, sk, dist in rows:
-                          print(f"    dist={float(dist):.3f} sim={1 - float(dist):.3f} type={st} kind={sk}")
-
-                      scope = CallerScope(
-                          organization_id=prop.organization_id, is_verwalter=True, visible_document_ids=None
-                      )
-                      for pid in (prop.id, None):
-                          got = await retrieve(
-                              rag, scope=scope, query_embedding=qvec, top_k=8, min_similarity=0.0, property_id=pid
-                          )
-                          print(f"  retrieve(property_id={'prop' if pid else 'None'}, min_sim=0.0): {len(got)} hits; types={[c.source_type for c in got]}")
+                      ver = (
+                          await rag.execute(text("SELECT extversion FROM pg_extension WHERE extname='vector'"))
+                      ).scalar_one_or_none()
+                      print("pgvector version:", ver)
+                      await attempt(rag, "baseline")
+                      await rag.execute(text("SET hnsw.ef_search = 1000"))
+                      await attempt(rag, "ef_search=1000")
+                      try:
+                          await rag.execute(text("SET hnsw.iterative_scan = relaxed_order"))
+                          await attempt(rag, "iterative_scan=relaxed")
+                      except Exception as exc:  # noqa: BLE001
+                          print("  iterative_scan unsupported:", type(exc).__name__, str(exc)[:120])
               finally:
                   await app_engine.dispose()
                   await rag_engine.dispose()
