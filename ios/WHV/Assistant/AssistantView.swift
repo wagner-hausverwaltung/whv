@@ -268,13 +268,16 @@ private struct MessageBubble: View {
     }
 
     private func label(for source: AssistantCitation) -> String {
+        let body: String
         if source.isMasterData {
-            return "Dienstleister: \(source.contact_name ?? "?")"
+            body = "Dienstleister: \(source.contact_name ?? "?")"
+        } else {
+            let parts = [source.source_kind, source.contact_name].compactMap { $0 }
+            let base = parts.isEmpty ? "Dokument" : parts.joined(separator: " · ")
+            body = source.page.map { "\(base) · S.\($0)" } ?? base
         }
-        let parts = [source.source_kind, source.contact_name].compactMap { $0 }
-        let base = parts.isEmpty ? "Dokument" : parts.joined(separator: " · ")
-        if let page = source.page { return "\(base) · S.\(page)" }
-        return base
+        // Prefix the cited number so it maps to the inline [n] in the answer.
+        return "[\(source.index)] \(body)"
     }
 
     private func citationChip(label: String, icon: String) -> some View {

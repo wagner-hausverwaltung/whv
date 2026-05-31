@@ -518,6 +518,8 @@ struct RefreshRequest: Codable {
 /// AssistantQueryResponse.sources entries. Backend de-dupes by document,
 /// so `document_id` is a stable Identifiable id for the chip list.
 struct AssistantCitation: Codable, Hashable, Identifiable {
+    // The [index] the answer cited — shown on the chip so the inline [n] maps to it.
+    let index: Int
     let document_id: String
     let page: Int?
     let source_kind: String?
@@ -529,7 +531,9 @@ struct AssistantCitation: Codable, Hashable, Identifiable {
     let source_type: String?
     let contact_id: String?
     let property_id: String?
-    var id: String { document_id }
+    // index is unique per answer (each cited [n] is distinct) — use it as the
+    // Identifiable id so ForEach stays stable even if two cites share a doc.
+    var id: Int { index }
     var isMasterData: Bool { (source_type ?? "document") != "document" }
 }
 
