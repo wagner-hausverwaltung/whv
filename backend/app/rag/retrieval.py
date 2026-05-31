@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # NOTE: these visibility helpers live in the me router today; promoting them
@@ -141,6 +141,17 @@ async def retrieve(
     # short-circuit so we never run an unfiltered vector search.
     if not scope.is_verwalter and not scope.visible_document_ids:
         return []
+
+    # pgvector HNSW + a WHERE filter (property_id / the ACL document_id set)
+    # POST-filters the ANN candidates, so with the default ef_search a query
+    # can return 0 rows even when matching rows exist — near-duplicate content
+    # across properties (e.g. the templated ETV cards) starves the candidate
+    # window. Iterative scan (pgvector ≥ 0.8) keeps walking the index until
+    # top_k rows pass the filter. SET LOCAL → scoped to this session's txn, so
+    # it never leaks onto a pooled connection. relaxed_order is the documented
+    # default for filtered queries; the higher ef_search widens the window.
+    await rag_session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
+    await rag_session.execute(text("SET LOCAL hnsw.ef_search = 100"))
 
     distance = RagChunk.embedding.cosine_distance(query_embedding)
     stmt = select(RagChunk, distance.label("distance")).where(

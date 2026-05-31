@@ -1,0 +1,69 @@
+name: prod-rag-tune
+
+# Deploy-free fix for the pgvector HNSW filtered-query starvation: set
+# iterative_scan + a wider ef_search as DATABASE-LEVEL defaults on the RAG
+# store via ALTER DATABASE. New connections inherit them immediately — no
+# backend restart, so no dropped sessions. The matching per-query SET LOCAL
+# in retrieve() is the belt-and-suspenders (covers staging/local + any DB
+# whose default isn't set).
+on:
+  workflow_dispatch:
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  tune:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: ALTER DATABASE hnsw defaults
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && ${COMPOSE} exec -T backend python -" <<'PY'
+          import asyncio
+
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+
+          from app.config import get_settings
+
+
+          async def main() -> None:
+              engine = create_async_engine(get_settings().rag_database_url, isolation_level="AUTOCOMMIT")
+              async with engine.connect() as conn:
+                  db = (await conn.execute(text("SELECT current_database()"))).scalar_one()
+                  for stmt in (
+                      f'ALTER DATABASE "{db}" SET hnsw.iterative_scan = relaxed_order',
+                      f'ALTER DATABASE "{db}" SET hnsw.ef_search = 100',
+                  ):
+                      await conn.execute(text(stmt))
+                      print("applied:", stmt)
+                  rows = (
+                      await conn.execute(
+                          text(
+                              "SELECT setconfig FROM pg_db_role_setting s "
+                              "JOIN pg_database d ON d.oid = s.setdatabase "
+                              "WHERE d.datname = current_database()"
+                          )
+                      )
+                  ).fetchall()
+                  print("DB-level defaults now:", rows)
+              await engine.dispose()
+
+
+          asyncio.run(main())
+          PY
