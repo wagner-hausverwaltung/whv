@@ -1,0 +1,101 @@
+name: prod-assistant-probe
+
+# Read-only: reproduce the assistant's retrieval for a question on a property,
+# as VERWALTER (no doc-id ACL gate), at the real threshold (0.35) and wide
+# open (0.0). Shows which chunks come back, their source_type/kind and cosine
+# similarity — to tell a similarity-threshold miss from an ACL miss. No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: "Question to embed"
+        required: false
+        default: "was waren die Themen auf der letzten ETV"
+      needle:
+        description: "Property name substring"
+        required: false
+        default: "Hasenberg"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Probe retrieval
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          Q_INPUT: ${{ github.event.inputs.question }}
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && Q='${Q_INPUT}' NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e Q -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.llm import get_llm_provider
+          from app.models.property import Property
+          from app.rag.retrieval import CallerScope, retrieve
+
+          NEEDLE = os.environ.get("NEEDLE", "Hasenberg")
+          Q = os.environ.get("Q", "was waren die Themen auf der letzten ETV")
+
+
+          async def main() -> None:
+              s = get_settings()
+              app_engine = create_async_engine(s.database_url)
+              rag_engine = create_async_engine(s.rag_database_url)
+              try:
+                  sm = async_sessionmaker(app_engine, expire_on_commit=False)
+                  async with sm() as sess:
+                      prop = (
+                          await sess.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                      ).first()
+                  print(f"property: {prop.id} :: {prop.name}")
+                  print(f"question: {Q!r}")
+
+                  qvec = (await get_llm_provider().embed_texts([Q], task_type="retrieval_query"))[0]
+                  scope = CallerScope(
+                      organization_id=prop.organization_id, is_verwalter=True, visible_document_ids=None
+                  )
+                  rm = async_sessionmaker(rag_engine, expire_on_commit=False)
+                  async with rm() as rag:
+                      for mins in (0.35, 0.0):
+                          got = await retrieve(
+                              rag,
+                              scope=scope,
+                              query_embedding=qvec,
+                              top_k=8,
+                              min_similarity=mins,
+                              property_id=prop.id,
+                          )
+                          print(f"\n--- VERWALTER, property-filtered, min_sim={mins}: {len(got)} hits ---")
+                          for c in got:
+                              print(
+                                  f"  sim={c.similarity:.3f} type={c.source_type} kind={c.source_kind} "
+                                  f":: {c.chunk_text[:80]!r}"
+                              )
+              finally:
+                  await app_engine.dispose()
+                  await rag_engine.dispose()
+
+
+          asyncio.run(main())
+          PY
