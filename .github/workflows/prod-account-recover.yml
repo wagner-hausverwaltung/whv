@@ -1,0 +1,113 @@
+name: prod-account-recover
+
+# BREAK-GLASS: diagnose prod email + recover a locked-out account.
+# - With no email: reports whether Resend (outbound) is configured + the
+#   from-address / portal URL. Read-only.
+# - With an email: looks up the user, mints a single-use password-reset token
+#   (same as /auth/forgot-password), tries to send the reset email, and — if
+#   the send fails — prints a direct /reset-password?token=... link so recovery
+#   never depends on email delivery.
+# Gated to repo collaborators, who already hold prod SSH via deploy-prod, so
+# this doesn't widen the trust boundary. The token is single-use + short-TTL.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Account email to recover (blank = email-config diagnostics only)"
+        required: false
+        default: ""
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose email + mint reset link
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          EMAIL_INPUT: ${{ github.event.inputs.email }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && EMAIL='${EMAIL_INPUT}' ${COMPOSE} exec -T -e EMAIL backend python -" <<'PY'
+          import asyncio
+          import os
+          import secrets
+          from datetime import UTC, datetime, timedelta
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.api.v1.auth import _hash_reset_token
+          from app.config import get_settings
+          from app.integrations.email.client import EmailClient
+          from app.integrations.email.password_reset import render_password_reset_email
+          from app.models import PasswordResetToken, User
+
+          EMAIL = os.environ.get("EMAIL", "").strip().lower()
+
+
+          async def main() -> None:
+              s = get_settings()
+              print("resend_api_key configured:", bool(s.resend_api_key))
+              print("email_from:", s.email_from_address, "| portal:", s.portal_base_url)
+              if not EMAIL:
+                  print("No email provided — diagnostics only.")
+                  return
+
+              engine = create_async_engine(s.database_url)
+              sm = async_sessionmaker(engine, expire_on_commit=False)
+              try:
+                  async with sm() as sess:
+                      user = await sess.scalar(select(User).where(User.email == EMAIL))
+                      print("user found:", user is not None)
+                      if user is None or user.deleted_at is not None:
+                          print("NO MATCHING ACTIVE USER for that email — check the address.")
+                          return
+                      raw = secrets.token_urlsafe(32)
+                      sess.add(
+                          PasswordResetToken(
+                              user_id=user.id,
+                              token_hash=_hash_reset_token(raw),
+                              expires_at=datetime.now(UTC)
+                              + timedelta(minutes=s.password_reset_ttl_minutes),
+                          )
+                      )
+                      await sess.commit()
+                      url = f"{s.portal_base_url.rstrip('/')}/reset-password?token={raw}"
+
+                      ec = EmailClient(s)
+                      try:
+                          subj, html, text = render_password_reset_email(
+                              email=user.email,
+                              token=raw,
+                              ttl_minutes=s.password_reset_ttl_minutes,
+                              reset_url=url,
+                          )
+                          await ec.send(to=user.email, subject=subj, html=html, text=text)
+                          print("EMAIL SEND: OK — check inbox/spam.")
+                          print(f"(direct link if needed, valid {s.password_reset_ttl_minutes} min): {url}")
+                      except Exception as exc:  # noqa: BLE001
+                          print("EMAIL SEND FAILED:", type(exc).__name__, str(exc)[:300])
+                          print(f"RESET URL (use within {s.password_reset_ttl_minutes} min): {url}")
+                      finally:
+                          await ec.aclose()
+              finally:
+                  await engine.dispose()
+
+
+          asyncio.run(main())
+          PY
