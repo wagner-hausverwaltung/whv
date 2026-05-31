@@ -1,0 +1,70 @@
+name: prod-rag-stats
+
+# On-demand, READ-ONLY: what's in the prod RAG store (ADR-0013)? Counts
+# rag_chunks by source_type (document / dienstleister / contact / etv) so we
+# can confirm master-data cards — incl. ETV — actually landed after a backfill.
+# Connects to settings.rag_database_url inside the deployed backend container.
+# No state changes; counts only, no chunk text.
+on:
+  workflow_dispatch:
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  stats:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Count RAG chunks by source_type (read-only)
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && ${COMPOSE} exec -T backend python -" <<'PY'
+          import asyncio
+
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+
+          from app.config import get_settings
+
+
+          async def main() -> None:
+              engine = create_async_engine(get_settings().rag_database_url)
+              async with engine.connect() as conn:
+                  print("=== rag_chunks by source_type ===")
+                  for st, c in (
+                      await conn.execute(
+                          text(
+                              "SELECT source_type, count(*) FROM rag_chunks "
+                              "GROUP BY source_type ORDER BY count(*) DESC"
+                          )
+                      )
+                  ).fetchall():
+                      print(f"  {str(st):16s} {c}")
+                  etv_props = (
+                      await conn.execute(
+                          text(
+                              "SELECT count(DISTINCT property_id) FROM rag_chunks "
+                              "WHERE source_type = 'etv'"
+                          )
+                      )
+                  ).scalar_one()
+                  print(f"ETV cards span {etv_props} properties")
+              await engine.dispose()
+
+
+          asyncio.run(main())
+          PY
