@@ -202,19 +202,25 @@ async def _notify_plan_adjustments_async() -> dict[str, int]:
 
 
 async def _enqueue_rag_indexing_async() -> dict[str, int]:
-    """Post-sync: enqueue RAG indexing for newly-synced documents (ADR-0013).
+    """Post-sync: enqueue RAG indexing for newly-synced documents AND refresh
+    every master-data card (ADR-0013).
 
     No-op when rag_enabled is off, so it stays dormant until the assistant is
-    switched on. Only enqueues docs not yet in the RAG store; the content-hash
-    skip in index_rag_document is the second line of defence so a re-enqueue
-    of an unchanged doc costs no embedding call.
+    switched on. Documents use the only_new gate — only docs not yet in the RAG
+    store are enqueued; the content-hash skip in index_rag_document is the
+    second line of defence so a re-enqueue of an unchanged doc costs no
+    embedding call. Master-data cards (Dienstleister + owner/tenant contacts)
+    are re-enqueued in full every night — they're cheap and the content-hash
+    skip means only cards whose underlying data changed (new invoices → vendor
+    totals, new/changed contracts → contact info) actually re-embed. That keeps
+    the cards fresh as contracts/invoices churn in Impower.
     """
     settings = get_settings()
     if not settings.rag_enabled:
         return {}
 
     from app.rag.db import provision_rag_store
-    from app.rag.service import enqueue_document_indexing
+    from app.rag.service import enqueue_document_indexing, enqueue_masterdata_indexing
 
     app_engine = create_async_engine(settings.database_url)
     rag_engine = create_async_engine(settings.rag_database_url)
@@ -226,11 +232,12 @@ async def _enqueue_rag_indexing_async() -> dict[str, int]:
             enqueued = await enqueue_document_indexing(
                 app_session, rag_session, settings=settings, only_new=True
             )
+            cards = await enqueue_masterdata_indexing(app_session, settings=settings)
     finally:
         await app_engine.dispose()
         await rag_engine.dispose()
-    logger.info("rag indexing: enqueued=%d new documents", enqueued)
-    return {"rag_indexing_enqueued": enqueued}
+    logger.info("rag indexing: enqueued=%d new documents, %d master-data cards", enqueued, cards)
+    return {"rag_indexing_enqueued": enqueued, "rag_masterdata_enqueued": cards}
 
 
 @celery_app.task(name="app.workers.tasks.sync_all_impower")

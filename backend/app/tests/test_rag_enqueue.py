@@ -11,7 +11,7 @@ from app.config import Settings, get_settings
 from app.models.document import Document, DocumentKind
 from app.rag.models import RagDocument
 from app.rag.service import enqueue_document_indexing
-from app.tests._factories import make_org, make_property
+from app.tests._factories import make_contact_with_contract_link, make_org, make_property
 from app.workers import tasks as workers_tasks
 
 _RAG_DSN = "postgresql+asyncpg://rag:rag@localhost:5433/rag"
@@ -107,3 +107,48 @@ async def test_enqueue_document_indexing(
     )
     assert count_limited == 1
     assert len(enqueued) == 1
+
+
+async def test_enqueue_masterdata_indexing_includes_contacts(
+    test_engine: AsyncEngine,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The nightly master-data refresh enqueues owner/tenant contact cards
+    (tagged card_type="contact"), not just Dienstleister. Vendor loading is
+    stubbed out so the test isolates the new contact path. Gated off → no-op."""
+    from app.rag import service as rag_service
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    contact, _contract = await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=7001
+    )
+
+    async def _no_vendors(*_args: object, **_kwargs: object) -> list[object]:
+        return []
+
+    monkeypatch.setattr(rag_service, "load_vendors_for_property", _no_vendors)
+
+    enqueued: list[tuple[str, str, str]] = []
+
+    def _record(pid: str, cid: str, card_type: str = "dienstleister") -> None:
+        enqueued.append((pid, cid, card_type))
+
+    monkeypatch.setattr(workers_tasks.index_rag_masterdata, "delay", _record)
+
+    # Gated off → no-op.
+    assert (
+        await rag_service.enqueue_masterdata_indexing(
+            session, settings=get_settings(), property_id=prop.id
+        )
+        == 0
+    )
+    assert enqueued == []
+
+    # rag on → the contact gets a "contact" card enqueued.
+    count = await rag_service.enqueue_masterdata_indexing(
+        session, settings=_rag_on(), property_id=prop.id
+    )
+    assert count == 1
+    assert enqueued == [(str(prop.id), str(contact.id), "contact")]
