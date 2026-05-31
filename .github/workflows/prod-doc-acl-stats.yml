@@ -45,7 +45,7 @@ jobs:
           from sqlalchemy import text
           from sqlalchemy.ext.asyncio import create_async_engine
 
-          from app.config import settings
+          from app.config import get_settings
 
           # "Property-wide": none of the per-owner FKs set -> the ACL filter
           # makes the doc visible to every caller who can see the property.
@@ -53,7 +53,7 @@ jobs:
 
 
           async def main() -> None:
-              engine = create_async_engine(settings.database_url)
+              engine = create_async_engine(get_settings().database_url)
               async with engine.connect() as conn:
 
                   async def rows(sql: str):
