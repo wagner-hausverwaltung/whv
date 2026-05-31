@@ -4,9 +4,9 @@ already see. Runs against the live pgvector store + the app DB factories.
 Skips when RAG_DATABASE_URL is unset.
 """
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from app.models.document import Document, DocumentKind
+from app.models.document import DocumentKind
 from app.models.user import UserRole
 from app.rag.constants import EMBEDDING_DIM
 from app.rag.models import RagChunk
@@ -171,58 +171,46 @@ async def test_retrieve_hybrid_metadata_filters(
     assert {c.document_id for c in by_contact} == {doc_rechnung.id}
 
 
-async def _set_source_type(engine: AsyncEngine, doc_id, source_type: str) -> None:  # type: ignore[no-untyped-def]
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    async with sm() as s:
-        doc = await s.get(Document, doc_id)
-        assert doc is not None
-        doc.impower_source_type = source_type
-        await s.commit()
-
-
-async def test_caller_scope_hides_unattributed_personal_financial_docs(
+async def test_caller_scope_trusts_impower_attribution_for_property_wide_docs(
     test_engine: AsyncEngine, session: AsyncSession
 ) -> None:
-    """#153 / ADR-0014 fail-closed rule. A personal-financial document that
-    arrived WITHOUT an owner FK (unit/contract/contact all NULL) must NOT reach
-    other members of the property through the 'property-wide' branch — a
-    Jahresabrechnung or Sonderumlage contains another owner's PII. Shared
-    property-wide docs (Rechnung, plain Sonstiges) stay visible: we close the
-    leak without over-hiding. Verwalter still sees everything.
+    """ADR-0014 (#153): a document with no owner FK is genuinely WEG-level.
 
-    Asserted on `resolve_caller_scope` (the app-DB ACL that the documents tab
-    and the assistant both filter by), so it covers both surfaces and runs
+    A prod attribution probe showed Impower scopes individual per-owner
+    Abrechnungen with a unit/contract/contact FK; it leaves the FKs empty only
+    for whole-WEG aggregates (e.g. the Gesamtabrechnung every owner may see).
+    So we TRUST that attribution: a property-wide (all-FKs-NULL) doc — even a
+    JAHRESABRECHNUNG — is visible to every owner of the property, while a doc
+    scoped to ANOTHER owner's contact stays private to them.
+
+    Asserted on `resolve_caller_scope` (the app-DB ACL that both the documents
+    tab and the assistant filter by), so it covers both surfaces and runs
     without the RAG store.
     """
     org = await make_org(test_engine)
     prop = await make_property(test_engine, org=org, name="ACL-P1")
+    # The caller (owner A) and a second, unrelated owner (B) on the same property.
     await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=5101)
-    owner, _e, _p = await make_user(
+    contact_b, _ctr_b = await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=5102
+    )
+    owner_a, _e, _p = await make_user(
         test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5101
     )
-    verwalter, _ev, _pv = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
 
-    # All four are property-wide (no unit/contract/contact FK).
-    doc_shared = await make_document(test_engine, org=org, prop=prop, kind=DocumentKind.RECHNUNG)
-    doc_plain = await make_document(test_engine, org=org, prop=prop, kind=DocumentKind.SONSTIGES)
-    doc_jahres = await make_document(
+    # Property-wide Gesamtabrechnung (no owner FK) — must reach owner A.
+    doc_gesamt = await make_document(
         test_engine, org=org, prop=prop, kind=DocumentKind.JAHRESABRECHNUNG
     )
-    # Sonderumlage lands under SONSTIGES — the source-type branch must catch it.
-    doc_sonder = await make_document(test_engine, org=org, prop=prop, kind=DocumentKind.SONSTIGES)
-    await _set_source_type(test_engine, doc_sonder.id, "SPECIAL_CONTRIBUTION")
+    # Owner B's individual doc (contact-scoped) — must NOT reach owner A.
+    doc_b_private = await make_document(
+        test_engine, org=org, prop=prop, kind=DocumentKind.JAHRESABRECHNUNG, contact=contact_b
+    )
 
-    # Owner: the two shared docs only — never the unattributed personal ones.
-    scope = await resolve_caller_scope(session, owner)
+    scope = await resolve_caller_scope(session, owner_a)
     assert scope.visible_document_ids is not None
-    assert doc_shared.id in scope.visible_document_ids
-    assert doc_plain.id in scope.visible_document_ids
-    assert doc_jahres.id not in scope.visible_document_ids
-    assert doc_sonder.id not in scope.visible_document_ids
-
-    # Verwalter: all four (the gate is bypassed for VERWALTER).
-    scope_v = await resolve_caller_scope(session, verwalter)
-    assert scope_v.visible_document_ids is None  # whole org
+    assert doc_gesamt.id in scope.visible_document_ids  # trust: WEG-level → shared
+    assert doc_b_private.id not in scope.visible_document_ids  # scoped to owner B only
 
 
 async def test_retrieve_scopes_to_selected_property(
