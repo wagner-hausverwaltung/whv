@@ -96,6 +96,7 @@ async def retrieve(
     query_embedding: list[float],
     top_k: int = 8,
     min_similarity: float = 0.35,
+    property_id: uuid.UUID | None = None,
     issued_year: int | None = None,
     kind: str | None = None,
     contact_query: str | None = None,
@@ -119,6 +120,14 @@ async def retrieve(
         # checker and documents the invariant.
         assert scope.visible_document_ids is not None
         stmt = stmt.where(RagChunk.document_id.in_(scope.visible_document_ids))
+
+    # Property scope from the UI's property switcher: when the caller has a
+    # property selected, look ONLY in that property's documents/cards. ANDed
+    # with the ACL filter above, so it can only narrow what's already visible —
+    # never widen it. (Org-level chunks with no property_id are excluded while a
+    # property is selected, which matches "only the selected property's docs".)
+    if property_id is not None:
+        stmt = stmt.where(RagChunk.property_id == property_id)
 
     # Structured metadata pre-filter — the "hybrid" half (ADR-0013 §3),
     # applied BEFORE the ANN so vendor/date/kind narrow the candidate set.

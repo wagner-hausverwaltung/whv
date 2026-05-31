@@ -36,6 +36,9 @@ class AssistantQueryRequest(BaseModel):
     # Recent chat turns for multi-turn follow-ups (oldest→newest). Capped so the
     # prompt stays bounded; the generation layer also trims to the last few.
     history: list[ConversationTurnRequest] = Field(default_factory=list, max_length=20)
+    # The property selected in the UI's switcher — scopes retrieval to that
+    # property's documents/cards only. None = the caller's whole visible scope.
+    property_id: uuid.UUID | None = None
     # Optional structured filters (the "hybrid" half) — the SPA can pass these
     # from UI facets; free-text questions work without them.
     issued_year: int | None = None
@@ -90,6 +93,7 @@ async def assistant_query(
             generator=provider,
             settings=settings,
             history=[ConversationTurn(role=t.role, content=t.content) for t in body.history],
+            property_id=body.property_id,
             issued_year=body.issued_year,
             kind=body.kind,
             contact_query=body.contact,

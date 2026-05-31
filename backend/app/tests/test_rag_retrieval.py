@@ -169,3 +169,48 @@ async def test_retrieve_hybrid_metadata_filters(
         contact_query="mustermann",
     )
     assert {c.document_id for c in by_contact} == {doc_rechnung.id}
+
+
+async def test_retrieve_scopes_to_selected_property(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    # The UI property switcher → only that property's chunks are searched.
+    org = await make_org(test_engine)
+    prop1 = await make_property(test_engine, org=org, name="P1")
+    prop2 = await make_property(test_engine, org=org, name="P2")
+    doc1 = await make_document(test_engine, org=org, prop=prop1, kind=DocumentKind.RECHNUNG)
+    doc2 = await make_document(test_engine, org=org, prop=prop2, kind=DocumentKind.RECHNUNG)
+    rag_session.add(
+        RagChunk(
+            document_id=doc1.id,
+            organization_id=org.id,
+            property_id=prop1.id,
+            visibility="ALL",
+            chunk_text="p1",
+            embedding=_VEC,
+        )
+    )
+    rag_session.add(
+        RagChunk(
+            document_id=doc2.id,
+            organization_id=org.id,
+            property_id=prop2.id,
+            visibility="ALL",
+            chunk_text="p2",
+            embedding=_VEC,
+        )
+    )
+    await rag_session.flush()
+
+    verwalter, _e, _p = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    scope = await resolve_caller_scope(session, verwalter)
+
+    # No property scope → both properties' chunks.
+    unscoped = await retrieve(rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0)
+    assert {c.document_id for c in unscoped} == {doc1.id, doc2.id}
+
+    # Scoped to P1 → only P1's chunk.
+    scoped = await retrieve(
+        rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0, property_id=prop1.id
+    )
+    assert {c.document_id for c in scoped} == {doc1.id}
