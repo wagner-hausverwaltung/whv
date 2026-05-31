@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import admin as admin_router
+from app.api.v1 import admin_assistant as admin_assistant_router
 from app.api.v1 import announcements as announcements_router
 from app.api.v1 import assistant as assistant_router
 from app.api.v1 import auth as auth_router
@@ -80,6 +81,7 @@ app.include_router(auth_router.router)
 app.include_router(me_router.router)
 app.include_router(assistant_router.router)
 app.include_router(admin_router.router)
+app.include_router(admin_assistant_router.router)
 app.include_router(webhooks_router.router)
 app.include_router(tickets_router.me_router)
 app.include_router(tickets_router.admin_router)

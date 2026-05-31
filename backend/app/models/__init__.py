@@ -7,6 +7,7 @@ from app.models.announcement import (
     AnnouncementUnit,
     SendAttemptStatus,
 )
+from app.models.assistant_message import AssistantMessage
 from app.models.audit import AuditLog
 from app.models.circular import (
     CircularResolution,
@@ -80,6 +81,7 @@ __all__ = [
     "AnnouncementSendAttempt",
     "AnnouncementUnit",
     "AssemblyStatus",
+    "AssistantMessage",
     "AuditLog",
     "Building",
     "CircularResolution",

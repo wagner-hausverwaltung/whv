@@ -18,7 +18,7 @@ from app.auth.dependencies import get_current_user
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.llm import get_llm_provider
-from app.models import AuditLog, User
+from app.models import AssistantMessage, AuditLog, User
 from app.rag.db import rag_session_scope
 from app.rag.generation import ConversationTurn, answer_question
 from app.ratelimit import rate_limit
@@ -39,6 +39,9 @@ class AssistantQueryRequest(BaseModel):
     # The property selected in the UI's switcher — scopes retrieval to that
     # property's documents/cards only. None = the caller's whole visible scope.
     property_id: uuid.UUID | None = None
+    # Per-chat-session id (client-minted) — groups turns into one conversation
+    # in the VERWALTER overview. None → a fresh id per query (standalone turn).
+    conversation_id: uuid.UUID | None = None
     # Optional structured filters (the "hybrid" half) — the SPA can pass these
     # from UI facets; free-text questions work without them.
     issued_year: int | None = None
@@ -115,6 +118,31 @@ async def assistant_query(
                 "abstained": answer.abstained,
                 "retrieved_document_ids": [str(d) for d in answer.retrieved_document_ids],
             },
+        )
+    )
+    # Full Q&A turn for the VERWALTER conversation overview. conversation_id
+    # groups turns into a thread; a missing one (older client) → standalone.
+    app_session.add(
+        AssistantMessage(
+            organization_id=current_user.organization_id,
+            conversation_id=body.conversation_id or uuid.uuid4(),
+            actor_user_id=current_user.id,
+            property_id=body.property_id,
+            question=body.question,
+            answer=answer.answer,
+            abstained=answer.abstained,
+            citations=[
+                {
+                    "index": c.index,
+                    "document_id": str(c.document_id),
+                    "page": c.page,
+                    "source_kind": c.source_kind,
+                    "source_type": c.source_type,
+                    "contact_name": c.contact_name,
+                }
+                for c in answer.sources
+            ],
+            retrieved_document_ids=[str(d) for d in answer.retrieved_document_ids],
         )
     )
     await app_session.commit()
