@@ -110,11 +110,15 @@ export function AssistantWidget() {
     const question = input.trim();
     if (!question || loading) return;
     setError(null);
+    // `messages` here is the conversation BEFORE this new question (the state
+    // update below is async), so it's exactly the history to replay. Cap to
+    // the last few turns to bound the request.
+    const history = messages.slice(-8).map((m) => ({ role: m.role, content: m.text }));
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text: question }]);
     setInput("");
     setLoading(true);
     try {
-      const res = await api.post<AssistantResponse>("/assistant/query", { question });
+      const res = await api.post<AssistantResponse>("/assistant/query", { question, history });
       setMessages((prev) => [
         ...prev,
         {
