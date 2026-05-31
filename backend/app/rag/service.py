@@ -22,6 +22,13 @@ from app.integrations.storage.documents import document_path
 from app.models.contact import Contact, ContactKind
 from app.models.contract import Contract, ContractContact, ContractType
 from app.models.document import Document
+from app.models.etv import (
+    AgendaItemType,
+    AgendaItemVoteResult,
+    AssemblyStatus,
+    EtvAgendaItem,
+    EtvAssembly,
+)
 from app.models.property import Property
 from app.models.unit import Unit
 from app.rag.ingestion import (
@@ -34,10 +41,13 @@ from app.rag.ingestion import (
 from app.rag.masterdata import (
     SOURCE_TYPE_CONTACT,
     SOURCE_TYPE_DIENSTLEISTER,
+    SOURCE_TYPE_ETV,
     build_contact_card,
     build_dienstleister_card,
+    build_etv_card,
     contact_doc_id,
     dienstleister_doc_id,
+    etv_doc_id,
 )
 from app.rag.models import RagDocument
 from app.services.vendors import load_vendors_for_property
@@ -46,6 +56,18 @@ _CONTRACT_ROLE_LABEL: dict[ContractType, str] = {
     ContractType.OWNER: "Eigentümer",
     ContractType.TENANT: "Mieter",
     ContractType.PROPERTY_OWNER: "Eigentümer",
+}
+
+_ASSEMBLY_STATUS_LABEL: dict[AssemblyStatus, str] = {
+    AssemblyStatus.GEPLANT: "Geplant",
+    AssemblyStatus.EINGELADEN: "Eingeladen",
+    AssemblyStatus.ABGEHALTEN: "Abgehalten",
+    AssemblyStatus.ABGESAGT: "Abgesagt",
+}
+
+_VOTE_RESULT_LABEL: dict[AgendaItemVoteResult, str] = {
+    AgendaItemVoteResult.ANGENOMMEN: "angenommen",
+    AgendaItemVoteResult.ABGELEHNT: "abgelehnt",
 }
 
 logger = logging.getLogger(__name__)
@@ -322,6 +344,66 @@ async def reindex_contact_card(
     )
 
 
+async def reindex_etv_card(
+    app_session: AsyncSession,
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    property_id: uuid.UUID,
+    assembly_id: uuid.UUID,
+    force: bool = False,
+) -> IndexResult | None:
+    """Render one Eigentümerversammlung (Termin, Ort, Status, Tagesordnung,
+    Beschlüsse) to a German card and index it as master-data. Visible to every
+    member of the property (see resolve_caller_scope). Returns None if the
+    property or assembly is gone. Flushes the rag_session; the caller commits."""
+    prop = await app_session.get(Property, property_id)
+    if prop is None:
+        return None
+    assembly = await app_session.get(EtvAssembly, assembly_id)
+    if assembly is None or assembly.deleted_at is not None or assembly.property_id != property_id:
+        return None
+
+    items = (
+        await app_session.scalars(
+            select(EtvAgendaItem)
+            .where(EtvAgendaItem.assembly_id == assembly_id)
+            .order_by(EtvAgendaItem.position)
+        )
+    ).all()
+    agenda = [f"TOP {it.position}: {it.title}" for it in items]
+    beschluesse: list[str] = []
+    for it in items:
+        if it.type != AgendaItemType.BESCHLUSS:
+            continue
+        result = _VOTE_RESULT_LABEL.get(it.vote_result) if it.vote_result is not None else None
+        text = it.beschluss_text or it.title
+        beschluesse.append(f"{text} — {result}" if result else text)
+
+    card = build_etv_card(
+        title=assembly.title,
+        property_label=_property_label(prop),
+        date=assembly.scheduled_start.strftime("%d.%m.%Y, %H:%M")
+        if assembly.scheduled_start
+        else None,
+        location=assembly.location,
+        status=_ASSEMBLY_STATUS_LABEL.get(assembly.status),
+        agenda=agenda,
+        beschluesse=beschluesse,
+    )
+    return await index_masterdata_card(
+        rag_session,
+        embedder,
+        document_id=etv_doc_id(property_id, assembly_id),
+        organization_id=prop.organization_id,
+        source_type=SOURCE_TYPE_ETV,
+        card_text=card,
+        property_id=property_id,
+        source_kind="ETV",
+        force=force,
+    )
+
+
 async def _contact_ids_for_property(
     app_session: AsyncSession, property_id: uuid.UUID
 ) -> list[uuid.UUID]:
@@ -339,6 +421,22 @@ async def _contact_ids_for_property(
     )
 
 
+async def _assembly_ids_for_property(
+    app_session: AsyncSession, property_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Non-deleted ETV assemblies on the property."""
+    return list(
+        (
+            await app_session.scalars(
+                select(EtvAssembly.id).where(
+                    EtvAssembly.property_id == property_id,
+                    EtvAssembly.deleted_at.is_(None),
+                )
+            )
+        ).all()
+    )
+
+
 async def enqueue_masterdata_indexing(
     app_session: AsyncSession,
     *,
@@ -347,10 +445,11 @@ async def enqueue_masterdata_indexing(
     limit: int | None = None,
 ) -> int:
     """Enqueue ``index_rag_masterdata`` for every master-data card on each
-    property: one Dienstleister card per vendor, plus one contact card per
-    owner/tenant. No-op returning 0 when rag is off. Unlike documents there's no
-    "only_new" gate: cards are cheap to re-render and the content-hash skip in
-    ``index_masterdata_card`` makes re-runs idempotent."""
+    property: one Dienstleister card per vendor, one contact card per
+    owner/tenant, and one ETV card per Eigentümerversammlung. No-op returning 0
+    when rag is off. Unlike documents there's no "only_new" gate: cards are
+    cheap to re-render and the content-hash skip in ``index_masterdata_card``
+    makes re-runs idempotent."""
     if not settings.rag_enabled:
         return 0
 
@@ -359,14 +458,16 @@ async def enqueue_masterdata_indexing(
         prop_stmt = prop_stmt.where(Property.id == property_id)
     property_ids = list((await app_session.scalars(prop_stmt)).all())
 
-    # (property_id, contact_id, card_type) — card_type routes the worker to the
-    # right reindex fn (Dienstleister vs contact).
+    # (property_id, entity_id, card_type) — card_type routes the worker to the
+    # right reindex fn (Dienstleister / contact / ETV).
     pairs: list[tuple[uuid.UUID, uuid.UUID, str]] = []
     for pid in property_ids:
         vendors = await load_vendors_for_property(app_session, property_id=pid)
         pairs.extend((pid, vendor.contact_id, SOURCE_TYPE_DIENSTLEISTER) for vendor in vendors)
         contact_ids = await _contact_ids_for_property(app_session, pid)
         pairs.extend((pid, cid, SOURCE_TYPE_CONTACT) for cid in contact_ids)
+        assembly_ids = await _assembly_ids_for_property(app_session, pid)
+        pairs.extend((pid, aid, SOURCE_TYPE_ETV) for aid in assembly_ids)
     if limit is not None:
         pairs = pairs[:limit]
 

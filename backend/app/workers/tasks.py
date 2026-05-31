@@ -894,25 +894,29 @@ def index_rag_document(document_id: str) -> str:
 
 
 async def _index_rag_masterdata_async(
-    property_id_str: str, contact_id_str: str, card_type: str = "dienstleister"
+    property_id_str: str, entity_id_str: str, card_type: str = "dienstleister"
 ) -> str:
     """Index one master-data card into the RAG store (ADR-0013 §4).
 
-    ``card_type`` routes to the Dienstleister or the contact (owner/tenant)
-    renderer. No-op ("rag_disabled") unless rag_enabled. Returns "indexed:<n>",
-    "skipped" (unchanged card), or "no_entity" (the vendor/contact no longer
-    belongs to that property)."""
+    ``card_type`` routes to the Dienstleister, contact (owner/tenant), or ETV
+    (Eigentümerversammlung) renderer; ``entity_id`` is the vendor contact /
+    contact / assembly id accordingly. No-op ("rag_disabled") unless
+    rag_enabled. Returns "indexed:<n>", "skipped" (unchanged card), or
+    "no_entity" (the entity no longer belongs to that property)."""
     settings = get_settings()
     if not settings.rag_enabled:
         return "rag_disabled"
 
     from app.integrations.llm import get_llm_provider
     from app.rag.db import provision_rag_store
-    from app.rag.service import reindex_contact_card, reindex_dienstleister_card
+    from app.rag.service import (
+        reindex_contact_card,
+        reindex_dienstleister_card,
+        reindex_etv_card,
+    )
 
     property_id = uuid.UUID(property_id_str)
-    contact_id = uuid.UUID(contact_id_str)
-    reindex = reindex_contact_card if card_type == "contact" else reindex_dienstleister_card
+    entity_id = uuid.UUID(entity_id_str)
     app_engine = create_async_engine(settings.database_url)
     rag_engine = create_async_engine(settings.rag_database_url)
     try:
@@ -920,13 +924,31 @@ async def _index_rag_masterdata_async(
         app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
         rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
         async with app_factory() as app_session, rag_factory() as rag_session:
-            result = await reindex(
-                app_session,
-                rag_session,
-                get_llm_provider(),
-                property_id=property_id,
-                contact_id=contact_id,
-            )
+            provider = get_llm_provider()
+            if card_type == "etv":
+                result = await reindex_etv_card(
+                    app_session,
+                    rag_session,
+                    provider,
+                    property_id=property_id,
+                    assembly_id=entity_id,
+                )
+            elif card_type == "contact":
+                result = await reindex_contact_card(
+                    app_session,
+                    rag_session,
+                    provider,
+                    property_id=property_id,
+                    contact_id=entity_id,
+                )
+            else:
+                result = await reindex_dienstleister_card(
+                    app_session,
+                    rag_session,
+                    provider,
+                    property_id=property_id,
+                    contact_id=entity_id,
+                )
             if result is None:
                 return "no_entity"
             await rag_session.commit()
@@ -943,11 +965,9 @@ async def _index_rag_masterdata_async(
     retry_backoff=True,
     retry_backoff_max=300,
 )
-def index_rag_masterdata(
-    property_id: str, contact_id: str, card_type: str = "dienstleister"
-) -> str:
+def index_rag_masterdata(property_id: str, entity_id: str, card_type: str = "dienstleister") -> str:
     """Index one master-data card (ADR-0013 §4): a Dienstleister card
-    (``card_type="dienstleister"``) or an owner/tenant contact card
-    (``card_type="contact"``). Enqueued by the master-data backfill; no-op when
-    rag_enabled is off."""
-    return asyncio.run(_index_rag_masterdata_async(property_id, contact_id, card_type))
+    (``card_type="dienstleister"``), an owner/tenant contact card
+    (``card_type="contact"``), or an ETV card (``card_type="etv"``). Enqueued by
+    the master-data backfill; no-op when rag_enabled is off."""
+    return asyncio.run(_index_rag_masterdata_async(property_id, entity_id, card_type))

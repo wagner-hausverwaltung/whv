@@ -28,8 +28,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.me import _document_visibility_filter, _visible_properties_stmt
 from app.models.contact import Contact
 from app.models.document import Document
+from app.models.etv import EtvAssembly
 from app.models.user import User, UserRole
-from app.rag.masterdata import contact_doc_id
+from app.rag.masterdata import contact_doc_id, etv_doc_id
 from app.rag.models import RagChunk
 
 
@@ -101,6 +102,20 @@ async def resolve_caller_scope(app_session: AsyncSession, user: User) -> CallerS
     )
     if own_contact_id is not None:
         doc_ids.update(contact_doc_id(pid, own_contact_id) for pid in visible_property_ids)
+
+    # ETV cards (ADR-0013 §4) are visible to every member of the property —
+    # same as the portal ETV tab and the property-wide invitation/protocol
+    # documents. Admit each visible property's assembly cards by their
+    # synthetic id (one query for all visible properties).
+    assembly_rows = (
+        await app_session.execute(
+            select(EtvAssembly.property_id, EtvAssembly.id).where(
+                EtvAssembly.property_id.in_(visible_property_ids),
+                EtvAssembly.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    doc_ids.update(etv_doc_id(pid, aid) for pid, aid in assembly_rows)
 
     return CallerScope(org, is_verwalter=False, visible_document_ids=frozenset(doc_ids))
 

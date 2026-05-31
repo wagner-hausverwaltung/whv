@@ -30,6 +30,7 @@ _MASTERDATA_NS = uuid.UUID("5d3a9f00-2c41-4e8e-9a7b-6f0c1d2e3f40")
 # Tags stored in rag_chunks.source_type for these rows (vs. "document").
 SOURCE_TYPE_DIENSTLEISTER = "dienstleister"
 SOURCE_TYPE_CONTACT = "contact"
+SOURCE_TYPE_ETV = "etv"
 
 
 def dienstleister_doc_id(property_id: uuid.UUID, contact_id: uuid.UUID) -> uuid.UUID:
@@ -47,6 +48,15 @@ def contact_doc_id(property_id: uuid.UUID, contact_id: uuid.UUID) -> uuid.UUID:
     VERWALTER-only).
     """
     return uuid.uuid5(_MASTERDATA_NS, f"contact:{property_id}:{contact_id}")
+
+
+def etv_doc_id(property_id: uuid.UUID, assembly_id: uuid.UUID) -> uuid.UUID:
+    """Deterministic synthetic document id for one ETV (Eigentümerversammlung)
+    card on one property. The ``etv:`` prefix keeps it disjoint from the other
+    card kinds. ETV cards are visible to every member of the property (see
+    ``resolve_caller_scope``), matching the portal's ETV tab and the
+    property-wide invitation/protocol documents."""
+    return uuid.uuid5(_MASTERDATA_NS, f"etv:{property_id}:{assembly_id}")
 
 
 def build_dienstleister_card(
@@ -116,4 +126,42 @@ def build_contact_card(
         parts.append(f"Erreichbar: {reach}")
     if address:
         parts.append(f"Anschrift: {address}")
+    return " · ".join(parts)
+
+
+def build_etv_card(
+    *,
+    title: str,
+    property_label: str | None = None,
+    date: str | None = None,
+    location: str | None = None,
+    status: str | None = None,
+    agenda: list[str] | None = None,
+    beschluesse: list[str] | None = None,
+) -> str:
+    """Render one Eigentümerversammlung to a compact German card.
+
+    Carries the structured metadata the invitation/protocol PDFs bury in OCR
+    text — Termin, Ort, Status, Tagesordnung and Beschlüsse — so the assistant
+    can answer "wann war die letzte ETV / was wurde beschlossen?". The PDFs
+    themselves are separate (citable, downloadable) document chunks. Skips
+    absent fields like the other card builders.
+    """
+    parts: list[str] = [f"Eigentümerversammlung: {title}"]
+    if property_label:
+        parts.append(f"Liegenschaft: {property_label}")
+    if date:
+        parts.append(f"Termin: {date}")
+    if location:
+        parts.append(f"Ort: {location}")
+    if status:
+        parts.append(f"Status: {status}")
+    if agenda:
+        shown = [a for a in agenda if a][:12]
+        if shown:
+            parts.append("Tagesordnung: " + "; ".join(shown))
+    if beschluesse:
+        shown = [b for b in beschluesse if b][:12]
+        if shown:
+            parts.append("Beschlüsse: " + "; ".join(shown))
     return " · ".join(parts)

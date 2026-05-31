@@ -23,8 +23,10 @@ from app.rag.masterdata import (
     SOURCE_TYPE_DIENSTLEISTER,
     build_contact_card,
     build_dienstleister_card,
+    build_etv_card,
     contact_doc_id,
     dienstleister_doc_id,
+    etv_doc_id,
 )
 
 _RAG = pytest.mark.skipif(
@@ -93,6 +95,38 @@ def test_contact_doc_id_distinct_from_dienstleister() -> None:
     # vendor and a contact card can coexist and the data-subject admission in
     # resolve_caller_scope never accidentally matches a Dienstleister card.
     assert contact_doc_id(p, c) != dienstleister_doc_id(p, c)
+
+
+def test_build_etv_card_full() -> None:
+    card = build_etv_card(
+        title="Eigentümerversammlung 2026",
+        property_label="WEG Hasenbergstraße 32",
+        date="28.04.2026, 18:00",
+        location="Johannesstraße 2, Stuttgart",
+        status="Abgehalten",
+        agenda=["TOP 1: Begrüßung", "TOP 2: Wirtschaftsplan 2026"],
+        beschluesse=["Wirtschaftsplan 2026 — angenommen"],
+    )
+    assert card == (
+        "Eigentümerversammlung: Eigentümerversammlung 2026 · "
+        "Liegenschaft: WEG Hasenbergstraße 32 · Termin: 28.04.2026, 18:00 · "
+        "Ort: Johannesstraße 2, Stuttgart · Status: Abgehalten · "
+        "Tagesordnung: TOP 1: Begrüßung; TOP 2: Wirtschaftsplan 2026 · "
+        "Beschlüsse: Wirtschaftsplan 2026 — angenommen"
+    )
+
+
+def test_build_etv_card_skips_missing() -> None:
+    assert build_etv_card(title="ETV 2025") == "Eigentümerversammlung: ETV 2025"
+
+
+def test_etv_doc_id_distinct_from_other_cards() -> None:
+    p, e = uuid.uuid4(), uuid.uuid4()
+    assert etv_doc_id(p, e) == etv_doc_id(p, e)  # stable
+    # Disjoint from the contact/vendor namespaces so the ETV admission in
+    # resolve_caller_scope can never match a contact or Dienstleister card.
+    assert etv_doc_id(p, e) != contact_doc_id(p, e)
+    assert etv_doc_id(p, e) != dienstleister_doc_id(p, e)
 
 
 class _StubEmbedder:

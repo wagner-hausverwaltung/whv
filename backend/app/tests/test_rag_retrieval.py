@@ -7,7 +7,7 @@ Skips when RAG_DATABASE_URL is unset.
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.models.document import DocumentKind
 from app.models.user import User, UserRole
@@ -342,3 +342,69 @@ async def test_contact_card_visible_to_data_subject_but_not_other_owner(
 
     v_ids = await _ids(verwalter)
     assert {card_a, vendor_card} <= v_ids  # Verwalter sees both
+
+
+async def test_etv_card_visible_to_property_members_only(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    """ADR-0013 §4: an ETV card is visible to every member of the property
+    (matching the portal ETV tab + the property-wide invitation/protocol PDFs),
+    but never to someone whose contracts are on a different property. Verwalter
+    sees it too."""
+    from datetime import UTC, datetime
+
+    from app.models.etv import AssemblyStatus, EtvAssembly
+    from app.rag.ingestion import index_masterdata_card
+    from app.rag.masterdata import SOURCE_TYPE_ETV, etv_doc_id
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="ETV-P1")
+    other = await make_property(test_engine, org=org, name="ETV-P2")
+    await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=5301)
+    member, _e, _p = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5301
+    )
+    await make_contact_with_contract_link(test_engine, org=org, prop=other, contact_impower_id=5302)
+    outsider, _eo, _po = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5302
+    )
+    verwalter, _ev, _pv = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        assembly = EtvAssembly(
+            organization_id=org.id,
+            property_id=prop.id,
+            title="Eigentümerversammlung 2026",
+            description="",
+            status=AssemblyStatus.ABGEHALTEN,
+            scheduled_start=datetime(2026, 2, 2, 18, 0, tzinfo=UTC),
+            scheduled_end=datetime(2026, 2, 2, 21, 0, tzinfo=UTC),
+            location="Johannesstraße 2, Stuttgart",
+        )
+        s.add(assembly)
+        await s.commit()
+        await s.refresh(assembly)
+        assembly_id = assembly.id
+
+    card_id = etv_doc_id(prop.id, assembly_id)
+    await index_masterdata_card(
+        rag_session,
+        _StubEmbedder(),
+        document_id=card_id,
+        organization_id=org.id,
+        source_type=SOURCE_TYPE_ETV,
+        card_text="Eigentümerversammlung 2026 · Termin: 02.02.2026",
+        property_id=prop.id,
+        source_kind="ETV",
+    )
+    await rag_session.flush()
+
+    async def _ids(user: User) -> set[uuid.UUID]:
+        scope = await resolve_caller_scope(session, user)
+        got = await retrieve(rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0)
+        return {c.document_id for c in got}
+
+    assert card_id in await _ids(member)  # property member sees the ETV card
+    assert card_id not in await _ids(outsider)  # other property → never
+    assert card_id in await _ids(verwalter)  # Verwalter sees everything
