@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { getRememberedPropertyId } from "@/lib/activeProperty";
 
 // Mirrors the backend AssistantQueryResponse (POST /assistant/query, ADR-0013).
 interface Citation {
@@ -114,11 +115,18 @@ export function AssistantWidget() {
     // update below is async), so it's exactly the history to replay. Cap to
     // the last few turns to bound the request.
     const history = messages.slice(-8).map((m) => ({ role: m.role, content: m.text }));
+    // Scope the search to the property selected in the AppBar switcher (if any),
+    // so a question only looks in that property's documents.
+    const property_id = getRememberedPropertyId();
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text: question }]);
     setInput("");
     setLoading(true);
     try {
-      const res = await api.post<AssistantResponse>("/assistant/query", { question, history });
+      const res = await api.post<AssistantResponse>("/assistant/query", {
+        question,
+        history,
+        property_id,
+      });
       setMessages((prev) => [
         ...prev,
         {
