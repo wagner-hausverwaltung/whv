@@ -166,11 +166,19 @@ export function AssistantWidget() {
 
   const openCitation = (source: Citation) => {
     if (isMasterData(source)) {
-      // Master-data card (Dienstleister) → deep-link to that vendor on its
-      // property. Close the panel so the destination isn't hidden behind it.
-      if (source.property_id) {
-        setOpen(false);
-        navigate(`/properties/${source.property_id}/vendors`);
+      // Master-data card → deep-link to the entity on its property (there's no
+      // PDF to download; its document_id is synthetic). Route by card type so
+      // an ETV card lands on Versammlungen, not the vendor list. Close the
+      // panel so the destination isn't hidden behind it.
+      if (!source.property_id) return;
+      setOpen(false);
+      const pid = source.property_id;
+      if (source.source_type === "etv") {
+        navigate(`/properties/${pid}/assemblies`);
+      } else if (source.source_type === "dienstleister") {
+        navigate(`/properties/${pid}/vendors`);
+      } else {
+        navigate(`/properties/${pid}/details`);
       }
       return;
     }

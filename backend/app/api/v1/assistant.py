@@ -157,6 +157,12 @@ async def assistant_query(
                 page=citation.page,
                 source_kind=citation.source_kind,
                 contact_name=citation.contact_name,
+                # Propagate the master-data signals — without these the
+                # response defaulted source_type to "document", so the SPA
+                # tried to download a card's synthetic id as a PDF (404).
+                source_type=citation.source_type,
+                contact_id=citation.contact_id,
+                property_id=citation.property_id,
             )
             for citation in answer.sources
         ],
