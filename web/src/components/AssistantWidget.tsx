@@ -28,6 +28,8 @@ import { getRememberedPropertyId } from "@/lib/activeProperty";
 
 // Mirrors the backend AssistantQueryResponse (POST /assistant/query, ADR-0013).
 interface Citation {
+  // The [index] the answer cited — shown on the chip so the inline [n] maps to it.
+  index: number;
   document_id: string;
   page: number | null;
   source_kind: string | null;
@@ -264,12 +266,12 @@ export function AssistantWidget() {
                     <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 1.5, flexWrap: "wrap" }}>
                       {message.sources.map((source) => (
                         <Chip
-                          key={source.document_id}
+                          key={source.index}
                           size="small"
                           icon={isMasterData(source) ? <HandymanIcon /> : <DescriptionIcon />}
                           clickable
                           onClick={() => openCitation(source)}
-                          label={citationLabel(source)}
+                          label={`[${source.index}] ${citationLabel(source)}`}
                         />
                       ))}
                     </Stack>
