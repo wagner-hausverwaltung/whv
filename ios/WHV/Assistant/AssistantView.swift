@@ -44,12 +44,17 @@ final class AssistantChatModel: ObservableObject {
         let question = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !isLoading else { return }
         errorText = nil
+        // History = the turns so far (before this question), last 8 — so the
+        // backend can answer follow-ups like "fass das zusammen".
+        let history = messages.suffix(8).map {
+            AssistantHistoryTurn(role: $0.role == .user ? "user" : "assistant", content: $0.text)
+        }
         messages.append(AssistantChatMessage(role: .user, text: question))
         input = ""
         isLoading = true
         Task {
             do {
-                let res = try await api.askAssistant(question: question)
+                let res = try await api.askAssistant(question: question, history: history)
                 messages.append(
                     AssistantChatMessage(role: .assistant, text: res.answer, sources: res.sources)
                 )

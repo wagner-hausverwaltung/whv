@@ -539,8 +539,14 @@ struct AssistantQueryResponse: Codable {
     let sources: [AssistantCitation]
 }
 
+struct AssistantHistoryTurn: Codable {
+    let role: String  // "user" | "assistant"
+    let content: String
+}
+
 struct AssistantQueryRequest: Codable {
     let question: String
+    let history: [AssistantHistoryTurn]
 }
 
 enum APIError: Error, LocalizedError {
@@ -787,12 +793,14 @@ struct APIClient {
     /// resolves the caller's ACL scope from the JWT, so we send only the
     /// question. 503 (assistant disabled server-side) surfaces as
     /// APIError.http(status: 503, …); demo mode short-circuits read-only.
-    func askAssistant(question: String) async throws -> AssistantQueryResponse {
+    func askAssistant(
+        question: String, history: [AssistantHistoryTurn] = []
+    ) async throws -> AssistantQueryResponse {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedJSON(
             "/assistant/query",
             method: "POST",
-            body: AssistantQueryRequest(question: question)
+            body: AssistantQueryRequest(question: question, history: history)
         )
     }
 
