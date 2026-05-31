@@ -84,6 +84,9 @@ export function AssistantWidget() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // One id per widget mount → groups this chat session's turns into a thread
+  // in the admin overview.
+  const conversationIdRef = useRef(crypto.randomUUID());
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -128,6 +131,7 @@ export function AssistantWidget() {
         question,
         history,
         property_id,
+        conversation_id: conversationIdRef.current,
       });
       setMessages((prev) => [
         ...prev,

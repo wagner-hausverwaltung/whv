@@ -4,6 +4,7 @@ import { AdminAnnouncementDetailPage } from "@/admin/pages/AdminAnnouncementDeta
 import { AdminAnnouncementsAllPage } from "@/admin/pages/AdminAnnouncementsAllPage";
 import { AdminAssembliesPage } from "@/admin/pages/AdminAssembliesPage";
 import { AdminAssemblyDetailPage } from "@/admin/pages/AdminAssemblyDetailPage";
+import { AdminAssistantLogPage } from "@/admin/pages/AdminAssistantLogPage";
 import { AdminAuditPage } from "@/admin/pages/AdminAuditPage";
 import { AdminContactsPage } from "@/admin/pages/AdminContactsPage";
 import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
@@ -308,6 +309,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminAuditPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assistant-log"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminAssistantLogPage />
                 </AdminLayout>
               </AdminRoute>
             }

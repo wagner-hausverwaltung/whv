@@ -75,6 +75,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { to: "/admin/signatures", label: t("admin.signatures") },
     { to: "/admin/announcements", label: t("admin.announcements") },
     { to: "/admin/invites", label: t("admin.invites") },
+    { to: "/admin/assistant-log", label: t("admin.assistantLog") },
   ];
   const activePath = (() => {
     const sorted = [...NAV].sort((a, b) => b.to.length - a.to.length);

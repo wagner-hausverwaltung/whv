@@ -258,6 +258,7 @@
     "announcements": "Announcements",
     "invites": "Invitations",
     "audit": "Audit log",
+    "assistantLog": "AI log",
     "subtitle": "Overview of invitations, master data, and active workflows.",
     "stats": {
       "pending_invites": "Pending invites",

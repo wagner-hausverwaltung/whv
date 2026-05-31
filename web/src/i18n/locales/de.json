@@ -258,6 +258,7 @@
     "announcements": "Mitteilungen",
     "invites": "Einladungen",
     "audit": "Audit-Log",
+    "assistantLog": "KI-Protokoll",
     "subtitle": "Übersicht zu Einladungen, Stammdaten und laufenden Vorgängen.",
     "stats": {
       "pending_invites": "Offene Einladungen",
