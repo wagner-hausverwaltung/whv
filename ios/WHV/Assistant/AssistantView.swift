@@ -38,6 +38,8 @@ final class AssistantChatModel: ObservableObject {
     /// The active Liegenschaft (set by AssistantView from LiegenschaftStore) —
     /// scopes retrieval to that property's documents. nil = whole visible scope.
     var propertyId: String?
+    /// One id per chat session → threads turns in the admin overview.
+    private let conversationId = UUID().uuidString
 
     var canSend: Bool {
         !isLoading && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -58,7 +60,10 @@ final class AssistantChatModel: ObservableObject {
         Task {
             do {
                 let res = try await api.askAssistant(
-                    question: question, history: history, propertyId: propertyId
+                    question: question,
+                    history: history,
+                    propertyId: propertyId,
+                    conversationId: conversationId
                 )
                 messages.append(
                     AssistantChatMessage(role: .assistant, text: res.answer, sources: res.sources)

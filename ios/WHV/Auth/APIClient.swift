@@ -552,6 +552,7 @@ struct AssistantQueryRequest: Codable {
     let question: String
     let history: [AssistantHistoryTurn]
     let property_id: String?
+    let conversation_id: String?
 }
 
 enum APIError: Error, LocalizedError {
@@ -799,14 +800,20 @@ struct APIClient {
     /// question. 503 (assistant disabled server-side) surfaces as
     /// APIError.http(status: 503, …); demo mode short-circuits read-only.
     func askAssistant(
-        question: String, history: [AssistantHistoryTurn] = [], propertyId: String? = nil
+        question: String,
+        history: [AssistantHistoryTurn] = [],
+        propertyId: String? = nil,
+        conversationId: String? = nil
     ) async throws -> AssistantQueryResponse {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedJSON(
             "/assistant/query",
             method: "POST",
             body: AssistantQueryRequest(
-                question: question, history: history, property_id: propertyId
+                question: question,
+                history: history,
+                property_id: propertyId,
+                conversation_id: conversationId
             )
         )
     }
