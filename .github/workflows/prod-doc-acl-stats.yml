@@ -105,6 +105,56 @@ jobs:
                   print(f"  JAHRESABRECHNUNG that are property-wide (per-user financial, "
                         f"currently cross-user visible): {jahr_wide}")
 
+                  # ----- ATTRIBUTION PROBE (#153 full fix) -----
+                  # For docs we currently treat as property-wide (all FKs NULL),
+                  # what owner reference did Impower actually send? raw_jsonb keys
+                  # are camelCase (model_dump field names). If unitId/contractId/
+                  # contactId is present but our FK is NULL, the referenced entity
+                  # simply wasn't in our DB at sync time -> a re-sync would attribute
+                  # it. If all three are absent, Impower didn't attribute the
+                  # document object itself (only sourceId+sourceType), so attribution
+                  # must be resolved through the source entity.
+                  print("\n=== ATTRIBUTION PROBE: raw_jsonb owner refs on PROPERTY-WIDE docs ===")
+                  personal = (
+                      "AND (kind = 'JAHRESABRECHNUNG' OR impower_source_type IN "
+                      "('HOUSE_MONEY_SETTLEMENT','HEATING_COST_DISTRIBUTION','OPS_COST_REPORT',"
+                      "'RENT_SETTLEMENT_EXCHANGE','SPECIAL_CONTRIBUTION'))"
+                  )
+                  for label, extra in [("ALL property-wide", ""),
+                                       ("personal-financial property-wide", personal)]:
+                      r = (await rows(
+                          f"""SELECT count(*) AS total,
+                                count(*) FILTER (WHERE raw_jsonb->>'unitId' IS NOT NULL) AS u,
+                                count(*) FILTER (WHERE raw_jsonb->>'contractId' IS NOT NULL) AS ct,
+                                count(*) FILTER (WHERE raw_jsonb->>'contactId' IS NOT NULL) AS c,
+                                count(*) FILTER (WHERE raw_jsonb->>'sourceId' IS NOT NULL) AS s,
+                                count(*) FILTER (WHERE raw_jsonb->>'unitId' IS NULL
+                                    AND raw_jsonb->>'contractId' IS NULL
+                                    AND raw_jsonb->>'contactId' IS NULL) AS none_ref
+                              FROM documents WHERE deleted_at IS NULL AND {WIDE} {extra}"""
+                      ))[0]
+                      print(f"  [{label}] total={r[0]} | raw unitId={r[1]} contractId={r[2]} "
+                            f"contactId={r[3]} sourceId={r[4]} | NO owner ref={r[5]}")
+
+                  # Backfillable NOW: raw owner ref is present AND resolves to a
+                  # synced entity (EXISTS, so no row multiplication). The numeric
+                  # guard keeps a stray non-int value from breaking the ::bigint cast.
+                  print("\n=== BACKFILLABLE NOW (raw ref resolves to a synced entity) ===")
+                  b = (await rows(
+                      f"""SELECT
+                            count(*) FILTER (WHERE d.raw_jsonb->>'contactId' ~ '^[0-9]+$'
+                              AND EXISTS (SELECT 1 FROM contacts x
+                                WHERE x.impower_id = (d.raw_jsonb->>'contactId')::bigint)) AS c,
+                            count(*) FILTER (WHERE d.raw_jsonb->>'contractId' ~ '^[0-9]+$'
+                              AND EXISTS (SELECT 1 FROM contracts x
+                                WHERE x.impower_id = (d.raw_jsonb->>'contractId')::bigint)) AS ct,
+                            count(*) FILTER (WHERE d.raw_jsonb->>'unitId' ~ '^[0-9]+$'
+                              AND EXISTS (SELECT 1 FROM units x
+                                WHERE x.impower_id = (d.raw_jsonb->>'unitId')::bigint)) AS u
+                          FROM documents d WHERE d.deleted_at IS NULL AND {WIDE}"""
+                  ))[0]
+                  print(f"  contact-resolvable={b[0]} contract-resolvable={b[1]} unit-resolvable={b[2]}")
+
               await engine.dispose()
 
 
