@@ -222,7 +222,15 @@ async def answer_question(
 
     answer_text = (
         await generator.generate(
-            prompt=_build_prompt(question, chunks, history), system=_SYSTEM_INSTRUCTION
+            prompt=_build_prompt(question, chunks, history),
+            system=_SYSTEM_INSTRUCTION,
+            # gemini-flash-latest (Gemini 2.5) does hidden "thinking" that counts
+            # against max_output_tokens, and the deprecated SDK can't disable it.
+            # The 1024 default left almost nothing for the visible answer — it cut
+            # off mid-sentence ("…bis zum 3"). Give it the same ample budget
+            # extraction uses; the model stops at its concise answer (the prompt
+            # demands "knapp"), so we only pay for the tokens actually produced.
+            max_output_tokens=settings.llm_max_output_tokens,
         )
     ).strip()
 
