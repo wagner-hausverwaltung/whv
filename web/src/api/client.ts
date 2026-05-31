@@ -118,11 +118,22 @@ api.interceptors.response.use(
       const newToken = await refreshInFlight;
       original.headers.set("Authorization", `Bearer ${newToken}`);
       return api(original);
-    } catch {
-      clearTokens();
-      // Tell the app the user needs to re-auth. Best done via a window event;
-      // AuthContext listens and updates state without a full reload.
-      window.dispatchEvent(new Event("whv:auth:expired"));
+    } catch (refreshErr) {
+      // Only force logout when the session is GENUINELY unauthorized: no
+      // refresh token, or the refresh endpoint REJECTED it (401/400). A
+      // transient failure — network error or 5xx, e.g. the backend briefly
+      // restarting during a deploy — must NOT log the user out. We keep the
+      // tokens and reject just this request, so the session survives the blip
+      // and a later call (or retry) succeeds once the backend is back.
+      const status = (refreshErr as AxiosError)?.response?.status;
+      const transient =
+        getRefreshToken() !== null && status !== 401 && status !== 400;
+      if (!transient) {
+        clearTokens();
+        // Tell the app the user needs to re-auth. Best done via a window event;
+        // AuthContext listens and updates state without a full reload.
+        window.dispatchEvent(new Event("whv:auth:expired"));
+      }
       return Promise.reject(err);
     }
   },
