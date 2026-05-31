@@ -35,6 +35,9 @@ final class AssistantChatModel: ObservableObject {
     @Published var openingDocumentId: String?
 
     private let api = APIClient()
+    /// The active Liegenschaft (set by AssistantView from LiegenschaftStore) —
+    /// scopes retrieval to that property's documents. nil = whole visible scope.
+    var propertyId: String?
 
     var canSend: Bool {
         !isLoading && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -54,7 +57,9 @@ final class AssistantChatModel: ObservableObject {
         isLoading = true
         Task {
             do {
-                let res = try await api.askAssistant(question: question, history: history)
+                let res = try await api.askAssistant(
+                    question: question, history: history, propertyId: propertyId
+                )
                 messages.append(
                     AssistantChatMessage(role: .assistant, text: res.answer, sources: res.sources)
                 )
@@ -99,6 +104,8 @@ final class AssistantChatModel: ObservableObject {
 // MARK: - Sheet
 
 struct AssistantView: View {
+    /// The active Liegenschaft id — scopes the assistant to that property.
+    var propertyId: String? = nil
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = AssistantChatModel()
     @FocusState private var inputFocused: Bool
@@ -110,6 +117,7 @@ struct AssistantView: View {
                 Divider()
                 composer
             }
+            .onAppear { model.propertyId = propertyId }
             .navigationTitle("Assistent")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

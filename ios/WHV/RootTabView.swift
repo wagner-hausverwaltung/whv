@@ -62,7 +62,7 @@ struct RootTabView: View {
                 NewTicketSheet { _ in }
             }
             .sheet(isPresented: $assistantOpen) {
-                AssistantView()
+                AssistantView(propertyId: store.selected?.id)
             }
     }
 
