@@ -41,10 +41,38 @@ def test_build_prompt_omits_raw_document_ids() -> None:
         amount=None,
         similarity=0.9,
     )
-    prompt = _build_prompt("welche heizkostenabrechnungen siehst du?", [chunk])
+    prompt = _build_prompt("welche heizkostenabrechnungen siehst du?", [chunk], [])
     assert "[doc:" not in prompt
     assert str(chunk.document_id) not in prompt
     assert "Heizkostenabrechnung 2025" in prompt  # context still included
+
+
+def test_build_prompt_includes_history_and_strips_old_citations() -> None:
+    import uuid
+
+    from app.rag.generation import ConversationTurn, _build_prompt
+    from app.rag.retrieval import RetrievedChunk
+
+    chunk = RetrievedChunk(
+        document_id=uuid.uuid4(),
+        chunk_text="Aktueller Quelltext.",
+        page=1,
+        source_kind="RECHNUNG",
+        contact_name=None,
+        issued_date=None,
+        amount=None,
+        similarity=0.9,
+    )
+    history = [
+        ConversationTurn(role="user", content="Frühere Frage?"),
+        ConversationTurn(role="assistant", content="Frühere Antwort [1][2]."),
+    ]
+    prompt = _build_prompt("Folgefrage?", [chunk], history)
+    assert "Bisheriges Gespräch" in prompt
+    assert "Frühere Frage?" in prompt
+    assert "Frühere Antwort" in prompt
+    assert "[1][2]" not in prompt  # prior-turn citation markers stripped
+    assert "Folgefrage?" in prompt
 
 
 class FakeProvider:
@@ -72,7 +100,7 @@ class FakeProvider:
         self.generate_called = True
         self.last_prompt = prompt
         self.last_system = system
-        return "Die Heizung wurde 2025 gewartet [doc:x S.1]."
+        return "Die Heizung wurde 2025 gewartet [1]."
 
 
 async def test_null_provider_generate_raises() -> None:
@@ -127,8 +155,9 @@ async def test_answer_question_grounds_and_cites(
     )
 
     assert not answer.abstained
-    assert answer.answer == "Die Heizung wurde 2025 gewartet [doc:x S.1]."
+    assert answer.answer == "Die Heizung wurde 2025 gewartet [1]."
     assert doc.id in answer.retrieved_document_ids
+    # the answer cited [1] → exactly that source is surfaced as a chip
     assert [c.document_id for c in answer.sources] == [doc.id]
     # grounded: the chunk text + the injection-guard system prompt were sent
     assert provider.last_prompt is not None
@@ -157,3 +186,52 @@ async def test_answer_question_abstains_without_calling_llm(
     assert answer.answer == ABSTAIN_ANSWER
     assert answer.sources == []
     assert provider.generate_called is False  # no LLM call on abstain
+
+
+async def test_answer_question_abstain_from_model_drops_sources(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    # The bug from prod: retrieval pulled chunks but the model couldn't answer
+    # ("Dazu habe ich nichts gefunden"). The UI must then show NO source chips.
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    doc = await make_document(test_engine, org=org, prop=prop, kind=DocumentKind.RECHNUNG)
+    rag_session.add(
+        RagChunk(
+            document_id=doc.id,
+            organization_id=org.id,
+            visibility="ALL",
+            chunk_text="Irgendein Rechnungstext ohne die gesuchte Antwort.",
+            embedding=_VEC,
+        )
+    )
+    await rag_session.flush()
+    verwalter, _e, _p = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    class _Abstaining(FakeProvider):
+        async def generate(
+            self,
+            *,
+            prompt: str,
+            system: str | None = None,
+            max_output_tokens: int = 1024,
+            temperature: float = 0.2,
+        ) -> str:
+            self.generate_called = True
+            return ABSTAIN_ANSWER
+
+    provider = _Abstaining()
+    answer = await answer_question(
+        session,
+        rag_session,
+        user=verwalter,
+        question="Wie hoch war die Stromrechnung 2099?",
+        embedder=provider,
+        generator=provider,
+        settings=get_settings(),
+    )
+
+    assert answer.abstained
+    assert answer.answer == ABSTAIN_ANSWER
+    assert answer.sources == []  # no chips next to "nichts gefunden"
+    assert provider.generate_called is True  # chunks existed → LLM was consulted

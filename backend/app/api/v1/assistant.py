@@ -8,7 +8,7 @@ opens via the existing auth-gated download endpoint, which re-checks access.
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -20,14 +20,22 @@ from app.db import get_session
 from app.integrations.llm import get_llm_provider
 from app.models import AuditLog, User
 from app.rag.db import rag_session_scope
-from app.rag.generation import answer_question
+from app.rag.generation import ConversationTurn, answer_question
 from app.ratelimit import rate_limit
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 
+class ConversationTurnRequest(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class AssistantQueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    # Recent chat turns for multi-turn follow-ups (oldest→newest). Capped so the
+    # prompt stays bounded; the generation layer also trims to the last few.
+    history: list[ConversationTurnRequest] = Field(default_factory=list, max_length=20)
     # Optional structured filters (the "hybrid" half) — the SPA can pass these
     # from UI facets; free-text questions work without them.
     issued_year: int | None = None
@@ -81,6 +89,7 @@ async def assistant_query(
             embedder=provider,
             generator=provider,
             settings=settings,
+            history=[ConversationTurn(role=t.role, content=t.content) for t in body.history],
             issued_year=body.issued_year,
             kind=body.kind,
             contact_query=body.contact,
