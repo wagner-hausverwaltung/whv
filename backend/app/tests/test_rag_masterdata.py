@@ -21,7 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.rag.constants import EMBEDDING_DIM
 from app.rag.masterdata import (
     SOURCE_TYPE_DIENSTLEISTER,
+    build_contact_card,
     build_dienstleister_card,
+    contact_doc_id,
     dienstleister_doc_id,
 )
 
@@ -61,6 +63,36 @@ def test_dienstleister_doc_id_deterministic_and_unique() -> None:
     assert dienstleister_doc_id(p1, c1) == dienstleister_doc_id(p1, c1)  # stable
     assert dienstleister_doc_id(p1, c1) != dienstleister_doc_id(p1, c2)  # per vendor
     assert dienstleister_doc_id(p1, c1) != dienstleister_doc_id(p2, c1)  # per property
+
+
+def test_build_contact_card_full() -> None:
+    card = build_contact_card(
+        name="Max Mustermann",
+        role="Eigentümer",
+        property_label="Schmidener Str. 32",
+        unit_label="W3",
+        email="max@example.de",
+        phone="+49 711 1234567",
+        address="Schmidener Str. 32, 70374 Stuttgart",
+    )
+    assert card == (
+        "Kontakt: Max Mustermann · Rolle: Eigentümer · Objekt: Schmidener Str. 32 · "
+        "Einheit: W3 · Erreichbar: max@example.de, +49 711 1234567 · "
+        "Anschrift: Schmidener Str. 32, 70374 Stuttgart"
+    )
+
+
+def test_build_contact_card_skips_missing() -> None:
+    assert build_contact_card(name="Erika Musterfrau") == "Kontakt: Erika Musterfrau"
+
+
+def test_contact_doc_id_distinct_from_dienstleister() -> None:
+    p, c = uuid.uuid4(), uuid.uuid4()
+    assert contact_doc_id(p, c) == contact_doc_id(p, c)  # stable
+    # Same (property, contact) but a different card kind → different id, so a
+    # vendor and a contact card can coexist and the data-subject admission in
+    # resolve_caller_scope never accidentally matches a Dienstleister card.
+    assert contact_doc_id(p, c) != dienstleister_doc_id(p, c)
 
 
 class _StubEmbedder:

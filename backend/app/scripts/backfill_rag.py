@@ -67,7 +67,8 @@ def main() -> None:
     parser.add_argument(
         "--masterdata",
         action="store_true",
-        help="index Dienstleister master-data cards instead of documents (ADR-0013 §4)",
+        help="index master-data cards (Dienstleister + owner/tenant contacts) "
+        "instead of documents (ADR-0013 §4)",
     )
     parser.add_argument("--property", type=str, default=None, help="one property id (UUID)")
     parser.add_argument("--limit", type=int, default=None, help="cap how many items to enqueue")
@@ -82,7 +83,7 @@ def main() -> None:
             masterdata=args.masterdata,
         )
     )
-    unit = "Dienstleister card" if args.masterdata else "document"
+    unit = "master-data card" if args.masterdata else "document"
     print(f"enqueued {count} {unit}(s) for RAG indexing.")
 
 

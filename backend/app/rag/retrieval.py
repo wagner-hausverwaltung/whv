@@ -26,8 +26,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # to app/services/access.py (next to active_contract_filter) is a tracked
 # follow-up. Importing them here reuses the exact, tested ACL code.
 from app.api.v1.me import _document_visibility_filter, _visible_properties_stmt
+from app.models.contact import Contact
 from app.models.document import Document
 from app.models.user import User, UserRole
+from app.rag.masterdata import contact_doc_id
 from app.rag.models import RagChunk
 
 
@@ -76,16 +78,30 @@ async def resolve_caller_scope(app_session: AsyncSession, user: User) -> CallerS
     if not visible_property_ids:
         return CallerScope(org, is_verwalter=False, visible_document_ids=frozenset())
 
-    doc_ids = (
-        await app_session.scalars(
-            select(Document.id).where(
-                Document.organization_id == org,
-                Document.deleted_at.is_(None),
-                Document.property_id.in_(visible_property_ids),
-                _document_visibility_filter(user),
+    doc_ids: set[uuid.UUID] = set(
+        (
+            await app_session.scalars(
+                select(Document.id).where(
+                    Document.organization_id == org,
+                    Document.deleted_at.is_(None),
+                    Document.property_id.in_(visible_property_ids),
+                    _document_visibility_filter(user),
+                )
             )
-        )
-    ).all()
+        ).all()
+    )
+
+    # ADR-0013 §4: contact cards are PII (sensitivity=high), VERWALTER-only by
+    # construction — EXCEPT the data subject may retrieve their OWN. The card's
+    # synthetic id is deterministic from (property, the caller's contact), so we
+    # admit exactly those ids: another contact's card has a different id, and a
+    # Dienstleister card uses a different id prefix — neither can ever match.
+    own_contact_id = await app_session.scalar(
+        select(Contact.id).where(Contact.impower_id == user.contact_id_impower)
+    )
+    if own_contact_id is not None:
+        doc_ids.update(contact_doc_id(pid, own_contact_id) for pid in visible_property_ids)
+
     return CallerScope(org, is_verwalter=False, visible_document_ids=frozenset(doc_ids))
 
 

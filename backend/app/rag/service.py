@@ -20,8 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.integrations.storage.documents import document_path
 from app.models.contact import Contact, ContactKind
+from app.models.contract import Contract, ContractContact, ContractType
 from app.models.document import Document
 from app.models.property import Property
+from app.models.unit import Unit
 from app.rag.ingestion import (
     DocumentMeta,
     Embedder,
@@ -30,12 +32,21 @@ from app.rag.ingestion import (
     index_masterdata_card,
 )
 from app.rag.masterdata import (
+    SOURCE_TYPE_CONTACT,
     SOURCE_TYPE_DIENSTLEISTER,
+    build_contact_card,
     build_dienstleister_card,
+    contact_doc_id,
     dienstleister_doc_id,
 )
 from app.rag.models import RagDocument
 from app.services.vendors import load_vendors_for_property
+
+_CONTRACT_ROLE_LABEL: dict[ContractType, str] = {
+    ContractType.OWNER: "Eigentümer",
+    ContractType.TENANT: "Mieter",
+    ContractType.PROPERTY_OWNER: "Eigentümer",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +70,24 @@ def _property_label(prop: Property | None) -> str | None:
         return prop.name
     address = " ".join(p for p in (prop.street, prop.number) if p).strip()
     return address or None
+
+
+def _unit_label(unit: Unit | None) -> str | None:
+    """The unit's human id (e.g. "W3"), else a floor/position hint."""
+    if unit is None:
+        return None
+    if unit.unit_hr_id:
+        return unit.unit_hr_id
+    return " ".join(p for p in (unit.floor, unit.position) if p).strip() or None
+
+
+def _address_label(contact: Contact | None) -> str | None:
+    """A one-line postal address for the contact card, blanks skipped."""
+    if contact is None:
+        return None
+    street = " ".join(p for p in (contact.street, contact.number) if p).strip()
+    city = " ".join(p for p in (contact.postal_code, contact.city) if p).strip()
+    return ", ".join(p for p in (street, city) if p) or None
 
 
 async def fetch_document_bytes(doc: Document, settings: Settings) -> bytes | None:
@@ -226,6 +255,90 @@ async def reindex_dienstleister_card(
     )
 
 
+async def reindex_contact_card(
+    app_session: AsyncSession,
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    property_id: uuid.UUID,
+    contact_id: uuid.UUID,
+    force: bool = False,
+) -> IndexResult | None:
+    """Render one owner/tenant contact on one property to a German card and
+    index it as master-data (``sensitivity=high``). Returns None if the property
+    or contact is gone, or the contact has no contract on that property. Flushes
+    the rag_session; the caller commits."""
+    prop = await app_session.get(Property, property_id)
+    if prop is None:
+        return None
+    contact = await app_session.get(Contact, contact_id)
+    if contact is None:
+        return None
+    name = _contact_label(contact)
+    if not name:
+        return None
+
+    # The contact's contract on this property gives us the role + unit. If they
+    # have none, they don't belong to this property → no card.
+    row = (
+        await app_session.execute(
+            select(Contract.type, Contract.unit_id)
+            .join(ContractContact, ContractContact.contract_id == Contract.id)
+            .where(
+                ContractContact.contact_id == contact_id,
+                Contract.property_id == property_id,
+            )
+            .order_by(Contract.end_date.is_(None).desc(), Contract.end_date.desc())
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None
+    ctype, unit_id = row
+    unit_label = _unit_label(await app_session.get(Unit, unit_id)) if unit_id is not None else None
+
+    card = build_contact_card(
+        name=name,
+        role=_CONTRACT_ROLE_LABEL.get(ctype),
+        property_label=_property_label(prop),
+        unit_label=unit_label,
+        email=contact.email,
+        phone=contact.phone,
+        address=_address_label(contact),
+    )
+    return await index_masterdata_card(
+        rag_session,
+        embedder,
+        document_id=contact_doc_id(property_id, contact_id),
+        organization_id=prop.organization_id,
+        source_type=SOURCE_TYPE_CONTACT,
+        card_text=card,
+        contact_id=contact_id,
+        contact_name=name,
+        property_id=property_id,
+        sensitivity="high",
+        source_kind="KONTAKT",
+        force=force,
+    )
+
+
+async def _contact_ids_for_property(
+    app_session: AsyncSession, property_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Distinct contacts that have a contract on the property (owners/tenants)."""
+    return list(
+        (
+            await app_session.scalars(
+                select(Contact.id)
+                .join(ContractContact, ContractContact.contact_id == Contact.id)
+                .join(Contract, Contract.id == ContractContact.contract_id)
+                .where(Contract.property_id == property_id)
+                .distinct()
+            )
+        ).all()
+    )
+
+
 async def enqueue_masterdata_indexing(
     app_session: AsyncSession,
     *,
@@ -233,10 +346,11 @@ async def enqueue_masterdata_indexing(
     property_id: uuid.UUID | None = None,
     limit: int | None = None,
 ) -> int:
-    """Enqueue ``index_rag_masterdata`` for every (property, Dienstleister) pair
-    — one vendor card per property. No-op returning 0 when rag is off. Unlike
-    documents there's no "only_new" gate: cards are cheap to re-render and the
-    content-hash skip in ``index_masterdata_card`` makes re-runs idempotent."""
+    """Enqueue ``index_rag_masterdata`` for every master-data card on each
+    property: one Dienstleister card per vendor, plus one contact card per
+    owner/tenant. No-op returning 0 when rag is off. Unlike documents there's no
+    "only_new" gate: cards are cheap to re-render and the content-hash skip in
+    ``index_masterdata_card`` makes re-runs idempotent."""
     if not settings.rag_enabled:
         return 0
 
@@ -245,16 +359,20 @@ async def enqueue_masterdata_indexing(
         prop_stmt = prop_stmt.where(Property.id == property_id)
     property_ids = list((await app_session.scalars(prop_stmt)).all())
 
-    pairs: list[tuple[uuid.UUID, uuid.UUID]] = []
+    # (property_id, contact_id, card_type) — card_type routes the worker to the
+    # right reindex fn (Dienstleister vs contact).
+    pairs: list[tuple[uuid.UUID, uuid.UUID, str]] = []
     for pid in property_ids:
         vendors = await load_vendors_for_property(app_session, property_id=pid)
-        pairs.extend((pid, vendor.contact_id) for vendor in vendors)
+        pairs.extend((pid, vendor.contact_id, SOURCE_TYPE_DIENSTLEISTER) for vendor in vendors)
+        contact_ids = await _contact_ids_for_property(app_session, pid)
+        pairs.extend((pid, cid, SOURCE_TYPE_CONTACT) for cid in contact_ids)
     if limit is not None:
         pairs = pairs[:limit]
 
     # Lazy import avoids an import cycle (tasks imports this module).
     from app.workers.tasks import index_rag_masterdata
 
-    for pid, cid in pairs:
-        index_rag_masterdata.delay(str(pid), str(cid))
+    for pid, cid, card_type in pairs:
+        index_rag_masterdata.delay(str(pid), str(cid), card_type)
     return len(pairs)

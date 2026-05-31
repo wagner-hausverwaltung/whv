@@ -4,10 +4,13 @@ already see. Runs against the live pgvector store + the app DB factories.
 Skips when RAG_DATABASE_URL is unset.
 """
 
+import uuid
+from collections.abc import Sequence
+
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.document import DocumentKind
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.rag.constants import EMBEDDING_DIM
 from app.rag.models import RagChunk
 from app.rag.retrieval import resolve_caller_scope, retrieve
@@ -32,6 +35,13 @@ def _add_chunk(rag_session: AsyncSession, *, document_id, organization_id, vecto
             embedding=vector,
         )
     )
+
+
+class _StubEmbedder:
+    async def embed_texts(
+        self, texts: Sequence[str], *, task_type: str = "retrieval_document"
+    ) -> list[list[float]]:
+        return [list(_VEC) for _ in texts]
 
 
 async def test_retrieval_blocks_cross_user_and_cross_property(
@@ -256,3 +266,79 @@ async def test_retrieve_scopes_to_selected_property(
         rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0, property_id=prop1.id
     )
     assert {c.document_id for c in scoped} == {doc1.id}
+
+
+async def test_contact_card_visible_to_data_subject_but_not_other_owner(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    """ADR-0013 §4: a contact card is PII — VERWALTER-only by construction, plus
+    the data subject themselves. Owner A retrieves their OWN contact card; owner
+    B (same property) never does; a Dienstleister card stays VERWALTER-only for
+    both owners. Verwalter sees both."""
+    from app.rag.ingestion import index_masterdata_card
+    from app.rag.masterdata import (
+        SOURCE_TYPE_CONTACT,
+        SOURCE_TYPE_DIENSTLEISTER,
+        contact_doc_id,
+        dienstleister_doc_id,
+    )
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="MD-P1")
+    contact_a, _ca = await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=5201
+    )
+    await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=5202)
+    owner_a, _ea, _pa = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5201
+    )
+    owner_b, _eb, _pb = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5202
+    )
+    verwalter, _ev, _pv = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    card_a = contact_doc_id(prop.id, contact_a.id)
+    vendor_card = dienstleister_doc_id(prop.id, uuid.uuid4())
+    emb = _StubEmbedder()
+    await index_masterdata_card(
+        rag_session,
+        emb,
+        document_id=card_a,
+        organization_id=org.id,
+        source_type=SOURCE_TYPE_CONTACT,
+        card_text="Kontakt: Owner A",
+        contact_id=contact_a.id,
+        contact_name="Owner A",
+        property_id=prop.id,
+        sensitivity="high",
+        source_kind="KONTAKT",
+    )
+    await index_masterdata_card(
+        rag_session,
+        emb,
+        document_id=vendor_card,
+        organization_id=org.id,
+        source_type=SOURCE_TYPE_DIENSTLEISTER,
+        card_text="Dienstleister: V",
+        contact_id=uuid.uuid4(),
+        contact_name="V",
+        property_id=prop.id,
+        source_kind="DIENSTLEISTER",
+    )
+    await rag_session.flush()
+
+    async def _ids(user: User) -> set[uuid.UUID]:
+        scope = await resolve_caller_scope(session, user)
+        got = await retrieve(rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0)
+        return {c.document_id for c in got}
+
+    a_ids = await _ids(owner_a)
+    assert card_a in a_ids  # data subject sees their own card
+    assert vendor_card not in a_ids  # Dienstleister stays VERWALTER-only
+
+    b_ids = await _ids(owner_b)
+    assert card_a not in b_ids  # never another owner's contact card
+    assert vendor_card not in b_ids
+
+    v_ids = await _ids(verwalter)
+    assert {card_a, vendor_card} <= v_ids  # Verwalter sees both

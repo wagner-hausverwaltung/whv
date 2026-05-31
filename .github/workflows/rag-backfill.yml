@@ -9,8 +9,16 @@ name: rag-backfill
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "What to index: documents (OCR+embed) or masterdata (Dienstleister + contact cards)"
+        required: false
+        default: "documents"
+        type: choice
+        options:
+          - documents
+          - masterdata
       limit:
-        description: "Max documents to enqueue (blank = the whole corpus)"
+        description: "Max items to enqueue (blank = everything)"
         required: false
         default: "50"
 
@@ -39,11 +47,13 @@ jobs:
         env:
           COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
           LIMIT: ${{ github.event.inputs.limit }}
+          MODE: ${{ github.event.inputs.mode }}
         run: |
           FLAG=""
           if [ -n "$LIMIT" ]; then FLAG="--limit $LIMIT"; fi
+          if [ "$MODE" = "masterdata" ]; then FLAG="$FLAG --masterdata"; fi
           ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
             "cd ${PROD_REPO_DIR} && \
              grep -Eq '^GEMINI_API_KEY=.+' .env || { echo '::error ::GEMINI_API_KEY missing in prod .env — embeddings would fail'; exit 1; } && \
              ${COMPOSE} exec -T backend python -m app.scripts.backfill_rag ${FLAG}"
-          echo "::notice ::Backfill enqueued. The worker now runs OCR + embedding; check the Assistent tab in a few minutes."
+          echo "::notice ::Backfill enqueued (mode=${MODE:-documents}). The worker now embeds them; check the assistant in a few minutes."
