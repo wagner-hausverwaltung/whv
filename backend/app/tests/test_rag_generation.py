@@ -22,6 +22,31 @@ from app.tests._factories import make_document, make_org, make_property, make_us
 _VEC = [0.1] * EMBEDDING_DIM
 
 
+def test_build_prompt_omits_raw_document_ids() -> None:
+    # Regression: the prompt must NOT contain raw UUIDs or [doc:…] tokens, or
+    # the model parrots them into the answer (the "Doc 7 (019e782b-…" bug seen
+    # in prod). The source chips carry the real citations, not the prose.
+    import uuid
+
+    from app.rag.generation import _build_prompt
+    from app.rag.retrieval import RetrievedChunk
+
+    chunk = RetrievedChunk(
+        document_id=uuid.uuid4(),
+        chunk_text="Heizkostenabrechnung 2025 für Schmidener Str.",
+        page=3,
+        source_kind="RECHNUNG",
+        contact_name=None,
+        issued_date=None,
+        amount=None,
+        similarity=0.9,
+    )
+    prompt = _build_prompt("welche heizkostenabrechnungen siehst du?", [chunk])
+    assert "[doc:" not in prompt
+    assert str(chunk.document_id) not in prompt
+    assert "Heizkostenabrechnung 2025" in prompt  # context still included
+
+
 class FakeProvider:
     """Stands in for the Gemini provider: deterministic embeddings + a canned
     generation, recording whether/how generate() was called."""
