@@ -1,0 +1,162 @@
+name: prod-etv-dedup
+
+# Clean up the leftover duplicate ETV assemblies (the nightly backfill created
+# a fresh stub every night until the dedup fix shipped; prevention is now live,
+# this removes the EXISTING dups).
+#
+# mode=preview (default): READ-ONLY. Groups non-deleted assemblies by
+#   (property, date); for groups with >1 it picks ONE to KEEP — the copy whose
+#   status best matches the date (past→ABGEHALTEN, future→EINGELADEN/GEPLANT),
+#   then most agenda items, then most recently updated — and lists the rest as
+#   delete candidates. Also counts nameless "Dienstleister: ?" RAG cards.
+# mode=execute: soft-deletes the non-kept duplicates, purges their ETV cards
+#   from the RAG store, and purges the nameless Dienstleister cards.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preview (read-only) or execute"
+        required: false
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - execute
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  dedup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Dedup / preview
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          MODE_INPUT: ${{ github.event.inputs.mode }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && MODE='${MODE_INPUT}' ${COMPOSE} exec -T -e MODE backend python -" <<'PY'
+          import asyncio
+          import os
+          from collections import defaultdict
+          from datetime import UTC, date, datetime
+
+          from sqlalchemy import func, select, text, update
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.models.etv import AssemblyStatus, EtvAgendaItem, EtvAssembly
+          from app.rag.masterdata import etv_doc_id
+
+          MODE = os.environ.get("MODE", "preview")
+          NAMELESS = (
+              "source_type='dienstleister' AND "
+              "(contact_name IS NULL OR btrim(contact_name) IN ('', '?'))"
+          )
+
+
+          def _match(a: EtvAssembly, today: date) -> int:
+              past = a.scheduled_start.date() < today
+              if past and a.status == AssemblyStatus.ABGEHALTEN:
+                  return 1
+              if not past and a.status in (AssemblyStatus.EINGELADEN, AssemblyStatus.GEPLANT):
+                  return 1
+              return 0
+
+
+          async def main() -> None:
+              s = get_settings()
+              app_engine = create_async_engine(s.database_url)
+              rag_engine = create_async_engine(s.rag_database_url, isolation_level="AUTOCOMMIT")
+              today = date.today()
+              to_delete: list[tuple] = []  # (assembly_id, property_id)
+              sm = async_sessionmaker(app_engine, expire_on_commit=False)
+              try:
+                  async with sm() as sess:
+                      assemblies = (
+                          await sess.scalars(select(EtvAssembly).where(EtvAssembly.deleted_at.is_(None)))
+                      ).all()
+                      counts = dict(
+                          (
+                              await sess.execute(
+                                  select(EtvAgendaItem.assembly_id, func.count()).group_by(
+                                      EtvAgendaItem.assembly_id
+                                  )
+                              )
+                          ).all()
+                      )
+                      groups: dict[tuple, list[EtvAssembly]] = defaultdict(list)
+                      for a in assemblies:
+                          groups[(a.property_id, a.scheduled_start.date())].append(a)
+
+                      for (pid, d), group in sorted(groups.items(), key=lambda kv: str(kv[0])):
+                          if len(group) < 2:
+                              continue
+                          group.sort(
+                              key=lambda a: (_match(a, today), counts.get(a.id, 0), a.updated_at),
+                              reverse=True,
+                          )
+                          keep, dels = group[0], group[1:]
+                          print(
+                              f"GROUP prop={pid} date={d}: KEEP {keep.id} "
+                              f"(status={keep.status} items={counts.get(keep.id, 0)}) | "
+                              f"DELETE {[(str(x.id), str(x.status), counts.get(x.id, 0)) for x in dels]}"
+                          )
+                          to_delete.extend((x.id, x.property_id) for x in dels)
+
+                      print(f"\nTOTAL duplicate assemblies to soft-delete: {len(to_delete)}")
+
+                      if MODE == "execute" and to_delete:
+                          now = datetime.now(UTC)
+                          for aid, _ in to_delete:
+                              await sess.execute(
+                                  update(EtvAssembly).where(EtvAssembly.id == aid).values(deleted_at=now)
+                              )
+                          await sess.commit()
+                          print(f"soft-deleted {len(to_delete)} duplicate assemblies.")
+
+                  async with rag_engine.connect() as rag:
+                      nameless = (
+                          await rag.execute(text(f"SELECT count(*) FROM rag_chunks WHERE {NAMELESS}"))
+                      ).scalar_one()
+                      print(f"nameless Dienstleister cards in RAG store: {nameless}")
+                      if MODE == "execute":
+                          card_ids = [etv_doc_id(pid, aid) for aid, pid in to_delete]
+                          if card_ids:
+                              await rag.execute(
+                                  text("DELETE FROM rag_chunks WHERE document_id = ANY(:i)"),
+                                  {"i": card_ids},
+                              )
+                              await rag.execute(
+                                  text("DELETE FROM rag_documents WHERE document_id = ANY(:i)"),
+                                  {"i": card_ids},
+                              )
+                              print(f"purged {len(card_ids)} ETV cards for deleted assemblies.")
+                          ids = (
+                              await rag.execute(
+                                  text(f"SELECT DISTINCT document_id FROM rag_chunks WHERE {NAMELESS}")
+                              )
+                          ).scalars().all()
+                          await rag.execute(text("DELETE FROM rag_chunks WHERE document_id = ANY(:i)"), {"i": ids})
+                          await rag.execute(text("DELETE FROM rag_documents WHERE document_id = ANY(:i)"), {"i": ids})
+                          print(f"purged {len(ids)} nameless Dienstleister cards.")
+              finally:
+                  await app_engine.dispose()
+                  await rag_engine.dispose()
+
+
+          asyncio.run(main())
+          PY
