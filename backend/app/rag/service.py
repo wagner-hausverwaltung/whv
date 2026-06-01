@@ -248,6 +248,11 @@ async def reindex_dienstleister_card(
     vendor = next((v for v in vendors if v.contact_id == contact_id), None)
     if vendor is None:
         return None
+    # A nameless vendor card ("Dienstleister: ?") is pure noise in the assistant
+    # — it can't be a meaningful citation. Skip it so it never pollutes
+    # retrieval/citations.
+    if not (vendor.name or "").strip() or vendor.name.strip() == "?":
+        return None
 
     card = build_dienstleister_card(
         name=vendor.name,

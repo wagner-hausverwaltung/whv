@@ -157,6 +157,54 @@ async def test_backfill_respects_existing_within_one_day(
     assert skipped == 1
 
 
+async def test_backfill_skips_assembly_whose_date_moved_off_invitation(
+    test_engine: AsyncEngine,
+) -> None:
+    """Regression: once extraction links an assembly to its invitation and moves
+    scheduled_start to the REAL meeting date (weeks after the invitation), the
+    nightly backfill must NOT create a fresh stub — otherwise duplicates grow
+    every night. Dedup keys on the stable source-invitation issued_date, not the
+    mutated scheduled_start (which here is 3 weeks off, outside the ±1d fuzz)."""
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    invitation_issued = date(2024, 8, 1)
+    async with sm() as s:
+        inv = Document(
+            organization_id=org.id,
+            property_id=prop.id,
+            name="Einladung",
+            kind=DocumentKind.SONSTIGES,
+            impower_source_type="OWNERS_MEETING_INVITATION",
+            visibility=DocumentVisibility.PRIVATE,
+            issued_date=invitation_issued,
+        )
+        s.add(inv)
+        await s.commit()
+        await s.refresh(inv)
+        moved = EtvAssembly(
+            organization_id=org.id,
+            property_id=prop.id,
+            title="Eigentümerversammlung 2024",
+            description="",
+            location="Saal",
+            scheduled_start=datetime(2024, 8, 22, 16, 0, tzinfo=UTC),
+            scheduled_end=datetime(2024, 8, 22, 19, 0, tzinfo=UTC),
+            status=AssemblyStatus.ABGEHALTEN,
+            auto_extracted_source_document_id=inv.id,
+        )
+        s.add(moved)
+        await s.commit()
+
+    async with sm() as s:
+        created, skipped, _ = await backfill_assemblies_from_invitations(
+            s, organization_id=org.id, today=date(2026, 5, 25)
+        )
+        await s.commit()
+    assert (created, skipped) == (0, 1)
+
+
 async def test_backfill_status_heuristic(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
     prop = await make_property(test_engine, org=org)

@@ -259,6 +259,24 @@ async def backfill_assemblies_from_invitations(
     for prop_id, dt in (await session.execute(existing_stmt)).all():
         existing_keys.add((prop_id, dt))
 
+    # ALSO key on the SOURCE invitation's issued_date, which is stable. Once
+    # extraction links an assembly to its OWNERS_MEETING_INVITATION and moves
+    # scheduled_start to the real meeting date (~3 weeks after the invitation),
+    # the date-based key above no longer matches the invitation group — so a
+    # fresh stub was being created on every nightly run (growing duplicates).
+    # Matching on the invitation issued_date stops that.
+    src_stmt = (
+        select(EtvAssembly.property_id, Document.issued_date)
+        .join(Document, Document.id == EtvAssembly.auto_extracted_source_document_id)
+        .where(
+            EtvAssembly.organization_id == organization_id,
+            EtvAssembly.deleted_at.is_(None),
+            Document.issued_date.is_not(None),
+        )
+    )
+    for prop_id, dt in (await session.execute(src_stmt)).all():
+        existing_keys.add((prop_id, dt))
+
     created = 0
     skipped = 0
     created_ids: list[uuid.UUID] = []
