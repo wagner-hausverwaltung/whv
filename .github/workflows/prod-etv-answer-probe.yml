@@ -1,0 +1,111 @@
+name: prod-etv-answer-probe
+
+# Read-only end-to-end check of the ETV answer path: how many ETV cards get
+# force-fetched for a property, and what answer_question actually returns
+# (exercises retrieve + the ETV augmentation + Gemini). Makes one Gemini call.
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: "Question"
+        required: false
+        default: "wann war die letzte eigentümerversammlung"
+      needle:
+        description: "Property name substring"
+        required: false
+        default: "Hasenberg"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Answer probe
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          Q_INPUT: ${{ github.event.inputs.question }}
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && Q='${Q_INPUT}' NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e Q -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.llm import get_llm_provider
+          from app.models.property import Property
+          from app.models.user import User, UserRole
+          from app.rag.generation import answer_question
+          from app.rag.retrieval import fetch_property_etv_cards, resolve_caller_scope
+
+          NEEDLE = os.environ.get("NEEDLE", "Hasenberg")
+          Q = os.environ.get("Q", "wann war die letzte eigentümerversammlung")
+
+
+          async def main() -> None:
+              s = get_settings()
+              app_engine = create_async_engine(s.database_url)
+              rag_engine = create_async_engine(s.rag_database_url)
+              try:
+                  appm = async_sessionmaker(app_engine, expire_on_commit=False)
+                  ragm = async_sessionmaker(rag_engine, expire_on_commit=False)
+                  async with appm() as app, ragm() as rag:
+                      prop = (
+                          await app.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                      ).first()
+                      verw = (
+                          await app.scalars(
+                              select(User)
+                              .where(User.role == UserRole.VERWALTER, User.deleted_at.is_(None))
+                              .limit(1)
+                          )
+                      ).first()
+                      print(f"property={prop.id} | verwalter={verw.email if verw else None}")
+                      print(f"question={Q!r}")
+
+                      scope = await resolve_caller_scope(app, verw)
+                      cards = await fetch_property_etv_cards(rag, scope=scope, property_id=prop.id)
+                      print(f"\nETV cards force-fetched for this property: {len(cards)}")
+                      for c in cards:
+                          print(f"  CARD: {c.chunk_text[:130]}")
+
+                      prov = get_llm_provider()
+                      ans = await answer_question(
+                          app,
+                          rag,
+                          user=verw,
+                          question=Q,
+                          embedder=prov,
+                          generator=prov,
+                          settings=s,
+                          property_id=prop.id,
+                      )
+                      print(f"\nANSWER: {ans.answer}")
+                      print(
+                          f"abstained={ans.abstained} "
+                          f"sources={[(c.index, c.source_type, c.source_kind) for c in ans.sources]}"
+                      )
+              finally:
+                  await app_engine.dispose()
+                  await rag_engine.dispose()
+
+
+          asyncio.run(main())
+          PY
