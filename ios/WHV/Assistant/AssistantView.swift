@@ -251,13 +251,13 @@ private struct MessageBubble: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(message.sources) { source in
                         if source.isMasterData {
-                            // Master-data card (Dienstleister) — no file to open.
-                            // Shown as a labelled, non-tappable source; a full
-                            // deep-link to the vendor entity is a follow-up.
-                            citationChip(label: label(for: source), icon: "wrench.and.screwdriver.fill")
+                            // Master-data card (Dienstleister/Kontakt/ETV) — no
+                            // file to open. Shown as a labelled, non-tappable
+                            // source; a full deep-link to the entity is a follow-up.
+                            citationChip(label: label(for: source), icon: icon(for: source))
                         } else {
                             Button { onOpenCitation(source) } label: {
-                                citationChip(label: label(for: source), icon: "doc.text")
+                                citationChip(label: label(for: source), icon: icon(for: source))
                             }
                             .buttonStyle(.plain)
                         }
@@ -274,15 +274,31 @@ private struct MessageBubble: View {
 
     private func label(for source: AssistantCitation) -> String {
         let body: String
-        if source.isMasterData {
+        // Name master-data cards by kind — a contact card must NOT read
+        // "Dienstleister"; owners/tenants are Kontakte.
+        switch source.source_type {
+        case "dienstleister":
             body = "Dienstleister: \(source.contact_name ?? "?")"
-        } else {
+        case "contact":
+            body = "Kontakt: \(source.contact_name ?? "?")"
+        case "etv":
+            body = "Eigentümerversammlung"
+        default:
             let parts = [source.source_kind, source.contact_name].compactMap { $0 }
             let base = parts.isEmpty ? "Dokument" : parts.joined(separator: " · ")
             body = source.page.map { "\(base) · S.\($0)" } ?? base
         }
         // Prefix the cited number so it maps to the inline [n] in the answer.
         return "[\(source.index)] \(body)"
+    }
+
+    private func icon(for source: AssistantCitation) -> String {
+        switch source.source_type {
+        case "dienstleister": return "wrench.and.screwdriver.fill"
+        case "contact": return "person.fill"
+        case "etv": return "person.3.fill"
+        default: return "doc.text"
+        }
     }
 
     private func citationChip(label: String, icon: String) -> some View {
