@@ -1,0 +1,106 @@
+name: prod-rag-cleanup
+
+# Clean up stale RAG-store noise + preview duplicate ETV assemblies.
+# mode=preview (default): READ-ONLY — counts nameless Dienstleister cards in
+#   the RAG store and lists duplicate assembly groups (app DB).
+# mode=purge-nameless: DELETE the nameless "Dienstleister: ?" cards from the
+#   RAG store (chunks + docs). They're regenerable + the indexer now skips them,
+#   so this only removes existing noise. Does NOT touch app data.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preview (read-only) or purge-nameless"
+        required: false
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - purge-nameless
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Cleanup / preview
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          MODE_INPUT: ${{ github.event.inputs.mode }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && MODE='${MODE_INPUT}' ${COMPOSE} exec -T -e MODE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+
+          from app.config import get_settings
+
+          MODE = os.environ.get("MODE", "preview")
+          NAMELESS = (
+              "source_type='dienstleister' AND "
+              "(contact_name IS NULL OR btrim(contact_name) IN ('', '?'))"
+          )
+
+
+          async def main() -> None:
+              s = get_settings()
+              rag_engine = create_async_engine(s.rag_database_url, isolation_level="AUTOCOMMIT")
+              app_engine = create_async_engine(s.database_url)
+              try:
+                  async with rag_engine.connect() as rag:
+                      n = (
+                          await rag.execute(text(f"SELECT count(*) FROM rag_chunks WHERE {NAMELESS}"))
+                      ).scalar_one()
+                      print(f"nameless Dienstleister chunks in RAG store: {n}")
+                      if MODE == "purge-nameless":
+                          ids = (
+                              await rag.execute(
+                                  text(f"SELECT DISTINCT document_id FROM rag_chunks WHERE {NAMELESS}")
+                              )
+                          ).scalars().all()
+                          await rag.execute(
+                              text("DELETE FROM rag_chunks WHERE document_id = ANY(:ids)"), {"ids": ids}
+                          )
+                          await rag.execute(
+                              text("DELETE FROM rag_documents WHERE document_id = ANY(:ids)"),
+                              {"ids": ids},
+                          )
+                          print(f"PURGED {len(ids)} nameless Dienstleister cards (chunks + docs).")
+
+                  async with app_engine.connect() as app:
+                      print("\n=== duplicate assembly groups (property, date) ===")
+                      for pid, d, cnt in (
+                          await app.execute(
+                              text(
+                                  "SELECT property_id, date(scheduled_start) d, count(*) c "
+                                  "FROM etv_assemblies WHERE deleted_at IS NULL "
+                                  "GROUP BY property_id, date(scheduled_start) HAVING count(*) > 1 "
+                                  "ORDER BY c DESC LIMIT 40"
+                              )
+                          )
+                      ).all():
+                          print(f"  property={pid} date={d} count={cnt}")
+              finally:
+                  await rag_engine.dispose()
+                  await app_engine.dispose()
+
+
+          asyncio.run(main())
+          PY
