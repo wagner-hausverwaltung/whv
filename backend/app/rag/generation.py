@@ -27,9 +27,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.models.user import User
 from app.rag.ingestion import Embedder
+from app.rag.masterdata import SOURCE_TYPE_CONTACT, SOURCE_TYPE_ETV
 from app.rag.retrieval import (
     RetrievedChunk,
-    fetch_property_etv_cards,
+    fetch_property_cards,
     resolve_caller_scope,
     retrieve,
 )
@@ -49,6 +50,19 @@ _MAX_HISTORY_TURNS = 8
 # "…versammlung"). Triggers force-including ALL of the property's ETV cards so
 # date-relative answers ("letzte/nächste", "gab es andere") see every assembly.
 _ETV_QUERY_RE = re.compile(r"versammlung|\betv\b", re.IGNORECASE)
+
+# A question about the people on a property (DE + EN person/contact nouns).
+# Triggers force-including ALL of the property's contact cards so a roster
+# request ("alle Eigentümer mit Telefonnummer", "give me a table of contacts")
+# isn't truncated to the single closest card the ANN search returns.
+# "eigentümer(?!versammlung)" so a plain ETV question ("wann war die
+# Eigentümerversammlung") doesn't also drag in every contact card; "eigentümer"
+# still matches inside "miteigentümer".
+_CONTACT_QUERY_RE = re.compile(
+    r"kontakt|eigentümer(?!versammlung)|mieter|bewohner|ansprechpartner"
+    r"|\bcontacts?\b|\bowners?\b|\btenants?\b",
+    re.IGNORECASE,
+)
 
 _SYSTEM_INSTRUCTION = (
     "Du bist der digitale Assistent der Wagner Hausverwaltung und hilfst "
@@ -202,6 +216,18 @@ def _citations(chunks: list[RetrievedChunk], used_indices: set[int]) -> list[Cit
     return out
 
 
+def _prepend_cards(
+    cards: list[RetrievedChunk], chunks: list[RetrievedChunk]
+) -> list[RetrievedChunk]:
+    """Put force-included master-data cards FIRST (low source numbers → prominent
+    and survive any truncation), dropping any the ANN search already returned
+    (dedup by document id)."""
+    if not cards:
+        return chunks
+    card_ids = {c.document_id for c in cards}
+    return cards + [c for c in chunks if c.document_id not in card_ids]
+
+
 async def answer_question(
     app_session: AsyncSession,
     rag_session: AsyncSession,
@@ -239,18 +265,33 @@ async def answer_question(
             contact_query=contact_query,
         )
 
-    # ETV questions: ANN returns only the single closest assembly card, so
-    # "welche war die letzte / gab es andere" can't be answered. Force EVERY ETV
-    # card for the selected property into the context, listed FIRST (low source
-    # numbers so they're prominent + survive any truncation). Deduped against
-    # what ANN already returned.
-    if property_id is not None and _ETV_QUERY_RE.search(question):
-        etv_cards = await fetch_property_etv_cards(
-            rag_session, scope=scope, property_id=property_id
-        )
-        if etv_cards:
-            etv_ids = {c.document_id for c in etv_cards}
-            chunks = etv_cards + [c for c in chunks if c.document_id not in etv_ids]
+    # Roster questions: ANN returns only the single closest card, so "welche war
+    # die letzte ETV / gab es andere" or "alle Eigentümer mit Telefonnummer"
+    # can't be answered completely. For the selected property, force EVERY card
+    # of the matching kind into context. fetch_property_cards is ACL-scoped, so a
+    # non-VERWALTER only ever gets their OWN contact card — never another owner's
+    # PII (the §4 sensitivity rule).
+    if property_id is not None:
+        if _ETV_QUERY_RE.search(question):
+            chunks = _prepend_cards(
+                await fetch_property_cards(
+                    rag_session,
+                    scope=scope,
+                    property_id=property_id,
+                    source_type=SOURCE_TYPE_ETV,
+                ),
+                chunks,
+            )
+        if _CONTACT_QUERY_RE.search(question):
+            chunks = _prepend_cards(
+                await fetch_property_cards(
+                    rag_session,
+                    scope=scope,
+                    property_id=property_id,
+                    source_type=SOURCE_TYPE_CONTACT,
+                ),
+                chunks,
+            )
 
     # Nothing to answer from — don't bother the LLM. A follow-up that retrieves
     # nothing but has conversation context (e.g. "fass das zusammen") still

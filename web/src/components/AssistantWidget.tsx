@@ -16,8 +16,12 @@ import {
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import CloseIcon from "@mui/icons-material/Close";
+import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import DescriptionIcon from "@mui/icons-material/Description";
+import GroupsIcon from "@mui/icons-material/Groups";
 import HandymanIcon from "@mui/icons-material/Handyman";
+import OpenInFullIcon from "@mui/icons-material/OpenInFull";
+import PersonIcon from "@mui/icons-material/Person";
 import SendIcon from "@mui/icons-material/Send";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
@@ -59,13 +63,21 @@ function isMasterData(source: Citation): boolean {
 }
 
 function citationLabel(source: Citation): string {
-  if (isMasterData(source)) {
-    // A Dienstleister/contact card — name it, no page number.
-    return `Dienstleister: ${source.contact_name ?? "?"}`;
-  }
+  // Master-data cards: name them by kind (no page number). A contact card must
+  // NOT read "Dienstleister" — owners/tenants are Kontakte.
+  if (source.source_type === "dienstleister") return `Dienstleister: ${source.contact_name ?? "?"}`;
+  if (source.source_type === "contact") return `Kontakt: ${source.contact_name ?? "?"}`;
+  if (source.source_type === "etv") return "Eigentümerversammlung";
   const parts = [source.source_kind, source.contact_name].filter(Boolean);
   const base = parts.length > 0 ? parts.join(" · ") : "Dokument";
   return source.page != null ? `${base} · S.${source.page}` : base;
+}
+
+function citationIcon(source: Citation) {
+  if (source.source_type === "dienstleister") return <HandymanIcon />;
+  if (source.source_type === "contact") return <PersonIcon />;
+  if (source.source_type === "etv") return <GroupsIcon />;
+  return <DescriptionIcon />;
 }
 
 /**
@@ -88,6 +100,8 @@ export function AssistantWidget() {
   // in the admin overview.
   const conversationIdRef = useRef(crypto.randomUUID());
   const [open, setOpen] = useState(false);
+  // Lets the user widen/heighten the panel (sm+); mobile is already full-screen.
+  const [expanded, setExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -211,10 +225,10 @@ export function AssistantWidget() {
             position: "fixed",
             bottom: { xs: 0, sm: 24 },
             right: { xs: 0, sm: 24 },
-            width: { xs: "100vw", sm: "30vw" },
-            minWidth: { sm: 360 },
-            maxWidth: { sm: 560 },
-            height: { xs: "100dvh", sm: "min(72vh, 660px)" },
+            width: { xs: "100vw", sm: expanded ? "min(68vw, 920px)" : "30vw" },
+            minWidth: { sm: expanded ? 600 : 360 },
+            maxWidth: { sm: expanded ? 920 : 560 },
+            height: { xs: "100dvh", sm: expanded ? "calc(100vh - 48px)" : "min(72vh, 660px)" },
             maxHeight: { xs: "100dvh", sm: "calc(100vh - 48px)" },
             display: "flex",
             flexDirection: "column",
@@ -244,6 +258,18 @@ export function AssistantWidget() {
                 {t("assistant.subtitle")}
               </Typography>
             </Box>
+            <IconButton
+              size="small"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={t(expanded ? "assistant.collapse" : "assistant.expand")}
+              sx={{ display: { xs: "none", sm: "inline-flex" } }}
+            >
+              {expanded ? (
+                <CloseFullscreenIcon fontSize="small" />
+              ) : (
+                <OpenInFullIcon fontSize="small" />
+              )}
+            </IconButton>
             <IconButton size="small" onClick={() => setOpen(false)} aria-label={t("assistant.close")}>
               <CloseIcon fontSize="small" />
             </IconButton>
@@ -280,7 +306,7 @@ export function AssistantWidget() {
                         <Chip
                           key={source.index}
                           size="small"
-                          icon={isMasterData(source) ? <HandymanIcon /> : <DescriptionIcon />}
+                          icon={citationIcon(source)}
                           clickable
                           onClick={() => openCitation(source)}
                           label={`[${source.index}] ${citationLabel(source)}`}

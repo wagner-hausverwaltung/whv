@@ -233,7 +233,7 @@
   },
   "assistant": {
     "title": "Assistent",
-    "subtitle": "Fragen Sie zu Ihren Dokumenten und Stammdaten — mit Quellenangaben.",
+    "subtitle": "Fragen Sie zu Ihren Dokumenten und Stammdaten.",
     "empty": "Stellen Sie eine Frage, z. B. „Wie hoch war die Heizungsrechnung 2025?“",
     "placeholder": "Ihre Frage…",
     "send": "Senden",
@@ -245,7 +245,9 @@
     "documentError": "Das Dokument konnte nicht geöffnet werden.",
     "disclaimer": "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente.",
     "open": "Assistent öffnen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "expand": "Vergrößern",
+    "collapse": "Verkleinern"
   },
   "admin": {
     "title": "Admin",

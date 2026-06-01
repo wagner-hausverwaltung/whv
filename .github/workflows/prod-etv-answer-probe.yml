@@ -53,7 +53,8 @@ jobs:
           from app.models.property import Property
           from app.models.user import User, UserRole
           from app.rag.generation import answer_question
-          from app.rag.retrieval import fetch_property_etv_cards, resolve_caller_scope
+          from app.rag.masterdata import SOURCE_TYPE_ETV
+          from app.rag.retrieval import fetch_property_cards, resolve_caller_scope
 
           NEEDLE = os.environ.get("NEEDLE", "Hasenberg")
           Q = os.environ.get("Q", "wann war die letzte eigentümerversammlung")
@@ -81,7 +82,9 @@ jobs:
                       print(f"question={Q!r}")
 
                       scope = await resolve_caller_scope(app, verw)
-                      cards = await fetch_property_etv_cards(rag, scope=scope, property_id=prop.id)
+                      cards = await fetch_property_cards(
+                          rag, scope=scope, property_id=prop.id, source_type=SOURCE_TYPE_ETV
+                      )
                       print(f"\nETV cards force-fetched for this property: {len(cards)}")
                       for c in cards:
                           print(f"  CARD: {c.chunk_text[:130]}")

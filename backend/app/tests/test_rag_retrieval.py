@@ -410,7 +410,7 @@ async def test_etv_card_visible_to_property_members_only(
     assert card_id in await _ids(verwalter)  # Verwalter sees everything
 
 
-async def test_fetch_property_etv_cards_returns_all(
+async def test_fetch_property_cards_etv_returns_all(
     test_engine: AsyncEngine, rag_session: AsyncSession
 ) -> None:
     """The ETV-question fix: ANN returns only the closest assembly card, so we
@@ -418,7 +418,7 @@ async def test_fetch_property_etv_cards_returns_all(
     every assembly (not just one) and stays scoped to the property + org."""
     from app.rag.ingestion import index_masterdata_card
     from app.rag.masterdata import SOURCE_TYPE_ETV, etv_doc_id
-    from app.rag.retrieval import CallerScope, fetch_property_etv_cards
+    from app.rag.retrieval import CallerScope, fetch_property_cards
 
     org = await make_org(test_engine)
     prop = await make_property(test_engine, org=org, name="ETV-ALL")
@@ -445,5 +445,56 @@ async def test_fetch_property_etv_cards_returns_all(
     await rag_session.flush()
 
     scope = CallerScope(organization_id=org.id, is_verwalter=True, visible_document_ids=None)
-    got = await fetch_property_etv_cards(rag_session, scope=scope, property_id=prop.id)
+    got = await fetch_property_cards(
+        rag_session, scope=scope, property_id=prop.id, source_type=SOURCE_TYPE_ETV
+    )
     assert {c.document_id for c in got} == {c1, c2}  # ALL of the property's, not the other's
+
+
+async def test_fetch_property_cards_contacts_acl(
+    test_engine: AsyncEngine, rag_session: AsyncSession
+) -> None:
+    """The contact-roster fix + its ACL: a VERWALTER force-fetches ALL of a
+    property's contact cards (so "give me a table of contacts" is complete);
+    a non-VERWALTER gated to only their OWN visible id gets just their card,
+    never another owner's PII (contacts are sensitivity=high, §4)."""
+    from app.rag.ingestion import index_masterdata_card
+    from app.rag.masterdata import SOURCE_TYPE_CONTACT, contact_doc_id
+    from app.rag.retrieval import CallerScope, fetch_property_cards
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="KONTAKT-ALL")
+    k1, k2 = uuid.uuid4(), uuid.uuid4()  # two contacts (e.g. two owners)
+    d1, d2 = contact_doc_id(prop.id, k1), contact_doc_id(prop.id, k2)
+    emb = _StubEmbedder()
+    for did, cid, name in ((d1, k1, "Jan Prüfer"), (d2, k2, "Natsios")):
+        await index_masterdata_card(
+            rag_session,
+            emb,
+            document_id=did,
+            organization_id=org.id,
+            source_type=SOURCE_TYPE_CONTACT,
+            card_text=f"Kontakt: {name}",
+            contact_id=cid,
+            contact_name=name,
+            property_id=prop.id,
+            sensitivity="high",
+            source_kind="KONTAKT",
+        )
+    await rag_session.flush()
+
+    verwalter = CallerScope(organization_id=org.id, is_verwalter=True, visible_document_ids=None)
+    all_got = await fetch_property_cards(
+        rag_session, scope=verwalter, property_id=prop.id, source_type=SOURCE_TYPE_CONTACT
+    )
+    assert {c.document_id for c in all_got} == {d1, d2}  # VERWALTER: the full roster
+
+    # A non-VERWALTER whose only visible contact card is their own (d1) gets just
+    # that — never d2, another owner's PII.
+    owner = CallerScope(
+        organization_id=org.id, is_verwalter=False, visible_document_ids=frozenset({d1})
+    )
+    own_got = await fetch_property_cards(
+        rag_session, scope=owner, property_id=prop.id, source_type=SOURCE_TYPE_CONTACT
+    )
+    assert {c.document_id for c in own_got} == {d1}

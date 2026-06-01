@@ -30,7 +30,7 @@ from app.models.contact import Contact
 from app.models.document import Document
 from app.models.etv import EtvAssembly
 from app.models.user import User, UserRole
-from app.rag.masterdata import SOURCE_TYPE_ETV, contact_doc_id, etv_doc_id
+from app.rag.masterdata import contact_doc_id, etv_doc_id
 from app.rag.models import RagChunk
 
 
@@ -206,26 +206,29 @@ async def retrieve(
     return results
 
 
-async def fetch_property_etv_cards(
+async def fetch_property_cards(
     rag_session: AsyncSession,
     *,
     scope: CallerScope,
     property_id: uuid.UUID,
-    limit: int = 15,
+    source_type: str,
+    limit: int = 40,
 ) -> list[RetrievedChunk]:
-    """ALL ETV (Eigentümerversammlung) cards for one property, ACL-scoped.
+    """ALL master-data cards of one ``source_type`` for one property, ACL-scoped.
 
-    ANN returns only the single most-similar ETV card, so "welche war die letzte
-    / gab es andere ETVs" can't be answered — the model never sees the others.
-    For ETV questions we force every assembly card into the context via this
-    helper (similarity=1.0 since they're deliberately included, not ranked).
-    Same ACL as retrieve(): VERWALTER sees the org; others are gated to their
-    visible document-id set (which includes their properties' ETV-card ids)."""
+    ANN returns only the single most-similar card, so a roster question ("welche
+    Versammlungen gab es", "alle Eigentümer mit Telefonnummer") comes back
+    incomplete — the model never sees the rest. For those we force every card of
+    the kind into context via this helper (similarity=1.0 since they're
+    deliberately included, not ranked). Same ACL as retrieve(): VERWALTER sees
+    the org; others are gated to their visible document-id set — which for
+    contact cards is just their OWN (resolve_caller_scope), so a non-VERWALTER
+    can never pull another owner's PII this way."""
     if not scope.is_verwalter and not scope.visible_document_ids:
         return []
     stmt = select(RagChunk).where(
         RagChunk.organization_id == scope.organization_id,
-        RagChunk.source_type == SOURCE_TYPE_ETV,
+        RagChunk.source_type == source_type,
         RagChunk.property_id == property_id,
     )
     if not scope.is_verwalter:

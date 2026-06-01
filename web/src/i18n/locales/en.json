@@ -233,7 +233,7 @@
   },
   "assistant": {
     "title": "Assistant",
-    "subtitle": "Ask about your documents and master data — with source citations.",
+    "subtitle": "Ask about your documents and master data.",
     "empty": "Ask a question, e.g. “How much was the 2025 heating invoice?”",
     "placeholder": "Your question…",
     "send": "Send",
@@ -245,7 +245,9 @@
     "documentError": "The document could not be opened.",
     "disclaimer": "Answers may contain errors — the linked documents are authoritative.",
     "open": "Open assistant",
-    "close": "Close"
+    "close": "Close",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "admin": {
     "title": "Admin",
