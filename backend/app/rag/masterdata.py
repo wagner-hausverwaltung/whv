@@ -147,7 +147,8 @@ def build_etv_card(
     themselves are separate (citable, downloadable) document chunks. Skips
     absent fields like the other card builders.
     """
-    parts: list[str] = [f"Eigentümerversammlung: {title}"]
+    # "(ETV)" so the common abbreviation matches the card in plain retrieval too.
+    parts: list[str] = [f"Eigentümerversammlung (ETV): {title}"]
     if property_label:
         parts.append(f"Liegenschaft: {property_label}")
     if date:

@@ -408,3 +408,42 @@ async def test_etv_card_visible_to_property_members_only(
     assert card_id in await _ids(member)  # property member sees the ETV card
     assert card_id not in await _ids(outsider)  # other property → never
     assert card_id in await _ids(verwalter)  # Verwalter sees everything
+
+
+async def test_fetch_property_etv_cards_returns_all(
+    test_engine: AsyncEngine, rag_session: AsyncSession
+) -> None:
+    """The ETV-question fix: ANN returns only the closest assembly card, so we
+    force-fetch ALL of a property's ETV cards. This guard ensures it returns
+    every assembly (not just one) and stays scoped to the property + org."""
+    from app.rag.ingestion import index_masterdata_card
+    from app.rag.masterdata import SOURCE_TYPE_ETV, etv_doc_id
+    from app.rag.retrieval import CallerScope, fetch_property_etv_cards
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="ETV-ALL")
+    other = await make_property(test_engine, org=org, name="ETV-OTHER")
+    a1, a2 = uuid.uuid4(), uuid.uuid4()
+    c1, c2 = etv_doc_id(prop.id, a1), etv_doc_id(prop.id, a2)
+    c_other = etv_doc_id(other.id, uuid.uuid4())
+    emb = _StubEmbedder()
+    for cid, pid, txt in (
+        (c1, prop.id, "ETV 02.02.2026"),
+        (c2, prop.id, "ETV 28.04.2026"),
+        (c_other, other.id, "ETV anderes Objekt"),
+    ):
+        await index_masterdata_card(
+            rag_session,
+            emb,
+            document_id=cid,
+            organization_id=org.id,
+            source_type=SOURCE_TYPE_ETV,
+            card_text=txt,
+            property_id=pid,
+            source_kind="ETV",
+        )
+    await rag_session.flush()
+
+    scope = CallerScope(organization_id=org.id, is_verwalter=True, visible_document_ids=None)
+    got = await fetch_property_etv_cards(rag_session, scope=scope, property_id=prop.id)
+    assert {c.document_id for c in got} == {c1, c2}  # ALL of the property's, not the other's

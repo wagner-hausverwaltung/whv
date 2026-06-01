@@ -30,7 +30,7 @@ from app.models.contact import Contact
 from app.models.document import Document
 from app.models.etv import EtvAssembly
 from app.models.user import User, UserRole
-from app.rag.masterdata import contact_doc_id, etv_doc_id
+from app.rag.masterdata import SOURCE_TYPE_ETV, contact_doc_id, etv_doc_id
 from app.rag.models import RagChunk
 
 
@@ -204,3 +204,47 @@ async def retrieve(
             )
         )
     return results
+
+
+async def fetch_property_etv_cards(
+    rag_session: AsyncSession,
+    *,
+    scope: CallerScope,
+    property_id: uuid.UUID,
+    limit: int = 15,
+) -> list[RetrievedChunk]:
+    """ALL ETV (Eigentümerversammlung) cards for one property, ACL-scoped.
+
+    ANN returns only the single most-similar ETV card, so "welche war die letzte
+    / gab es andere ETVs" can't be answered — the model never sees the others.
+    For ETV questions we force every assembly card into the context via this
+    helper (similarity=1.0 since they're deliberately included, not ranked).
+    Same ACL as retrieve(): VERWALTER sees the org; others are gated to their
+    visible document-id set (which includes their properties' ETV-card ids)."""
+    if not scope.is_verwalter and not scope.visible_document_ids:
+        return []
+    stmt = select(RagChunk).where(
+        RagChunk.organization_id == scope.organization_id,
+        RagChunk.source_type == SOURCE_TYPE_ETV,
+        RagChunk.property_id == property_id,
+    )
+    if not scope.is_verwalter:
+        assert scope.visible_document_ids is not None
+        stmt = stmt.where(RagChunk.document_id.in_(scope.visible_document_ids))
+    rows = (await rag_session.scalars(stmt.limit(limit))).all()
+    return [
+        RetrievedChunk(
+            document_id=c.document_id,
+            chunk_text=c.chunk_text,
+            page=c.page,
+            source_kind=c.source_kind,
+            contact_name=c.contact_name,
+            issued_date=c.issued_date,
+            amount=c.amount,
+            similarity=1.0,
+            source_type=c.source_type,
+            contact_id=c.contact_id,
+            property_id=c.property_id,
+        )
+        for c in rows
+    ]

@@ -108,7 +108,7 @@ def test_build_etv_card_full() -> None:
         beschluesse=["Wirtschaftsplan 2026 — angenommen"],
     )
     assert card == (
-        "Eigentümerversammlung: Eigentümerversammlung 2026 · "
+        "Eigentümerversammlung (ETV): Eigentümerversammlung 2026 · "
         "Liegenschaft: WEG Hasenbergstraße 32 · Termin: 28.04.2026, 18:00 · "
         "Ort: Johannesstraße 2, Stuttgart · Status: Abgehalten · "
         "Tagesordnung: TOP 1: Begrüßung; TOP 2: Wirtschaftsplan 2026 · "
@@ -117,7 +117,7 @@ def test_build_etv_card_full() -> None:
 
 
 def test_build_etv_card_skips_missing() -> None:
-    assert build_etv_card(title="ETV 2025") == "Eigentümerversammlung: ETV 2025"
+    assert build_etv_card(title="ETV 2025") == "Eigentümerversammlung (ETV): ETV 2025"
 
 
 def test_etv_doc_id_distinct_from_other_cards() -> None:

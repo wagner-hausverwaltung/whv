@@ -27,7 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.models.user import User
 from app.rag.ingestion import Embedder
-from app.rag.retrieval import RetrievedChunk, resolve_caller_scope, retrieve
+from app.rag.retrieval import (
+    RetrievedChunk,
+    fetch_property_etv_cards,
+    resolve_caller_scope,
+    retrieve,
+)
 
 ABSTAIN_ANSWER = "Dazu habe ich nichts gefunden."
 
@@ -39,6 +44,11 @@ _CITATION_RE = re.compile(r"\[(\d+)\]")
 # Cap how much conversation we replay into the prompt — recent turns are what
 # follow-ups ("fass das zusammen") need; older ones just cost tokens.
 _MAX_HISTORY_TURNS = 8
+
+# A question about Eigentümerversammlungen (matches the full word, "ETV", or any
+# "…versammlung"). Triggers force-including ALL of the property's ETV cards so
+# date-relative answers ("letzte/nächste", "gab es andere") see every assembly.
+_ETV_QUERY_RE = re.compile(r"versammlung|\betv\b", re.IGNORECASE)
 
 _SYSTEM_INSTRUCTION = (
     "Du bist der digitale Assistent der Wagner Hausverwaltung und hilfst "
@@ -228,6 +238,19 @@ async def answer_question(
             kind=kind,
             contact_query=contact_query,
         )
+
+    # ETV questions: ANN returns only the single closest assembly card, so
+    # "welche war die letzte / gab es andere" can't be answered. Force EVERY ETV
+    # card for the selected property into the context, listed FIRST (low source
+    # numbers so they're prominent + survive any truncation). Deduped against
+    # what ANN already returned.
+    if property_id is not None and _ETV_QUERY_RE.search(question):
+        etv_cards = await fetch_property_etv_cards(
+            rag_session, scope=scope, property_id=property_id
+        )
+        if etv_cards:
+            etv_ids = {c.document_id for c in etv_cards}
+            chunks = etv_cards + [c for c in chunks if c.document_id not in etv_ids]
 
     # Nothing to answer from — don't bother the LLM. A follow-up that retrieves
     # nothing but has conversation context (e.g. "fass das zusammen") still
