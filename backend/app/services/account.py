@@ -53,22 +53,45 @@ async def load_my_account(
     client: object,
     *,
     property_impower_id: int,
-    contact_id_impower: int,
+    contract_impower_ids: list[int],
 ) -> HausgeldAccountResponse:
-    """Resolve the caller's CONTACT account on a property, sum its
+    """Resolve the caller's Hausgeld account on a property, sum its
     bookings into a balance, and return the booking list (newest first).
-    Returns an empty shell when the owner has no such account."""
+    Returns an empty shell when the owner has no such account.
+
+    The owner's accounts are sourced by CONTRACT in Impower (sourceType=
+    CONTRACT, keyed by the owner's contract id) — NOT CONTACT, which only
+    holds vendor / Kreditoren accounts. Each owner contract carries ~10
+    sub-accounts (Hausgeld, Rücklage, Sonderumlage, Mahngebühren, …); the
+    regular Hausgeld debitor is the leaf named 'Hausgeld …', which is what
+    'Mein Hausgeldkonto' shows."""
+    if not contract_impower_ids:
+        return _EMPTY
     accounts_raw = await client.get_accounts(  # type: ignore[attr-defined]
         property_id=property_impower_id,
-        source_ids=[contact_id_impower],
-        source_types=["CONTACT"],
+        source_ids=contract_impower_ids,
+        source_types=["CONTRACT"],
     )
     accounts = _content(accounts_raw)
     if not accounts:
         return _EMPTY
 
-    # Prefer a leaf account (the bookable one); fall back to the first.
-    account = next((a for a in accounts if a.get("leaf")), accounts[0])
+    # The regular Hausgeld debitor ("Hausgeld 4 - Luis Wagner"); fall back to
+    # the first leaf if Impower ever renames it.
+    account = (
+        next(
+            (
+                a
+                for a in accounts
+                if a.get("leaf")
+                and isinstance(a.get("name"), str)
+                and a["name"].startswith("Hausgeld")
+            ),
+            None,
+        )
+        or next((a for a in accounts if a.get("leaf")), None)
+        or accounts[0]
+    )
     account_id = account.get("id")
     if not isinstance(account_id, int):
         return _EMPTY

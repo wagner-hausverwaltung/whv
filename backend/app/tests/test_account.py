@@ -41,11 +41,20 @@ class _FakeClient:
         return {"content": self._postings}
 
 
-async def test_load_account_resolves_leaf_and_sums_balance() -> None:
+async def test_load_account_picks_hausgeld_and_sums_balance() -> None:
+    # Owner contract accounts: a parent group + the Soll-Rücklage leaf +
+    # the Hausgeld debitor leaf. We must pick the Hausgeld one (not the
+    # Rücklage, not the parent), querying by CONTRACT source.
     client = _FakeClient(
         accounts=[
-            {"id": 5, "leaf": False, "name": "Sammelkonto"},
-            {"id": 10, "leaf": True, "accountHrId": "D-1000", "name": "Müller"},
+            {"id": 5, "leaf": False, "name": "4 - Luis Wagner"},
+            {
+                "id": 7,
+                "leaf": True,
+                "accountHrId": "2000/4/2/0",
+                "name": "Soll-Rücklage 4 - Luis Wagner",
+            },
+            {"id": 10, "leaf": True, "accountHrId": "2000/4/1", "name": "Hausgeld 4 - Luis Wagner"},
         ],
         postings=[
             {"postDate": "2026-01-15", "bookingText": "Hausgeld Januar", "amount": -250.0},
@@ -53,22 +62,30 @@ async def test_load_account_resolves_leaf_and_sums_balance() -> None:
             {"postDate": "2026-02-15", "bookingText": "Hausgeld Februar", "amount": -250.0},
         ],
     )
-    res = await load_my_account(client, property_impower_id=1, contact_id_impower=999)
+    res = await load_my_account(client, property_impower_id=1, contract_impower_ids=[999])
 
-    # Picked the leaf account, scoped by CONTACT source.
-    assert res.account_id == 10
-    assert res.account_hr_id == "D-1000"
-    assert client.account_calls[0]["source_types"] == ["CONTACT"]
+    # Queried by CONTRACT (owner accounts), not CONTACT (vendors).
+    assert client.account_calls[0]["source_types"] == ["CONTRACT"]
     assert client.account_calls[0]["source_ids"] == [999]
+    # Picked the Hausgeld debitor leaf — not the Rücklage leaf, not the parent.
+    assert res.account_id == 10
+    assert res.account_hr_id == "2000/4/1"
     # Balance = signed sum of all bookings.
     assert res.balance == Decimal("-250.0")
     assert len(res.bookings) == 3
     assert res.bookings[0].booking_text == "Hausgeld Januar"
 
 
-async def test_load_account_empty_when_no_contact_account() -> None:
-    client = _FakeClient(accounts=[], postings=[])
-    res = await load_my_account(client, property_impower_id=1, contact_id_impower=999)
+async def test_load_account_empty_when_no_contract_or_account() -> None:
+    # No contracts → empty shell, without even calling Impower.
+    res = await load_my_account(
+        _FakeClient(accounts=[], postings=[]), property_impower_id=1, contract_impower_ids=[]
+    )
     assert res.account_id is None
     assert res.balance is None
     assert res.bookings == []
+    # Contracts but Impower returns no matching accounts → empty too.
+    res2 = await load_my_account(
+        _FakeClient(accounts=[], postings=[]), property_impower_id=1, contract_impower_ids=[999]
+    )
+    assert res2.account_id is None

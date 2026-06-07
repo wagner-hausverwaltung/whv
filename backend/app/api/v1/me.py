@@ -743,6 +743,31 @@ async def get_my_account(
             status_code=status.HTTP_404_NOT_FOUND, detail="Kein Hausgeldkonto vorhanden."
         )
 
+    # The owner's Hausgeld account is keyed by their CONTRACT in Impower
+    # (CONTACT-sourced accounts hold vendors/Kreditoren, not owners). Resolve
+    # the caller's active contract impower-ids on this property.
+    contract_impower_ids = [
+        cid
+        for cid in (
+            await session.scalars(
+                select(Contract.impower_id)
+                .join(ContractContact, ContractContact.contract_id == Contract.id)
+                .join(Contact, Contact.id == ContractContact.contact_id)
+                .where(
+                    Contact.impower_id == current_user.contact_id_impower,
+                    Contract.property_id == prop.id,
+                    Contract.impower_id.is_not(None),
+                    active_contract_filter(),
+                )
+            )
+        ).all()
+        if cid is not None
+    ]
+    if not contract_impower_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Kein Hausgeldkonto vorhanden."
+        )
+
     if not settings.impower_api_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -757,7 +782,7 @@ async def get_my_account(
             return await account_svc.load_my_account(
                 client,
                 property_impower_id=prop.impower_id,
-                contact_id_impower=current_user.contact_id_impower,
+                contract_impower_ids=contract_impower_ids,
             )
     except ImpowerError:
         raise HTTPException(
