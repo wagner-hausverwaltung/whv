@@ -23,6 +23,7 @@ from app.models import (
     DevicePlatform,
     Document,
     DocumentFolder,
+    DocumentKind,
     Property,
     Unit,
     User,
@@ -348,6 +349,33 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     )
 
 
+def _invoice_visibility_filter(user: User):  # type: ignore[no-untyped-def]
+    """Visibility for the Dienstleister (vendor) invoice path.
+
+    A vendor invoice is ``kind=RECHNUNG`` pinned to the VENDOR's
+    ``contact_id`` (the vendors service buckets by it) with no unit/
+    contract FK — i.e. a WEG-wide expense every owner of the property is
+    entitled to see (it's part of the Abrechnung). The generic
+    ``_document_visibility_filter`` only matches a doc's ``contact_id``
+    against the CALLER's own contact, so it wrongly hid vendor invoices
+    from owners: the list (property-wide, no filter) showed them, but the
+    detail + PDF download 404'd ("Invoice not found" / "Download failed").
+
+    So for invoices we additionally admit any ``RECHNUNG`` with no unit/
+    contract pin. A RECHNUNG that IS pinned to a unit/contract
+    (Sondereigentum repair billed to one owner) stays scoped via the base
+    filter. The caller's property access is still enforced separately, so
+    this never crosses a property boundary."""
+    return or_(
+        _document_visibility_filter(user),
+        and_(
+            Document.kind == DocumentKind.RECHNUNG,
+            Document.unit_id.is_(None),
+            Document.contract_id.is_(None),
+        ),
+    )
+
+
 @router.get("/properties", response_model=list[PropertyResponse])
 async def get_my_properties(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -632,10 +660,11 @@ async def get_my_invoice_detail(
         Document.deleted_at.is_(None),
     )
     if current_user.role != UserRole.VERWALTER:
-        # Same row-scope check the documents endpoint uses — if the
-        # invoice is unit/contract/contact-pinned and this caller
-        # isn't on the right side, hide it.
-        doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
+        # Invoice-aware row scope: a WEG vendor invoice (RECHNUNG, no
+        # unit/contract pin) is visible to every owner — matching the
+        # property-wide vendor LIST — while a unit/contract-pinned invoice
+        # stays scoped to the parties on it.
+        doc_stmt = doc_stmt.where(_invoice_visibility_filter(current_user))
     doc = await session.scalar(doc_stmt)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
@@ -938,7 +967,11 @@ async def download_my_document(
         Document.deleted_at.is_(None),
     )
     if current_user.role != UserRole.VERWALTER:
-        doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
+        # Invoice-aware: lets an owner download a WEG vendor invoice
+        # (RECHNUNG, no unit/contract pin); for every other kind this is
+        # identical to the plain document filter (the RECHNUNG branch
+        # can't match), so non-invoice downloads stay gated as before.
+        doc_stmt = doc_stmt.where(_invoice_visibility_filter(current_user))
     doc = await session.scalar(doc_stmt)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
