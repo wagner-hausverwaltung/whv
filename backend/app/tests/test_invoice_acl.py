@@ -26,6 +26,10 @@ from app.tests._factories import (
     make_user,
 )
 
+# Distinctive impower id — the session test DB keeps committed rows, so this
+# must not collide with another test's contact (contacts.impower_id is unique).
+_OWNER_IMPOWER_ID = 9300042
+
 
 async def test_owner_sees_weg_vendor_invoice_but_not_scoped_one(
     test_engine: AsyncEngine,
@@ -34,20 +38,18 @@ async def test_owner_sees_weg_vendor_invoice_but_not_scoped_one(
     prop = await make_property(test_engine, org=org)
     sm = async_sessionmaker(test_engine, expire_on_commit=False)
 
-    # Owner: Contact (impower_id 5001) + active OWNER contract on their unit.
+    # Owner: Contact + active OWNER contract on their unit.
     owner_unit = await make_unit(test_engine, org=org, prop=prop)
     await make_contact_with_contract_link(
-        test_engine, org=org, prop=prop, contact_impower_id=5001, unit=owner_unit
+        test_engine, org=org, prop=prop, contact_impower_id=_OWNER_IMPOWER_ID, unit=owner_unit
     )
     owner, _, _ = await make_user(
-        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=5001
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=_OWNER_IMPOWER_ID
     )
 
     # Vendor contact (no contract of its own).
     async with sm() as s:
-        vendor = Contact(
-            organization_id=org.id, kind=ContactKind.COMPANY, company_name="Acme GmbH"
-        )
+        vendor = Contact(organization_id=org.id, kind=ContactKind.COMPANY, company_name="Acme GmbH")
         s.add(vendor)
         await s.commit()
         await s.refresh(vendor)
@@ -67,23 +69,31 @@ async def test_owner_sees_weg_vendor_invoice_but_not_scoped_one(
         contact=vendor,
     )
 
-    async def _visible(filter_expr: object) -> set[object]:
-        async with sm() as s:
-            return set(
-                (
-                    await s.scalars(
-                        select(Document.id).where(
-                            Document.property_id == prop.id, filter_expr
-                        )
+    async with sm() as s:
+        old_visible = set(
+            (
+                await s.scalars(
+                    select(Document.id).where(
+                        Document.property_id == prop.id,
+                        _document_visibility_filter(owner),
                     )
-                ).all()
-            )
+                )
+            ).all()
+        )
+        new_visible = set(
+            (
+                await s.scalars(
+                    select(Document.id).where(
+                        Document.property_id == prop.id,
+                        _invoice_visibility_filter(owner),
+                    )
+                )
+            ).all()
+        )
 
     # The OLD generic filter hid the WEG vendor invoice — that was the bug.
-    assert weg_invoice.id not in await _visible(_document_visibility_filter(owner))
-
-    # The invoice-aware filter admits the WEG vendor invoice…
-    new_visible = await _visible(_invoice_visibility_filter(owner))
+    assert weg_invoice.id not in old_visible
+    # The invoice-aware filter surfaces it…
     assert weg_invoice.id in new_visible
     # …but a unit-pinned invoice on a unit the owner isn't on stays hidden.
     assert scoped_invoice.id not in new_visible
