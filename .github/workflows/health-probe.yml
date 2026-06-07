@@ -6,8 +6,11 @@
 #   • Impower /properties?size=1   (upstream API still answering)
 #
 # Failure modes:
-#   - Any probe returns non-200 → workflow fails → GitHub sends the
-#     standard "Workflow failed" email to the repo admins.
+#   - Our staging /healthz or /readyz returns non-200 → workflow fails →
+#     GitHub sends the standard "Workflow failed" email to repo admins.
+#   - Impower 5xx/timeout (their DEV replica down) → ::warning:: only,
+#     the probe still passes — it's their outage, not ours. A 401/403
+#     from Impower (our token broke) DOES fail.
 #   - For broader notification (Slack, PagerDuty), wire an
 #     `on: workflow_run` follow-up later.
 #
@@ -60,20 +63,44 @@ jobs:
         # 2026-05-25 with the staging .env's IMPOWER_API_TOKEN.
         # GH Actions forbids `secrets.X` inside `if:` expressions, so
         # we pipe the token via env var and gate inside the script.
+        #
+        # Impower's replica is a DEV instance that goes down for
+        # maintenance — a 5xx/timeout there is THEIR outage, not ours.
+        # So we retry, then downgrade to a ::warning:: (yellow, no
+        # failure email) instead of failing this probe. We still
+        # HARD-fail on 401/403 (our token broke) and other unexpected
+        # non-2xx; staging /healthz + /readyz above stay hard failures.
         env:
           IMPOWER_TOKEN: ${{ secrets.IMPOWER_API_TOKEN }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -z "${IMPOWER_TOKEN:-}" ]; then
             echo "IMPOWER_API_TOKEN not configured — skipping"
             exit 0
           fi
-          status=$(curl -sS -o /tmp/impower.body -w '%{http_code}' \
-            --max-time 15 \
-            -H "Authorization: Bearer $IMPOWER_TOKEN" \
-            'https://api.prod-replica.develop.impower.de/v2/properties?size=1')
-          echo "HTTP $status"
+          status=000
+          for attempt in 1 2 3; do
+            status=$(curl -sS -o /tmp/impower.body -w '%{http_code}' \
+              --max-time 15 \
+              -H "Authorization: Bearer $IMPOWER_TOKEN" \
+              'https://api.prod-replica.develop.impower.de/v2/properties?size=1' || echo 000)
+            echo "attempt $attempt: HTTP $status"
+            [ "$status" = "200" ] && break
+            [ "$attempt" -lt 3 ] && sleep 5
+          done
           # First 200 chars of body for diagnostic, never the auth header.
-          head -c 200 /tmp/impower.body || true
+          head -c 200 /tmp/impower.body 2>/dev/null || true
           echo
-          test "$status" = "200"
+          if [ "$status" = "200" ]; then
+            exit 0
+          fi
+          # 000 = curl failed (timeout/DNS/conn); 5xx = Impower infra
+          # down. Both are Impower-side outages → warn, don't fail.
+          if [ "$status" = "000" ] || [ "$status" -ge 500 ]; then
+            echo "::warning title=Impower upstream unavailable::Impower replica returned HTTP ${status} (their outage) — not failing the probe."
+            exit 0
+          fi
+          # Anything else (401/403 = our token broke, unexpected 4xx) is
+          # actionable for US → hard fail.
+          echo "::error title=Impower check failed::Unexpected HTTP ${status} from Impower (token or contract change)."
+          exit 1
