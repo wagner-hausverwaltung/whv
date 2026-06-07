@@ -112,20 +112,36 @@ jobs:
                           print(f"\nALL accounts on property: {len(allacc)}")
                           for a in allacc[:50]:
                               print("  " + acc_row(a))
-                          print("\nload_my_account query (source_types=CONTACT) per owner:")
+                          print("\nper owner: CONTACT vs CONTRACT accounts (the fix lives here)")
                           seen = set()
                           for cimp, ctrimp, fn, ln, ctype in rows:
                               if cimp in seen or cimp is None:
                                   continue
                               seen.add(cimp)
-                              got = (
+                              ct = (
                                   await cl.get_accounts(
                                       property_id=prop.impower_id,
                                       source_ids=[cimp],
                                       source_types=["CONTACT"],
                                   )
                               ).get("content", [])
-                              print(f"  contact {cimp} ({fn} {ln}): CONTACT-accounts={len(got)}")
+                              cr = (
+                                  (
+                                      await cl.get_accounts(
+                                          property_id=prop.impower_id,
+                                          source_ids=[ctrimp],
+                                          source_types=["CONTRACT"],
+                                      )
+                                  ).get("content", [])
+                                  if ctrimp
+                                  else []
+                              )
+                              print(
+                                  f"  {fn} {ln} (contact={cimp} contract={ctrimp}): "
+                                  f"CONTACT={len(ct)} CONTRACT={len(cr)}"
+                              )
+                              for a in cr:
+                                  print("      CONTRACT " + acc_row(a))
               finally:
                   await eng.dispose()
 
