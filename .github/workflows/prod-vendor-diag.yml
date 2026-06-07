@@ -1,0 +1,170 @@
+name: prod-vendor-diag
+
+# Read-only diagnosis for "supplier + contacts missing on the iOS app".
+# For info@/ullrich@: role + contact_id_impower, and the EXACT set of
+# properties _visible_properties_stmt would return (what the app can pick).
+# For each "Friedrich" property: unit count, active-contract count (drives the
+# contact chips), RECHNUNG doc count + how many carry a vendor contact_id, and
+# the actual load_vendors_for_property() result (drives the Dienstleister
+# section). Pure DB reads — no writes, no Impower calls.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "property name substring to inspect in depth"
+        required: false
+        default: "Friedrich"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import func, select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.models import Contact, Contract, ContractContact, Property, Unit, User
+          from app.models.document import Document, DocumentKind
+          from app.models.property import PropertyState
+          from app.models.user import UserRole
+          from app.services.access import active_contract_filter
+          from app.services.vendors import load_vendors_for_property
+
+          NEEDLE = os.environ.get("NEEDLE", "Friedrich")
+
+
+          def visible_stmt(u):
+              base = select(Property).where(
+                  Property.organization_id == u.organization_id,
+                  Property.deleted_at.is_(None),
+              )
+              if u.role == UserRole.VERWALTER:
+                  return base
+              return (
+                  base.where(Property.state == PropertyState.READY)
+                  .join(Contract, Contract.property_id == Property.id)
+                  .join(ContractContact, ContractContact.contract_id == Contract.id)
+                  .join(Contact, Contact.id == ContractContact.contact_id)
+                  .where(Contact.impower_id == u.contact_id_impower)
+                  .where(active_contract_filter())
+                  .distinct()
+              )
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      for em in (
+                          "info@wagner-hausverwaltung.com",
+                          "ullrich@wagner-hausverwaltung.com",
+                      ):
+                          u = (await db.scalars(select(User).where(User.email == em))).first()
+                          print(f"\n=== {em} ===")
+                          if not u:
+                              print("  NO ACCOUNT")
+                              continue
+                          print(
+                              f"  role={u.role} contact_id_impower={u.contact_id_impower} "
+                              f"deleted={u.deleted_at} org={u.organization_id}"
+                          )
+                          props = (await db.scalars(visible_stmt(u))).all()
+                          print(f"  visible properties: {len(props)}")
+                          for p in props:
+                              print(f"    - {p.name!r} state={p.state} id={p.id}")
+
+                      print(f"\n=== deep-dive on properties matching {NEEDLE!r} ===")
+                      matches = (
+                          await db.scalars(
+                              select(Property).where(Property.name.ilike(f"%{NEEDLE}%"))
+                          )
+                      ).all()
+                      print(f"matched {len(matches)} property(ies)")
+                      for p in matches:
+                          units = (
+                              await db.scalar(
+                                  select(func.count()).select_from(Unit).where(Unit.property_id == p.id)
+                              )
+                          ) or 0
+                          all_ct = (
+                              await db.scalar(
+                                  select(func.count())
+                                  .select_from(Contract)
+                                  .where(Contract.property_id == p.id)
+                              )
+                          ) or 0
+                          active_ct = (
+                              await db.scalar(
+                                  select(func.count())
+                                  .select_from(Contract)
+                                  .where(Contract.property_id == p.id, active_contract_filter())
+                              )
+                          ) or 0
+                          rech = (
+                              await db.scalar(
+                                  select(func.count())
+                                  .select_from(Document)
+                                  .where(
+                                      Document.property_id == p.id,
+                                      Document.kind == DocumentKind.RECHNUNG,
+                                      Document.deleted_at.is_(None),
+                                  )
+                              )
+                          ) or 0
+                          rech_vendor = (
+                              await db.scalar(
+                                  select(func.count())
+                                  .select_from(Document)
+                                  .where(
+                                      Document.property_id == p.id,
+                                      Document.kind == DocumentKind.RECHNUNG,
+                                      Document.deleted_at.is_(None),
+                                      Document.contact_id.is_not(None),
+                                  )
+                              )
+                          ) or 0
+                          vendors = await load_vendors_for_property(db, property_id=p.id)
+                          print(
+                              f"\n  {p.name!r} state={p.state} id={p.id}\n"
+                              f"    units={units} contracts={all_ct} active_contracts={active_ct}\n"
+                              f"    RECHNUNG docs={rech} (with vendor contact_id={rech_vendor})\n"
+                              f"    load_vendors_for_property -> {len(vendors)} vendor(s)"
+                          )
+                          for v in vendors[:6]:
+                              print(
+                                  f"      * {v.name!r} kind={v.kind} invoices={v.invoice_count} "
+                                  f"year_total={v.total_amount} phone={bool(v.phone)} "
+                                  f"email={bool(v.email)} recent={len(v.recent_invoices)}"
+                              )
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
