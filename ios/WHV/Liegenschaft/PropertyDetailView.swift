@@ -100,59 +100,64 @@ struct PropertyDetailView: View {
     /// Sheet binding. nil = closed.
     @State private var contactSheetTarget: ContactSheetTarget?
     @State private var invoiceSheetTarget: InvoiceSheetTarget?
+    @State private var showDocuments = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                headerCard
-                if !quickActions.isEmpty {
-                    quickActionsSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    headerCard
+                    quickActionsSection(scroll: proxy)
+                    kontaktSection
+                    if let units = store.detail?.units, !units.isEmpty {
+                        einheitenSection(units: units)
+                    }
+                    if let account = store.account, account.account_id != nil {
+                        hausgeldkontoSection(account: account)
+                    }
+                    if !store.rentSettlements.isEmpty {
+                        mietabrechnungSection(settlements: store.rentSettlements)
+                    }
+                    if !store.vendors.isEmpty {
+                        dienstleisterSection(vendors: store.vendors)
+                            .id("dienstleister")
+                    }
+                    wechselnSection
                 }
-                kontaktSection
-                if let units = store.detail?.units, !units.isEmpty {
-                    einheitenSection(units: units)
-                }
-                if let account = store.account, account.account_id != nil {
-                    hausgeldkontoSection(account: account)
-                }
-                if !store.rentSettlements.isEmpty {
-                    mietabrechnungSection(settlements: store.rentSettlements)
-                }
-                if !store.vendors.isEmpty {
-                    dienstleisterSection(vendors: store.vendors)
-                }
-                wechselnSection
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-        }
-        .navigationTitle("Liegenschaft")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            store.onUnauthorized = { [weak authStore] in
-                authStore?.signOut()
+            .navigationTitle("Liegenschaft")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                store.onUnauthorized = { [weak authStore] in
+                    authStore?.signOut()
+                }
             }
-        }
-        .task(id: property.id) {
-            await store.load(id: property.id)
-        }
-        .refreshable { await store.load(id: property.id) }
-        .sheet(item: $contactSheetTarget) { target in
-            ContactDetailSheet(
-                contractId: target.contractId,
-                contactId: target.contactId,
-                fallbackLabel: target.fallbackLabel,
-                contractType: target.contractType
-            )
-            .environmentObject(authStore)
-        }
-        .sheet(item: $invoiceSheetTarget) { target in
-            InvoiceDetailSheet(
-                propertyId: property.id,
-                vendorName: target.vendorName,
-                invoice: target.invoice
-            )
-            .environmentObject(authStore)
+            .task(id: property.id) {
+                await store.load(id: property.id)
+            }
+            .refreshable { await store.load(id: property.id) }
+            .sheet(item: $contactSheetTarget) { target in
+                ContactDetailSheet(
+                    contractId: target.contractId,
+                    contactId: target.contactId,
+                    fallbackLabel: target.fallbackLabel,
+                    contractType: target.contractType
+                )
+                .environmentObject(authStore)
+            }
+            .sheet(item: $invoiceSheetTarget) { target in
+                InvoiceDetailSheet(
+                    propertyId: property.id,
+                    vendorName: target.vendorName,
+                    invoice: target.invoice
+                )
+                .environmentObject(authStore)
+            }
+            .sheet(isPresented: $showDocuments) {
+                DocumentsView(propertyId: property.id)
+            }
         }
     }
 
@@ -222,7 +227,7 @@ struct PropertyDetailView: View {
         ]
     }
 
-    private var quickActionsSection: some View {
+    private func quickActionsSection(scroll: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Schnellzugriff")
                 .font(.subheadline.weight(.semibold))
@@ -233,32 +238,62 @@ struct PropertyDetailView: View {
                     Button {
                         deepLinkRouter.handle(action.url)
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: action.systemImage)
-                                .font(.title3)
-                                .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
-                                .background(action.color)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            Text(action.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.secondarySystemBackground))
+                        quickRow(
+                            title: action.title,
+                            systemImage: action.systemImage,
+                            color: action.color
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Documents — the iOS counterpart of the portal Dokumente tab.
+                Button {
+                    showDocuments = true
+                } label: {
+                    quickRow(title: "Dokumente", systemImage: "folder.fill", color: .blue)
+                }
+                .buttonStyle(.plain)
+                // Jump to the Dienstleister section below (only when present).
+                if !store.vendors.isEmpty {
+                    Button {
+                        withAnimation { scroll.scrollTo("dienstleister", anchor: .top) }
+                    } label: {
+                        quickRow(
+                            title: "Dienstleister",
+                            systemImage: "wrench.and.screwdriver.fill",
+                            color: .gray
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func quickRow(title: LocalizedStringResource, systemImage: String, color: Color)
+        -> some View
+    {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(color)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
 
     // MARK: - Verwaltung contact

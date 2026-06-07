@@ -863,6 +863,13 @@ struct APIClient {
         return try await authedGET("/me/properties/\(id)")
     }
 
+    /// GET /me/properties/{id}/documents — the property's documents the
+    /// signed-in owner may see (row-scope applied server-side). Demo: empty.
+    func getMyPropertyDocuments(propertyId: String) async throws -> [DocumentResponse] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/me/properties/\(propertyId)/documents")
+    }
+
     /// GET /me/properties/{id}/vendors — aggregate of every invoice
     /// document on the property keyed by vendor contact. Drives the
     /// Dienstleister section on PropertyDetailView. Demo mode hands
