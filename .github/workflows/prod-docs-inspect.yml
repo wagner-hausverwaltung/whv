@@ -1,0 +1,112 @@
+name: prod-docs-inspect
+
+# Read-only: dump a property's Document rows (kind, name, issued_date, scope,
+# impower_id, + the raw Impower fields) so we can tell genuine duplicates from
+# distinct Impower documents and see where messy names ("Sonderumlage
+# Sonderumlage …") come from. No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "Property name substring"
+        required: false
+        default: "Friedrich"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Inspect documents
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+          from collections import Counter
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.models.document import Document
+          from app.models.property import Property
+
+          NEEDLE = os.environ.get("NEEDLE", "Friedrich")
+
+
+          def kind_of(d):
+              return d.kind.value if hasattr(d.kind, "value") else str(d.kind)
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      prop = (
+                          await db.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                      ).first()
+                      print(f"property={prop.id} | {prop.name!r}")
+                      docs = (
+                          await db.scalars(
+                              select(Document)
+                              .where(Document.property_id == prop.id, Document.deleted_at.is_(None))
+                              .order_by(Document.kind, Document.name)
+                          )
+                      ).all()
+                      print(f"total non-deleted docs: {len(docs)}")
+
+                      counts = Counter((kind_of(d), d.name) for d in docs)
+                      print("\n=== same (kind, name) appearing >1 (look-alikes) ===")
+                      for (k, n), cnt in sorted(counts.items(), key=lambda x: -x[1]):
+                          if cnt > 1:
+                              print(f"  x{cnt} [{k}] {n!r}")
+
+                      print("\n=== all rows ===")
+                      for d in docs:
+                          raw = d.raw_jsonb or {}
+                          extra = {
+                              kk: raw.get(kk)
+                              for kk in (
+                                  "name", "fileName", "sourceType", "subject",
+                                  "category", "description", "title", "issuedDate",
+                              )
+                              if kk in raw
+                          }
+                          scope = [
+                              s for s, v in (
+                                  ("unit", d.unit_id),
+                                  ("contract", d.contract_id),
+                                  ("contact", d.contact_id),
+                              ) if v is not None
+                          ] or ["WEG-wide"]
+                          print(
+                              f"  impower_id={d.impower_id} [{kind_of(d)}] "
+                              f"date={d.issued_date} scope={','.join(scope)}"
+                          )
+                          print(f"      our name = {d.name!r}")
+                          print(f"      impower  = {extra}")
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
