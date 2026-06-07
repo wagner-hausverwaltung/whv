@@ -114,6 +114,21 @@ function formatDocAmount(amount: string | null | undefined): string | null {
   return Number.isFinite(n) ? EUR.format(n) : null;
 }
 
+// Impower composes some document names with a doubled leading word
+// ("Sonderumlage Sonderumlage Sanierung Innenhof"). Collapse runs of the SAME
+// consecutive word (case-insensitive, Unicode-safe) for display + de-dup
+// keying. Keeps the first occurrence's casing and squashes extra whitespace.
+function collapseRepeatedWords(s: string): string {
+  const out: string[] = [];
+  for (const w of s.split(/\s+/)) {
+    if (!w) continue;
+    if (out.length === 0 || out[out.length - 1]!.toLowerCase() !== w.toLowerCase()) {
+      out.push(w);
+    }
+  }
+  return out.join(" ");
+}
+
 type DocSortKey = "date" | "name" | "kind";
 type SortDir = "asc" | "desc";
 
@@ -218,11 +233,12 @@ export function DocumentFoldersPanel({
   // reads as a meaningless ID in the list. For RECHNUNG docs lead with
   // the amount (the recognisable bit) and keep the number as context.
   const docTitle = (d: DocumentResponse): string => {
+    const name = collapseRepeatedWords(d.name);
     if (d.kind === "RECHNUNG") {
       const amount = formatDocAmount(d.amount);
-      if (amount) return d.name ? `${amount} · ${d.name}` : amount;
+      if (amount) return name ? `${amount} · ${name}` : amount;
     }
-    return d.name;
+    return name;
   };
 
   const refresh = useCallback(async () => {
@@ -276,7 +292,7 @@ export function DocumentFoldersPanel({
 
   // Visible docs: when searching, scan ALL folders (find, don't navigate);
   // otherwise just the current folder. Then apply the active sort.
-  const visibleDocs = useMemo(() => {
+  const { visibleDocs, dupeCount } = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const pool = searching
       ? docs
@@ -296,7 +312,34 @@ export function DocumentFoldersPanel({
               .toLowerCase();
             return tokens.every((tok) => hay.includes(tok));
           });
-    return [...matched].sort((a, b) => compareDocs(a, b, sortKey, sortDir, t));
+    // Fold true duplicates: Impower emits identical docs more than once
+    // (e.g. 2× the WEG-wide Gesamtwirtschaftsplan; a dated + an undated copy of
+    // the same Sonderumlage). Group by kind + collapsed name + scope, keep ONE
+    // representative (prefer the dated one), and remember the count so the row
+    // can show "×N". Different unit/contract scopes never collapse — those are
+    // legitimate per-owner copies.
+    const groups = new Map<string, DocumentResponse[]>();
+    for (const d of matched) {
+      const key = [
+        d.kind,
+        collapseRepeatedWords(d.name).toLowerCase(),
+        d.unit_id ?? "",
+        d.contract_id ?? "",
+        d.contact_id ?? "",
+      ].join(" ");
+      const g = groups.get(key);
+      if (g) g.push(d);
+      else groups.set(key, [d]);
+    }
+    const counts = new Map<string, number>();
+    const deduped: DocumentResponse[] = [];
+    for (const g of groups.values()) {
+      const rep = g.find((d) => d.issued_date) ?? g[0]!;
+      deduped.push(rep);
+      counts.set(rep.id, g.length);
+    }
+    deduped.sort((a, b) => compareDocs(a, b, sortKey, sortDir, t));
+    return { visibleDocs: deduped, dupeCount: counts };
   }, [docs, searching, query, currentFolderId, sortKey, sortDir, t]);
 
   // Tag each doc with a year header when the year changes — only for the
@@ -697,6 +740,20 @@ export function DocumentFoldersPanel({
                             })}
                           />
                           <Typography variant="body2">{docTitle(d)}</Typography>
+                          {(dupeCount.get(d.id) ?? 1) > 1 && (
+                            <Tooltip
+                              title={t("documents.dupeCount", {
+                                count: dupeCount.get(d.id),
+                              })}
+                            >
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                label={`×${dupeCount.get(d.id)}`}
+                              />
+                            </Tooltip>
+                          )}
                           {(() => {
                             const chip = scopeChip(d);
                             return chip ? (

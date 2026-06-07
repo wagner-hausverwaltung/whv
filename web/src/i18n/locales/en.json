@@ -154,6 +154,7 @@
     "sortKind": "Class",
     "sortAsc": "Ascending",
     "sortDesc": "Descending",
+    "dupeCount": "{{count}} identical copies in Impower",
     "kind": {
       "RECHNUNG": "Invoice",
       "JAHRESABRECHNUNG": "Jahresabrechnung",
