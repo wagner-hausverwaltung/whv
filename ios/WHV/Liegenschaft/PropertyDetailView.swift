@@ -96,7 +96,6 @@ struct PropertyDetailView: View {
     @StateObject private var store = PropertyDetailStore()
     @EnvironmentObject var authStore: AuthStore
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
-    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     /// Sheet binding. nil = closed.
     @State private var contactSheetTarget: ContactSheetTarget?
     @State private var invoiceSheetTarget: InvoiceSheetTarget?
@@ -108,7 +107,6 @@ struct PropertyDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     headerCard
                     quickActionsSection(scroll: proxy)
-                    kontaktSection
                     if let units = store.detail?.units, !units.isEmpty {
                         einheitenSection(units: units)
                     }
@@ -202,31 +200,6 @@ struct PropertyDetailView: View {
 
     // MARK: - Quick actions
 
-    /// Returns the actions that make sense for the active property —
-    /// jumps to existing tabs rather than reimplementing flows.
-    private var quickActions: [QuickAction] {
-        [
-            QuickAction(
-                title: "Neues Ticket",
-                systemImage: "plus.bubble",
-                color: .orange,
-                url: URL(string: "whv://new-ticket")!
-            ),
-            QuickAction(
-                title: "ETV ansehen",
-                systemImage: "person.3.fill",
-                color: .accentColor,
-                url: URL(string: "whv://etv")!
-            ),
-            QuickAction(
-                title: "Mitteilungen",
-                systemImage: "megaphone.fill",
-                color: .green,
-                url: URL(string: "whv://mitteilungen")!
-            ),
-        ]
-    }
-
     private func quickActionsSection(scroll: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Schnellzugriff")
@@ -234,18 +207,6 @@ struct PropertyDetailView: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             VStack(spacing: 8) {
-                ForEach(quickActions) { action in
-                    Button {
-                        deepLinkRouter.handle(action.url)
-                    } label: {
-                        quickRow(
-                            title: action.title,
-                            systemImage: action.systemImage,
-                            color: action.color
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
                 // Documents — the iOS counterpart of the portal Dokumente tab.
                 Button {
                     showDocuments = true
@@ -296,46 +257,6 @@ struct PropertyDetailView: View {
         )
     }
 
-    // MARK: - Verwaltung contact
-
-    private var kontaktSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Verwaltung")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Link(destination: WHVContact.telURL) {
-                HStack(spacing: 12) {
-                    Image(systemName: "phone.fill")
-                        .font(.title3)
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(Color.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(WHVContact.displayName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text("Wagner Hausverwaltung")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(.secondarySystemBackground))
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
     // MARK: - Einheiten
 
     private func einheitenSection(units: [UnitResponse]) -> some View {
@@ -364,7 +285,7 @@ struct PropertyDetailView: View {
                         }
                     )
                     if unit.id != units.last?.id {
-                        Divider().padding(.leading, 56)
+                        Divider().padding(.leading, 48)
                     }
                 }
             }
@@ -567,14 +488,6 @@ struct PropertyDetailView: View {
     }
 }
 
-private struct QuickAction: Identifiable {
-    let id = UUID()
-    let title: LocalizedStringResource
-    let systemImage: String
-    let color: Color
-    let url: URL
-}
-
 private struct UnitRow: View {
     let unit: UnitResponse
     /// Property-level gate from the parent: WEG / SEV → true; MV →
@@ -585,18 +498,26 @@ private struct UnitRow: View {
     let onContactTap: (ContactSheetTarget) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: iconName)
-                .font(.body)
+                .font(.caption)
                 .foregroundStyle(.tint)
-                .frame(width: 32, height: 32)
+                .frame(width: 26, height: 26)
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 6) {
-                // Heading: HR-ID first, fallback to type.
-                Text(unit.unit_hr_id ?? unit.type)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 3) {
+                // Heading + location on one line (HR-ID, then floor / position).
+                HStack(spacing: 6) {
+                    Text(unit.unit_hr_id ?? unit.type)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if !geoText.isEmpty {
+                        Text(geoText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
 
                 // Master-table metrics. Each shows only when the
                 // backend actually populated it so empty stub
@@ -634,29 +555,13 @@ private struct UnitRow: View {
                     }
                 }
 
-                // Secondary: floor + position. The kind of thing
-                // you'd skim if you don't recognise the HR-ID.
-                if hasGeo {
-                    HStack(spacing: 6) {
-                        if let floor = unit.floor, !floor.isEmpty {
-                            Text(floor)
-                        }
-                        if let pos = unit.position, !pos.isEmpty {
-                            Text("·").foregroundStyle(.tertiary)
-                            Text(pos)
-                        }
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                }
-
                 // Role-tagged contracts (one chip per Eigentümer /
                 // Mieter / Objekteigentümer currently on the unit).
                 // Backend renders contact_label, we just chip it.
                 // Each chip is a Button — tapping opens the full
                 // contact card via the parent's sheet binding.
                 if !unit.current_contracts.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 2) {
                         ForEach(unit.current_contracts) { c in
                             // Rows without a contact_id (rare data-
                             // hygiene case) can't open the sheet —
@@ -681,19 +586,21 @@ private struct UnitRow: View {
                             }
                         }
                     }
-                    .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 7)
     }
 
-    private var hasGeo: Bool {
-        let f = unit.floor?.isEmpty == false
-        let p = unit.position?.isEmpty == false
-        return f || p
+    /// Location label shown next to the unit number. Position ("EG" / "1. OG"
+    /// / "DG") reads best; fall back to the raw floor when there's no position.
+    /// Showing both alongside the unit number just produced "1 · 1 · EG".
+    private var geoText: String {
+        if let p = unit.position, !p.isEmpty { return p }
+        if let f = unit.floor, !f.isEmpty { return f }
+        return ""
     }
 
     private func metric(label: LocalizedStringResource, value: String) -> some View {
@@ -789,35 +696,40 @@ private struct VendorRow: View {
     }
 
     private var header: some View {
+        // NB: absolute Color.primary/.secondary (not the hierarchical
+        // .primary/.tertiary ShapeStyles). DisclosureGroup tints its label
+        // with the accent colour, and hierarchical styles resolve *against*
+        // that tint — so .tertiary rendered as a near-invisible dim blue in
+        // dark mode. Absolute label colours ignore the tint and stay legible.
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: vendor.kind == "COMPANY" ? "briefcase.fill" : "person.fill")
                 .font(.body)
-                .foregroundStyle(.tint)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 32, height: 32)
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 4) {
                 Text(vendor.name)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.primary)
                 HStack(spacing: 6) {
                     if let last = vendor.last_service_date,
                        let formatted = formatDate(last)
                     {
                         Text("Zuletzt \(formatted)")
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.secondary)
                     }
                     Text("· \(vendor.invoice_count) Rechnung\(vendor.invoice_count == 1 ? "" : "en")")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.secondary)
                     if let total = vendor.total_amount {
                         // Backend now reports the CURRENT calendar year's
                         // total only — label it with the year so it's not
                         // mistaken for the all-time figure.
                         Text("· \(formatAmount(total)) € (\(Calendar.current.component(.year, from: Date())))")
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.secondary)
                     }
                 }
             }
