@@ -18,6 +18,11 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- App uses only standard HTTPS/TLS (system-provided), which is exempt
+	     under U.S. EAR. Declaring NO skips the App Store Connect export-
+	     compliance prompt + the "Missing Compliance" gate on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
