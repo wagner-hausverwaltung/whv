@@ -14,10 +14,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
+  TextField,
   Typography,
 } from "@mui/material";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
+import SearchIcon from "@mui/icons-material/Search";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AdminPropertyListItem } from "@/api/types";
@@ -29,6 +32,12 @@ const EUR0 = new Intl.NumberFormat("de-DE", {
   maximumFractionDigits: 0,
 });
 
+// Sortable columns. The name already embeds the full address (Impower
+// names properties "MV Kornwestheimer Straße 59B, 70439 Stammheim"), so a
+// separate address column/sort is redundant — we sort on name + HR-ID only.
+type SortKey = "name" | "hrId";
+type SortDir = "asc" | "desc";
+
 // Hardcoded management-fee step function of total units (Wagner's
 // internal schedule). 1100 € is the base tier; the fee steps up at 140,
 // 170 and 250 units and caps at 2000 €.
@@ -39,6 +48,15 @@ function salaryForUnits(units: number): number {
   return 1100;
 }
 
+function readSortField(p: AdminPropertyListItem, key: SortKey): string | null {
+  switch (key) {
+    case "name":
+      return p.name;
+    case "hrId":
+      return p.property_hr_id;
+  }
+}
+
 export function AdminPropertiesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -46,6 +64,12 @@ export function AdminPropertiesPage() {
   const [error, setError] = useState<string | null>(null);
   // Checked property ids → the units/salary summary box sums these.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Free-text search over name + HR-ID; the name carries the address, so
+  // a ZIP/street query still matches. Client-side because the list is
+  // capped at 200 rows — snappier than a round-trip per keystroke.
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +102,38 @@ export function AdminPropertiesPage() {
     saveSelection([...next]);
   };
 
+  // Filtered + sorted view. Summing units below stays on `selected` over
+  // the FULL list, so a search never changes the fee total — only what's
+  // shown/select-all-able.
+  const visibleRows = useMemo(() => {
+    const all = rows ?? [];
+    const q = query.trim().toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const filtered =
+      tokens.length === 0
+        ? all
+        : all.filter((p) => {
+            const haystack = [p.name, p.property_hr_id]
+              .filter((s): s is string => !!s)
+              .join(" ")
+              .toLowerCase();
+            return tokens.every((tok) => haystack.includes(tok));
+          });
+    return [...filtered].sort((a, b) => {
+      const av = readSortField(a, sortKey);
+      const bv = readSortField(b, sortKey);
+      // Empty cells sort last in both directions.
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      const cmp = av.localeCompare(bv, "de-DE", {
+        sensitivity: "base",
+        numeric: true,
+      });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, query, sortKey, sortDir]);
+
   const totalUnits = useMemo(
     () =>
       (rows ?? [])
@@ -85,6 +141,15 @@ export function AdminPropertiesPage() {
         .reduce((sum, p) => sum + (p.units_count ?? 0), 0),
     [rows, selected],
   );
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (rows === null) {
@@ -95,10 +160,17 @@ export function AdminPropertiesPage() {
     );
   }
 
-  const allSelected = rows.length > 0 && rows.every((p) => selected.has(p.id));
-  const someSelected = selected.size > 0 && !allSelected;
-  const toggleAll = () =>
-    applySelection(allSelected ? new Set() : new Set(rows.map((p) => p.id)));
+  // Select-all operates on the VISIBLE rows so it does what you see when a
+  // search is active, while preserving selections outside the filter.
+  const allSelected =
+    visibleRows.length > 0 && visibleRows.every((p) => selected.has(p.id));
+  const someSelected = visibleRows.some((p) => selected.has(p.id)) && !allSelected;
+  const toggleAll = () => {
+    const next = new Set(selected);
+    if (allSelected) visibleRows.forEach((p) => next.delete(p.id));
+    else visibleRows.forEach((p) => next.add(p.id));
+    applySelection(next);
+  };
   const toggle = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
@@ -111,6 +183,21 @@ export function AdminPropertiesPage() {
       <Typography variant="h4" component="h1">
         {t("admin.propertiesPage.title")}
       </Typography>
+
+      <TextField
+        size="small"
+        placeholder={t("admin.propertiesPage.search")}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        sx={{ maxWidth: 480 }}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <SearchIcon fontSize="small" sx={{ color: "text.secondary", mr: 1 }} />
+            ),
+          },
+        }}
+      />
 
       {/* Selection summary: sum of the checked rows' units + the
           hardcoded management fee for that unit count. */}
@@ -152,9 +239,11 @@ export function AdminPropertiesPage() {
         </Paper>
       )}
 
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          {t("admin.stammdaten.empty")}
+          {query.trim()
+            ? t("admin.propertiesPage.noMatches")
+            : t("admin.stammdaten.empty")}
         </Typography>
       ) : (
         <TableContainer component={Paper} variant="outlined">
@@ -170,87 +259,84 @@ export function AdminPropertiesPage() {
                   />
                 </TableCell>
                 <TableCell sx={{ width: 64 }} />
-                <TableCell>{t("admin.propertiesPage.name")}</TableCell>
-                <TableCell>{t("admin.propertiesPage.address")}</TableCell>
-                <TableCell>{t("admin.propertiesPage.hrId")}</TableCell>
+                <TableCell sortDirection={sortKey === "name" ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === "name"}
+                    direction={sortKey === "name" ? sortDir : "asc"}
+                    onClick={() => toggleSort("name")}
+                  >
+                    {t("admin.propertiesPage.name")}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={sortKey === "hrId" ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === "hrId"}
+                    direction={sortKey === "hrId" ? sortDir : "asc"}
+                    onClick={() => toggleSort("hrId")}
+                  >
+                    {t("admin.propertiesPage.hrId")}
+                  </TableSortLabel>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((p) => {
-                const street = [p.street, p.number].filter(Boolean).join(" ");
-                const zipCity = [p.postal_code, p.city]
-                  .filter(Boolean)
-                  .join(" ");
-                const addr =
-                  [street, zipCity].filter(Boolean).join(" · ") || "—";
-                return (
-                  <TableRow
-                    key={p.id}
-                    hover
-                    onClick={() => navigate(`/admin/properties/${p.id}`)}
-                    sx={{ cursor: "pointer" }}
-                  >
-                    <TableCell
-                      padding="checkbox"
-                      onClick={(e) => e.stopPropagation()}
+              {visibleRows.map((p) => (
+                <TableRow
+                  key={p.id}
+                  hover
+                  onClick={() => navigate(`/admin/properties/${p.id}`)}
+                  sx={{ cursor: "pointer" }}
+                >
+                  <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      size="small"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggle(p.id)}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ width: 64 }}>
+                    <AuthedAvatar
+                      variant="rounded"
+                      relativeUrl={p.image_url}
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: "action.hover",
+                        color: "text.disabled",
+                      }}
                     >
-                      <Checkbox
-                        size="small"
-                        checked={selected.has(p.id)}
-                        onChange={() => toggle(p.id)}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ width: 64 }}>
-                      <AuthedAvatar
-                        variant="rounded"
-                        relativeUrl={p.image_url}
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          bgcolor: "action.hover",
-                          color: "text.disabled",
-                        }}
-                      >
-                        <HomeWorkOutlinedIcon fontSize="small" />
-                      </AuthedAvatar>
-                    </TableCell>
-                    <TableCell>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ alignItems: "center", flexWrap: "wrap" }}
-                      >
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {p.name}
-                        </Typography>
-                        {p.needs_current_year_etv && (
-                          <Chip
-                            size="small"
-                            color="warning"
-                            variant="outlined"
-                            icon={<EventBusyOutlinedIcon />}
-                            label={t("admin.propertiesPage.etvMissing", {
-                              year: new Date().getFullYear(),
-                            })}
-                          />
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary">
-                        {addr}
-                      </Typography>
-                    </TableCell>
-                    <TableCell
-                      sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}
+                      <HomeWorkOutlinedIcon fontSize="small" />
+                    </AuthedAvatar>
+                  </TableCell>
+                  <TableCell>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "center", flexWrap: "wrap" }}
                     >
-                      <Typography variant="caption" color="text.secondary">
-                        {p.property_hr_id ?? "—"}
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {p.name}
                       </Typography>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                      {p.needs_current_year_etv && (
+                        <Chip
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          icon={<EventBusyOutlinedIcon />}
+                          label={t("admin.propertiesPage.etvMissing", {
+                            year: new Date().getFullYear(),
+                          })}
+                        />
+                      )}
+                    </Stack>
+                  </TableCell>
+                  <TableCell sx={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {p.property_hr_id ?? "—"}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </TableContainer>

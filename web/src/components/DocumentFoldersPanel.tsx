@@ -26,17 +26,21 @@ import {
   ListItemIcon,
   ListItemText,
   ListSubheader,
+  MenuItem,
   Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import CreateNewFolderOutlinedIcon from "@mui/icons-material/CreateNewFolderOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
+import SearchIcon from "@mui/icons-material/Search";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import { useTranslation } from "react-i18next";
 import { api, API_BASE_URL, getAccessToken } from "@/api/client";
@@ -110,6 +114,40 @@ function formatDocAmount(amount: string | null | undefined): string | null {
   return Number.isFinite(n) ? EUR.format(n) : null;
 }
 
+type DocSortKey = "date" | "name" | "kind";
+type SortDir = "asc" | "desc";
+
+// Sort comparator for the document list. `date` (default) sorts by
+// issued_date, falling back to upload time; `name`/`kind` use a German
+// locale collation. `t` resolves the localized class label so the "Klasse"
+// sort groups by what the user actually sees.
+function compareDocs(
+  a: DocumentResponse,
+  b: DocumentResponse,
+  key: DocSortKey,
+  dir: SortDir,
+  t: (k: string, o?: Record<string, unknown>) => string,
+): number {
+  let cmp: number;
+  if (key === "name") {
+    cmp = (a.name ?? "").localeCompare(b.name ?? "", "de", {
+      sensitivity: "base",
+      numeric: true,
+    });
+  } else if (key === "kind") {
+    const al = t(`documents.kind.${a.kind}`, { defaultValue: a.kind });
+    const bl = t(`documents.kind.${b.kind}`, { defaultValue: b.kind });
+    cmp =
+      al.localeCompare(bl, "de") ||
+      (b.issued_date ?? "").localeCompare(a.issued_date ?? "");
+  } else {
+    const ad = a.issued_date ?? a.uploaded_at ?? "";
+    const bd = b.issued_date ?? b.uploaded_at ?? "";
+    cmp = ad.localeCompare(bd) || a.name.localeCompare(b.name);
+  }
+  return dir === "asc" ? cmp : -cmp;
+}
+
 /** Shared Verwalter-managed document explorer used by both the admin
  *  property-detail page (full CRUD) and the portal PropertyDocumentsPage
  *  (read-only). Renders a folder tree as breadcrumbs + a flat list of
@@ -136,6 +174,13 @@ export function DocumentFoldersPanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyError, setBusyError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Free-text search + sort. A non-empty query searches across ALL folders
+  // (you want to find a doc, not navigate to it); empty query keeps the
+  // normal folder browser. Default sort = newest first (the prior behavior).
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<DocSortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // New-folder dialog state. Kept local so the parent doesn't need to
   // know about modal plumbing.
@@ -227,34 +272,46 @@ export function DocumentFoldersPanel({
         .sort((a, b) => a.name.localeCompare(b.name, "de")),
     [folders, currentFolderId],
   );
-  const docsHere = useMemo(
-    () =>
-      docs
-        .filter((d) => (d.folder_id ?? null) === currentFolderId)
-        .sort((a, b) => {
-          // Newest-first by issued_date when present, falling back to
-          // upload time (the impower import doesn't always have a date).
-          const ad = a.issued_date ?? a.uploaded_at ?? "";
-          const bd = b.issued_date ?? b.uploaded_at ?? "";
-          return bd.localeCompare(ad) || a.name.localeCompare(b.name);
-        }),
-    [docs, currentFolderId],
-  );
+  const searching = query.trim().length > 0;
 
-  // Tag each doc with a year header when the year changes (docsHere is
-  // already sorted newest-first), so the list groups by year without a
-  // separate data structure. header === null means "same year as the
-  // row above"; "" is the undated bucket (rendered as a localized label).
-  // Derived from the previous row (not a mutable accumulator) so the
-  // React Compiler doesn't flag a reassignment during render.
+  // Visible docs: when searching, scan ALL folders (find, don't navigate);
+  // otherwise just the current folder. Then apply the active sort.
+  const visibleDocs = useMemo(() => {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const pool = searching
+      ? docs
+      : docs.filter((d) => (d.folder_id ?? null) === currentFolderId);
+    const matched =
+      tokens.length === 0
+        ? pool
+        : pool.filter((d) => {
+            const hay = [
+              d.name,
+              t(`documents.kind.${d.kind}`, { defaultValue: d.kind }),
+              formatDocAmount(d.amount) ?? "",
+              d.issued_date ?? "",
+              docYearKey(d),
+            ]
+              .join(" ")
+              .toLowerCase();
+            return tokens.every((tok) => hay.includes(tok));
+          });
+    return [...matched].sort((a, b) => compareDocs(a, b, sortKey, sortDir, t));
+  }, [docs, searching, query, currentFolderId, sortKey, sortDir, t]);
+
+  // Tag each doc with a year header when the year changes — only for the
+  // date sort (newest-first), where year grouping is meaningful. name/kind
+  // sorts render a flat list. header === null means "same year as the row
+  // above"; "" is the undated bucket (rendered as a localized label).
   const docRows = useMemo(
     () =>
-      docsHere.map((d, idx) => {
+      visibleDocs.map((d, idx) => {
+        if (sortKey !== "date") return { doc: d, header: null as string | null };
         const year = docYearKey(d);
-        const prevYear = idx > 0 ? docYearKey(docsHere[idx - 1]!) : null;
+        const prevYear = idx > 0 ? docYearKey(visibleDocs[idx - 1]!) : null;
         return { doc: d, header: year !== prevYear ? year : null };
       }),
-    [docsHere],
+    [visibleDocs, sortKey],
   );
 
   const createFolder = async (e: FormEvent) => {
@@ -442,6 +499,62 @@ export function DocumentFoldersPanel({
         )}
       </Stack>
 
+      {/* Search (scans all folders when active) + sort controls. */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{ alignItems: { sm: "center" } }}
+      >
+        <TextField
+          size="small"
+          placeholder={t("documents.search")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          sx={{ flex: 1, minWidth: { sm: 220 } }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <SearchIcon
+                  fontSize="small"
+                  sx={{ color: "text.secondary", mr: 1 }}
+                />
+              ),
+            },
+          }}
+        />
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <TextField
+            select
+            size="small"
+            label={t("documents.sortBy")}
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as DocSortKey)}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="date">{t("documents.sortDate")}</MenuItem>
+            <MenuItem value="name">{t("documents.sortName")}</MenuItem>
+            <MenuItem value="kind">{t("documents.sortKind")}</MenuItem>
+          </TextField>
+          <Tooltip
+            title={t(sortDir === "asc" ? "documents.sortAsc" : "documents.sortDesc")}
+          >
+            <IconButton
+              size="small"
+              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              aria-label={t(
+                sortDir === "asc" ? "documents.sortAsc" : "documents.sortDesc",
+              )}
+            >
+              {sortDir === "asc" ? (
+                <ArrowUpwardIcon fontSize="small" />
+              ) : (
+                <ArrowDownwardIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Stack>
+
       {loadError && <Alert severity="error">{loadError}</Alert>}
       {busyError && (
         <Alert severity="error" onClose={() => setBusyError(null)}>
@@ -450,20 +563,25 @@ export function DocumentFoldersPanel({
       )}
 
       <Paper variant="outlined">
-        {childFolders.length === 0 && docsHere.length === 0 ? (
+        {(
+          searching
+            ? visibleDocs.length === 0
+            : childFolders.length === 0 && visibleDocs.length === 0
+        ) ? (
           <Box sx={{ p: 3, textAlign: "center" }}>
             <Typography variant="body2" color="text.secondary">
-              {t("documents.empty")}
+              {searching ? t("documents.noMatches") : t("documents.empty")}
             </Typography>
           </Box>
         ) : (
           <List disablePadding>
-            {childFolders.map((f, i) => (
+            {!searching &&
+              childFolders.map((f, i) => (
               <ListItem
                 key={f.id}
                 disablePadding
                 divider={
-                  i < childFolders.length - 1 || docsHere.length > 0
+                  i < childFolders.length - 1 || visibleDocs.length > 0
                 }
                 secondaryAction={
                   mode === "admin" ? (
