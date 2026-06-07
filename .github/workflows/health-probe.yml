@@ -1,13 +1,17 @@
-# Recurring health probe for the staging stack — spec §15.1 #1.
+# Recurring health probe for the WHV stack (staging + prod) — spec §15.1 #1.
 #
-# Runs every 30 min on GitHub Actions. Probes:
-#   • staging.api.* /healthz       (FastAPI liveness)
-#   • staging.api.* /readyz        (Postgres + Redis dep checks)
-#   • Impower /properties?size=1   (upstream API still answering)
+# Runs every 30 min on GitHub Actions. Per environment:
+#   • <api>/healthz   (FastAPI liveness)
+#   • <api>/readyz    (Postgres + Redis dep checks)
+# plus, once:
+#   • prod portal /   (SPA shell actually served, not an nginx error page)
+#   • Impower /properties?size=1  (upstream API still answering)
 #
 # Failure modes:
-#   - Our staging /healthz or /readyz returns non-200 → workflow fails →
-#     GitHub sends the standard "Workflow failed" email to repo admins.
+#   - Any staging/prod /healthz or /readyz non-200 (or readyz reports a
+#     dead dep), or the prod portal not serving → workflow fails → GitHub
+#     emails repo admins. BOTH envs are checked every run, so one failure
+#     never masks the other.
 #   - Impower 5xx/timeout (their DEV replica down) → ::warning:: only,
 #     the probe still passes — it's their outage, not ours. A 401/403
 #     from Impower (our token broke) DOES fail.
@@ -33,28 +37,45 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: API healthz
+      - name: API health (staging + prod)
+        # Checks /healthz + /readyz (+ both deps) for each environment.
+        # We accumulate rc instead of aborting on the first failure, so a
+        # staging outage never hides a prod one (and vice versa).
         run: |
-          set -euo pipefail
-          status=$(curl -sS -o /tmp/healthz.body -w '%{http_code}' \
-            --max-time 10 \
-            https://staging.api.wagner-hausverwaltung.com/healthz)
-          echo "HTTP $status"
-          cat /tmp/healthz.body
-          test "$status" = "200"
+          set -uo pipefail
+          check() {
+            local base="$1" env="$2" s
+            echo "── $env ($base)"
+            s=$(curl -sS -o /tmp/h.body -w '%{http_code}' --max-time 10 "$base/healthz" || echo 000)
+            echo "  /healthz HTTP $s"; cat /tmp/h.body 2>/dev/null; echo
+            if [ "$s" != "200" ]; then echo "::error title=$env API liveness::/healthz returned $s"; return 1; fi
+            s=$(curl -sS -o /tmp/r.body -w '%{http_code}' --max-time 15 "$base/readyz" || echo 000)
+            echo "  /readyz HTTP $s"; cat /tmp/r.body 2>/dev/null; echo
+            if [ "$s" != "200" ]; then echo "::error title=$env API readiness::/readyz returned $s"; return 1; fi
+            grep -q '"postgres":[[:space:]]*true' /tmp/r.body || { echo "::error title=$env postgres dep::readyz reports postgres down"; return 1; }
+            grep -q '"redis":[[:space:]]*true' /tmp/r.body || { echo "::error title=$env redis dep::readyz reports redis down"; return 1; }
+            echo "  OK"
+          }
+          rc=0
+          check https://staging.api.wagner-hausverwaltung.com staging || rc=1
+          check https://api.wagner-hausverwaltung.com prod || rc=1
+          exit $rc
 
-      - name: API readyz (deps)
+      - name: Portal (prod)
+        # The portal is a static SPA behind Caddy→nginx. A 200 carrying the
+        # SPA mount node (id="root") proves the app shell is really served,
+        # not an nginx 5xx / placeholder page.
         run: |
-          set -euo pipefail
-          status=$(curl -sS -o /tmp/readyz.body -w '%{http_code}' \
-            --max-time 15 \
-            https://staging.api.wagner-hausverwaltung.com/readyz)
-          echo "HTTP $status"
-          cat /tmp/readyz.body
-          test "$status" = "200"
-          # Both deps must report healthy.
-          grep -q '"postgres":[[:space:]]*true' /tmp/readyz.body
-          grep -q '"redis":[[:space:]]*true' /tmp/readyz.body
+          set -uo pipefail
+          s=$(curl -sS -o /tmp/portal.html -w '%{http_code}' --max-time 10 \
+            https://portal.wagner-hausverwaltung.com/ || echo 000)
+          echo "HTTP $s"
+          if [ "$s" != "200" ]; then echo "::error title=Portal down::/ returned $s"; exit 1; fi
+          if ! grep -q 'id="root"' /tmp/portal.html; then
+            echo "::error title=Portal not serving app::index.html missing the SPA mount node"
+            head -c 200 /tmp/portal.html; exit 1
+          fi
+          echo "OK — SPA shell served"
 
       - name: Impower upstream
         # The working URL is the prod-replica dev instance Impower gave
