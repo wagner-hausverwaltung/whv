@@ -1,0 +1,134 @@
+name: prod-account-diag
+
+# Read-only: (1) do ullrich@/info@ have user accounts? (2) why is the F33 owner
+# Hausgeldkonto empty — list ALL Impower accounts on the property (with their
+# sourceType/sourceId) vs the CONTACT-only query load_my_account uses, to see
+# whether the Hausgeld account is sourced by CONTRACT instead of CONTACT.
+# Only GETs (DB reads + Impower reads). No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "WEG property name substring"
+        required: false
+        default: "WEG Friedrich"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && NEEDLE='${NEEDLE_INPUT}' ${COMPOSE} exec -T -e NEEDLE backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.impower.client import ImpowerClient
+          from app.models import Contact, Contract, ContractContact, Property, User
+
+          NEEDLE = os.environ.get("NEEDLE", "WEG Friedrich")
+
+
+          def acc_row(a: dict) -> str:
+              src = a.get("accountSourceType") or a.get("sourceType")
+              return (
+                  f"id={a.get('id')} src={src} srcId={a.get('sourceId')} "
+                  f"leaf={a.get('leaf')} hrId={a.get('accountHrId')} name={a.get('name')!r}"
+              )
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      print("=== user accounts ===")
+                      for em in (
+                          "ullrich@wagner-hausverwaltung.com",
+                          "info@wagner-hausverwaltung.com",
+                      ):
+                          u = (await db.scalars(select(User).where(User.email == em))).first()
+                          if u:
+                              print(
+                                  f"  {em}: role={u.role} "
+                                  f"contact_id_impower={u.contact_id_impower} deleted={u.deleted_at}"
+                              )
+                          else:
+                              print(f"  {em}: NO ACCOUNT")
+
+                      print("\n=== F33 Hausgeldkonto diagnosis ===")
+                      prop = (
+                          await db.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                      ).first()
+                      print(f"property={prop.name!r} impower_id={prop.impower_id}")
+                      rows = (
+                          await db.execute(
+                              select(
+                                  Contact.impower_id,
+                                  Contract.impower_id,
+                                  Contact.first_name,
+                                  Contact.last_name,
+                                  Contract.type,
+                              )
+                              .join(ContractContact, ContractContact.contact_id == Contact.id)
+                              .join(Contract, Contract.id == ContractContact.contract_id)
+                              .where(Contract.property_id == prop.id)
+                          )
+                      ).all()
+                      print(f"contacts/contracts on property: {len(rows)}")
+                      for cimp, ctrimp, fn, ln, ctype in rows:
+                          print(f"  contact_impid={cimp} contract_impid={ctrimp} {fn} {ln} type={ctype}")
+
+                      if not s.impower_api_token:
+                          print("(no impower token)")
+                          return
+                      async with ImpowerClient(s.impower_api_base, s.impower_api_token) as cl:
+                          allacc = (await cl.get_accounts(property_id=prop.impower_id)).get(
+                              "content", []
+                          )
+                          print(f"\nALL accounts on property: {len(allacc)}")
+                          for a in allacc[:50]:
+                              print("  " + acc_row(a))
+                          print("\nload_my_account query (source_types=CONTACT) per owner:")
+                          seen = set()
+                          for cimp, ctrimp, fn, ln, ctype in rows:
+                              if cimp in seen or cimp is None:
+                                  continue
+                              seen.add(cimp)
+                              got = (
+                                  await cl.get_accounts(
+                                      property_id=prop.impower_id,
+                                      source_ids=[cimp],
+                                      source_types=["CONTACT"],
+                                  )
+                              ).get("content", [])
+                              print(f"  contact {cimp} ({fn} {ln}): CONTACT-accounts={len(got)}")
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
