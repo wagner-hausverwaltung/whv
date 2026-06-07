@@ -1,0 +1,93 @@
+name: prod-vendor-http
+
+# Read-only: replay the EXACT HTTP requests the iOS app makes for WEG F33 as
+# info@ (mint a short-lived access token, GET against the in-container uvicorn).
+# Dumps status + raw JSON so we can (a) rule out an endpoint-level 4xx/5xx the
+# service-level probe can't see and (b) diff the real payload against the Swift
+# Codable structs (current_contracts chips + vendors). No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      pid:
+        description: "property id to replay"
+        required: false
+        default: "019e782b-f02b-70b3-bf4a-22fa76b29ed6"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Replay
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          PID_INPUT: ${{ github.event.inputs.pid }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && PID='${PID_INPUT}' ${COMPOSE} exec -T -e PID backend python -" <<'PY'
+          import asyncio
+          import os
+
+          import httpx
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.auth.jwt import encode_access_token
+          from app.config import get_settings
+          from app.models import User
+
+          PID = os.environ.get("PID", "019e782b-f02b-70b3-bf4a-22fa76b29ed6")
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              token = None
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      u = (
+                          await db.scalars(
+                              select(User).where(User.email == "info@wagner-hausverwaltung.com")
+                          )
+                      ).first()
+                      role = getattr(u.role, "value", str(u.role))
+                      token, _exp = encode_access_token(s, u.id, role, u.organization_id)
+                      print(f"user={u.email} id={u.id} role={role}")
+              finally:
+                  await eng.dispose()
+
+              headers = {
+                  "Authorization": f"Bearer {token}",
+                  "Host": "api.wagner-hausverwaltung.com",
+              }
+              async with httpx.AsyncClient(base_url="http://localhost:8000", timeout=30.0) as cl:
+                  for path in (
+                      "/me/properties",
+                      f"/me/properties/{PID}",
+                      f"/me/properties/{PID}/vendors",
+                  ):
+                      try:
+                          r = await cl.get(path, headers=headers)
+                          body = r.text
+                          print(f"\n### GET {path} -> {r.status_code}  len={len(body)}")
+                          print(body[:1500])
+                      except Exception as e:  # noqa: BLE001
+                          print(f"\n### GET {path} -> EXC {type(e).__name__}: {e}")
+
+
+          asyncio.run(main())
+          PY
