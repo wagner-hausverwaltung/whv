@@ -12,11 +12,11 @@ fields. Verwalter has the admin SPA for the full record.
 
 import uuid
 from datetime import date
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
 from app.models.contact import ContactKind
+from app.schemas.types import DecimalAsFloat
 
 
 class VendorInvoiceSummary(BaseModel):
@@ -32,7 +32,7 @@ class VendorInvoiceSummary(BaseModel):
     id: uuid.UUID
     name: str
     issued_date: date | None = None
-    amount: Decimal | None = None
+    amount: DecimalAsFloat | None = None
 
 
 class VendorSummary(BaseModel):
@@ -54,7 +54,7 @@ class VendorSummary(BaseModel):
     # CURRENT calendar year's cost only (what the vendor cost us this
     # year), driving the € chip on the card header.
     invoice_count: int
-    total_amount: Decimal | None = None
+    total_amount: DecimalAsFloat | None = None
     first_service_date: date | None = None
     last_service_date: date | None = None
     # The vendor's full invoice list (clients group it by year). Name

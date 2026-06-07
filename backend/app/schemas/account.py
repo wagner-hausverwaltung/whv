@@ -6,15 +6,15 @@ confirmed against real Impower data on staging — showing an owner the
 wrong direction on their own account would be a trust-breaking bug.
 """
 
-from decimal import Decimal
-
 from pydantic import BaseModel
+
+from app.schemas.types import DecimalAsFloat
 
 
 class PostingItemResponse(BaseModel):
     post_date: str | None
     booking_text: str | None
-    amount: Decimal | None
+    amount: DecimalAsFloat | None
 
 
 class HausgeldAccountResponse(BaseModel):
@@ -25,5 +25,5 @@ class HausgeldAccountResponse(BaseModel):
     name: str | None
     # Signed sum of all fetched bookings. Neutral — the client labels it
     # "Saldo" without a debt/credit claim for now.
-    balance: Decimal | None
+    balance: DecimalAsFloat | None
     bookings: list[PostingItemResponse]

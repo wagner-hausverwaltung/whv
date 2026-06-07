@@ -1,10 +1,10 @@
 import uuid
 from datetime import date
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
 from app.models.contract import ContractType
+from app.schemas.types import DecimalAsFloat
 
 
 class UnitContractSummary(BaseModel):
@@ -37,11 +37,11 @@ class UnitResponse(BaseModel):
     position: str | None = None
     unit_rank: int | None = None
     is_owned_by_weg: bool | None = None
-    voting_share: Decimal | None = None
-    area_m2: Decimal | None = None
-    heated_area_m2: Decimal | None = None
-    persons: Decimal | None = None
-    rooms: Decimal | None = None
+    voting_share: DecimalAsFloat | None = None
+    area_m2: DecimalAsFloat | None = None
+    heated_area_m2: DecimalAsFloat | None = None
+    persons: DecimalAsFloat | None = None
+    rooms: DecimalAsFloat | None = None
     # Active contracts for this unit at request time. Empty when
     # the unit is vacant or has no contracts in the mirror.
     # PropertyDetail endpoint populates this; the bare /admin/units

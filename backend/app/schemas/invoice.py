@@ -15,9 +15,10 @@ we can cache in §1.4d iter 2.
 """
 
 from datetime import date
-from decimal import Decimal
 
 from pydantic import BaseModel
+
+from app.schemas.types import DecimalAsFloat
 
 
 class InvoiceLineItemResponse(BaseModel):
@@ -32,9 +33,9 @@ class InvoiceLineItemResponse(BaseModel):
     account_code: str | None = None
     account_name: str | None = None
     booking_text: str | None = None
-    amount: Decimal | None = None
-    vat_amount: Decimal | None = None
-    vat_percentage: Decimal | None = None
+    amount: DecimalAsFloat | None = None
+    vat_amount: DecimalAsFloat | None = None
+    vat_percentage: DecimalAsFloat | None = None
 
 
 class InvoiceDetailResponse(BaseModel):
@@ -46,7 +47,7 @@ class InvoiceDetailResponse(BaseModel):
     # this.
     invoice_number: str | None = None
     issued_date: date | None = None
-    amount: Decimal | None = None
+    amount: DecimalAsFloat | None = None
     # Raw Impower state — DRAFT / READY / BOOKED / SCHEDULED / REVERSED.
     # Clients render via the friendly-label switch (BOOKED → "Gebucht",
     # etc.) to avoid duplicating the mapping; this field stays as the

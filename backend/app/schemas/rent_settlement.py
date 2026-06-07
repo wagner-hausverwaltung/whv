@@ -6,16 +6,16 @@ paid out to the owner, the property account balance, and the period it
 covers. Amounts are signed and shown as-is.
 """
 
-from decimal import Decimal
-
 from pydantic import BaseModel
+
+from app.schemas.types import DecimalAsFloat
 
 
 class RentSettlementResponse(BaseModel):
     period_from: str | None
     period_until: str | None
     due_date: str | None
-    rent_income: Decimal | None
-    payout: Decimal | None
-    balance: Decimal | None
+    rent_income: DecimalAsFloat | None
+    payout: DecimalAsFloat | None
+    balance: DecimalAsFloat | None
     state: str | None
