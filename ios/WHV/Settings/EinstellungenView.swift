@@ -237,7 +237,7 @@ struct EinstellungenView: View {
                     Text("Wird geladen…").foregroundStyle(.secondary)
                 }
             } else {
-                HStack(spacing: 0) {
+                HStack(spacing: 16) {
                     Spacer()
                     Text("Push")
                         .font(.caption2)
@@ -250,7 +250,7 @@ struct EinstellungenView: View {
                 }
                 ForEach(NotificationPrefsStore.order, id: \.self) { cat in
                     if let idx = prefs.items.firstIndex(where: { $0.category == cat }) {
-                        HStack(spacing: 0) {
+                        HStack(spacing: 16) {
                             Text(NotificationPrefsStore.label(for: cat))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Toggle(
