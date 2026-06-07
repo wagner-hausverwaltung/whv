@@ -75,6 +75,7 @@ jobs:
                   "Host": "api.wagner-hausverwaltung.com",
               }
               async with httpx.AsyncClient(base_url="http://localhost:8000", timeout=30.0) as cl:
+                  vendors_json = None
                   for path in (
                       "/me/properties",
                       f"/me/properties/{PID}",
@@ -85,8 +86,28 @@ jobs:
                           body = r.text
                           print(f"\n### GET {path} -> {r.status_code}  len={len(body)}")
                           print(body[:1500])
+                          if path.endswith("/vendors") and r.status_code == 200:
+                              vendors_json = r.json()
                       except Exception as e:  # noqa: BLE001
                           print(f"\n### GET {path} -> EXC {type(e).__name__}: {e}")
+
+                  # Click-through: first vendor -> first invoice -> detail. Confirms
+                  # the invoice-detail amounts are numbers too (the tap-an-invoice flow).
+                  doc_id = None
+                  for v in vendors_json or []:
+                      for inv in v.get("recent_invoices", []):
+                          doc_id = inv.get("id")
+                          break
+                      if doc_id:
+                          break
+                  if doc_id:
+                      p = f"/me/properties/{PID}/invoices/{doc_id}"
+                      try:
+                          r = await cl.get(p, headers=headers)
+                          print(f"\n### GET {p} -> {r.status_code}  len={len(r.text)}")
+                          print(r.text[:1500])
+                      except Exception as e:  # noqa: BLE001
+                          print(f"\n### GET {p} -> EXC {type(e).__name__}: {e}")
 
 
           asyncio.run(main())
