@@ -47,6 +47,9 @@ class AssistantQueryRequest(BaseModel):
     issued_year: int | None = None
     kind: str | None = None
     contact: str | None = None
+    # UI language ("de"/"en") so the answer + abstain phrase come back in the
+    # user's language. None → the model mirrors the question's own language.
+    language: str | None = Field(default=None, max_length=8)
 
 
 class CitationResponse(BaseModel):
@@ -103,6 +106,7 @@ async def assistant_query(
             issued_year=body.issued_year,
             kind=body.kind,
             contact_query=body.contact,
+            language=body.language,
         )
 
     # Query audit log — DSGVO accountability + a source for the eval set.

@@ -237,3 +237,23 @@ async def test_answer_question_abstain_from_model_drops_sources(
     assert answer.answer == ABSTAIN_ANSWER
     assert answer.sources == []  # no chips next to "nichts gefunden"
     assert provider.generate_called is True  # chunks existed → LLM was consulted
+
+
+def test_assistant_response_language_directive() -> None:
+    """The answer (and abstain phrase) follow the requested language; with no
+    preference the model is told to mirror the question's own language."""
+    from app.rag.generation import (
+        ABSTAIN_ANSWERS,
+        _abstain_language,
+        _is_abstain,
+        _system_instruction,
+    )
+
+    assert "auf Englisch" in _system_instruction("en")
+    assert ABSTAIN_ANSWERS["en"] in _system_instruction("en")
+    assert "auf Deutsch" in _system_instruction("de")
+    assert "DERSELBEN SPRACHE" in _system_instruction(None)  # mirror the question
+    assert _abstain_language(ABSTAIN_ANSWERS["en"]) == "en"
+    assert _abstain_language(ABSTAIN_ANSWERS["de"]) == "de"
+    assert _is_abstain(ABSTAIN_ANSWERS["en"])
+    assert not _is_abstain("Die Heizungsrechnung 2025 betrug 1.234 €. [1]")
