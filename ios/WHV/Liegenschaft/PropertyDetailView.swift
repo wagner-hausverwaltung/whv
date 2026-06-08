@@ -720,7 +720,11 @@ private struct VendorRow: View {
                             .font(.caption2)
                             .foregroundStyle(Color.secondary)
                     }
-                    Text("· \(vendor.invoice_count) Rechnung\(vendor.invoice_count == 1 ? "" : "en")")
+                    // Split singular/plural into clean localizable keys (the old
+                    // inline "Rechnung\(…)" suffix couldn't translate to English).
+                    Text(vendor.invoice_count == 1
+                        ? "· \(vendor.invoice_count) Rechnung"
+                        : "· \(vendor.invoice_count) Rechnungen")
                         .font(.caption2)
                         .foregroundStyle(Color.secondary)
                     if let total = vendor.total_amount {

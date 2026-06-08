@@ -15,7 +15,9 @@ enum AppearancePreference: String, CaseIterable, Identifiable, Codable {
     case dark
 
     var id: String { rawValue }
-    var label: String {
+    // LocalizedStringResource so the appearance picker localises (Hell/Dunkel
+    // → Light/Dark in English). The German literals are the catalog keys.
+    var label: LocalizedStringResource {
         switch self {
         case .system: return "System"
         case .light: return "Hell"

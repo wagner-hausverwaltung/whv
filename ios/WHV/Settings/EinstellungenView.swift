@@ -475,7 +475,9 @@ final class NotificationPrefsStore: ObservableObject {
         "PLAN_ADJUSTMENT",
     ]
 
-    static func label(for category: String) -> String {
+    // LocalizedStringResource so the notification matrix localises; the German
+    // literals are the catalog keys, English values live in Localizable.xcstrings.
+    static func label(for category: String) -> LocalizedStringResource {
         switch category {
         case "ANNOUNCEMENT": return "Mitteilungen / News"
         case "TICKET": return "Anliegen / Tickets"
@@ -484,7 +486,7 @@ final class NotificationPrefsStore: ObservableObject {
         case "DOCUMENT": return "Neue Dokumente"
         case "INVOICE": return "Rechnungen"
         case "PLAN_ADJUSTMENT": return "Hausgeld-Anpassung"
-        default: return category
+        default: return "\(category)"
         }
     }
 }
