@@ -9,7 +9,7 @@ blocking, and the order to do the rest in.
 |---|---|
 | iOS code | ✅ ready (clean audit — see §3) |
 | Privacy manifest | ✅ `ios/WHV/PrivacyInfo.xcprivacy` written |
-| Datenschutz draft | ✅ `infra/docs/datenschutz-app.md` — needs legal review + hosting |
+| Privacy policy | ✅ **live** at <https://wagner-hausverwaltung.com/datenschutz/> (200, public, DSGVO, app-aware) |
 | Developer Portal | ⏳ pending Luis |
 | App Store Connect app record | ⏳ pending Luis |
 | Marketing assets | ⏳ pending (icon ready, screenshots todo) |
@@ -92,7 +92,7 @@ Once the app record exists, fill:
   - **Identifiers → User ID**: linked, App Functionality, not
     tracking (our own UUID7, NOT the IDFA)
 - Tracking: NO
-- Privacy Policy URL: the hosted Datenschutz URL
+- Privacy Policy URL: `https://wagner-hausverwaltung.com/datenschutz/` (verified live, public, HTTP 200)
 
 ### Pricing & Availability
 - Free
@@ -142,7 +142,23 @@ Recommended 5-6 screens:
 5. Dienstleister-Karte mit Kontaktoptionen
 6. Property detail with Einheiten + Verträge
 
-XCUITest scripting (task #99) will let you regen these reproducibly.
+### Regenerating screenshots
+
+```
+infra/scripts/capture-screenshots.sh
+```
+
+Runs the `WHVUITests` XCUITest on the iPad Pro 13" (M4) + iPhone 16 Pro Max
+simulators with the `-UITestScreenshots` launch arg (forced demo mode,
+biometric bypass — see [`WHVApp.applyUITestScreenshotOverridesIfNeeded`](../../ios/WHV/WHVApp.swift)).
+The test walks six surfaces (`01-login` … `06-einstellungen`) and the
+script pulls the attached PNGs out of each xcresult bundle into
+`infra/screenshots/{ipad,iphone}/`. No backend required — every API
+call short-circuits to [`DemoSeed`](../../ios/WHV/Demo/DemoSeed.swift).
+
+Re-run any time the marketing surfaces change (new tab, new section,
+copy revision). Commit the resulting PNGs so the next reviewer can
+diff layout regressions before they reach App Store Connect.
 
 ### Description (Deutsch)
 
@@ -217,7 +233,7 @@ Audit pass (2026-05-28) confirms WHV is clean on every one of these:
 |---|---|---|
 | 2.1 App Completeness — "we couldn't sign in" | Reviewers blocked on invite-only flow | ✅ Demo button, no creds needed |
 | 5.1.1(v) Account deletion | Required since June 2022 | ✅ Einstellungen → Konto löschen → DELETE /me |
-| 5.1.2 Privacy policy URL | Required for any login | ⏳ hosted at TBD |
+| 5.1.2 Privacy policy URL | Required for any login | ✅ https://wagner-hausverwaltung.com/datenschutz/ (live) |
 | 5.1.1 Data nutrition labels mismatch | Sentry / Analytics differs from manifest | ✅ No Sentry / Analytics shipped in iOS |
 | 4.2.2 Web wrapper | Apps that are just wrappers around websites | ✅ Native SwiftUI throughout — Widgets, Live Activity |
 | 4.8 Sign-in with Apple required | Triggered only if other social login | ✅ N/A — invite + email/password, no OAuth |
@@ -229,10 +245,9 @@ Audit pass (2026-05-28) confirms WHV is clean on every one of these:
 
 ## 8. Open questions for Luis
 
-* **Privacy policy host** — where do you want to publish the
-  `datenschutz-app.md`? Suggest a Bluehost path on
-  `wagner-hausverwaltung.com/datenschutz-app` since that domain is
-  already handed over.
+* ~~**Privacy policy host**~~ — RESOLVED (2026-06-08): use the existing
+  live page `https://wagner-hausverwaltung.com/datenschutz/` (HTTP 200,
+  public, DSGVO, app-aware). The `datenschutz-app.md` draft is superseded.
 * **Support email** — `support@wagner-hausverwaltung.com` or your
   personal address as the contact during review?
 * **Marketing copy** — happy with the German description draft
