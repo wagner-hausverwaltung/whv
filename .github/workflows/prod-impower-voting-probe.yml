@@ -1,0 +1,93 @@
+name: prod-impower-voting-probe
+
+# Read-only. casavi exposes MEA as AssemblyContactUnit.unitVotingShare. The
+# documented Impower OpenAPI has no such field/endpoint — but probe the LIVE
+# server for UNDOCUMENTED assembly/voting endpoints to be 100% sure before we
+# conclude MEA is casavi-only. Only GETs. No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      property:
+        description: "property impower id"
+        required: false
+        default: "18913"
+      unit:
+        description: "a unit impower id to GET singly"
+        required: false
+        default: "525193"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Probe
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          PROPERTY_INPUT: ${{ github.event.inputs.property }}
+          UNIT_INPUT: ${{ github.event.inputs.unit }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && PROPERTY='${PROPERTY_INPUT}' UNIT='${UNIT_INPUT}' ${COMPOSE} exec -T -e PROPERTY -e UNIT backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from app.config import get_settings
+          from app.integrations.impower.client import ImpowerClient
+
+          PID = os.environ.get("PROPERTY", "18913")
+          UID = os.environ.get("UNIT", "525193")
+
+
+          async def main() -> None:
+              s = get_settings()
+              async with ImpowerClient(s.impower_api_base, s.impower_api_token) as cl:
+                  # (path, params) candidates — undocumented assembly/voting endpoints
+                  cands = [
+                      (f"/units/{UID}", None),
+                      (f"/units/{UID}/voting-shares", None),
+                      (f"/units/{UID}/voting-share", None),
+                      ("/units", {"propertyIds": [PID], "include": "votingShares", "size": 2}),
+                      ("/units", {"propertyIds": [PID], "expand": "assemblyContactUnit", "size": 2}),
+                      ("/assemblies", {"propertyIds": [PID]}),
+                      ("/owners-meetings", {"propertyIds": [PID]}),
+                      ("/ownersMeetings", {"propertyIds": [PID]}),
+                      ("/owner-meetings", {"propertyIds": [PID]}),
+                      ("/voting-shares", {"propertyIds": [PID]}),
+                      ("/votingShares", {"propertyIds": [PID]}),
+                      ("/assembly-contact-units", {"propertyIds": [PID]}),
+                      ("/assemblyContactUnits", {"propertyIds": [PID]}),
+                      ("/contact-units", {"propertyIds": [PID]}),
+                      (f"/properties/{PID}/voting-shares", None),
+                      (f"/properties/{PID}/assemblies", None),
+                      (f"/properties/{PID}/distribution", None),
+                  ]
+                  for path, params in cands:
+                      try:
+                          r = await cl._request("GET", path, params=params or {})
+                          body = r.text
+                          flag = any(t in body.lower() for t in ("votingshare", "voting", "share", "mea"))
+                          print(f"  {r.status_code}  {path}  {params or ''}  len={len(body)} "
+                                f"{'<-- share/voting present!' if flag else ''}")
+                          if flag:
+                              print(f"      {body[:400]}")
+                      except Exception as e:  # noqa: BLE001
+                          msg = str(e)
+                          print(f"  ERR {path}  {params or ''}  {msg[:120]}")
+
+
+          asyncio.run(main())
+          PY
