@@ -46,3 +46,16 @@ def test_celery_app_has_nightly_schedule() -> None:
     assert "sync-all-impower-nightly" in schedule
     entry = schedule["sync-all-impower-nightly"]
     assert entry["task"] == "app.workers.tasks.sync_all_impower"
+
+
+def test_celery_app_has_periodic_contacts_sync() -> None:
+    """Contacts refresh frequently (safety net for the non-firing webhook)."""
+    from app.workers.celery_app import celery_app
+    from app.workers.tasks import sync_contacts_periodic
+
+    schedule = celery_app.conf.beat_schedule
+    assert "sync-contacts-periodic" in schedule
+    assert schedule["sync-contacts-periodic"]["task"] == "app.workers.tasks.sync_contacts_periodic"
+    # task is registered under its declared name
+    assert "app.workers.tasks.sync_contacts_periodic" in celery_app.tasks
+    assert callable(sync_contacts_periodic)

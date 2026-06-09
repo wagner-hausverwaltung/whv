@@ -36,6 +36,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.reconcile_impower",
         "schedule": crontab(hour=3, minute=30),
     },
+    # Contacts-only refresh every 15 min. The nightly full sync + the Impower
+    # contact webhook are meant to keep phone/email current, but the contact
+    # webhook isn't firing reliably — so this catches edits (e.g. a new phone
+    # number) within ~15 min instead of next-day. Cheap: one paged GET + upserts.
+    "sync-contacts-periodic": {
+        "task": "app.workers.tasks.sync_contacts_periodic",
+        "schedule": crontab(minute="*/15"),
+    },
     # Hourly: open ENTWURF resolutions whose opens_at has passed, and
     # finalize OFFEN resolutions whose closes_at has passed (tally → PDF →
     # email). Hourly granularity is fine for v1 — owners read the Frist as

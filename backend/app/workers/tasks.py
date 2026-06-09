@@ -311,6 +311,41 @@ def reconcile_impower() -> dict[str, dict[str, int]]:
     return asyncio.run(_reconcile_impower_async())
 
 
+async def _sync_contacts_async() -> dict[str, int]:
+    """Contacts-only refresh. The nightly full sync + the Impower contact
+    webhook are meant to keep phone/email current, but the contact webhook
+    isn't firing reliably, so this runs frequently as the safety net — an
+    edit (e.g. a new phone number) lands within the beat interval instead of
+    next-day. Cheap: one paged GET + idempotent upserts."""
+    settings = get_settings()
+    if not settings.impower_api_token:
+        logger.info("periodic contacts sync skipped — no Impower token")
+        return {}
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with (
+            ImpowerClient(settings.impower_api_base, settings.impower_api_token) as client,
+            session_factory() as session,
+        ):
+            stats = await sync_contacts(session, client)
+            await session.commit()
+            logger.info(
+                "periodic contacts sync: fetched=%d upserted=%d",
+                stats.fetched,
+                stats.upserted,
+            )
+            return {"contacts_fetched": stats.fetched, "contacts_upserted": stats.upserted}
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.sync_contacts_periodic")
+def sync_contacts_periodic() -> dict[str, int]:
+    """Frequent contacts-only refresh between nightly syncs."""
+    return asyncio.run(_sync_contacts_async())
+
+
 async def _process_due_resolutions_async() -> dict[str, int]:
     """Open due-to-open resolutions and finalize expired ones.
 
