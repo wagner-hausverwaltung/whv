@@ -1685,6 +1685,16 @@
     "Quorum: %lld" : {
       "shouldTranslate" : false
     },
+    "Rechnung als PDF öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open invoice PDF"
+          }
+        }
+      }
+    },
     "Rechnungen" : {
       "localizations" : {
         "en" : {

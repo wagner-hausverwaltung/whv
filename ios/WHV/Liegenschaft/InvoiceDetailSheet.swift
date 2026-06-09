@@ -16,6 +16,8 @@ final class InvoiceDetailStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
+    @Published private(set) var isDownloading = false
+
     var onUnauthorized: (() -> Void)?
     private let api: APIClient
 
@@ -39,6 +41,25 @@ final class InvoiceDetailStore: ObservableObject {
             self.lastError = error.localizedDescription
         }
     }
+
+    /// Download the invoice PDF to a temp URL for QuickLook — same
+    /// auth-gated `/me/documents/{id}/file` the Dokumente list uses.
+    /// Returns nil (and sets lastError) on failure.
+    func downloadPDF(documentId: String) async -> URL? {
+        guard !isDownloading else { return nil }
+        isDownloading = true
+        defer { isDownloading = false }
+        do {
+            return try await api.downloadDocument(id: documentId)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
+        } catch let e as APIError {
+            self.lastError = e.errorDescription
+        } catch {
+            self.lastError = error.localizedDescription
+        }
+        return nil
+    }
 }
 
 struct InvoiceDetailSheet: View {
@@ -55,11 +76,18 @@ struct InvoiceDetailSheet: View {
     @StateObject private var store = InvoiceDetailStore()
     @EnvironmentObject var authStore: AuthStore
     @Environment(\.dismiss) private var dismiss
+    @State private var preview: PreviewItem?
+
+    private struct PreviewItem: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    pdfButton
                     if let d = store.detail {
                         rechnungSection(d)
                         if hasBankFields(d) {
@@ -107,7 +135,36 @@ struct InvoiceDetailSheet: View {
             .task {
                 await store.load(propertyId: propertyId, documentId: invoice.id)
             }
+            .sheet(item: $preview) { p in
+                FilePreview(url: p.url).ignoresSafeArea()
+            }
         }
+    }
+
+    // MARK: - Actions
+
+    /// Opens the actual invoice PDF in QuickLook — the action the
+    /// portal's vendor dialog had but the app was missing.
+    private var pdfButton: some View {
+        Button {
+            Task {
+                if let url = await store.downloadPDF(documentId: invoice.id) {
+                    preview = PreviewItem(url: url)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if store.isDownloading {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.down.doc")
+                }
+                Text("Rechnung als PDF öffnen")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(store.isDownloading)
     }
 
     // MARK: - Sections
