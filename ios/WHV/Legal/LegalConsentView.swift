@@ -17,9 +17,11 @@ struct LegalConsentView: View {
         let url: URL
     }
 
-    // Marketing-site URLs. NOTE: confirm the Nutzungsbedingungen page exists at
-    // this path (the site currently publishes /datenschutz, /impressum, /cookie).
-    private static let termsURL = URL(string: "https://wagner-hausverwaltung.com/nutzungsbedingungen")!
+    // Marketing-site URLs. There's no /nutzungsbedingungen page yet (404 — the
+    // site publishes /datenschutz, /impressum, /cookie), so the "Nutzungsbedingungen"
+    // button points at the live /impressum to avoid a dead link in App Review.
+    // Swap this one line back to /nutzungsbedingungen once that page is published.
+    private static let termsURL = URL(string: "https://wagner-hausverwaltung.com/impressum")!
     private static let privacyURL = URL(string: "https://wagner-hausverwaltung.com/datenschutz")!
     private static let contactURL = URL(string: "mailto:info@wagner-hausverwaltung.com")!
 
