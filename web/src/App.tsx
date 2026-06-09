@@ -39,6 +39,7 @@ import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { PropertyDocumentsPage } from "@/pages/PropertyDocumentsPage";
 import { PropertyVendorsPage } from "@/pages/PropertyVendorsPage";
 import { PropertyAccountPage } from "@/pages/PropertyAccountPage";
+import { PropertyStartPage } from "@/pages/PropertyStartPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { ResolutionDetailPage } from "@/pages/ResolutionDetailPage";
 import { ResolutionListPage } from "@/pages/ResolutionListPage";
@@ -98,7 +99,8 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="details" replace />} />
+            <Route index element={<Navigate to="start" replace />} />
+            <Route path="start" element={<PropertyStartPage />} />
             <Route path="details" element={<PropertyDetailPage />} />
             <Route path="account" element={<PropertyAccountPage />} />
             <Route path="announcements" element={<MyAnnouncementsPage />} />

@@ -41,12 +41,17 @@
     "unbound": "Your account is not yet linked to an Impower contact. Please contact the property manager.",
     "loadFailed": "Properties could not be loaded.",
     "tabs": {
+      "start": "Start",
       "details": "Details",
       "account": "Account",
       "announcements": "Announcements",
       "assemblies": "Meetings",
       "documents": "Documents",
       "vendors": "Service providers"
+    },
+    "start": {
+      "title": "Overview",
+      "subtitle": "Quick access to your property."
     },
     "detail": {
       "stammdaten": "Master data",

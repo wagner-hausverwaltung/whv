@@ -37,6 +37,7 @@ import { useAuth } from "@/auth/AuthContext";
 //   "vendors"  — RECHNUNG documents aggregated per vendor contact so
 //                owners can see + call back who's worked on the property.
 const TAB_DEFS = [
+  { value: "start" },
   { value: "details" },
   { value: "account" },
   { value: "announcements" },

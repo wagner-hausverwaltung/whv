@@ -41,12 +41,17 @@
     "unbound": "Ihr Konto ist noch nicht mit einem Impower-Kontakt verknüpft. Bitte wenden Sie sich an die Hausverwaltung.",
     "loadFailed": "Objekte konnten nicht geladen werden.",
     "tabs": {
+      "start": "Start",
       "details": "Details",
       "account": "Konto",
       "announcements": "Mitteilungen",
       "assemblies": "Versammlungen",
       "documents": "Dokumente",
       "vendors": "Dienstleister"
+    },
+    "start": {
+      "title": "Übersicht",
+      "subtitle": "Schnellzugriff auf Ihre Liegenschaft."
     },
     "detail": {
       "stammdaten": "Stammdaten",
