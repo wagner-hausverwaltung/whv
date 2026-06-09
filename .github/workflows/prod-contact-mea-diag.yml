@@ -90,9 +90,13 @@ jobs:
                   print("\n=== #2 same contact LIVE from Impower (does Impower have the phone?) ===")
                   for path in (f"/contacts/{CID}",):
                       try:
+                          import json as _j
+
                           d = (await cl._request("GET", path)).json()
                           print(f"  GET {path} keys={sorted(d.keys())}")
-                          print(f"  phone-ish: {hits(d, ('phone', 'tel', 'mobil', 'fax'))}")
+                          print(f"  phone-ish(top): {hits(d, ('phone', 'tel', 'mobil', 'fax'))}")
+                          print(f"  details = {_j.dumps(d.get('details'), ensure_ascii=False)[:1200]}")
+                          print(f"  bankAccounts = {_j.dumps(d.get('bankAccounts'), ensure_ascii=False)[:400]}")
                       except Exception as e:  # noqa: BLE001
                           print(f"  GET {path} -> {type(e).__name__}: {e}")
 
