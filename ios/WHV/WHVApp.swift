@@ -26,6 +26,9 @@ struct WHVApp: App {
     // App lifecycle doesn't surface. Forwards to PushManager.shared.
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    // First-launch legal/consent gate (casavi-style "Rechtliche Informationen").
+    // Sits in front of the login flow; once accepted it's never shown again.
+    @AppStorage("hasAcceptedLegalConsent") private var hasAcceptedLegal = false
 
     init() {
         // Single launch-arg gate. UI test runs (see WHVUITests)
@@ -51,6 +54,8 @@ struct WHVApp: App {
         guard ProcessInfo.processInfo.arguments.contains("-UITestScreenshots") else { return }
         UserDefaults.standard.set(false, forKey: "WHV.biometrics.enabled")
         UserDefaults.standard.removeObject(forKey: "WHV.cachedUser")
+        // Pre-accept the first-launch legal gate so it doesn't block capture.
+        UserDefaults.standard.set(true, forKey: "hasAcceptedLegalConsent")
         let keychain = Keychain()
         keychain.delete("access_token")
         keychain.delete("refresh_token")
@@ -186,7 +191,9 @@ struct WHVApp: App {
 
     @ViewBuilder
     private var rootView: some View {
-        if !authStore.signedIn {
+        if !hasAcceptedLegal {
+            LegalConsentView(onConfirm: { hasAcceptedLegal = true })
+        } else if !authStore.signedIn {
             LoginView()
         } else if liegenschaftStore.selected == nil {
             LiegenschaftPickerView()

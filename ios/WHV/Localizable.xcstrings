@@ -406,6 +406,16 @@
         }
       }
     },
+    "Bestätigen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm"
+          }
+        }
+      }
+    },
     "Betreff" : {
       "localizations" : {
         "en" : {
@@ -889,6 +899,16 @@
         }
       }
     },
+    "Für weitere Informationen oder Fragen zögern Sie bitte nicht, uns zu kontaktieren." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For further information or questions, please do not hesitate to contact us."
+          }
+        }
+      }
+    },
     "Geplant" : {
       "localizations" : {
         "en" : {
@@ -1209,6 +1229,16 @@
         }
       }
     },
+    "Kontaktieren Sie uns" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact us"
+          }
+        }
+      }
+    },
     "Konto" : {
       "localizations" : {
         "en" : {
@@ -1409,6 +1439,16 @@
         }
       }
     },
+    "Mit der Nutzung unserer App erklären Sie sich ausschließlich mit unseren Nutzungsbedingungen und Datenschutzvereinbarungen einverstanden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By using our app you agree exclusively to our terms of use and privacy agreements."
+          }
+        }
+      }
+    },
     "Mitteilung" : {
       "localizations" : {
         "en" : {
@@ -1562,6 +1602,16 @@
         }
       }
     },
+    "Nutzungsbedingungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms of Use"
+          }
+        }
+      }
+    },
     "Objekteigentümer" : {
       "localizations" : {
         "en" : {
@@ -1701,6 +1751,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invoices"
+          }
+        }
+      }
+    },
+    "Rechtliche Informationen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal information"
           }
         }
       }
