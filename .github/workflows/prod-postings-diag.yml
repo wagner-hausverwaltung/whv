@@ -1,0 +1,115 @@
+name: prod-postings-diag
+
+# Read-only: /account returns 502 (ImpowerError) for the F33 owner even though
+# get_accounts works + the Hausgeld account exists — so get_posting_items is the
+# failing call. Resolve the owner's Hausgeld account, then call /posting-items
+# several ways (current sort/order params, none, combined sort) to capture the
+# EXACT Impower status+body the endpoint hides behind a generic 502. No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: "property name substring"
+        required: false
+        default: "WEG Friedrich"
+      contract:
+        description: "owner contract impower id"
+        required: false
+        default: "315269"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          NEEDLE_INPUT: ${{ github.event.inputs.needle }}
+          CONTRACT_INPUT: ${{ github.event.inputs.contract }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && NEEDLE='${NEEDLE_INPUT}' CONTRACT='${CONTRACT_INPUT}' ${COMPOSE} exec -T -e NEEDLE -e CONTRACT backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.impower.client import ImpowerClient, ImpowerError
+          from app.models import Property
+
+          NEEDLE = os.environ.get("NEEDLE", "WEG Friedrich")
+          CONTRACT = int(os.environ.get("CONTRACT", "315269"))
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      prop = (
+                          await db.scalars(select(Property).where(Property.name.ilike(f"%{NEEDLE}%")))
+                      ).first()
+                  pimp = prop.impower_id
+                  print(f"property={prop.name!r} impower_id={pimp} contract={CONTRACT}")
+
+                  async with ImpowerClient(s.impower_api_base, s.impower_api_token) as cl:
+                      accs = (
+                          await cl.get_accounts(
+                              property_id=pimp, source_ids=[CONTRACT], source_types=["CONTRACT"]
+                          )
+                      ).get("content", [])
+                      acc = next(
+                          (
+                              a
+                              for a in accs
+                              if a.get("leaf")
+                              and str(a.get("name", "")).startswith("Hausgeld")
+                          ),
+                          None,
+                      ) or next((a for a in accs if a.get("leaf")), None)
+                      print(f"accounts={len(accs)} hausgeld_account={acc.get('id') if acc else None} "
+                            f"name={acc.get('name') if acc else None!r}")
+                      aid = acc["id"]
+
+                      async def attempt(label: str, **params):
+                          import inspect
+                          try:
+                              # call the low-level _request so we control params exactly
+                              r = await cl._request("GET", "/posting-items", params=params)
+                              n = len(r.json().get("content", []))
+                              print(f"  [{label}] OK status={r.status_code} content={n}")
+                          except ImpowerError as e:
+                              print(f"  [{label}] ImpowerError: {e}")
+                          except Exception as e:  # noqa: BLE001
+                              print(f"  [{label}] {type(e).__name__}: {e}")
+
+                      print("posting-items attempts:")
+                      await attempt("current(sort=postDate,order=DESC)",
+                                    page=0, size=1000, accountIds=[aid], sort="postDate", order="DESC")
+                      await attempt("no-sort/order", page=0, size=1000, accountIds=[aid])
+                      await attempt("spring-sort(postDate,DESC)",
+                                    page=0, size=1000, accountIds=[aid], sort="postDate,DESC")
+                      await attempt("accountId-singular", page=0, size=1000, accountId=aid)
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
