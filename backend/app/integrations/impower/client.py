@@ -218,17 +218,17 @@ class ImpowerClient:
         account_ids: list[int],
         page: int = 0,
         size: int = _DEFAULT_PAGE_SIZE,
-        sort: str = "postDate",
-        order: str = "DESC",
     ) -> dict[str, Any]:
-        """GET /v2/posting-items — bookings on the given account(s),
-        newest first. Returns the raw paged body (`content`)."""
+        """GET /v2/posting-items — bookings on the given account(s).
+        Returns the raw paged body (`content`).
+
+        NOTE: Impower's /posting-items 500s ("Failed loading data from the
+        database") the moment a `sort`/`order` param is passed, so we fetch
+        unsorted and order newest-first in the caller (services/account.py)."""
         params: dict[str, Any] = {
             "page": page,
             "size": size,
             "accountIds": account_ids,
-            "sort": sort,
-            "order": order,
         }
         response = await self._request("GET", "/posting-items", params=params)
         result: dict[str, Any] = response.json()

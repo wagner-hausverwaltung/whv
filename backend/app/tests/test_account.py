@@ -35,9 +35,9 @@ class _FakeClient:
         account_ids: list[int],
         page: int = 0,
         size: int = 100,
-        sort: str = "postDate",
-        order: str = "DESC",
     ) -> dict[str, Any]:
+        # Impower's /posting-items 500s on sort/order params (no longer sent);
+        # rows come back unsorted, so the service must order them itself.
         return {"content": self._postings}
 
 
@@ -73,7 +73,10 @@ async def test_load_account_picks_hausgeld_and_sums_balance() -> None:
     # Balance = signed sum of all bookings.
     assert res.balance == Decimal("-250.0")
     assert len(res.bookings) == 3
-    assert res.bookings[0].booking_text == "Hausgeld Januar"
+    # Service orders postings newest-first in Python (Impower can't sort them
+    # server-side without 500ing), even though the fake returns them ascending.
+    assert [b.post_date for b in res.bookings] == ["2026-02-15", "2026-01-31", "2026-01-15"]
+    assert res.bookings[0].booking_text == "Hausgeld Februar"
 
 
 async def test_load_account_empty_when_no_contract_or_account() -> None:

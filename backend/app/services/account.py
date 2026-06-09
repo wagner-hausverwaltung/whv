@@ -100,6 +100,10 @@ async def load_my_account(
         account_ids=[account_id], size=_POSTINGS_PAGE_SIZE
     )
     rows = _content(postings_raw)
+    # Impower can't sort /posting-items server-side (it 500s on any sort/order
+    # param), so order newest-first here. ISO postDate strings sort
+    # lexicographically; rows without a date fall to the end.
+    rows.sort(key=lambda r: str(r.get("postDate") or ""), reverse=True)
 
     balance = Decimal("0")
     bookings: list[PostingItemResponse] = []
