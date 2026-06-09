@@ -1,0 +1,137 @@
+name: prod-contact-mea-diag
+
+# Read-only. Two questions:
+#  #2 Did the Dorra Al Imem phone edit reach OUR contacts mirror (webhook fired)?
+#     -> DB row for contact 1247487 (phone/last_synced_at) + the RAW Impower contact.
+#  #3 Does Impower's REST API actually expose MEA/distribution keys per unit?
+#     -> dump the RAW /units + /properties payload keys (the DTO mapping drops MEA;
+#        we want to know if the field exists upstream). Re-verifies ADR-0009.
+# Only GETs (DB reads + Impower reads). No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      contact:
+        description: "contact impower id"
+        required: false
+        default: "1247487"
+      property:
+        description: "property impower id (WEG F33)"
+        required: false
+        default: "18913"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          CONTACT_INPUT: ${{ github.event.inputs.contact }}
+          PROPERTY_INPUT: ${{ github.event.inputs.property }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && CONTACT='${CONTACT_INPUT}' PROPERTY='${PROPERTY_INPUT}' ${COMPOSE} exec -T -e CONTACT -e PROPERTY backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.impower.client import ImpowerClient
+          from app.models import Contact
+
+          CID = int(os.environ.get("CONTACT", "1247487"))
+          PID = int(os.environ.get("PROPERTY", "18913"))
+
+
+          def hits(d, terms):
+              return {k: d[k] for k in d if any(t in k.lower() for t in terms)}
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      print("=== #2 contact in OUR mirror (did the edit sync to us?) ===")
+                      c = (await db.scalars(select(Contact).where(Contact.impower_id == CID))).first()
+                      if c:
+                          print(
+                              f"  {c.first_name} {c.last_name} phone={c.phone!r} "
+                              f"additional={getattr(c, 'additional_contacts', None)!r} "
+                              f"last_synced_at={getattr(c, 'last_synced_at', None)} "
+                              f"updated_at={getattr(c, 'updated_at', None)}"
+                          )
+                      else:
+                          print(f"  contact {CID} NOT in our DB")
+              finally:
+                  await eng.dispose()
+
+              if not s.impower_api_token:
+                  print("(no impower token)")
+                  return
+              async with ImpowerClient(s.impower_api_base, s.impower_api_token) as cl:
+                  print("\n=== #2 same contact LIVE from Impower (does Impower have the phone?) ===")
+                  for path in (f"/contacts/{CID}",):
+                      try:
+                          d = (await cl._request("GET", path)).json()
+                          print(f"  GET {path} keys={sorted(d.keys())}")
+                          print(f"  phone-ish: {hits(d, ('phone', 'tel', 'mobil', 'fax'))}")
+                      except Exception as e:  # noqa: BLE001
+                          print(f"  GET {path} -> {type(e).__name__}: {e}")
+
+                  print("\n=== #3 RAW unit payload from Impower (is MEA exposed upstream?) ===")
+                  try:
+                      r = await cl._request("GET", "/units", params={"propertyIds": [PID], "size": 5})
+                      content = r.json().get("content", [])
+                      print(f"  units returned: {len(content)}")
+                      if content:
+                          u = content[0]
+                          print(f"  unit keys: {sorted(u.keys())}")
+                          mea = hits(u, ("mea", "share", "ownership", "anteil", "distrib",
+                                         "fraction", "quota", "numerator", "denominator"))
+                          print(f"  MEA-ish on unit: {mea if mea else 'NONE'}")
+                  except Exception as e:  # noqa: BLE001
+                      print(f"  /units -> {type(e).__name__}: {e}")
+
+                  print("\n=== #3 RAW property payload (distribution-key arrays?) ===")
+                  try:
+                      pd = (await cl._request("GET", f"/properties/{PID}")).json()
+                      print(f"  property keys: {sorted(pd.keys())}")
+                      mea = hits(pd, ("mea", "share", "distrib", "key", "anteil"))
+                      print(f"  MEA-ish on property: {mea if mea else 'NONE'}")
+                  except Exception as e:  # noqa: BLE001
+                      print(f"  /properties/{PID} -> {type(e).__name__}: {e}")
+
+                  print("\n=== #3 probe candidate distribution-key endpoints ===")
+                  for path in (
+                      f"/properties/{PID}/distribution-keys",
+                      "/distribution-keys",
+                      f"/units?propertyIds={PID}&projection=full",
+                  ):
+                      try:
+                          r = await cl._request("GET", path)
+                          body = r.text
+                          print(f"  GET {path} -> {r.status_code} len={len(body)} {body[:200]}")
+                      except Exception as e:  # noqa: BLE001
+                          print(f"  GET {path} -> {type(e).__name__}: {e}")
+
+
+          asyncio.run(main())
+          PY
