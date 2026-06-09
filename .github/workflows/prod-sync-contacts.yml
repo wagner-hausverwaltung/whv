@@ -1,0 +1,79 @@
+name: prod-sync-contacts
+
+# Runs the normal contacts sync now (same op as the nightly job) so an Impower
+# contact edit appears without waiting for 02:00. WRITE: upserts contacts from
+# Impower into our mirror (idempotent). Then re-reads the target contact to
+# confirm the phone landed.
+on:
+  workflow_dispatch:
+    inputs:
+      contact:
+        description: "contact impower id to verify after sync"
+        required: false
+        default: "1247487"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Sync contacts
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          CONTACT_INPUT: ${{ github.event.inputs.contact }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && CONTACT='${CONTACT_INPUT}' ${COMPOSE} exec -T -e CONTACT backend python -" <<'PY'
+          import asyncio
+          import os
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.integrations.impower.client import ImpowerClient
+          from app.integrations.impower.sync import sync_contacts
+          from app.models import Contact
+
+          CID = int(os.environ.get("CONTACT", "1247487"))
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      async with ImpowerClient(s.impower_api_base, s.impower_api_token) as cl:
+                          stats = await sync_contacts(db, cl)
+                      await db.commit()
+                      print(f"sync_contacts stats: {stats}")
+                      c = (
+                          await db.scalars(select(Contact).where(Contact.impower_id == CID))
+                      ).first()
+                      if c:
+                          print(
+                              f"verify {c.first_name} {c.last_name}: phone={c.phone!r} "
+                              f"last_synced_at={c.last_synced_at}"
+                          )
+                      else:
+                          print(f"contact {CID} not found")
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
