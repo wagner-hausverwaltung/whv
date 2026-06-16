@@ -1,0 +1,105 @@
+name: prod-invite-diag
+
+# Read-only: the admin lists invite 2PQHD774 as "Offen" but redeeming it says
+# "nicht (mehr) gültig". Dump the raw invite rows + replicate the EXACT
+# get_invite_info query, and check whether an account already exists for the
+# invite email. No writes.
+on:
+  workflow_dispatch:
+    inputs:
+      codes:
+        description: "invite codes (comma-separated)"
+        required: false
+        default: "2PQHD774,FCJ7ZSMV"
+      email:
+        description: "invite email to check for an existing account"
+        required: false
+        default: "ullrich@wagner-hausverwaltung.com"
+
+env:
+  PROD_USER: whv
+  PROD_REPO_DIR: /home/whv/whv
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install SSH key + trust the prod host
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Diagnose
+        env:
+          COMPOSE: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+          CODES_INPUT: ${{ github.event.inputs.codes }}
+          EMAIL_INPUT: ${{ github.event.inputs.email }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${PROD_USER}@${{ secrets.PROD_SSH_HOST }}" \
+            "cd ${PROD_REPO_DIR} && CODES='${CODES_INPUT}' EMAIL='${EMAIL_INPUT}' ${COMPOSE} exec -T -e CODES -e EMAIL backend python -" <<'PY'
+          import asyncio
+          import os
+          from datetime import UTC, datetime
+
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+          from app.config import get_settings
+          from app.models import InviteCode, User
+
+          CODES = [c.strip() for c in os.environ.get("CODES", "").split(",") if c.strip()]
+          EMAIL = os.environ.get("EMAIL", "").lower()
+
+
+          async def main() -> None:
+              s = get_settings()
+              eng = create_async_engine(s.database_url)
+              try:
+                  sm = async_sessionmaker(eng, expire_on_commit=False)
+                  async with sm() as db:
+                      now = datetime.now(UTC)
+                      print(f"now(UTC)={now}")
+                      for code in CODES:
+                          inv = (
+                              await db.scalars(select(InviteCode).where(InviteCode.code == code))
+                          ).first()
+                          if inv is None:
+                              print(f"  code={code!r}: NOT FOUND (exact-match lookup failed)")
+                              continue
+                          # replicate the EXACT get_invite_info query
+                          hit = await db.scalar(
+                              select(InviteCode).where(
+                                  InviteCode.code == code,
+                                  InviteCode.consumed_at.is_(None),
+                                  InviteCode.expires_at > datetime.now(UTC),
+                              )
+                          )
+                          print(
+                              f"  code={inv.code!r} email={inv.email!r} role={inv.role} "
+                              f"consumed_at={inv.consumed_at} expires_at={inv.expires_at} "
+                              f"created_at={inv.created_at}"
+                          )
+                          print(
+                              f"      -> get_invite_info: {'FOUND (redeemable)' if hit else '404 (rejected)'}"
+                          )
+
+                      print("=== account(s) for the invite email ===")
+                      users = (await db.scalars(select(User).where(User.email == EMAIL))).all()
+                      if not users:
+                          print(f"  NO account for {EMAIL}")
+                      for u in users:
+                          print(
+                              f"  user {u.email} id={u.id} role={u.role} "
+                              f"deleted_at={u.deleted_at} created_at={u.created_at}"
+                          )
+              finally:
+                  await eng.dispose()
+
+
+          asyncio.run(main())
+          PY
