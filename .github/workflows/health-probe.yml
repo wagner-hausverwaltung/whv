@@ -43,13 +43,26 @@ jobs:
         # staging outage never hides a prod one (and vice versa).
         run: |
           set -uo pipefail
+          # Retry transient blips (000 = couldn't connect; 5xx = restart) up to 3x
+          # before treating an endpoint as down — a momentary hiccup (a deploy,
+          # cert renewal, network flap) shouldn't false-alarm the probe. Mirrors
+          # the Impower-upstream step's retry below.
+          fetch() {  # fetch <url> <body-file> <max-time> → echoes final HTTP status
+            local s=000 a
+            for a in 1 2 3; do
+              s=$(curl -sS -o "$2" -w '%{http_code}' --max-time "$3" "$1" || echo 000)
+              [ "$s" = "200" ] && break
+              [ "$a" -lt 3 ] && sleep 5
+            done
+            echo "$s"
+          }
           check() {
             local base="$1" env="$2" s
             echo "── $env ($base)"
-            s=$(curl -sS -o /tmp/h.body -w '%{http_code}' --max-time 10 "$base/healthz" || echo 000)
+            s=$(fetch "$base/healthz" /tmp/h.body 10)
             echo "  /healthz HTTP $s"; cat /tmp/h.body 2>/dev/null; echo
             if [ "$s" != "200" ]; then echo "::error title=$env API liveness::/healthz returned $s"; return 1; fi
-            s=$(curl -sS -o /tmp/r.body -w '%{http_code}' --max-time 15 "$base/readyz" || echo 000)
+            s=$(fetch "$base/readyz" /tmp/r.body 15)
             echo "  /readyz HTTP $s"; cat /tmp/r.body 2>/dev/null; echo
             if [ "$s" != "200" ]; then echo "::error title=$env API readiness::/readyz returned $s"; return 1; fi
             grep -q '"postgres":[[:space:]]*true' /tmp/r.body || { echo "::error title=$env postgres dep::readyz reports postgres down"; return 1; }
@@ -67,8 +80,13 @@ jobs:
         # not an nginx 5xx / placeholder page.
         run: |
           set -uo pipefail
-          s=$(curl -sS -o /tmp/portal.html -w '%{http_code}' --max-time 10 \
-            https://portal.wagner-hausverwaltung.com/ || echo 000)
+          s=000
+          for a in 1 2 3; do
+            s=$(curl -sS -o /tmp/portal.html -w '%{http_code}' --max-time 10 \
+              https://portal.wagner-hausverwaltung.com/ || echo 000)
+            [ "$s" = "200" ] && break
+            [ "$a" -lt 3 ] && sleep 5
+          done
           echo "HTTP $s"
           if [ "$s" != "200" ]; then echo "::error title=Portal down::/ returned $s"; exit 1; fi
           if ! grep -q 'id="root"' /tmp/portal.html; then
