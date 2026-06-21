@@ -61,6 +61,14 @@ final class DemoStore: ObservableObject {
         seed?.assemblyDetails.first { $0.id == id }
     }
 
+    func resolutions(for propertyId: String) -> [ResolutionSummary] {
+        DemoResolutions.summaries(propertyId: propertyId)
+    }
+
+    func resolutionDetail(id: String) -> ResolutionDetail? {
+        DemoResolutions.detail(id: id)
+    }
+
     func comments(for assemblyId: String) -> [AssemblyComment] {
         seed?.comments[assemblyId] ?? []
     }

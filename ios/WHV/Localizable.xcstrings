@@ -30,6 +30,16 @@
         }
       }
     },
+    "Abgegeben" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cast"
+          }
+        }
+      }
+    },
     "Abgehalten" : {
       "localizations" : {
         "en" : {
@@ -66,6 +76,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sign out"
+          }
+        }
+      }
+    },
+    "Abstimmung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vote"
           }
         }
       }
@@ -149,6 +169,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "General"
+          }
+        }
+      }
+    },
+    "Allstimmigkeit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allstimmigkeit"
           }
         }
       }
@@ -406,6 +436,36 @@
         }
       }
     },
+    "Beschlüsse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlüsse"
+          }
+        }
+      }
+    },
+    "Beschlüsse konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load Beschlüsse."
+          }
+        }
+      }
+    },
+    "Beschlüsse werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading Beschlüsse …"
+          }
+        }
+      }
+    },
     "Bestätigen" : {
       "localizations" : {
         "en" : {
@@ -512,6 +572,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Demo mode — no real data"
+          }
+        }
+      }
+    },
+    "Die Abstimmung erfolgt per E-Mail über den Link in Ihrer Einladung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voting is done by e-mail via the link in your invitation."
           }
         }
       }
@@ -779,12 +849,52 @@
         }
       }
     },
+    "Enthaltung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abstention"
+          }
+        }
+      }
+    },
+    "Entschieden: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decided: %@"
+          }
+        }
+      }
+    },
     "Entsperren" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unlock"
+          }
+        }
+      }
+    },
+    "Entwurf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
+          }
+        }
+      }
+    },
+    "Ergebnis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result"
           }
         }
       }
@@ -885,6 +995,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ask about your documents"
+          }
+        }
+      }
+    },
+    "Frist: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deadline: %@"
           }
         }
       }
@@ -1059,6 +1179,16 @@
         }
       }
     },
+    "Ihre Stimme" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your vote"
+          }
+        }
+      }
+    },
     "Im Demo-Modus nicht verfügbar." : {
       "localizations" : {
         "en" : {
@@ -1109,6 +1239,16 @@
         }
       }
     },
+    "Ja" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
+          }
+        }
+      }
+    },
     "Jahresabrechnung" : {
       "localizations" : {
         "en" : {
@@ -1135,6 +1275,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purchase interest"
+          }
+        }
+      }
+    },
+    "Keine Beschlüsse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Beschlüsse"
           }
         }
       }
@@ -1399,6 +1549,16 @@
         }
       }
     },
+    "Mehrheitsbeschluss" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrheitsbeschluss"
+          }
+        }
+      }
+    },
     "Meine Daten exportieren" : {
       "localizations" : {
         "en" : {
@@ -1525,6 +1685,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mode"
+          }
+        }
+      }
+    },
+    "Nein" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
           }
         }
       }
@@ -1728,6 +1898,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Protocol uploaded"
+          }
+        }
+      }
+    },
+    "Quorum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quorum"
           }
         }
       }
@@ -2034,6 +2214,16 @@
         }
       }
     },
+    "Umlaufbeschlüsse erscheinen hier, sobald die Verwaltung sie startet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umlaufbeschlüsse appear here once the management starts them."
+          }
+        }
+      }
+    },
     "Vergangen" : {
       "localizations" : {
         "en" : {
@@ -2300,6 +2490,16 @@
         }
       }
     },
+    "erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "met"
+          }
+        }
+      }
+    },
     "läuft gerade" : {
       "localizations" : {
         "en" : {
@@ -2332,6 +2532,16 @@
     },
     "name@example.com" : {
       "shouldTranslate" : false
+    },
+    "nicht erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not met"
+          }
+        }
+      }
     },
     "verspätet" : {
       "localizations" : {

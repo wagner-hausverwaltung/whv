@@ -1130,6 +1130,28 @@ struct APIClient {
         return try await authedGET("/me/assemblies/\(id)")
     }
 
+    /// GET /me/resolutions — Umlaufbeschlüsse on the caller's owned properties.
+    /// The endpoint returns all of them; we filter to the active Liegenschaft
+    /// (mirrors how the assemblies list is property-scoped). Read-only.
+    func listMyResolutions(propertyId: String) async throws -> [ResolutionSummary] {
+        if DemoFlag.isActive {
+            return await DemoStore.shared.resolutions(for: propertyId)
+        }
+        let all: [ResolutionSummary] = try await authedGET("/me/resolutions")
+        return all.filter { $0.property_id == propertyId }
+    }
+
+    /// GET /me/resolutions/{id} — full Beschluss detail with tally + my vote.
+    func getResolutionDetail(id: String) async throws -> ResolutionDetail {
+        if DemoFlag.isActive {
+            guard let r = await DemoStore.shared.resolutionDetail(id: id) else {
+                throw APIError.http(status: 404, detail: "Demo: nicht gefunden")
+            }
+            return r
+        }
+        return try await authedGET("/me/resolutions/\(id)")
+    }
+
     /// GET /me/assemblies/{id}/comments — ordered chronologically.
     func listAssemblyComments(assemblyId: String) async throws -> [AssemblyComment] {
         if DemoFlag.isActive {
