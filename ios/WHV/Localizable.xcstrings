@@ -301,7 +301,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Payout = amount paid to you as the owner. Without guarantee."
+            "value" : "Payout = amount paid to you as the Eigentümer. Without guarantee."
           }
         }
       }
@@ -341,7 +341,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Council member"
+            "value" : "Beirat"
           }
         }
       }
@@ -371,7 +371,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Resolution"
+            "value" : "Beschluss"
           }
         }
       }
@@ -381,7 +381,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Resolution motion"
+            "value" : "Beschlussantrag"
           }
         }
       }
@@ -391,7 +391,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Resolution text"
+            "value" : "Beschlusstext"
           }
         }
       }
@@ -401,7 +401,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Resolution execution"
+            "value" : "Beschlussumsetzung"
           }
         }
       }
@@ -471,7 +471,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The protocol is usually uploaded within four weeks of the assembly."
+            "value" : "The protocol is usually uploaded within four weeks of the Versammlung."
           }
         }
       }
@@ -684,7 +684,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Owner"
+            "value" : "Eigentümer"
           }
         }
       }
@@ -694,7 +694,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Owners' meeting"
+            "value" : "Eigentümerversammlung"
           }
         }
       }
@@ -994,7 +994,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can ask follow-up questions about this assembly here. Replies appear directly below the question."
+            "value" : "You can ask follow-up questions about this Versammlung here. Replies appear directly below the question."
           }
         }
       }
@@ -1114,7 +1114,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Annual statement"
+            "value" : "Jahresabrechnung"
           }
         }
       }
@@ -1194,7 +1194,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No assemblies"
+            "value" : "No Versammlungen"
           }
         }
       }
@@ -1394,7 +1394,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Marks the upcoming owners' meeting as running late."
+            "value" : "Marks the upcoming Eigentümerversammlung as running late."
           }
         }
       }
@@ -1890,7 +1890,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "As soon as the management schedules an assembly, it appears here."
+            "value" : "As soon as the management schedules a Versammlung, it appears here."
           }
         }
       }
@@ -2069,7 +2069,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Assembly"
+            "value" : "Versammlung"
           }
         }
       }
@@ -2079,7 +2079,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Assemblies"
+            "value" : "Versammlungen"
           }
         }
       }
@@ -2089,7 +2089,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Couldn’t load assemblies."
+            "value" : "Couldn’t load Versammlungen."
           }
         }
       }
@@ -2099,7 +2099,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Loading assemblies …"
+            "value" : "Loading Versammlungen …"
           }
         }
       }
@@ -2109,7 +2109,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Assemblies are shown per property."
+            "value" : "Versammlungen are shown per property."
           }
         }
       }
