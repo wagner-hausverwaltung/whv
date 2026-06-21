@@ -1152,6 +1152,16 @@ struct APIClient {
         return try await authedGET("/me/resolutions/\(id)")
     }
 
+    /// GET /me/resolutions/{id}/result.pdf → local file URL for QuickLook.
+    /// Only the Ergebnis-PDF is owner-downloadable (mirrors the portal; the
+    /// Beschlusstext itself is shown inline).
+    func downloadResolutionResultPDF(id: String) async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedDownload(
+            "/me/resolutions/\(id)/result.pdf", saveAs: "beschluss-ergebnis-\(id).pdf"
+        )
+    }
+
     /// GET /me/assemblies/{id}/comments — ordered chronologically.
     func listAssemblyComments(assemblyId: String) async throws -> [AssemblyComment] {
         if DemoFlag.isActive {

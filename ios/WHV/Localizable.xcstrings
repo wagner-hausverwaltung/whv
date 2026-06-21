@@ -899,6 +899,16 @@
         }
       }
     },
+    "Ergebnis als PDF öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open result PDF"
+          }
+        }
+      }
+    },
     "Erneut versuchen" : {
       "localizations" : {
         "en" : {

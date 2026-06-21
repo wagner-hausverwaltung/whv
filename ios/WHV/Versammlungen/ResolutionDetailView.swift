@@ -10,6 +10,7 @@ import SwiftUI
 final class ResolutionDetailStore: ObservableObject {
     @Published private(set) var detail: ResolutionDetail?
     @Published private(set) var isLoading = false
+    @Published private(set) var isDownloading = false
     @Published var lastError: String?
 
     var onUnauthorized: (() -> Void)?
@@ -29,6 +30,24 @@ final class ResolutionDetailStore: ObservableObject {
             lastError = error.localizedDescription
         }
     }
+
+    /// Download the Ergebnis-PDF to a temp URL for QuickLook. Returns nil
+    /// (and sets lastError) on failure.
+    func downloadResultPDF(id: String) async -> URL? {
+        guard !isDownloading else { return nil }
+        isDownloading = true
+        defer { isDownloading = false }
+        do {
+            return try await api.downloadResolutionResultPDF(id: id)
+        } catch APIError.unauthorized {
+            onUnauthorized?()
+        } catch let e as APIError {
+            lastError = e.errorDescription
+        } catch {
+            lastError = error.localizedDescription
+        }
+        return nil
+    }
 }
 
 struct ResolutionDetailView: View {
@@ -37,6 +56,12 @@ struct ResolutionDetailView: View {
 
     @StateObject private var store = ResolutionDetailStore()
     @EnvironmentObject var authStore: AuthStore
+    @State private var preview: PreviewItem?
+
+    private struct PreviewItem: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
 
     init(id: String, fallback: ResolutionSummary? = nil) {
         self.id = id
@@ -56,6 +81,9 @@ struct ResolutionDetailView: View {
                     if let result = d.result, !result.isEmpty {
                         section("Ergebnis") { Text(result).font(.subheadline) }
                     }
+                    if d.result_pdf_url != nil {
+                        pdfButton(resolutionId: d.id)
+                    }
                 } else if store.isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
                 } else if let err = store.lastError {
@@ -73,6 +101,31 @@ struct ResolutionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { store.onUnauthorized = { [weak authStore] in authStore?.signOut() } }
         .task { await store.load(id: id) }
+        .sheet(item: $preview) { p in
+            FilePreview(url: p.url).ignoresSafeArea()
+        }
+    }
+
+    private func pdfButton(resolutionId: String) -> some View {
+        Button {
+            Task {
+                if let url = await store.downloadResultPDF(id: resolutionId) {
+                    preview = PreviewItem(url: url)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if store.isDownloading {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.down.doc")
+                }
+                Text("Ergebnis als PDF öffnen")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(store.isDownloading)
     }
 
     // MARK: - Header
