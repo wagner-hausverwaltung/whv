@@ -316,6 +316,36 @@
         }
       }
     },
+    "Aufgabe aus der Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task from the Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“."
+          }
+        }
+      }
+    },
+    "Aufgabe erstellen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create task"
+          }
+        }
+      }
+    },
+    "Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task created and the Verwalter team notified."
+          }
+        }
+      }
+    },
     "Aus der Einladung übernommen." : {
       "localizations" : {
         "en" : {
@@ -462,6 +492,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading Beschlüsse …"
+          }
+        }
+      }
+    },
+    "Beschreibung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
           }
         }
       }
@@ -925,6 +965,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "Erstellen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
           }
         }
       }
@@ -1719,6 +1769,16 @@
         }
       }
     },
+    "Neue Aufgabe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New task"
+          }
+        }
+      }
+    },
     "Neue Dokumente" : {
       "localizations" : {
         "en" : {
@@ -1991,6 +2051,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Damage report"
+          }
+        }
+      }
+    },
+    "Schließen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
           }
         }
       }
@@ -2426,6 +2496,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forwarding"
+          }
+        }
+      }
+    },
+    "Wird als internes Ticket (Kategorie „Eigentümerversammlung“) angelegt und an das Verwalter-Team gemeldet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created as an internal ticket (category „Eigentümerversammlung“) and reported to the Verwalter team."
           }
         }
       }

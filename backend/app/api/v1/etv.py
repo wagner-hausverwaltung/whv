@@ -18,8 +18,10 @@ authenticated FileResponse so we can re-check scope on every download.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -27,6 +29,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Response,
     UploadFile,
     status,
 )
@@ -38,8 +41,10 @@ from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.integrations.docuseal.client import DocuSealError, get_docuseal_client
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
 from app.integrations.email.etv import render_assembly_comment_notification_email
+from app.integrations.pdf.assembly_document import ProtocolAgendaItem, render_protocol_pdf
 from app.integrations.storage.etv_attachments import (
     EtvAttachmentStorageError,
 )
@@ -54,6 +59,8 @@ from app.integrations.storage.etv_attachments import (
 )
 from app.models import (
     AgendaItemType,
+    AgendaItemVoteResult,
+    AgendaItemVotingBasis,
     AssemblyStatus,
     AuditLog,
     EtvAgendaItem,
@@ -73,6 +80,7 @@ from app.schemas.etv import (
     AssemblyCommentResponse,
     AssemblyDetailResponse,
     AssemblyResponse,
+    AssemblySignatureRequest,
     CreateAgendaItemRequest,
     CreateAssemblyCommentRequest,
     CreateAssemblyRequest,
@@ -84,8 +92,10 @@ from app.schemas.etv import (
     UpdateAssemblyCommentRequest,
     UpdateAssemblyRequest,
 )
+from app.schemas.signature import SignatureRequestResponse
 from app.services import etv as svc
 from app.services import notification_prefs, push
+from app.services import signatures as signatures_svc
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +218,81 @@ async def _assembly_to_detail(session: AsyncSession, a: EtvAssembly) -> Assembly
         protocol_uploaded_at=a.protocol_uploaded_at,
         created_at=a.created_at,
         agenda_items=item_responses,
+    )
+
+
+# ---------- Versammlungsprotokoll PDF (WHV design) + e-signature ----------
+
+_AGENDA_TYPE_LABELS: dict[AgendaItemType, str] = {
+    AgendaItemType.INFORMATION: "Information",
+    AgendaItemType.BESCHLUSS: "Beschluss",
+    AgendaItemType.DISKUSSION: "Diskussion",
+}
+_RESULT_LABELS: dict[AgendaItemVoteResult, str] = {
+    AgendaItemVoteResult.ANGENOMMEN: "Angenommen",
+    AgendaItemVoteResult.ABGELEHNT: "Abgelehnt",
+}
+_BASIS_LABELS: dict[AgendaItemVotingBasis, str] = {
+    AgendaItemVotingBasis.KOPF: "Kopfprinzip",
+    AgendaItemVotingBasis.MEA: "Miteigentumsanteile (MEA)",
+    AgendaItemVotingBasis.OBJEKT: "Objektprinzip",
+}
+_STATUS_LABELS: dict[AssemblyStatus, str] = {
+    AssemblyStatus.GEPLANT: "Geplant",
+    AssemblyStatus.EINGELADEN: "Eingeladen",
+    AssemblyStatus.ABGEHALTEN: "Abgehalten",
+    AssemblyStatus.ABGESAGT: "Abgesagt",
+}
+
+
+def _format_address(prop: Property | None) -> str | None:
+    if prop is None:
+        return None
+    line1 = " ".join(x for x in [prop.street, prop.number] if x)
+    line2 = " ".join(x for x in [prop.postal_code, prop.city] if x)
+    parts = [p for p in [line1, line2] if p]
+    return ", ".join(parts) or None
+
+
+def _protocol_filename(a: EtvAssembly) -> str:
+    when = a.scheduled_start.astimezone(UTC).strftime("%Y-%m-%d") if a.scheduled_start else "Datum"
+    return f"Versammlungsprotokoll {when}.pdf"
+
+
+async def _render_assembly_protocol(session: AsyncSession, a: EtvAssembly) -> bytes:
+    """Build the WHV-design Protokoll PDF from an assembly + its agenda.
+    Reuses `_assembly_to_detail` for the nested agenda load and renders
+    off the event loop (ReportLab is CPU-bound)."""
+    detail = await _assembly_to_detail(session, a)
+    prop = await session.get(Property, a.property_id)
+    items = [
+        ProtocolAgendaItem(
+            position=i.position,
+            title=i.title,
+            type_label=_AGENDA_TYPE_LABELS.get(i.type, str(i.type)),
+            body=i.body or "",
+            beschluss_text=i.beschluss_text,
+            result_label=_RESULT_LABELS.get(i.vote_result) if i.vote_result else None,
+            vote_yes=i.vote_yes,
+            vote_no=i.vote_no,
+            vote_abstain=i.vote_abstain,
+            voting_basis_label=(_BASIS_LABELS.get(i.voting_basis) if i.voting_basis else None),
+            present_count=i.present_count,
+        )
+        for i in sorted(detail.agenda_items, key=lambda x: x.position)
+    ]
+    return await asyncio.to_thread(
+        render_protocol_pdf,
+        assembly_title=detail.title,
+        property_name=detail.property_name or (prop.name if prop else "—"),
+        property_address=_format_address(prop),
+        location=detail.location,
+        scheduled_start=detail.scheduled_start,
+        scheduled_end=detail.scheduled_end,
+        status_label=_STATUS_LABELS.get(detail.status, str(detail.status)),
+        description=detail.description or "",
+        agenda_items=items,
+        generated_at=datetime.now(UTC),
     )
 
 
@@ -654,6 +739,98 @@ async def admin_create_assembly(
     await session.commit()
     await session.refresh(assembly)
     return await _assembly_to_detail(session, assembly)
+
+
+@admin_router.get("/assemblies/{assembly_id}/document.pdf")
+async def admin_assembly_document_pdf(
+    assembly_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Generate the WHV-design Versammlungsprotokoll PDF for preview /
+    print / download. Works for any property type — this is the manual
+    route used for Mietverwaltungen, where Impower has no ETV."""
+    a = await svc.load_assembly_for_org(
+        session, organization_id=current_user.organization_id, assembly_id=assembly_id
+    )
+    if a is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
+    pdf = await _render_assembly_protocol(session, a)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{_protocol_filename(a)}"'},
+    )
+
+
+@admin_router.post(
+    "/assemblies/{assembly_id}/signature-request",
+    response_model=SignatureRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_assembly_signature_request(
+    assembly_id: uuid.UUID,
+    payload: AssemblySignatureRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SignatureRequestResponse:
+    """Generate the Protokoll PDF and send it to one owner for
+    e-signature via DocuSeal (emailed through SES; no portal account
+    needed). 503 until DocuSeal is configured. The signed PDF is filed
+    under the assembly's property on completion (the webhook path)."""
+    a = await svc.load_assembly_for_org(
+        session, organization_id=current_user.organization_id, assembly_id=assembly_id
+    )
+    if a is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assembly not found")
+
+    client = get_docuseal_client(settings)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Signatur-Dienst ist nicht konfiguriert.",
+        )
+
+    pdf = await _render_assembly_protocol(session, a)
+    filename = _protocol_filename(a)
+    try:
+        row = await signatures_svc.create_signature_request(
+            session,
+            organization_id=current_user.organization_id,
+            created_by_user_id=current_user.id,
+            property_id=a.property_id,
+            pdf_bytes=pdf,
+            filename=filename,
+            recipient_email=str(payload.recipient_email),
+            recipient_name=(payload.recipient_name or "").strip() or None,
+            client=client,
+        )
+    except DocuSealError as exc:
+        # Persist the FAILED row, then surface a 502 to the SPA.
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"DocuSeal-Fehler: {exc}",
+        ) from exc
+
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="signature_request_created",
+            target_type="signature_requests",
+            target_id=str(row.id),
+            payload_json={
+                "recipient_email": str(payload.recipient_email),
+                "assembly_id": str(a.id),
+                "filename": row.source_filename,
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(row)
+    return SignatureRequestResponse.model_validate(row)
 
 
 @admin_router.get("/assemblies/{assembly_id}", response_model=AssemblyDetailResponse)

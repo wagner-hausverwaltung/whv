@@ -14,7 +14,7 @@ payload tight. Detail views fetch the full tree in a single request.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models import (
     AgendaItemType,
@@ -119,6 +119,14 @@ class AgendaItemResponse(BaseModel):
 
 
 # ---------- Assembly itself ----------
+
+
+class AssemblySignatureRequest(BaseModel):
+    """Body for POST /admin/assemblies/{id}/signature-request — send the
+    generated Versammlungsprotokoll PDF to one owner for e-signature."""
+
+    recipient_email: EmailStr
+    recipient_name: str | None = Field(default=None, max_length=200)
 
 
 class CreateAssemblyRequest(BaseModel):

@@ -43,6 +43,7 @@ import CancelIcon from "@mui/icons-material/Close";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
+import HistoryEduIcon from "@mui/icons-material/HistoryEduOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import { AssemblyComments } from "@/pages/AssemblyComments";
@@ -153,6 +154,8 @@ export function AdminAssemblyDetailPage() {
         onChanged={(a) => setAssembly(a)}
       />
 
+      <ProtocolSignatureSection assembly={assembly} />
+
       <ProtocolSection
         assembly={assembly}
         onChanged={(a) => setAssembly(a)}
@@ -162,6 +165,188 @@ export function AdminAssemblyDetailPage() {
           they edit the assembly on — fewer tabs to bounce between. */}
       <AssemblyComments assemblyId={assembly.id} />
     </Stack>
+  );
+}
+
+// =================================================================
+// Versammlungsprotokoll PDF (WHV design) + send-for-signature
+// =================================================================
+
+// Minimal shape of /admin/properties/{id}/contacts — just the fields
+// needed to prefill the signer (full type lives in PropertyInvitesTab).
+interface OwnerContactRow {
+  name: string;
+  email: string | null;
+  suggested_role: string;
+}
+
+function ProtocolSignatureSection({ assembly }: { assembly: AssemblyDetailResponse }) {
+  const [error, setError] = useState<string | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
+
+  const openPdf = async () => {
+    // Authed fetch → blob → new tab (a plain <a href> would 401, the
+    // browser doesn't attach the JWT header). Mirrors the invitation
+    // download below.
+    setError(null);
+    try {
+      const r = await api.get(`/admin/assemblies/${assembly.id}/document.pdf`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data as Blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("PDF konnte nicht erstellt werden.");
+    }
+  };
+
+  return (
+    <Paper sx={{ p: 3 }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        Versammlungsprotokoll (WHV-Design)
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Erzeugt aus Tagesordnung und Details ein gebrandetes PDF — auch für
+        Mietverwaltungen, für die Impower keine ETV anlegt. Optional direkt an
+        eine Eigentümerin / einen Eigentümer zur digitalen Unterschrift senden.
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+        <Button
+          variant="outlined"
+          startIcon={<PictureAsPdfIcon />}
+          onClick={() => void openPdf()}
+        >
+          PDF-Export
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={<HistoryEduIcon />}
+          onClick={() => setSendOpen(true)}
+        >
+          Zur Unterschrift senden
+        </Button>
+      </Stack>
+      {sendOpen && (
+        <SendForSignatureDialog assembly={assembly} onClose={() => setSendOpen(false)} />
+      )}
+    </Paper>
+  );
+}
+
+function SendForSignatureDialog({
+  assembly,
+  onClose,
+}: {
+  assembly: AssemblyDetailResponse;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+
+  // Best-effort prefill from the property's first owner contact; the
+  // field stays editable and a failed fetch just leaves it blank.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await api.get<OwnerContactRow[]>(
+          `/admin/properties/${assembly.property_id}/contacts`,
+        );
+        const owner = r.data.find((c) => c.suggested_role === "EIGENTUEMER" && c.email);
+        if (!cancelled && owner?.email) {
+          setEmail(owner.email);
+          setName(owner.name);
+        }
+      } catch {
+        /* prefill is optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [assembly.property_id]);
+
+  const canSubmit = /\S+@\S+\.\S+/.test(email.trim());
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/admin/assemblies/${assembly.id}/signature-request`, {
+        recipient_email: email.trim(),
+        recipient_name: name.trim() || null,
+      });
+      setSentTo(email.trim());
+    } catch (e) {
+      // Surface the backend's German detail (e.g. 503 "Signatur-Dienst ist
+      // nicht konfiguriert." until DocuSeal is provisioned).
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data
+        ?.detail;
+      setError(detail ?? "Die Anfrage konnte nicht gesendet werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Protokoll zur Unterschrift senden</DialogTitle>
+      <DialogContent>
+        {sentTo ? (
+          <Alert severity="success" sx={{ mt: 1 }}>
+            Das Protokoll wurde an {sentTo} zur digitalen Unterschrift gesendet. Den
+            Status sehen Sie im Bereich Signaturen.
+          </Alert>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField
+              label="E-Mail der Empfängerin / des Empfängers"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Name (optional)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+            />
+            <Typography variant="caption" color="text.secondary">
+              Das gebrandete Versammlungsprotokoll wird erzeugt und per E-Mail über
+              DocuSeal zur Unterschrift versendet — ein Portal-Konto ist dafür nicht
+              nötig.
+            </Typography>
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {sentTo ? (
+          <Button onClick={onClose}>Schließen</Button>
+        ) : (
+          <>
+            <Button onClick={onClose} disabled={busy}>
+              Abbrechen
+            </Button>
+            <Button variant="contained" onClick={() => void submit()} disabled={!canSubmit || busy}>
+              Senden
+            </Button>
+          </>
+        )}
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -1458,6 +1643,22 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
     }
   };
 
+  const openProtocol = async () => {
+    // Authed fetch → blob → new tab (a plain <a href> would 401 — the
+    // browser doesn't attach the JWT). Mirrors the invitation openPdf.
+    setError(null);
+    try {
+      const r = await api.get(`/me/assemblies/${assembly.id}/protocol`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data as Blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("Protokoll konnte nicht geöffnet werden.");
+    }
+  };
+
   const protocolNeedsReview = Boolean(
     assembly.protocol_extracted_at && !assembly.protocol_verified_at,
   );
@@ -1566,6 +1767,15 @@ function ProtocolSection({ assembly, onChanged }: ProtocolSectionProps) {
               Beschluss-Ergebnisse, Stimm-Tallies und die Diskussion und
               verschmilzt sie mit der bestehenden Tagesordnung.
             </Typography>
+          )}
+          {assembly.protocol_pdf_url && (
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={() => void openProtocol()}
+            >
+              Herunterladen
+            </Button>
           )}
           <Button
             component="label"

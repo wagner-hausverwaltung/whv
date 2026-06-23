@@ -20,11 +20,17 @@ import {
   Breadcrumbs,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Link as MuiLink,
   Paper,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
+import AddTaskOutlinedIcon from "@mui/icons-material/AddTaskOutlined";
 import CalendarIcon from "@mui/icons-material/CalendarMonthOutlined";
 import DownloadIcon from "@mui/icons-material/DownloadOutlined";
 import HomeWorkIcon from "@mui/icons-material/HomeWorkOutlined";
@@ -32,6 +38,7 @@ import LocationIcon from "@mui/icons-material/LocationOnOutlined";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
+import { useAuth } from "@/auth/AuthContext";
 import { AssemblyComments } from "@/pages/AssemblyComments";
 import {
   AGENDA_ITEM_TYPE_LABELS,
@@ -88,6 +95,8 @@ export function MyAssemblyDetailPage() {
   const [a, setAssembly] = useState<AssemblyDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const { user } = useAuth();
+  const isVerwalter = user?.role === "verwalter";
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -132,6 +141,27 @@ export function MyAssemblyDetailPage() {
           ? "Protokoll-Download fehlgeschlagen."
           : "Einladung-Download fehlgeschlagen.",
       );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Verwalter-only: generate the WHV-branded Versammlungsprotokoll PDF
+  // from the agenda + details and open it. Used to print/sign (and for
+  // Mietverwaltungen, where Impower has no ETV). Opens in a new tab.
+  const openGeneratedProtocol = async (): Promise<void> => {
+    if (!a) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const r = await api.get(`/admin/assemblies/${a.id}/document.pdf`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data as Blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("Protokoll (WHV-Design) konnte nicht erstellt werden.");
     } finally {
       setDownloading(false);
     }
@@ -302,7 +332,13 @@ export function MyAssemblyDetailPage() {
         ) : (
           <Stack spacing={2}>
             {sortedAgenda.map((item) => (
-              <AgendaCard key={item.id} item={item} />
+              <AgendaCard
+                key={item.id}
+                item={item}
+                isVerwalter={isVerwalter}
+                propertyId={a.property_id}
+                assemblyTitle={a.title}
+              />
             ))}
           </Stack>
         )}
@@ -350,6 +386,48 @@ export function MyAssemblyDetailPage() {
                 disabled={downloading}
               >
                 {downloading ? "Wird geladen…" : "Herunterladen"}
+              </Button>
+            </Stack>
+          </Paper>
+        </Box>
+      )}
+
+      {/* Verwalter-only: generate the branded protocol PDF to
+          print/sign — also the documentation route for
+          Mietverwaltungen, where Impower has no ETV. */}
+      {isVerwalter && (
+        <Box>
+          <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+            Protokoll erstellen (WHV-Design)
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              sx={{
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
+              }}
+            >
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+                <PictureAsPdfIcon color="primary" />
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    Versammlungsprotokoll als PDF
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Aus Tagesordnung und Details erzeugt — zum Ausdrucken und
+                    Unterschreiben. Auch für Mietverwaltungen.
+                  </Typography>
+                </Box>
+              </Stack>
+              <Button
+                variant="contained"
+                startIcon={<DownloadIcon />}
+                onClick={() => void openGeneratedProtocol()}
+                disabled={downloading}
+              >
+                {downloading ? "Wird erstellt…" : "PDF erstellen"}
               </Button>
             </Stack>
           </Paper>
@@ -413,7 +491,18 @@ export function MyAssemblyDetailPage() {
   );
 }
 
-function AgendaCard({ item }: { item: AgendaItemResponse }) {
+function AgendaCard({
+  item,
+  isVerwalter,
+  propertyId,
+  assemblyTitle,
+}: {
+  item: AgendaItemResponse;
+  isVerwalter: boolean;
+  propertyId: string;
+  assemblyTitle: string;
+}) {
+  const [taskOpen, setTaskOpen] = useState(false);
   const total = item.vote_yes + item.vote_no + item.vote_abstain;
   // Show the tally block when *any* vote-related field has data,
   // not just when sum > 0. A protocol can record voting_basis +
@@ -595,7 +684,27 @@ function AgendaCard({ item }: { item: AgendaItemResponse }) {
             </Stack>
           </Box>
         )}
+        {isVerwalter && (
+          <Box>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddTaskOutlinedIcon />}
+              onClick={() => setTaskOpen(true)}
+            >
+              Aufgabe erstellen
+            </Button>
+          </Box>
+        )}
       </Stack>
+      {taskOpen && (
+        <CreateTaskFromAgendaDialog
+          item={item}
+          propertyId={propertyId}
+          assemblyTitle={assemblyTitle}
+          onClose={() => setTaskOpen(false)}
+        />
+      )}
     </Paper>
   );
 }
@@ -618,6 +727,111 @@ function VoteCell({
         {value}
       </Typography>
     </Box>
+  );
+}
+
+// Verwalter-only: turn an agenda point into an internal Ticket
+// (category SONSTIGES_ETV, PRIVATE) via the standard /me/tickets flow,
+// which already notifies the Verwalter team. Mirrors the admin SPA's
+// CreateTaskFromAgendaDialog so the action behaves identically on both
+// web surfaces.
+function CreateTaskFromAgendaDialog({
+  item,
+  propertyId,
+  assemblyTitle,
+  onClose,
+}: {
+  item: AgendaItemResponse;
+  propertyId: string;
+  assemblyTitle: string;
+  onClose: () => void;
+}) {
+  const [subject, setSubject] = useState(() => item.title.slice(0, 200));
+  const [body, setBody] = useState(() =>
+    item.body.trim()
+      ? item.body
+      : `Aufgabe aus der Eigentümerversammlung „${assemblyTitle}", Tagesordnungspunkt „${item.title}".`,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const canSubmit = subject.trim().length >= 3 && body.trim().length >= 3;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post("/me/tickets", {
+        subject: subject.trim(),
+        body: body.trim(),
+        category: "SONSTIGES_ETV",
+        property_id: propertyId,
+        share_scope: "PRIVATE",
+      });
+      setDone(true);
+    } catch {
+      setError("Aufgabe konnte nicht erstellt werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Aufgabe aus Tagesordnungspunkt</DialogTitle>
+      <DialogContent>
+        {done ? (
+          <Alert severity="success" sx={{ mt: 1 }}>
+            Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt.
+          </Alert>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField
+              label="Betreff"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              fullWidth
+              required
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+            />
+            <TextField
+              label="Beschreibung"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              fullWidth
+              required
+              multiline
+              minRows={4}
+            />
+            <Typography variant="caption" color="text.secondary">
+              Wird als internes Ticket (Kategorie „Eigentümerversammlung")
+              angelegt und an das Verwalter-Team gemeldet.
+            </Typography>
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {done ? (
+          <Button onClick={onClose}>Schließen</Button>
+        ) : (
+          <>
+            <Button onClick={onClose} disabled={busy}>
+              Abbrechen
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => void submit()}
+              disabled={!canSubmit || busy}
+            >
+              Aufgabe erstellen
+            </Button>
+          </>
+        )}
+      </DialogActions>
+    </Dialog>
   );
 }
 

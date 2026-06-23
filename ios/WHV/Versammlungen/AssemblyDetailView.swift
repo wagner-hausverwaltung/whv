@@ -270,6 +270,13 @@ struct AssemblyDetailView: View {
         return URL(string: raw)
     }
 
+    /// True when the signed-in user is the Verwalter — gates the
+    /// per-agenda-item "Aufgabe erstellen" action (mirrors the admin
+    /// SPA, which is Verwalter-only by route).
+    private var isVerwalter: Bool {
+        authStore.user?.role.lowercased() == "verwalter"
+    }
+
     // MARK: - Header
 
     private var headerCard: some View {
@@ -417,6 +424,9 @@ struct AssemblyDetailView: View {
                 ForEach(detail.agenda_items.sorted(by: { $0.position < $1.position })) { item in
                     AgendaItemCard(
                         item: item,
+                        isVerwalter: isVerwalter,
+                        assemblyTitle: detail.title,
+                        propertyId: detail.property_id,
                         downloadingAttachmentId: store.downloadingAttachmentId,
                         onAttachmentTap: { att in
                             Task {
@@ -574,12 +584,20 @@ struct AssemblyDetailView: View {
 
 private struct AgendaItemCard: View {
     let item: AgendaItem
+    /// Gates the Verwalter-only "Aufgabe erstellen" action below.
+    let isVerwalter: Bool
+    /// Carried into the pre-filled task sheet for the default body text.
+    let assemblyTitle: String
+    /// The assembly's property — the created ticket is scoped to it.
+    let propertyId: String
     /// Mirrors `AssemblyDetailStore.downloadingAttachmentId` — when
     /// it matches an attachment.id the chip renders a spinner.
     let downloadingAttachmentId: String?
     /// Closure invoked on tap. Parent fires the download + presents
     /// QuickLook via the page-level sheet binding.
     let onAttachmentTap: (AgendaItemAttachment) -> Void
+
+    @State private var taskOpen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -649,6 +667,9 @@ private struct AgendaItemCard: View {
             if !item.discussion.isEmpty {
                 discussion
             }
+            if isVerwalter {
+                createTaskButton
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -656,6 +677,28 @@ private struct AgendaItemCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
         )
+        .sheet(isPresented: $taskOpen) {
+            CreateTaskFromAgendaSheet(
+                item: item,
+                assemblyTitle: assemblyTitle,
+                propertyId: propertyId
+            )
+        }
+    }
+
+    /// Verwalter-only: turn this TOP into an internal task (a Ticket
+    /// with category SONSTIGES_ETV). Mirrors the admin SPA's
+    /// "Aufgabe erstellen" button on each agenda row.
+    private var createTaskButton: some View {
+        Button {
+            taskOpen = true
+        } label: {
+            Label("Aufgabe erstellen", systemImage: "plus.circle")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .padding(.top, 4)
     }
 
     /// Supporting docs attached to this TOP. Each chip is a Button —
@@ -891,4 +934,116 @@ private func formatBytes(_ b: Int) -> String {
     if b < 1024 * 1024 { return "\(b / 1024) KB" }
     let mb = Double(b) / (1024.0 * 1024.0)
     return String(format: "%.1f MB", mb)
+}
+
+// MARK: - Create task (ticket) from an agenda item — Verwalter only
+
+/// Pre-filled sheet that turns an ETV agenda point into an internal
+/// Ticket (category SONSTIGES_ETV, share scope PRIVATE) via
+/// POST /me/tickets — the same flow the admin SPA uses, so a Verwalter
+/// gets identical behaviour on the web portal and in the app. The
+/// ticket-create already notifies the Verwalter team server-side, so
+/// there's no extra wiring here. Subject + body are pre-filled from
+/// the TOP and stay editable before sending.
+private struct CreateTaskFromAgendaSheet: View {
+    let item: AgendaItem
+    let assemblyTitle: String
+    let propertyId: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var subject: String
+    @State private var draftBody: String
+    @State private var busy = false
+    @State private var errorText: String?
+    @State private var done = false
+
+    private let api = APIClient()
+
+    init(item: AgendaItem, assemblyTitle: String, propertyId: String) {
+        self.item = item
+        self.assemblyTitle = assemblyTitle
+        self.propertyId = propertyId
+        _subject = State(initialValue: String(item.title.prefix(200)))
+        let trimmed = item.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        _draftBody = State(
+            initialValue: trimmed.isEmpty
+                ? String(localized: "Aufgabe aus der Eigentümerversammlung „\(assemblyTitle)“, Tagesordnungspunkt „\(item.title)“.")
+                : item.body
+        )
+    }
+
+    private var canSubmit: Bool {
+        subject.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
+            && draftBody.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if done {
+                    Section {
+                        Label("Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt.", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                } else {
+                    if let errorText {
+                        Section {
+                            Text(errorText)
+                                .font(.subheadline)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    Section("Betreff") {
+                        TextField("Betreff", text: $subject)
+                    }
+                    Section("Beschreibung") {
+                        TextField("Beschreibung", text: $draftBody, axis: .vertical)
+                            .lineLimit(4...10)
+                    }
+                    Section {
+                        Text("Wird als internes Ticket (Kategorie „Eigentümerversammlung“) angelegt und an das Verwalter-Team gemeldet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Neue Aufgabe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(done ? "Schließen" : "Abbrechen") { dismiss() }
+                }
+                if !done {
+                    ToolbarItem(placement: .confirmationAction) {
+                        if busy {
+                            ProgressView()
+                        } else {
+                            Button("Erstellen") { Task { await submit() } }
+                                .disabled(!canSubmit)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        guard canSubmit else { return }
+        busy = true
+        errorText = nil
+        defer { busy = false }
+        do {
+            _ = try await api.createMyTicket(
+                subject: subject.trimmingCharacters(in: .whitespacesAndNewlines),
+                body: draftBody.trimmingCharacters(in: .whitespacesAndNewlines),
+                category: .sonstigesEtv,
+                propertyId: propertyId
+            )
+            done = true
+        } catch let e as APIError {
+            errorText = e.errorDescription
+        } catch {
+            errorText = error.localizedDescription
+        }
+    }
 }
