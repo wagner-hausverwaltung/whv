@@ -17,6 +17,7 @@ from app.api.v1 import etv as etv_router
 from app.api.v1 import me as me_router
 from app.api.v1 import meters as meters_router
 from app.api.v1 import tickets as tickets_router
+from app.api.v1 import vollmachten as vollmachten_router
 from app.api.v1 import webhooks as webhooks_router
 from app.config import get_settings
 from app.db import close_engine, init_engine, ping_db
@@ -88,6 +89,8 @@ app.include_router(tickets_router.me_router)
 app.include_router(tickets_router.admin_router)
 app.include_router(meters_router.me_router)
 app.include_router(meters_router.admin_router)
+app.include_router(vollmachten_router.me_router)
+app.include_router(vollmachten_router.admin_router)
 app.include_router(circular_router.me_router)
 app.include_router(circular_router.admin_router)
 app.include_router(circular_router.public_router)

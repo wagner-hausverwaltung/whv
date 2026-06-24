@@ -37,6 +37,7 @@ _ENUM_TYPES = (
     "ticket_status",
     "unit_type",
     "user_role",
+    "vollmacht_status",
     "vote_choice",
 )
 

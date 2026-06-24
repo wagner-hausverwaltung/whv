@@ -145,6 +145,14 @@ class Settings(BaseSettings):
     meter_reading_photo_dir: str = "/var/lib/whv/meter-readings"
     meter_reading_photo_max_bytes: int = 15 * 1024 * 1024
 
+    # Generated Vollmacht (ETV proxy) PDFs — one per Vollmacht, signed
+    # in-app with the owner's drawn signature composited in (ADR-0017).
+    # Auth-gated download; same Hetzner OS migration wave. The signature
+    # image isn't stored separately — it lives only inside the rendered PDF.
+    vollmacht_pdf_dir: str = "/var/lib/whv/vollmachten"
+    # Drawn-signature PNGs are small; cap the upload generously.
+    vollmacht_signature_max_bytes: int = 8 * 1024 * 1024
+
     # Signed Eigentümerversammlung protocol PDFs — one per assembly,
     # named {assembly_id}.pdf so re-uploads cleanly overwrite. Auth-
     # gated download via /me/assemblies/{id}/protocol; storage moves
