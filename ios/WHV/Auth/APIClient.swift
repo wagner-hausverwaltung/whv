@@ -417,6 +417,28 @@ struct CreateAssemblyCommentBody: Codable {
     let body: String
 }
 
+/// Empty JSON body for no-payload POSTs (e.g. Vollmacht revoke). The
+/// endpoint ignores it; sending `{}` keeps the authedJSON helper happy.
+struct EmptyBody: Codable {}
+
+/// Digitale Vollmacht (ETV proxy, ADR-0017). `status` is "SIGNED" |
+/// "REVOKED"; `signed_at` is kept as a String (display-only) so it skips
+/// the strict ISO-datetime date decoder.
+struct VollmachtResponse: Codable, Hashable, Identifiable {
+    let id: String
+    let assembly_id: String
+    let property_id: String
+    let principal_user_id: String?
+    let principal_name: String
+    let proxy_name: String
+    let scope_note: String?
+    let status: String
+    let signed_at: String
+    let revoked_at: String?
+    let has_pdf: Bool
+    let principal_email: String?
+}
+
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
@@ -1181,6 +1203,57 @@ struct APIClient {
             "/me/assemblies/\(assemblyId)/comments",
             method: "POST",
             body: CreateAssemblyCommentBody(body: body)
+        )
+    }
+
+    // MARK: - Vollmacht (ETV proxy, ADR-0017)
+
+    /// GET /me/assemblies/{id}/vollmacht — my active Vollmacht, or nil when
+    /// none exists yet (the endpoint 404s in that case).
+    func getMyVollmacht(assemblyId: String) async throws -> VollmachtResponse? {
+        if DemoFlag.isActive { return nil }
+        do {
+            let v: VollmachtResponse = try await authedGET("/me/assemblies/\(assemblyId)/vollmacht")
+            return v
+        } catch APIError.http(let status, _) where status == 404 {
+            return nil
+        }
+    }
+
+    /// POST /me/assemblies/{id}/vollmacht — grant + sign (multipart). The PNG
+    /// is the owner's drawn signature, composited into the PDF server-side.
+    func createVollmacht(
+        assemblyId: String,
+        proxyName: String,
+        scopeNote: String?,
+        signaturePNG: Data?
+    ) async throws -> VollmachtResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        var fields = ["proxy_name": proxyName]
+        if let scopeNote, !scopeNote.isEmpty { fields["scope_note"] = scopeNote }
+        return try await authedMultipart(
+            "/me/assemblies/\(assemblyId)/vollmacht",
+            fields: fields,
+            fileField: signaturePNG == nil ? nil : "signature",
+            fileData: signaturePNG,
+            fileName: "signature.png",
+            mimeType: "image/png"
+        )
+    }
+
+    /// POST /me/vollmachten/{id}/revoke — withdraw before the meeting.
+    func revokeVollmacht(id: String) async throws -> VollmachtResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/me/vollmachten/\(id)/revoke", method: "POST", body: EmptyBody()
+        )
+    }
+
+    /// GET /me/vollmachten/{id}/document.pdf → local file URL for QuickLook.
+    func downloadVollmacht(id: String) async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedDownload(
+            "/me/vollmachten/\(id)/document.pdf", saveAs: "vollmacht-\(id).pdf"
         )
     }
 
