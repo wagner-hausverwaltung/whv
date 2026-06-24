@@ -101,6 +101,7 @@ struct PropertyDetailView: View {
     @State private var invoiceSheetTarget: InvoiceSheetTarget?
     @State private var showDocuments = false
     @State private var showMeters = false
+    @State private var showCalendar = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -159,6 +160,10 @@ struct PropertyDetailView: View {
             }
             .sheet(isPresented: $showMeters) {
                 MetersView(propertyId: property.id)
+            }
+            .sheet(isPresented: $showCalendar) {
+                CalendarView(propertyId: property.id)
+                    .environmentObject(authStore)
             }
         }
     }
@@ -223,6 +228,13 @@ struct PropertyDetailView: View {
                     showMeters = true
                 } label: {
                     quickRow(title: "Zähler", systemImage: "gauge.medium", color: .teal)
+                }
+                .buttonStyle(.plain)
+                // Kalender — ETV + Winterdienst/Kehrwoche (ADR-0018).
+                Button {
+                    showCalendar = true
+                } label: {
+                    quickRow(title: "Kalender", systemImage: "calendar", color: .indigo)
                 }
                 .buttonStyle(.plain)
                 // Jump to the Dienstleister section below (only when present).
