@@ -12,11 +12,25 @@ private let _isoDay: DateFormatter = {
     return f
 }()
 
-private let _MONTHS_DE = [
-    "Januar", "Februar", "März", "April", "Mai", "Juni",
-    "Juli", "August", "September", "Oktober", "November", "Dezember",
-]
-private let _WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+// "Juni 2026" / "June 2026" — follows the device language.
+private func monthTitle(_ year: Int, _ month: Int) -> String {
+    let cal = Calendar(identifier: .gregorian)
+    guard let date = cal.date(from: DateComponents(year: year, month: month, day: 1)) else {
+        return "\(month)/\(year)"
+    }
+    let f = DateFormatter()
+    f.locale = Locale.current
+    f.setLocalizedDateFormatFromTemplate("LLLLyyyy")
+    return f.string(from: date)
+}
+
+// Localized weekday abbreviations, Monday-first (Mo/Di… or Mon/Tue…).
+private func weekdaySymbols() -> [String] {
+    var cal = Calendar(identifier: .gregorian)
+    cal.locale = Locale.current
+    let syms = cal.shortStandaloneWeekdaySymbols  // index 0 = Sunday
+    return Array(syms.dropFirst()) + [syms[0]]
+}
 
 private func kindColor(_ kind: String) -> Color {
     switch kind {
@@ -92,7 +106,7 @@ struct CalendarView: View {
         HStack {
             Button { shift(-1) } label: { Image(systemName: "chevron.left") }
             Spacer()
-            Text("\(_MONTHS_DE[month - 1]) \(String(year))").font(.headline)
+            Text(monthTitle(year, month)).font(.headline)
             Spacer()
             Button { shift(1) } label: { Image(systemName: "chevron.right") }
         }
@@ -100,7 +114,7 @@ struct CalendarView: View {
 
     private var grid: some View {
         LazyVGrid(columns: cols, spacing: 1) {
-            ForEach(_WEEKDAYS, id: \.self) { d in
+            ForEach(weekdaySymbols(), id: \.self) { d in
                 Text(d)
                     .font(.caption2.weight(.semibold))
                     .frame(maxWidth: .infinity)

@@ -675,5 +675,63 @@
       "createFailed": "Could not create invitation.",
       "success": "Invitation created — code {{code}}, email sent."
     }
+  },
+  "meters": {
+    "loading": "Loading Zähler…",
+    "loadFailed": "Could not load the Zähler.",
+    "empty": "No Zähler have been set up for this property yet.",
+    "reportTitle": "Report Zählerstand",
+    "takePhoto": "Take photo",
+    "replacePhoto": "Replace photo",
+    "ocrUnavailable": "Automatic recognition unavailable — please enter the value.",
+    "ocrRead": "Value read from the photo — please check.",
+    "ocrUnsure": "Couldn't read the value reliably — please enter it manually.",
+    "ocrFailed": "Recognition failed — please enter the value.",
+    "invalidValue": "Please enter a valid Zählerstand.",
+    "saveFailed": "Could not save.",
+    "valueLabel": "Zählerstand",
+    "readOn": "Reading date",
+    "note": "Note (optional)",
+    "sending": "Sending…",
+    "submit": "Submit",
+    "historyLoadFailed": "Could not load the history.",
+    "historyLoading": "Loading history…",
+    "noReadings": "No readings yet.",
+    "photoTag": "Photo",
+    "lastReading": "Latest reading:",
+    "noneYet": "none yet",
+    "reportCta": "Report reading",
+    "history": "History"
+  },
+  "vollmacht": {
+    "title": "Vollmacht",
+    "proxyNameRequired": "Please specify whom you are authorizing.",
+    "grantFailed": "Could not grant the Vollmacht.",
+    "revokeFailed": "Revocation failed.",
+    "granted": "Vollmacht granted",
+    "grantedToPrefix": "to",
+    "instructionLabel": "Instruction",
+    "downloadPdf": "Download PDF",
+    "revoke": "Revoke",
+    "cantAttend": "Can't attend?",
+    "cantAttendSub": "Authorize a proxy to cast your vote — digitally signed.",
+    "grant": "Grant Vollmacht",
+    "proxyPerson": "Authorized person",
+    "proxyPlaceholder": "e.g. Beirat / Mr Müller / the Hausverwaltung",
+    "scopeLabel": "Instruction / restriction (optional)",
+    "scopePlaceholder": "e.g. only TOP 3, against Beschluss X",
+    "signatureLabel": "Your signature",
+    "granting": "Granting…",
+    "signAndGrant": "Sign & grant"
+  },
+  "calendar": {
+    "loadFailed": "Could not load the calendar.",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "myTask": "Your task"
+  },
+  "signature": {
+    "here": "Sign here",
+    "clear": "Clear"
   }
 }

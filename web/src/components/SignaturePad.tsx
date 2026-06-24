@@ -11,6 +11,7 @@ import {
   useRef,
 } from "react";
 import { Box, Button, Stack, Typography } from "@mui/material";
+import { useTranslation } from "react-i18next";
 
 export interface SignaturePadHandle {
   /** PNG of the drawn signature, or null if nothing was drawn. */
@@ -25,7 +26,8 @@ interface SignaturePadProps {
 }
 
 export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
-  function SignaturePad({ height = 160, label = "Hier unterschreiben" }, ref) {
+  function SignaturePad({ height = 160, label }, ref) {
+    const { t } = useTranslation();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawing = useRef(false);
     const dirty = useRef(false);
@@ -135,10 +137,10 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
         </Box>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
           <Typography variant="caption" color="text.secondary">
-            {label}
+            {label ?? t("signature.here")}
           </Typography>
           <Button size="small" onClick={clear}>
-            Löschen
+            {t("signature.clear")}
           </Button>
         </Stack>
       </Stack>

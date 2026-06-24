@@ -21,6 +21,7 @@ import {
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import HowToVoteIcon from "@mui/icons-material/HowToVote";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { VollmachtResponse } from "@/api/types";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
@@ -32,6 +33,7 @@ function fmtDate(d: string | null): string {
 }
 
 export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
+  const { t } = useTranslation();
   const [vollmacht, setVollmacht] = useState<VollmachtResponse | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,7 +62,7 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
 
   const grant = async () => {
     if (!proxyName.trim()) {
-      setError("Bitte geben Sie an, wen Sie bevollmächtigen.");
+      setError(t("vollmacht.proxyNameRequired"));
       return;
     }
     setBusy(true);
@@ -82,7 +84,7 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
     } catch (e) {
       const detail =
         (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Vollmacht konnte nicht erteilt werden.";
+        t("vollmacht.grantFailed");
       setError(detail);
     } finally {
       setBusy(false);
@@ -96,7 +98,7 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
       await api.post(`/me/vollmachten/${vollmacht.id}/revoke`);
       await load();
     } catch {
-      setError("Widerruf fehlgeschlagen.");
+      setError(t("vollmacht.revokeFailed"));
     } finally {
       setBusy(false);
     }
@@ -119,28 +121,28 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Vollmacht
+        {t("vollmacht.title")}
       </Typography>
       <Paper variant="outlined" sx={{ p: 2 }}>
         {active ? (
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-              <Chip size="small" color="success" icon={<HowToVoteIcon />} label="Vollmacht erteilt" />
+              <Chip size="small" color="success" icon={<HowToVoteIcon />} label={t("vollmacht.granted")} />
               <Typography variant="body2">
-                an <strong>{vollmacht.proxy_name}</strong> · {fmtDate(vollmacht.signed_at)}
+                {t("vollmacht.grantedToPrefix")} <strong>{vollmacht.proxy_name}</strong> · {fmtDate(vollmacht.signed_at)}
               </Typography>
             </Stack>
             {vollmacht.scope_note && (
               <Typography variant="caption" color="text.secondary">
-                Weisung: {vollmacht.scope_note}
+                {t("vollmacht.instructionLabel")}: {vollmacht.scope_note}
               </Typography>
             )}
             <Stack direction="row" spacing={1}>
               <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={() => void download()}>
-                PDF herunterladen
+                {t("vollmacht.downloadPdf")}
               </Button>
               <Button size="small" color="error" onClick={() => void revoke()} disabled={busy}>
-                Widerrufen
+                {t("vollmacht.revoke")}
               </Button>
             </Stack>
           </Stack>
@@ -154,51 +156,51 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
               <HowToVoteIcon color="primary" />
               <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                  Können Sie nicht teilnehmen?
+                  {t("vollmacht.cantAttend")}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Bevollmächtigen Sie eine Vertretung für Ihre Stimme — digital unterschrieben.
+                  {t("vollmacht.cantAttendSub")}
                 </Typography>
               </Box>
             </Stack>
             <Button variant="contained" onClick={() => setDialogOpen(true)}>
-              Vollmacht erteilen
+              {t("vollmacht.grant")}
             </Button>
           </Stack>
         )}
       </Paper>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Vollmacht erteilen</DialogTitle>
+        <DialogTitle>{t("vollmacht.grant")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
             <TextField
-              label="Bevollmächtigte Person"
-              placeholder="z. B. Beirat / Herr Müller / die Hausverwaltung"
+              label={t("vollmacht.proxyPerson")}
+              placeholder={t("vollmacht.proxyPlaceholder")}
               value={proxyName}
               onChange={(e) => setProxyName(e.target.value)}
               required
               fullWidth
             />
             <TextField
-              label="Weisung / Einschränkung (optional)"
-              placeholder="z. B. nur TOP 3, gegen Beschluss X"
+              label={t("vollmacht.scopeLabel")}
+              placeholder={t("vollmacht.scopePlaceholder")}
               value={scopeNote}
               onChange={(e) => setScopeNote(e.target.value)}
               fullWidth
               multiline
               minRows={2}
             />
-            <SignaturePad ref={padRef} label="Ihre Unterschrift" />
+            <SignaturePad ref={padRef} label={t("vollmacht.signatureLabel")} />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={busy}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button variant="contained" onClick={() => void grant()} disabled={busy}>
-            {busy ? "Wird erteilt…" : "Unterschreiben & erteilen"}
+            {busy ? t("vollmacht.granting") : t("vollmacht.signAndGrant")}
           </Button>
         </DialogActions>
       </Dialog>

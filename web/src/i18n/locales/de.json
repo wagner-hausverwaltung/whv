@@ -675,5 +675,63 @@
       "createFailed": "Einladung konnte nicht angelegt werden.",
       "success": "Einladung erstellt — Code {{code}}, E-Mail versandt."
     }
+  },
+  "meters": {
+    "loading": "Lade Zähler…",
+    "loadFailed": "Zähler konnten nicht geladen werden.",
+    "empty": "Für diese Liegenschaft sind noch keine Zähler hinterlegt.",
+    "reportTitle": "Zählerstand melden",
+    "takePhoto": "Foto aufnehmen",
+    "replacePhoto": "Foto ersetzen",
+    "ocrUnavailable": "Automatische Erkennung nicht verfügbar — bitte Wert eintragen.",
+    "ocrRead": "Wert aus Foto erkannt — bitte prüfen.",
+    "ocrUnsure": "Konnte den Wert nicht sicher lesen — bitte manuell eintragen.",
+    "ocrFailed": "Erkennung fehlgeschlagen — bitte Wert eintragen.",
+    "invalidValue": "Bitte einen gültigen Zählerstand eintragen.",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "valueLabel": "Zählerstand",
+    "readOn": "Ablesedatum",
+    "note": "Notiz (optional)",
+    "sending": "Sendet…",
+    "submit": "Melden",
+    "historyLoadFailed": "Verlauf konnte nicht geladen werden.",
+    "historyLoading": "Lade Verlauf…",
+    "noReadings": "Noch keine Ablesungen.",
+    "photoTag": "Foto",
+    "lastReading": "Letzter Stand:",
+    "noneYet": "noch keiner",
+    "reportCta": "Stand melden",
+    "history": "Verlauf"
+  },
+  "vollmacht": {
+    "title": "Vollmacht",
+    "proxyNameRequired": "Bitte geben Sie an, wen Sie bevollmächtigen.",
+    "grantFailed": "Vollmacht konnte nicht erteilt werden.",
+    "revokeFailed": "Widerruf fehlgeschlagen.",
+    "granted": "Vollmacht erteilt",
+    "grantedToPrefix": "an",
+    "instructionLabel": "Weisung",
+    "downloadPdf": "PDF herunterladen",
+    "revoke": "Widerrufen",
+    "cantAttend": "Können Sie nicht teilnehmen?",
+    "cantAttendSub": "Bevollmächtigen Sie eine Vertretung für Ihre Stimme — digital unterschrieben.",
+    "grant": "Vollmacht erteilen",
+    "proxyPerson": "Bevollmächtigte Person",
+    "proxyPlaceholder": "z. B. Beirat / Herr Müller / die Hausverwaltung",
+    "scopeLabel": "Weisung / Einschränkung (optional)",
+    "scopePlaceholder": "z. B. nur TOP 3, gegen Beschluss X",
+    "signatureLabel": "Ihre Unterschrift",
+    "granting": "Wird erteilt…",
+    "signAndGrant": "Unterschreiben & erteilen"
+  },
+  "calendar": {
+    "loadFailed": "Kalender konnte nicht geladen werden.",
+    "prevMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "myTask": "Ihre Aufgabe"
+  },
+  "signature": {
+    "here": "Hier unterschreiben",
+    "clear": "Löschen"
   }
 }

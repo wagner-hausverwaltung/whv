@@ -70,6 +70,16 @@
         }
       }
     },
+    "Ablesedatum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading date"
+          }
+        }
+      }
+    },
     "Abmelden" : {
       "localizations" : {
         "en" : {
@@ -346,6 +356,16 @@
         }
       }
     },
+    "Aus Mediathek" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From library"
+          }
+        }
+      }
+    },
     "Aus der Einladung übernommen." : {
       "localizations" : {
         "en" : {
@@ -362,6 +382,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Payout = amount paid to you as the Eigentümer. Without guarantee."
+          }
+        }
+      }
+    },
+    "Automatische Erkennung nicht verfügbar — bitte Wert eintragen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic recognition unavailable — please enter the value."
           }
         }
       }
@@ -536,12 +566,52 @@
         }
       }
     },
+    "Bevollmächtigen Sie eine Vertretung für Ihre Stimme — digital unterschrieben." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorize a proxy to cast your vote — digitally signed."
+          }
+        }
+      }
+    },
+    "Bevollmächtigte Person" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorized person"
+          }
+        }
+      }
+    },
     "Bitte beschreiben …" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Please describe …"
+          }
+        }
+      }
+    },
+    "Bitte einen gültigen Zählerstand eintragen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please enter a valid Zählerstand."
+          }
+        }
+      }
+    },
+    "Bitte geben Sie an, wen Sie bevollmächtigen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please specify whom you are authorizing."
           }
         }
       }
@@ -949,6 +1019,16 @@
         }
       }
     },
+    "Erkennung fehlgeschlagen — bitte Wert eintragen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognition failed — please enter the value."
+          }
+        }
+      }
+    },
     "Erneut versuchen" : {
       "localizations" : {
         "en" : {
@@ -975,6 +1055,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Create"
+          }
+        }
+      }
+    },
+    "Erteilen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grant"
           }
         }
       }
@@ -1029,6 +1119,36 @@
         }
       }
     },
+    "Foto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
+          }
+        }
+      }
+    },
+    "Foto aufnehmen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take photo"
+          }
+        }
+      }
+    },
+    "Foto ausgewählt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo selected"
+          }
+        }
+      }
+    },
     "Frage oder Antwort verfassen …" : {
       "localizations" : {
         "en" : {
@@ -1075,6 +1195,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No documents are on file for this property."
+          }
+        }
+      }
+    },
+    "Für diese Liegenschaft sind noch keine Zähler hinterlegt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Zähler have been set up for this property yet."
           }
         }
       }
@@ -1229,6 +1359,16 @@
         }
       }
     },
+    "Ihre Aufgabe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your task"
+          }
+        }
+      }
+    },
     "Ihre Liegenschaften" : {
       "localizations" : {
         "en" : {
@@ -1245,6 +1385,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your vote"
+          }
+        }
+      }
+    },
+    "Ihre Unterschrift" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your signature"
           }
         }
       }
@@ -1319,6 +1469,26 @@
         }
       }
     },
+    "Kalender" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar"
+          }
+        }
+      }
+    },
+    "Kalender konnte nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the calendar."
+          }
+        }
+      }
+    },
     "Kategorie" : {
       "localizations" : {
         "en" : {
@@ -1389,6 +1559,16 @@
         }
       }
     },
+    "Keine Termine in diesem Monat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No events this month."
+          }
+        }
+      }
+    },
     "Keine Tickets" : {
       "localizations" : {
         "en" : {
@@ -1415,6 +1595,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not assigned"
+          }
+        }
+      }
+    },
+    "Keine Zähler" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Zähler"
           }
         }
       }
@@ -1489,6 +1679,16 @@
         }
       }
     },
+    "Können Sie nicht teilnehmen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't attend?"
+          }
+        }
+      }
+    },
     "Lade…" : {
       "localizations" : {
         "en" : {
@@ -1505,6 +1705,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legionella check"
+          }
+        }
+      }
+    },
+    "Letzter Stand: %@ %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest reading: %@ %@ · %@"
           }
         }
       }
@@ -1599,6 +1809,16 @@
         }
       }
     },
+    "Manuell" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual"
+          }
+        }
+      }
+    },
     "Markiert die anstehende Eigentümerversammlung als verspätet." : {
       "localizations" : {
         "en" : {
@@ -1625,6 +1845,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export my data"
+          }
+        }
+      }
+    },
+    "Melden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Submit"
           }
         }
       }
@@ -1799,6 +2029,16 @@
         }
       }
     },
+    "Neues Foto aufnehmen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take new photo"
+          }
+        }
+      }
+    },
     "Neues Konto?" : {
       "localizations" : {
         "en" : {
@@ -1838,6 +2078,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn’t load news"
+          }
+        }
+      }
+    },
+    "Noch keine Ablesungen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readings yet."
+          }
+        }
+      }
+    },
+    "Notiz (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note (optional)"
           }
         }
       }
@@ -1888,6 +2148,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Onboarding"
+          }
+        }
+      }
+    },
+    "PDF ansehen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View PDF"
+          }
+        }
+      }
+    },
+    "PDF konnte nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the PDF."
           }
         }
       }
@@ -2175,6 +2455,16 @@
         }
       }
     },
+    "Stand melden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report reading"
+          }
+        }
+      }
+    },
     "Stromausfall" : {
       "localizations" : {
         "en" : {
@@ -2304,6 +2594,16 @@
         }
       }
     },
+    "Unterschrieben am %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed on %@"
+          }
+        }
+      }
+    },
     "Vergangen" : {
       "localizations" : {
         "en" : {
@@ -2417,6 +2717,26 @@
         }
       }
     },
+    "Vollmacht erteilen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grant Vollmacht"
+          }
+        }
+      }
+    },
+    "Vollmacht erteilt an %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollmacht granted to %@"
+          }
+        }
+      }
+    },
     "WEG-Anfrage" : {
       "localizations" : {
         "en" : {
@@ -2490,12 +2810,102 @@
         }
       }
     },
+    "Weisung / Einschränkung (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction / restriction (optional)"
+          }
+        }
+      }
+    },
+    "Weisung: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction: %@"
+          }
+        }
+      }
+    },
     "Weiterleitung" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forwarding"
+          }
+        }
+      }
+    },
+    "Wen bevollmächtigen Sie?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whom are you authorizing?"
+          }
+        }
+      }
+    },
+    "Wert" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
+          }
+        }
+      }
+    },
+    "Wert aus Foto erkannt — bitte prüfen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value read from the photo — please check."
+          }
+        }
+      }
+    },
+    "Wert nicht sicher lesbar — bitte manuell eintragen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value not read reliably — please enter it manually."
+          }
+        }
+      }
+    },
+    "Wert wird erkannt…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading value…"
+          }
+        }
+      }
+    },
+    "Widerruf fehlgeschlagen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revocation failed."
+          }
+        }
+      }
+    },
+    "Widerrufen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revoke"
           }
         }
       }
@@ -2566,6 +2976,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last %@"
+          }
+        }
+      }
+    },
+    "Zähler nicht geladen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load Zähler"
           }
         }
       }
@@ -2649,6 +3069,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "e.g. ABC123-XYZ"
+          }
+        }
+      }
+    },
+    "z. B. Beirat, Herr Müller oder die Hausverwaltung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Beirat, Mr Müller or the Hausverwaltung."
           }
         }
       }
