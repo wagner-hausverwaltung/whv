@@ -35,6 +35,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     Flowable,
+    Image,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -324,6 +325,140 @@ def render_protocol_pdf(
         Paragraph(
             f"Erstellt durch das Portal der Wagner Hausverwaltung GmbH "
             f"am {_fmt_date(generated_at)}. Zeitangaben in Europe/Berlin.",
+            small,
+        )
+    )
+
+    def _on_page(canvas, doc_):  # type: ignore[no-untyped-def]
+        _draw_chrome(canvas, doc_, title=title)
+
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    return buffer.getvalue()
+
+
+def _signature_image(signature_png: bytes | None) -> Flowable:
+    """Scale the owner's drawn signature into the block (max ~60x20 mm,
+    aspect preserved). Falls back to blank space if no/invalid image so the
+    line still renders."""
+    if not signature_png:
+        return Spacer(1, 18 * mm)
+    try:
+        img = Image(BytesIO(signature_png))
+        iw, ih = float(img.imageWidth), float(img.imageHeight)
+        if iw <= 0 or ih <= 0:
+            return Spacer(1, 18 * mm)
+        scale = min((60 * mm) / iw, (18 * mm) / ih)
+        img.drawWidth = iw * scale
+        img.drawHeight = ih * scale
+        img.hAlign = "LEFT"
+        return img
+    except Exception:  # pragma: no cover - never let a bad image crash the render
+        return Spacer(1, 18 * mm)
+
+
+def render_vollmacht_pdf(
+    *,
+    principal_name: str,
+    proxy_name: str,
+    scope_note: str | None,
+    assembly_title: str,
+    property_name: str,
+    property_address: str | None,
+    assembly_start: datetime | None,
+    signed_at: datetime,
+    signature_png: bytes | None,
+) -> bytes:
+    """Render a WHV-branded Vollmacht (proxy authorization) for one ETV,
+    with the owner's in-app signature composited into the signature block.
+    Returns the PDF bytes."""
+    buffer = BytesIO()
+    title = "Vollmacht"
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=_MARGIN,
+        rightMargin=_MARGIN,
+        topMargin=_BAND_H + 10 * mm,
+        bottomMargin=22 * mm,
+        title=f"Vollmacht: {assembly_title}",
+        author="Wagner Hausverwaltung GmbH",
+    )
+
+    styles = getSampleStyleSheet()
+    h1 = ParagraphStyle("VH1", parent=styles["Heading1"], fontSize=16, leading=20, textColor=_INK)
+    bodyst = ParagraphStyle(
+        "VBody", parent=styles["BodyText"], fontSize=11, leading=16, textColor=_INK
+    )
+    small = ParagraphStyle(
+        "VSmall", parent=styles["BodyText"], fontSize=9, leading=12, textColor=_MUTED
+    )
+
+    story: list[Flowable] = [
+        Paragraph("Vollmacht zur Eigentümerversammlung", h1),
+        Paragraph(f"<b>{_rich(property_name)}</b>", bodyst),
+    ]
+    if property_address:
+        story.append(Paragraph(_rich(property_address), small))
+    story.append(Spacer(1, 4 * mm))
+
+    meta_rows = [
+        ["Versammlung", assembly_title],
+        ["Datum", _fmt_dt(assembly_start) if assembly_start else "—"],
+    ]
+    meta_tbl = Table(meta_rows, colWidths=[40 * mm, 134 * mm])
+    meta_tbl.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TEXTCOLOR", (0, 0), (0, -1), _MUTED),
+                ("TEXTCOLOR", (1, 0), (1, -1), _INK),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(meta_tbl)
+    story.append(Spacer(1, 6 * mm))
+
+    authorization = (
+        f"Hiermit bevollmächtige ich, <b>{_rich(principal_name)}</b>, "
+        f"<b>{_rich(proxy_name)}</b>, mich in der oben genannten "
+        f"Eigentümerversammlung zu vertreten und mein Stimmrecht in allen "
+        f"Tagesordnungspunkten in meinem Namen auszuüben."
+    )
+    story.append(Paragraph(authorization, bodyst))
+    if scope_note and scope_note.strip():
+        story.append(Spacer(1, 3 * mm))
+        story.append(Paragraph(f"<b>Einschränkung / Weisung:</b> {_rich(scope_note)}", bodyst))
+
+    story.append(Spacer(1, 14 * mm))
+    sig_tbl = Table(
+        [
+            [_signature_image(signature_png)],
+            [Paragraph(f"{_rich(principal_name)} &nbsp;·&nbsp; {_fmt_date(signed_at)}", small)],
+        ],
+        colWidths=[100 * mm],
+    )
+    sig_tbl.setStyle(
+        TableStyle(
+            [
+                ("LINEBELOW", (0, 0), (0, 0), 0.7, _INK),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 2),
+                ("TOPPADDING", (0, 1), (0, 1), 2),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story.append(sig_tbl)
+
+    story.append(Spacer(1, 8 * mm))
+    story.append(
+        Paragraph(
+            f"Digital erteilt über das Portal der Wagner Hausverwaltung GmbH "
+            f"am {_fmt_dt(signed_at)}. Zeitangaben in Europe/Berlin.",
             small,
         )
     )
