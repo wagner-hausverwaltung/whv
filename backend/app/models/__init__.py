@@ -9,6 +9,7 @@ from app.models.announcement import (
 )
 from app.models.assistant_message import AssistantMessage
 from app.models.audit import AuditLog
+from app.models.calendar_event import CalendarEvent, CalendarEventType
 from app.models.circular import (
     CircularResolution,
     CircularVote,
@@ -91,6 +92,8 @@ __all__ = [
     "AssistantMessage",
     "AuditLog",
     "Building",
+    "CalendarEvent",
+    "CalendarEventType",
     "CircularResolution",
     "CircularVote",
     "Contact",
