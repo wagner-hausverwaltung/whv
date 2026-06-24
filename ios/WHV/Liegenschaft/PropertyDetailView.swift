@@ -100,6 +100,7 @@ struct PropertyDetailView: View {
     @State private var contactSheetTarget: ContactSheetTarget?
     @State private var invoiceSheetTarget: InvoiceSheetTarget?
     @State private var showDocuments = false
+    @State private var showMeters = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -155,6 +156,9 @@ struct PropertyDetailView: View {
             }
             .sheet(isPresented: $showDocuments) {
                 DocumentsView(propertyId: property.id)
+            }
+            .sheet(isPresented: $showMeters) {
+                MetersView(propertyId: property.id)
             }
         }
     }
@@ -212,6 +216,13 @@ struct PropertyDetailView: View {
                     showDocuments = true
                 } label: {
                     quickRow(title: "Dokumente", systemImage: "folder.fill", color: .blue)
+                }
+                .buttonStyle(.plain)
+                // Zähler — meter list + reading capture (ADR-0016).
+                Button {
+                    showMeters = true
+                } label: {
+                    quickRow(title: "Zähler", systemImage: "gauge.medium", color: .teal)
                 }
                 .buttonStyle(.plain)
                 // Jump to the Dienstleister section below (only when present).

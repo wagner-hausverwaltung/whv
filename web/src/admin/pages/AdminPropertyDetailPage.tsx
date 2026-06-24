@@ -40,6 +40,7 @@ import type {
 import { useAuthedImageUrl } from "@/lib/useAuthedImageUrl";
 import { AdminAnnouncementsTab } from "@/components/AdminAnnouncementsTab";
 import { PropertyInvitesTab } from "@/admin/components/PropertyInvitesTab";
+import { PropertyMetersTab } from "@/admin/components/PropertyMetersTab";
 import { DocumentFoldersPanel } from "@/components/DocumentFoldersPanel";
 import { AdminTicketsPage } from "./AdminTicketsPage";
 
@@ -49,6 +50,7 @@ type TabKey =
   | "documents"
   | "announcements"
   | "companies"
+  | "meters"
   | "invites";
 
 interface PropertyImageEditorProps {
@@ -486,6 +488,7 @@ export function AdminPropertyDetailPage() {
           value="companies"
           label={`${t("admin.propertyDetail.tabCompanies")} (${detail.invoice_companies_count})`}
         />
+        <Tab value="meters" label="Zähler" />
         <Tab value="invites" label="Einladungen" />
       </Tabs>
 
@@ -502,6 +505,7 @@ export function AdminPropertyDetailPage() {
         <AdminAnnouncementsTab propertyId={id} />
       )}
       {activeTab === "companies" && id && <CompaniesTab propertyId={id} />}
+      {activeTab === "meters" && id && <PropertyMetersTab propertyId={id} />}
       {activeTab === "invites" && id && <PropertyInvitesTab propertyId={id} />}
     </Stack>
   );

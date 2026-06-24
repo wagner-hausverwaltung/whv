@@ -193,6 +193,41 @@ class GeminiProvider:
         prompt: str,
         response_schema: type[T],
     ) -> LLMResult[T]:
+        return await self._extract_inline(
+            data=pdf_bytes,
+            mime_type="application/pdf",
+            prompt=prompt,
+            response_schema=response_schema,
+        )
+
+    async def extract_from_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str,
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        # Gemini is multimodal — an inline image part OCRs the same way a
+        # PDF part does. The meter-reading flow hands us a phone photo and
+        # asks for the numeric value back as structured JSON.
+        return await self._extract_inline(
+            data=image_bytes,
+            mime_type=mime_type,
+            prompt=prompt,
+            response_schema=response_schema,
+        )
+
+    async def _extract_inline(
+        self,
+        *,
+        data: bytes,
+        mime_type: str,
+        prompt: str,
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        """Shared structured-extraction path for any inline blob (PDF or
+        image). The public methods differ only in the part's mime_type."""
         # Lazy import keeps `import app.integrations.llm` cheap on
         # processes that never make a call (the FastAPI worker, for
         # instance — only Celery actually talks to Gemini).
@@ -215,7 +250,7 @@ class GeminiProvider:
         started = time.perf_counter()
         response = await model.generate_content_async(
             [
-                {"mime_type": "application/pdf", "data": pdf_bytes},
+                {"mime_type": mime_type, "data": data},
                 prompt,
             ]
         )
