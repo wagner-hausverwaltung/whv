@@ -17,6 +17,7 @@ from app.db import Base
 from app.rag.models import RagBase
 
 _ENUM_TYPES = (
+    "calendar_event_type",
     "contact_kind",
     "preferred_channel",
     "notification_category",

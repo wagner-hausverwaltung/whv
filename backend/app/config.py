@@ -153,6 +153,11 @@ class Settings(BaseSettings):
     # Drawn-signature PNGs are small; cap the upload generously.
     vollmacht_signature_max_bytes: int = 8 * 1024 * 1024
 
+    # Generated Liegenschafts-Kalender PDFs (ADR-0018) — a month grid in WHV
+    # design the Verwalter prints/posts. Rendered on demand; not persisted
+    # long-term, so this dir is just a scratch staging area for the download.
+    calendar_pdf_dir: str = "/var/lib/whv/calendar"
+
     # Signed Eigentümerversammlung protocol PDFs — one per assembly,
     # named {assembly_id}.pdf so re-uploads cleanly overwrite. Auth-
     # gated download via /me/assemblies/{id}/protocol; storage moves
