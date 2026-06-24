@@ -189,6 +189,9 @@ struct AssemblyDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 agendaSection
+                if isOwner {
+                    VollmachtSectionView(assemblyId: assemblyId)
+                }
                 protocolSection
                 commentsSection
             }
@@ -275,6 +278,12 @@ struct AssemblyDetailView: View {
     /// SPA, which is Verwalter-only by route).
     private var isVerwalter: Bool {
         authStore.user?.role.lowercased() == "verwalter"
+    }
+
+    /// Only owners vote at an ETV, so only they can delegate a proxy.
+    private var isOwner: Bool {
+        let role = authStore.user?.role.lowercased()
+        return role == "eigentuemer" || role == "beirat"
     }
 
     // MARK: - Header
