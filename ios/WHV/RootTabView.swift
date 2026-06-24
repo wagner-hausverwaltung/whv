@@ -62,7 +62,11 @@ struct RootTabView: View {
                 NewTicketSheet { _ in }
             }
             .sheet(isPresented: $assistantOpen) {
+                // Pass the router explicitly — sheet content doesn't reliably
+                // inherit @EnvironmentObject, and the assistant needs it to
+                // deep-link an ETV citation to the Versammlungen tab.
                 AssistantView(propertyId: store.selected?.id)
+                    .environmentObject(deepLinkRouter)
             }
     }
 
