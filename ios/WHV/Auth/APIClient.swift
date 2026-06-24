@@ -439,6 +439,22 @@ struct VollmachtResponse: Codable, Hashable, Identifiable {
     let principal_email: String?
 }
 
+/// One entry in the merged Liegenschafts-Kalender (ADR-0018) — a stored
+/// event or a derived ETV date. `kind` is ETV/WINTERDIENST/KEHRWOCHE/TERMIN;
+/// `source` is "event" | "etv". Dates are kept as "YYYY-MM-DD" Strings.
+struct CalendarEntry: Codable, Hashable, Identifiable {
+    let kind: String
+    let source: String
+    let id: String
+    let title: String
+    let starts_on: String
+    let ends_on: String?
+    let assigned_user_id: String?
+    let assigned_label: String?
+    let note: String?
+    let assembly_id: String?
+}
+
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
@@ -1255,6 +1271,15 @@ struct APIClient {
         return try await authedDownload(
             "/me/vollmachten/\(id)/document.pdf", saveAs: "vollmacht-\(id).pdf"
         )
+    }
+
+    // MARK: - Liegenschafts-Kalender (ADR-0018, read-only)
+
+    /// GET /me/properties/{id}/calendar?year&month — merged month view
+    /// (events + derived ETV dates). Demo mode has none.
+    func getCalendar(propertyId: String, year: Int, month: Int) async throws -> [CalendarEntry] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/me/properties/\(propertyId)/calendar?year=\(year)&month=\(month)")
     }
 
     // MARK: - Tickets
