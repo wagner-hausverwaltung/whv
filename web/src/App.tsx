@@ -33,6 +33,7 @@ import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
 import { MyAssembliesPage } from "@/pages/MyAssembliesPage";
 import { MyAssemblyDetailPage } from "@/pages/MyAssemblyDetailPage";
 import { MyMetersPage } from "@/pages/MyMetersPage";
+import { MyCalendarPage } from "@/pages/MyCalendarPage";
 import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
 import { PublicVotePage } from "@/pages/PublicVotePage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -109,6 +110,7 @@ function App() {
             <Route path="documents" element={<PropertyDocumentsPage />} />
             <Route path="vendors" element={<PropertyVendorsPage />} />
             <Route path="meters" element={<MyMetersPage />} />
+            <Route path="calendar" element={<MyCalendarPage />} />
           </Route>
 
           {/* Property-detail child pages — outside the workspace,

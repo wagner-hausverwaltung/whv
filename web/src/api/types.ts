@@ -1067,3 +1067,60 @@ export interface VollmachtResponse {
   /// Admin proxy-register only: the granting owner's login email.
   principal_email: string | null;
 }
+
+// --- Liegenschafts-Kalender (ADR-0018) --------------------------------------
+export type CalendarEventType = "WINTERDIENST" | "KEHRWOCHE" | "TERMIN";
+// `kind` on a merged entry adds "ETV" (derived, read-only).
+export type CalendarKind = CalendarEventType | "ETV";
+
+export const CALENDAR_KIND_LABELS: Record<CalendarKind, string> = {
+  ETV: "Eigentümerversammlung",
+  WINTERDIENST: "Winterdienst",
+  KEHRWOCHE: "Kehrwoche",
+  TERMIN: "Termin",
+};
+
+// Chip colours per kind (hex, used inline so they're consistent with the PDF).
+export const CALENDAR_KIND_COLORS: Record<CalendarKind, string> = {
+  ETV: "#1863DC",
+  WINTERDIENST: "#0e7490",
+  KEHRWOCHE: "#15803d",
+  TERMIN: "#6b7280",
+};
+
+export interface CalendarEntry {
+  kind: CalendarKind;
+  /// "event" (editable) | "etv" (read-only, mirrors the assembly)
+  source: "event" | "etv";
+  id: string;
+  title: string;
+  starts_on: string;
+  ends_on: string | null;
+  assigned_user_id: string | null;
+  assigned_label: string | null;
+  note: string | null;
+  assembly_id: string | null;
+}
+
+export interface CalendarEventResponse {
+  id: string;
+  property_id: string;
+  event_type: CalendarEventType;
+  title: string | null;
+  starts_on: string;
+  ends_on: string | null;
+  assigned_user_id: string | null;
+  assigned_label: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEventCreateRequest {
+  event_type: CalendarEventType;
+  title?: string | null;
+  starts_on: string;
+  ends_on?: string | null;
+  assigned_label?: string | null;
+  note?: string | null;
+}

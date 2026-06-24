@@ -48,7 +48,8 @@
       "assemblies": "Versammlungen",
       "documents": "Dokumente",
       "vendors": "Dienstleister",
-      "meters": "Zähler"
+      "meters": "Zähler",
+      "calendar": "Kalender"
     },
     "start": {
       "title": "Übersicht",
