@@ -56,6 +56,7 @@ import {
   type AgendaItemVotingBasis,
   type AssemblyDetailResponse,
   type AssemblyStatus,
+  type VollmachtResponse,
 } from "@/api/types";
 
 const STATUS_OPTIONS: AssemblyStatus[] = [
@@ -156,6 +157,8 @@ export function AdminAssemblyDetailPage() {
 
       <ProtocolSignatureSection assembly={assembly} />
 
+      <VollmachtRegisterSection assemblyId={assembly.id} />
+
       <ProtocolSection
         assembly={assembly}
         onChanged={(a) => setAssembly(a)}
@@ -165,6 +168,102 @@ export function AdminAssemblyDetailPage() {
           they edit the assembly on — fewer tabs to bounce between. */}
       <AssemblyComments assemblyId={assembly.id} />
     </Stack>
+  );
+}
+
+// =================================================================
+// Vollmacht proxy register (ADR-0017) — who delegated to whom
+// =================================================================
+
+function VollmachtRegisterSection({ assemblyId }: { assemblyId: string }) {
+  const [rows, setRows] = useState<VollmachtResponse[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await api.get<VollmachtResponse[]>(
+          `/admin/assemblies/${assemblyId}/vollmachten`,
+        );
+        if (!cancelled) setRows(r.data);
+      } catch {
+        if (!cancelled) setError("Vollmachten konnten nicht geladen werden.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [assemblyId]);
+
+  const download = async (id: string) => {
+    const r = await api.get(`/admin/vollmachten/${id}/document.pdf`, {
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(r.data as Blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const activeCount = (rows ?? []).filter((v) => v.status === "SIGNED").length;
+
+  return (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        Vollmachten ({activeCount})
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        {error && <Alert severity="error">{error}</Alert>}
+        {rows === null ? (
+          <Typography variant="body2" color="text.secondary">
+            Lade…
+          </Typography>
+        ) : rows.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Noch keine Vollmachten erteilt.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {rows.map((v) => (
+              <Stack
+                key={v.id}
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  rowGap: 0.5,
+                  opacity: v.status === "REVOKED" ? 0.5 : 1,
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="body2">
+                    <strong>{v.principal_name}</strong> → {v.proxy_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {[v.principal_email, v.scope_note].filter(Boolean).join(" · ")}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                  <Chip
+                    size="small"
+                    label={v.status === "SIGNED" ? "Aktiv" : "Widerrufen"}
+                    color={v.status === "SIGNED" ? "success" : "default"}
+                    variant={v.status === "SIGNED" ? "filled" : "outlined"}
+                  />
+                  {v.has_pdf && (
+                    <IconButton size="small" onClick={() => void download(v.id)} aria-label="PDF">
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Stack>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Paper>
+    </Box>
   );
 }
 

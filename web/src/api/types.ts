@@ -1048,3 +1048,22 @@ export interface MeterBulkCreateResponse {
   created: MeterResponse[];
   errors: MeterBulkCreateError[];
 }
+
+// --- Vollmacht (ETV proxy authorization) — ADR-0017 -------------------------
+export type VollmachtStatus = "SIGNED" | "REVOKED";
+
+export interface VollmachtResponse {
+  id: string;
+  assembly_id: string;
+  property_id: string;
+  principal_user_id: string | null;
+  principal_name: string;
+  proxy_name: string;
+  scope_note: string | null;
+  status: VollmachtStatus;
+  signed_at: string;
+  revoked_at: string | null;
+  has_pdf: boolean;
+  /// Admin proxy-register only: the granting owner's login email.
+  principal_email: string | null;
+}

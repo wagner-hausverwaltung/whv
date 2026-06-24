@@ -39,6 +39,7 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { VollmachtCard } from "@/components/VollmachtCard";
 import { AssemblyComments } from "@/pages/AssemblyComments";
 import {
   AGENDA_ITEM_TYPE_LABELS,
@@ -97,6 +98,8 @@ export function MyAssemblyDetailPage() {
   const [downloading, setDownloading] = useState(false);
   const { user } = useAuth();
   const isVerwalter = user?.role === "verwalter";
+  // Only owners vote at an ETV, so only they can delegate a proxy.
+  const isOwner = user?.role === "eigentuemer" || user?.role === "beirat";
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -319,6 +322,9 @@ export function MyAssemblyDetailPage() {
           {a.description}
         </Typography>
       )}
+
+      {/* Owner proxy (Vollmacht) — delegate your vote before the meeting. */}
+      {isOwner && <VollmachtCard assemblyId={a.id} />}
 
       {/* Agenda */}
       <Box>
