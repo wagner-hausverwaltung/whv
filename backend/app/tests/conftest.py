@@ -24,6 +24,8 @@ _ENUM_TYPES = (
     "document_kind",
     "document_state",
     "document_visibility",
+    "meter_reading_source",
+    "meter_type",
     "property_state",
     "property_type",
     "resolution_mode",

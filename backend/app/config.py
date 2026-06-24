@@ -137,6 +137,14 @@ class Settings(BaseSettings):
     etv_attachment_dir: str = "/var/lib/whv/etv-attachments"
     etv_attachment_max_bytes: int = 25 * 1024 * 1024
 
+    # Meter-reading photos (Zählerstand-Fotos, ADR-0016) — a phone snap of
+    # the meter face, OCR'd to pre-fill the value. Images only; 15 MB
+    # comfortably covers a HEIC/JPEG from a modern phone. Same
+    # `local-disk:<suffix>` convention + auth-gated download as the other
+    # attachment dirs; moves to Hetzner OS on the same wave.
+    meter_reading_photo_dir: str = "/var/lib/whv/meter-readings"
+    meter_reading_photo_max_bytes: int = 15 * 1024 * 1024
+
     # Signed Eigentümerversammlung protocol PDFs — one per assembly,
     # named {assembly_id}.pdf so re-uploads cleanly overwrite. Auth-
     # gated download via /me/assemblies/{id}/protocol; storage moves

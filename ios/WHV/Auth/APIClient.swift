@@ -1324,6 +1324,57 @@ struct APIClient {
         )
     }
 
+    // MARK: - Zähler (meters)
+
+    /// GET /me/properties/{id}/meters — active meters the caller may
+    /// report on. Demo mode has no meters → empty list.
+    func listMeters(propertyId: String) async throws -> [MeterSummary] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/me/properties/\(propertyId)/meters")
+    }
+
+    /// GET /me/meters/{id}/readings — reading history, newest first.
+    func listMeterReadings(meterId: String) async throws -> [MeterReadingItem] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/me/meters/\(meterId)/readings")
+    }
+
+    /// POST /me/meters/{id}/readings/ocr — upload a meter photo, get a
+    /// suggested value back. Never fatal server-side (unconfigured provider
+    /// or unreadable photo → empty suggestion), so the UI just falls back
+    /// to manual entry.
+    func ocrMeterPhoto(meterId: String, imageData: Data) async throws -> MeterOCRResult {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedMultipart(
+            "/me/meters/\(meterId)/readings/ocr",
+            fields: [:],
+            fileField: "photo",
+            fileData: imageData
+        )
+    }
+
+    /// POST /me/meters/{id}/readings — submit a reading, optionally with a
+    /// photo. `source` is "OCR" when the value came from a photo, "MANUAL"
+    /// otherwise.
+    func submitMeterReading(
+        meterId: String,
+        value: String,
+        readOn: String,
+        note: String?,
+        source: String,
+        imageData: Data?
+    ) async throws -> MeterReadingItem {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        var fields = ["value": value, "read_on": readOn, "source": source]
+        if let note, !note.isEmpty { fields["note"] = note }
+        return try await authedMultipart(
+            "/me/meters/\(meterId)/readings",
+            fields: fields,
+            fileField: imageData == nil ? nil : "photo",
+            fileData: imageData
+        )
+    }
+
     // MARK: - Plumbing
 
     /// Generic authed JSON GET. The path is relative to baseURL and
@@ -1370,6 +1421,90 @@ struct APIClient {
             try Self.throwIfNotOK(response: response, data: data)
             return try Self.decodeAuthed(T.self, from: data)
         }
+    }
+
+    /// Authenticated multipart/form-data POST (photo + text fields). Same
+    /// one-shot 401-refresh-retry as the JSON helpers. Used by the meter
+    /// reading + OCR endpoints, which take an UploadFile + Form fields.
+    private func authedMultipart<T: Decodable>(
+        _ path: String,
+        fields: [String: String],
+        fileField: String? = nil,
+        fileData: Data? = nil,
+        fileName: String = "foto.jpg",
+        mimeType: String = "image/jpeg"
+    ) async throws -> T {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        let url = baseURL.appending(path: path)
+        let boundary = "whv-\(UUID().uuidString)"
+        let body = Self.multipartBody(
+            boundary: boundary,
+            fields: fields,
+            fileField: fileField,
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType
+        )
+
+        func send(_ tok: String) async throws -> (Data, URLResponse) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("Bearer \(tok)", forHTTPHeaderField: "Authorization")
+            request.setValue(
+                "multipart/form-data; boundary=\(boundary)",
+                forHTTPHeaderField: "Content-Type"
+            )
+            request.httpBody = body
+            let (data, response) = try await performWithMapping(request)
+            if let http = response as? HTTPURLResponse, http.statusCode == 401 {
+                throw APIError.unauthorized
+            }
+            return (data, response)
+        }
+
+        do {
+            let (data, response) = try await send(token)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let (data, response) = try await send(fresh)
+            try Self.throwIfNotOK(response: response, data: data)
+            return try Self.decodeAuthed(T.self, from: data)
+        }
+    }
+
+    /// Assemble a multipart/form-data body: text fields first, then an
+    /// optional single file part.
+    private static func multipartBody(
+        boundary: String,
+        fields: [String: String],
+        fileField: String?,
+        fileData: Data?,
+        fileName: String,
+        mimeType: String
+    ) -> Data {
+        var body = Data()
+        func appendString(_ s: String) {
+            if let d = s.data(using: .utf8) { body.append(d) }
+        }
+        for (key, value) in fields {
+            appendString("--\(boundary)\r\n")
+            appendString("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n")
+            appendString("\(value)\r\n")
+        }
+        if let fileField, let fileData {
+            appendString("--\(boundary)\r\n")
+            appendString(
+                "Content-Disposition: form-data; name=\"\(fileField)\"; filename=\"\(fileName)\"\r\n"
+            )
+            appendString("Content-Type: \(mimeType)\r\n\r\n")
+            body.append(fileData)
+            appendString("\r\n")
+        }
+        appendString("--\(boundary)--\r\n")
+        return body
     }
 
     /// Authenticated binary download. Writes the body to

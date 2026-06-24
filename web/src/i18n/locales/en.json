@@ -47,7 +47,8 @@
       "announcements": "Announcements",
       "assemblies": "Meetings",
       "documents": "Documents",
-      "vendors": "Service providers"
+      "vendors": "Service providers",
+      "meters": "Zähler"
     },
     "start": {
       "title": "Overview",

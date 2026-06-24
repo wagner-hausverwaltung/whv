@@ -48,6 +48,12 @@ from app.models.etv import (
     EtvDiscussionEntry,
 )
 from app.models.llm_audit import LLMAuditLog
+from app.models.meter import (
+    Meter,
+    MeterReading,
+    MeterReadingSource,
+    MeterType,
+)
 from app.models.notification_preference import (
     NotificationCategory,
     NotificationChannel,
@@ -106,6 +112,10 @@ __all__ = [
     "EtvDiscussionEntry",
     "InviteCode",
     "LLMAuditLog",
+    "Meter",
+    "MeterReading",
+    "MeterReadingSource",
+    "MeterType",
     "NotificationCategory",
     "NotificationChannel",
     "Organization",

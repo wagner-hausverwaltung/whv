@@ -44,6 +44,7 @@ const TAB_DEFS = [
   { value: "assemblies" },
   { value: "documents" },
   { value: "vendors" },
+  { value: "meters" },
 ] as const;
 
 type TabValue = (typeof TAB_DEFS)[number]["value"];

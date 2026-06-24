@@ -71,6 +71,20 @@ class LLMProvider(Protocol):
         """
         ...
 
+    async def extract_from_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str,
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        """Parse an image (e.g. a meter-face photo) with the given prompt +
+        structured response. Same contract as `extract_from_pdf` — validate
+        against `response_schema`, raise on parse failure. `mime_type` is the
+        image's content type ("image/jpeg", "image/heic", …)."""
+        ...
+
     async def embed_texts(
         self,
         texts: Sequence[str],
@@ -127,6 +141,18 @@ class NullProvider:
     ) -> LLMResult[T]:
         raise LLMProviderUnavailableError(
             "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). Extraction skipped."
+        )
+
+    async def extract_from_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str,
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        raise LLMProviderUnavailableError(
+            "LLM provider not configured (LLM_PROVIDER + GEMINI_API_KEY). OCR skipped."
         )
 
     async def embed_texts(

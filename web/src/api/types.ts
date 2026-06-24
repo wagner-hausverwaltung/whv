@@ -955,3 +955,96 @@ export interface RentSettlement {
   balance: number | null;
   state: string | null;
 }
+
+// --- Zähler (meters) + Zählerstände (readings) — ADR-0016 -------------------
+export type MeterType =
+  | "STROM"
+  | "GAS"
+  | "WASSER"
+  | "WARMWASSER"
+  | "WAERME"
+  | "SONSTIGES";
+
+export type MeterReadingSource = "MANUAL" | "OCR";
+
+export const METER_TYPE_LABELS: Record<MeterType, string> = {
+  STROM: "Strom",
+  GAS: "Gas",
+  WASSER: "Wasser (kalt)",
+  WARMWASSER: "Warmwasser",
+  WAERME: "Wärme",
+  SONSTIGES: "Sonstiges",
+};
+
+export interface MeterResponse {
+  id: string;
+  property_id: string;
+  unit_id: string | null;
+  meter_number: string;
+  meter_type: MeterType;
+  description: string | null;
+  location: string | null;
+  /// Measurement unit ("kWh", "m³").
+  unit_label: string | null;
+  installation_date: string | null;
+  calibration_valid_until: string | null;
+  supplier_name: string | null;
+  supplier_email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Denormalised for list views.
+  unit_name: string | null;
+  /// Pydantic serialises Decimal as a JSON number; tolerate string too.
+  latest_reading_value: number | string | null;
+  latest_reading_on: string | null;
+  reading_count: number;
+}
+
+export interface MeterReadingResponse {
+  id: string;
+  meter_id: string;
+  value: number | string;
+  read_on: string;
+  source: MeterReadingSource;
+  note: string | null;
+  has_photo: boolean;
+  photo_mime_type: string | null;
+  reported_by_user_id: string | null;
+  reported_by_email: string | null;
+  created_at: string;
+}
+
+export interface MeterReadingOCRResult {
+  suggested_value: number | string | null;
+  meter_number: string | null;
+  confidence: number | null;
+  ocr_raw: string | null;
+  /// False when the LLM provider isn't configured — the UI then just
+  /// shows manual entry without surfacing an error.
+  provider_available: boolean;
+}
+
+export interface MeterCreateRequest {
+  meter_number: string;
+  meter_type: MeterType;
+  unit_id?: string | null;
+  description?: string | null;
+  location?: string | null;
+  unit_label?: string | null;
+  installation_date?: string | null;
+  calibration_valid_until?: string | null;
+  supplier_name?: string | null;
+  supplier_email?: string | null;
+}
+
+export interface MeterBulkCreateError {
+  index: number;
+  meter_number: string | null;
+  error: string;
+}
+
+export interface MeterBulkCreateResponse {
+  created: MeterResponse[];
+  errors: MeterBulkCreateError[];
+}

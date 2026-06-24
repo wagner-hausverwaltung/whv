@@ -441,6 +441,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "WHV-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Wird verwendet, um Zählerstände per Foto zu erfassen.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -469,6 +470,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "WHV-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Wird verwendet, um Zählerstände per Foto zu erfassen.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
