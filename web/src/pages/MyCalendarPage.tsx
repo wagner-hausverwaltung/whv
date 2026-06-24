@@ -26,11 +26,7 @@ import {
 } from "@/api/types";
 import { CalendarMonth } from "@/components/CalendarMonth";
 import { useAuth } from "@/auth/AuthContext";
-
-const MONTHS_DE = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
-];
+import { useTranslation } from "react-i18next";
 
 function fmtSpan(e: CalendarEntry): string {
   const d = (iso: string) => new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
@@ -40,6 +36,7 @@ function fmtSpan(e: CalendarEntry): string {
 export function MyCalendarPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -56,9 +53,9 @@ export function MyCalendarPage() {
       );
       setEntries(r.data);
     } catch {
-      setError("Kalender konnte nicht geladen werden.");
+      setError(t("calendar.loadFailed"));
     }
-  }, [id, year, month]);
+  }, [id, year, month, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -76,19 +73,23 @@ export function MyCalendarPage() {
   };
 
   const sorted = [...(entries ?? [])].sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString(
+    i18n.language.startsWith("en") ? "en-US" : "de-DE",
+    { month: "long", year: "numeric" },
+  );
 
   return (
     <Stack spacing={2}>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "center" }} spacing={2}>
-        <IconButton onClick={() => shift(-1)} aria-label="Vorheriger Monat">
+        <IconButton onClick={() => shift(-1)} aria-label={t("calendar.prevMonth")}>
           <ChevronLeftIcon />
         </IconButton>
         <Typography variant="h6" sx={{ minWidth: 160, textAlign: "center" }}>
-          {MONTHS_DE[month - 1]} {year}
+          {monthLabel}
         </Typography>
-        <IconButton onClick={() => shift(1)} aria-label="Nächster Monat">
+        <IconButton onClick={() => shift(1)} aria-label={t("calendar.nextMonth")}>
           <ChevronRightIcon />
         </IconButton>
       </Stack>
@@ -130,7 +131,7 @@ export function MyCalendarPage() {
                     {e.title}
                     {e.assigned_label ? ` — ${e.assigned_label}` : ""}
                   </Typography>
-                  {mine && <Chip size="small" color="primary" label="Ihre Aufgabe" />}
+                  {mine && <Chip size="small" color="primary" label={t("calendar.myTask")} />}
                 </Stack>
               );
             })}

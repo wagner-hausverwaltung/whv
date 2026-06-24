@@ -30,6 +30,7 @@ import {
 import HistoryIcon from "@mui/icons-material/History";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import SpeedIcon from "@mui/icons-material/Speed";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import {
   METER_TYPE_LABELS,
@@ -68,6 +69,7 @@ function ReportReadingDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [photo, setPhoto] = useState<File | null>(null);
   const [value, setValue] = useState("");
   const [readOn, setReadOn] = useState(todayIso());
@@ -91,16 +93,16 @@ function ReportReadingDialog({
         fd,
       );
       if (!r.data.provider_available) {
-        setOcrHint("Automatische Erkennung nicht verfügbar — bitte Wert eintragen.");
+        setOcrHint(t("meters.ocrUnavailable"));
       } else if (r.data.suggested_value != null) {
         setValue(String(r.data.suggested_value));
         setOcrApplied(true);
-        setOcrHint("Wert aus Foto erkannt — bitte prüfen.");
+        setOcrHint(t("meters.ocrRead"));
       } else {
-        setOcrHint("Konnte den Wert nicht sicher lesen — bitte manuell eintragen.");
+        setOcrHint(t("meters.ocrUnsure"));
       }
     } catch {
-      setOcrHint("Erkennung fehlgeschlagen — bitte Wert eintragen.");
+      setOcrHint(t("meters.ocrFailed"));
     } finally {
       setOcrBusy(false);
     }
@@ -109,7 +111,7 @@ function ReportReadingDialog({
   const submit = async () => {
     const numeric = Number(value.replace(",", "."));
     if (!value.trim() || !Number.isFinite(numeric) || numeric < 0) {
-      setError("Bitte einen gültigen Zählerstand eintragen.");
+      setError(t("meters.invalidValue"));
       return;
     }
     setBusy(true);
@@ -127,7 +129,7 @@ function ReportReadingDialog({
     } catch (e) {
       const detail =
         (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Speichern fehlgeschlagen.";
+        t("meters.saveFailed");
       setError(detail);
     } finally {
       setBusy(false);
@@ -136,7 +138,7 @@ function ReportReadingDialog({
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Zählerstand melden</DialogTitle>
+      <DialogTitle>{t("meters.reportTitle")}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Typography variant="body2" color="text.secondary">
@@ -151,7 +153,7 @@ function ReportReadingDialog({
             startIcon={ocrBusy ? <CircularProgress size={18} /> : <PhotoCameraIcon />}
             disabled={ocrBusy || busy}
           >
-            {photo ? "Foto ersetzen" : "Foto aufnehmen"}
+            {photo ? t("meters.replacePhoto") : t("meters.takePhoto")}
             <input
               hidden
               type="file"
@@ -175,7 +177,7 @@ function ReportReadingDialog({
           )}
 
           <TextField
-            label={`Zählerstand${meter.unit_label ? ` (${meter.unit_label})` : ""}`}
+            label={`${t("meters.valueLabel")}${meter.unit_label ? ` (${meter.unit_label})` : ""}`}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
@@ -186,7 +188,7 @@ function ReportReadingDialog({
             autoFocus
           />
           <TextField
-            label="Ablesedatum"
+            label={t("meters.readOn")}
             type="date"
             value={readOn}
             onChange={(e) => setReadOn(e.target.value)}
@@ -194,7 +196,7 @@ function ReportReadingDialog({
             slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
-            label="Notiz (optional)"
+            label={t("meters.note")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             fullWidth
@@ -205,10 +207,10 @@ function ReportReadingDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={busy}>
-          Abbrechen
+          {t("common.cancel")}
         </Button>
         <Button variant="contained" onClick={submit} disabled={busy || ocrBusy}>
-          {busy ? "Sendet…" : "Melden"}
+          {busy ? t("meters.sending") : t("meters.submit")}
         </Button>
       </DialogActions>
     </Dialog>
@@ -218,6 +220,7 @@ function ReportReadingDialog({
 // --- per-meter history --------------------------------------------------------
 
 function MeterHistory({ meterId }: { meterId: string }) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<MeterReadingResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -228,25 +231,25 @@ function MeterHistory({ meterId }: { meterId: string }) {
         const r = await api.get<MeterReadingResponse[]>(`/me/meters/${meterId}/readings`);
         if (!cancelled) setRows(r.data);
       } catch {
-        if (!cancelled) setError("Verlauf konnte nicht geladen werden.");
+        if (!cancelled) setError(t("meters.historyLoadFailed"));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [meterId]);
+  }, [meterId, t]);
 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (rows === null)
     return (
       <Typography variant="caption" color="text.secondary">
-        Lade Verlauf…
+        {t("meters.historyLoading")}
       </Typography>
     );
   if (rows.length === 0)
     return (
       <Typography variant="caption" color="text.secondary">
-        Noch keine Ablesungen.
+        {t("meters.noReadings")}
       </Typography>
     );
 
@@ -261,7 +264,7 @@ function MeterHistory({ meterId }: { meterId: string }) {
         >
           <Typography variant="caption" color="text.secondary">
             {fmtDate(r.read_on)}
-            {r.source === "OCR" ? " · Foto" : ""}
+            {r.source === "OCR" ? ` · ${t("meters.photoTag")}` : ""}
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
             {fmtNum(r.value)}
@@ -275,6 +278,7 @@ function MeterHistory({ meterId }: { meterId: string }) {
 // --- main page ----------------------------------------------------------------
 
 export function MyMetersPage() {
+  const { t } = useTranslation();
   const { id: propertyId } = useParams<{ id: string }>();
   const [meters, setMeters] = useState<MeterResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -288,9 +292,9 @@ export function MyMetersPage() {
       const r = await api.get<MeterResponse[]>(`/me/properties/${propertyId}/meters`);
       setMeters(r.data);
     } catch {
-      setError("Zähler konnten nicht geladen werden.");
+      setError(t("meters.loadFailed"));
     }
-  }, [propertyId]);
+  }, [propertyId, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -310,7 +314,7 @@ export function MyMetersPage() {
   if (meters === null && !error) {
     return (
       <Typography variant="body2" color="text.secondary">
-        Lade Zähler…
+        {t("meters.loading")}
       </Typography>
     );
   }
@@ -323,7 +327,7 @@ export function MyMetersPage() {
         <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
           <SpeedIcon color="disabled" sx={{ fontSize: 40, mb: 1 }} />
           <Typography variant="body2" color="text.secondary">
-            Für diese Liegenschaft sind noch keine Zähler hinterlegt.
+            {t("meters.empty")}
           </Typography>
         </Paper>
       )}
@@ -354,13 +358,13 @@ export function MyMetersPage() {
                   </Typography>
                 )}
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Letzter Stand:{" "}
+                  {t("meters.lastReading")}{" "}
                   {m.latest_reading_value !== null ? (
                     <strong>
                       {fmtNum(m.latest_reading_value)} {m.unit_label ?? ""} ({fmtDate(m.latest_reading_on)})
                     </strong>
                   ) : (
-                    "noch keiner"
+                    t("meters.noneYet")
                   )}
                 </Typography>
               </Box>
@@ -371,7 +375,7 @@ export function MyMetersPage() {
                 onClick={() => setReporting(m)}
                 sx={{ flexShrink: 0 }}
               >
-                Stand melden
+                {t("meters.reportCta")}
               </Button>
             </Stack>
 
@@ -381,7 +385,7 @@ export function MyMetersPage() {
               onClick={() => toggleHistory(m.id)}
               sx={{ mt: 1 }}
             >
-              Verlauf ({m.reading_count})
+              {t("meters.history")} ({m.reading_count})
             </Button>
             <Collapse in={open} timeout="auto" unmountOnExit>
               <Box sx={{ mt: 1 }}>
