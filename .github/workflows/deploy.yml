@@ -112,14 +112,18 @@ jobs:
              IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml run --rm backend alembic upgrade head && \
              IMAGE_TAG=${IMAGE_TAG} WEB_IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.deploy.yml up -d --no-deps backend worker beat web"
 
-      - name: Reload Caddy to pick up Caddyfile changes
-        # The Caddyfile is bind-mounted into the caddy container, but compose
-        # won't recreate the container just because a bind-mounted file
-        # changed. `caddy reload` re-reads /etc/caddy/Caddyfile in-place.
+      - name: Recreate Caddy to pick up Caddyfile changes
+        # The Caddyfile is a SINGLE-FILE bind mount. rsync replaces it
+        # atomically (temp + rename = new inode), so the running container
+        # keeps the OLD inode and `caddy reload` silently re-reads stale
+        # content (this is why a Caddyfile change once sat un-applied for
+        # weeks). Recreating the container re-resolves the bind mount to the
+        # current file — ~1-2s blip, and a fresh process also clears ACME
+        # back-off. --no-deps so only caddy is touched.
         run: |
           ssh -i ~/.ssh/deploy_key "${{ env.STAGING_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
             "cd ${{ env.STAGING_REPO_DIR }} && \
-             docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+             docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --no-deps --force-recreate caddy"
 
       - name: Verify /healthz over HTTPS
         run: |

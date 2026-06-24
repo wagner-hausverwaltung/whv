@@ -143,18 +143,17 @@ jobs:
              ${TAGS} ${COMPOSE} run --rm backend alembic upgrade head && \
              ${TAGS} ${COMPOSE} up -d"
 
-      - name: Reload Caddy to pick up Caddyfile changes
-        # NOTE: header / frame-ancestors changes and new-vhost cert issuance
-        # need a RESTART, not reload (see infra/docs/prod-cutover.md). Reload
-        # is enough for upstream/routing tweaks.
+      - name: Recreate Caddy to pick up Caddyfile changes
+        # The Caddyfile is a SINGLE-FILE bind mount; rsync's atomic replace
+        # gives it a new inode, so the running container keeps the old one and
+        # `caddy reload` reads stale content. Recreating re-resolves the mount
+        # to the current file — and a fresh process also clears ACME back-off,
+        # which the header / frame-ancestors / new-vhost cases need (see
+        # infra/docs/prod-cutover.md). ~1-2s blip across the fronted sites.
         run: |
-          # Non-fatal: on a cold start the full `up -d` already started caddy
-          # with the current Caddyfile, so a reload race here shouldn't fail
-          # the deploy. On warm deploys it picks up Caddyfile edits.
           ssh -i ~/.ssh/deploy_key "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}" \
             "cd ${{ env.PROD_REPO_DIR }} && \
-             docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile" \
-            || echo '::warning ::caddy reload skipped (fresh container already loaded the config)'
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate caddy"
 
       - name: Verify /healthz over HTTPS
         run: |

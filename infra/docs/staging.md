@@ -167,3 +167,16 @@ ssh whv@46.225.185.151 \
 ```
 
 Watch for `tls-alpn-01 ... served key authentication certificate` lines from multiple Let's Encrypt validation IPs — that means the challenge succeeded. The cert is valid within ~10 s after that. Subsequent renewals (60-day cadence at 2/3 lifetime) require no manual action. Only the **first** acquisition for a brand-new host is sensitive to this back-off.
+
+### Gotcha: a changed Caddyfile needs a container *recreate*, not `caddy reload`
+
+The Caddyfile is a **single-file bind mount** (`./Caddyfile:/etc/caddy/Caddyfile:ro`). CI rsyncs the new file with an atomic temp-write + rename → the file gets a **new inode**. The running caddy container is still bound to the **old** inode, so `caddy reload` (and `docker compose up -d`, which won't recreate a container just because a bind-mounted file's *contents* changed) silently keep serving the **stale** config — a Caddyfile edit can sit un-applied for weeks this way.
+
+The deploy workflows now recreate caddy after the rsync. If you ever edit the Caddyfile **by hand** on the box, do the same (not `caddy reload`):
+
+```bash
+ssh whv@46.225.185.151 \
+  'cd ~/whv && docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --no-deps --force-recreate caddy'
+```
+
+(`restart caddy` also re-resolves the mount; `--force-recreate` is the surest, and on prod use the `-f docker-compose.prod.yml` overlay.)
