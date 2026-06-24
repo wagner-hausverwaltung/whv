@@ -77,3 +77,21 @@ instance + key exist, so nothing breaks before provisioning.
   our infra; unnecessary for our volume. Rejected.
 - **Build signing ourselves** — legally + cryptographically risky;
   never reinvent e-signature. Rejected.
+
+## Update 2026-06-24 — Community edition can't create templates via API
+
+The self-hosted **Community (free)** edition gates programmatic
+template-creation-from-a-file: `POST /templates/pdf` returns
+`404 {"message":"This feature is available in Pro Edition"}`. Our
+`DocuSealClient.create_signature_request` relies on exactly that call, so
+the API-driven send paths (`POST /admin/signature-requests` and
+`POST /admin/assemblies/{id}/signature-request`) only work on **Pro**.
+
+Decision (no Pro purchase for now): keep the backend endpoints (they work
+unchanged the moment a Pro licence is added), but the admin "Zur
+Unterschrift senden" button no longer calls them. It hands the generated
+protocol PDF into the **embedded DocuSeal UI** (Signaturen tab) instead:
+download the PDF → upload it in DocuSeal → place the field → send.
+UI-based template creation is free, and the signed PDF still returns via
+the `form.completed` webhook. Revisit if one-click API sending is worth
+the Pro tier.

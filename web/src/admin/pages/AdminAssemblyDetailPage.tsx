@@ -172,14 +172,6 @@ export function AdminAssemblyDetailPage() {
 // Versammlungsprotokoll PDF (WHV design) + send-for-signature
 // =================================================================
 
-// Minimal shape of /admin/properties/{id}/contacts — just the fields
-// needed to prefill the signer (full type lives in PropertyInvitesTab).
-interface OwnerContactRow {
-  name: string;
-  email: string | null;
-  suggested_role: string;
-}
-
 function ProtocolSignatureSection({ assembly }: { assembly: AssemblyDetailResponse }) {
   const [error, setError] = useState<string | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -208,8 +200,8 @@ function ProtocolSignatureSection({ assembly }: { assembly: AssemblyDetailRespon
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Erzeugt aus Tagesordnung und Details ein gebrandetes PDF — auch für
-        Mietverwaltungen, für die Impower keine ETV anlegt. Optional direkt an
-        eine Eigentümerin / einen Eigentümer zur digitalen Unterschrift senden.
+        Mietverwaltungen, für die Impower keine ETV anlegt. Zum Ausdrucken und
+        Unterschreiben oder als Vorlage für die digitale Unterschrift in DocuSeal.
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -246,55 +238,36 @@ function SendForSignatureDialog({
   assembly: AssemblyDetailResponse;
   onClose: () => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
-  // Best-effort prefill from the property's first owner contact; the
-  // field stays editable and a failed fetch just leaves it blank.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const r = await api.get<OwnerContactRow[]>(
-          `/admin/properties/${assembly.property_id}/contacts`,
-        );
-        const owner = r.data.find((c) => c.suggested_role === "EIGENTUEMER" && c.email);
-        if (!cancelled && owner?.email) {
-          setEmail(owner.email);
-          setName(owner.name);
-        }
-      } catch {
-        /* prefill is optional */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [assembly.property_id]);
-
-  const canSubmit = /\S+@\S+\.\S+/.test(email.trim());
-
-  const submit = async () => {
-    if (!canSubmit) return;
-    setBusy(true);
+  // DocuSeal's *programmatic* template-from-PDF API (POST /templates/pdf)
+  // is Pro-only — it 404s on the self-hosted Community edition. So we don't
+  // push the PDF from the backend. Instead the Verwalter downloads the
+  // generated protocol and uploads it in the embedded DocuSeal UI on the
+  // Signaturen tab (UI-based template creation is free), then sends from
+  // there; the signed PDF still lands in the Dokumentenarchiv via the
+  // webhook. No dead end, no Pro licence.
+  const downloadPdf = async () => {
+    setDownloading(true);
     setError(null);
     try {
-      await api.post(`/admin/assemblies/${assembly.id}/signature-request`, {
-        recipient_email: email.trim(),
-        recipient_name: name.trim() || null,
+      const r = await api.get(`/admin/assemblies/${assembly.id}/document.pdf`, {
+        responseType: "blob",
       });
-      setSentTo(email.trim());
-    } catch (e) {
-      // Surface the backend's German detail (e.g. 503 "Signatur-Dienst ist
-      // nicht konfiguriert." until DocuSeal is provisioned).
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data
-        ?.detail;
-      setError(detail ?? "Die Anfrage konnte nicht gesendet werden.");
+      const url = URL.createObjectURL(r.data as Blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Versammlungsprotokoll-${assembly.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("PDF konnte nicht erstellt werden.");
     } finally {
-      setBusy(false);
+      setDownloading(false);
     }
   };
 
@@ -302,49 +275,46 @@ function SendForSignatureDialog({
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Protokoll zur Unterschrift senden</DialogTitle>
       <DialogContent>
-        {sentTo ? (
-          <Alert severity="success" sx={{ mt: 1 }}>
-            Das Protokoll wurde an {sentTo} zur digitalen Unterschrift gesendet. Den
-            Status sehen Sie im Bereich Signaturen.
-          </Alert>
-        ) : (
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField
-              label="E-Mail der Empfängerin / des Empfängers"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              fullWidth
-              required
-            />
-            <TextField
-              label="Name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              fullWidth
-            />
-            <Typography variant="caption" color="text.secondary">
-              Das gebrandete Versammlungsprotokoll wird erzeugt und per E-Mail über
-              DocuSeal zur Unterschrift versendet — ein Portal-Konto ist dafür nicht
-              nötig.
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography variant="body2" color="text.secondary">
+            Das Signieren läuft in zwei Schritten über DocuSeal — ganz ohne
+            Portal-Konto des Empfängers:
+          </Typography>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              1. Protokoll herunterladen
             </Typography>
-          </Stack>
-        )}
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={() => void downloadPdf()}
+              disabled={downloading}
+            >
+              {downloading ? "Wird erstellt…" : "Protokoll als PDF herunterladen"}
+            </Button>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              2. In DocuSeal hochladen und senden
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Im Bereich Signaturen das PDF hochladen, das Unterschriftsfeld setzen
+              und an die Empfängerin / den Empfänger senden. Das fertig signierte
+              Dokument landet automatisch im Dokumentenarchiv.
+            </Typography>
+          </Box>
+        </Stack>
       </DialogContent>
       <DialogActions>
-        {sentTo ? (
-          <Button onClick={onClose}>Schließen</Button>
-        ) : (
-          <>
-            <Button onClick={onClose} disabled={busy}>
-              Abbrechen
-            </Button>
-            <Button variant="contained" onClick={() => void submit()} disabled={!canSubmit || busy}>
-              Senden
-            </Button>
-          </>
-        )}
+        <Button onClick={onClose}>Schließen</Button>
+        <Button
+          variant="contained"
+          startIcon={<HistoryEduIcon />}
+          onClick={() => navigate("/admin/signatures")}
+        >
+          Zu Signaturen
+        </Button>
       </DialogActions>
     </Dialog>
   );
