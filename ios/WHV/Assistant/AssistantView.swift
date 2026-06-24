@@ -112,8 +112,24 @@ struct AssistantView: View {
     /// The active Liegenschaft id — scopes the assistant to that property.
     var propertyId: String? = nil
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var deepLinkRouter: DeepLinkRouter
     @StateObject private var model = AssistantChatModel()
     @FocusState private var inputFocused: Bool
+
+    /// Route a tapped citation. Documents download + preview inline; an ETV
+    /// master-data card deep-links to the Versammlungen tab (the property's
+    /// assemblies — same target the web assistant uses). Contact/Dienstleister
+    /// cards have no dedicated iOS screen yet, so they stay inert.
+    private func handleSource(_ source: AssistantCitation) {
+        if source.isMasterData {
+            if source.source_type == "etv" {
+                deepLinkRouter.pendingTarget = .tab(.etv)
+                dismiss()
+            }
+            return
+        }
+        model.openCitation(source)
+    }
 
     var body: some View {
         NavigationStack {
@@ -159,7 +175,7 @@ struct AssistantView: View {
                         emptyState
                     }
                     ForEach(model.messages) { message in
-                        MessageBubble(message: message) { model.openCitation($0) }
+                        MessageBubble(message: message) { handleSource($0) }
                             .id(message.id)
                     }
                     if model.isLoading {
@@ -250,12 +266,13 @@ private struct MessageBubble: View {
             if !message.sources.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(message.sources) { source in
-                        if source.isMasterData {
-                            // Master-data card (Dienstleister/Kontakt/ETV) — no
-                            // file to open. Shown as a labelled, non-tappable
-                            // source; a full deep-link to the entity is a follow-up.
+                        if source.isMasterData && source.source_type != "etv" {
+                            // Kontakt / Dienstleister cards have no dedicated iOS
+                            // screen yet → labelled but inert.
                             citationChip(label: label(for: source), icon: icon(for: source))
                         } else {
+                            // Documents open in QuickLook; an ETV card deep-links
+                            // to the Versammlungen tab (handled by the parent).
                             Button { onOpenCitation(source) } label: {
                                 citationChip(label: label(for: source), icon: icon(for: source))
                             }
@@ -338,4 +355,5 @@ struct AssistantBubble: View {
 
 #Preview {
     AssistantView()
+        .environmentObject(DeepLinkRouter())
 }
