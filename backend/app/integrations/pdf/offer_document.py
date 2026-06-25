@@ -14,11 +14,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from app.integrations.pdf.offer_overlay import StampField, stamp_pdf
 from app.services.offer_pricing import OfferPricing
+
+_TEMPLATE_DIR = Path(__file__).parent / "assets" / "offer_templates"
+
+
+def load_base_template(art: str) -> bytes:
+    """Read the committed blanked base PDF for a product line ("WEG"|"MV")."""
+    key = art.strip().upper()
+    name = {"WEG": "weg_template.pdf", "MV": "mv_template.pdf"}.get(key)
+    if name is None:
+        raise ValueError(f"unknown offer art {art!r}")
+    return (_TEMPLATE_DIR / name).read_bytes()
 
 # --- German formatting helpers ------------------------------------------------
 
