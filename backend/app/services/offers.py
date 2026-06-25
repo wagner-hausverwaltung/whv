@@ -86,13 +86,75 @@ def generate_offer(req: OfferGenerateRequest, *, today: date | None = None) -> t
     return pdf, filename
 
 
+# Offer cover letter (Dirk Ullrich). Generic version — the recipient/object
+# specifics are intentionally left out so it fits any inquiry; the filled
+# Angebot PDF is attached separately.
+_OFFER_BULLETS = [
+    "Umfangreiche Betreuung, die über das normale Maß (Eigentümerversammlung, "
+    "Jahresabrechnung, Wirtschaftsplan) hinaus geht.",
+    "Digitalisierung Ihrer Unterlagen, auch der Archivunterlagen der letzten 11 "
+    "Jahre, ist inklusive.",
+    "Wir sind in der Regel von 7:00 bis 18:00 Uhr telefonisch und online erreichbar.",
+    "Wir steuern die Vorgänge rund um Ihr Objekt aktiv und setzen Ihre "
+    "Entscheidungen konsequent und in Ihrem Interesse um.",
+    "Wir managen akute Reparaturarbeiten und langfristige Sanierungen.",
+    "Gern greifen wir auf Ihren bewährten Handwerkerpool zurück, bieten Ihnen "
+    "aber auch einen ausgezeichneten Pool, mit dem wir arbeiten.",
+    "Grundsätzlich arbeiten wir sehr eng mit den Beiräten der WEG zusammen. "
+    "Jedwede finanzielle Entscheidung wird mindestens (abhängig vom Umfang) mit "
+    "den Beiräten abgestimmt und ohne deren Genehmigung nicht gestartet.",
+    "Wir arbeiten effektiv mit Kommunikation zwischen Ihnen und uns telefonisch, "
+    "online (eMail und CASAVI Kundensystem) und bei Bedarf natürlich auch per Post.",
+    "Mindestens eine Eigentümerversammlung - je nach Ihrem Bedarf persönlich oder "
+    "auch online - führen wir jährlich im ersten Halbjahr durch.",
+    "Grundsätzlich haben wir einen höheren Fixbetrag pro Monat, dafür belasten wir "
+    "jedoch keine Sonderleistungen (wie z. B. eine zweite Eigentümerversammlung im "
+    "Jahr oder dergleichen). Und wenn doch notwendig (extrem umfangreiche Sanierung) "
+    "nur in Abstimmung vorab mit dem Beirat.",
+    "Gern stellen wir uns Ihnen auch persönlich vor. Bitte vereinbaren Sie einen Termin mit uns.",
+]
+
+_OFFER_SIGNATURE_LINES = [
+    "Dirk Ullrich",
+    "Wagner Hausverwaltung GmbH",
+    "",
+    "Mobile +49 15679 062409",
+    "Web www.wagner-hausverwaltung.com",
+    "E-Mail ullrich@wagner-hausverwaltung.com",
+    "",
+    "Staufeneckstraße 17, 70469 Stuttgart",
+]
+
 _OFFER_EMAIL_HTML = (
-    "<p>Guten Tag,</p><p>vielen Dank für Ihre Anfrage. Im Anhang finden Sie "
-    "unser Angebot.</p><p>Mit freundlichen Grüßen<br>Wagner Hausverwaltung GmbH</p>"
+    "<p>Sehr geehrte Damen und Herren,</p>"
+    "<p>hiermit bewerben wir uns um die Verwaltung Ihres Objektes.</p>"
+    "<p>Anbei erhalten Sie das Angebot zur Verwaltung Ihres Objektes. Da in einem "
+    "VDIV-Standardangebot die individuellen Themen eher nicht berücksichtigt werden, "
+    "hier noch einige Ergänzungen, die uns besser charakterisieren.</p>"
+    "<p>Wir sind eine Hausverwaltung, die sich auf die Bedürfnisse kleinerer "
+    "Eigentümergemeinschaften und Objekte (bis 20 WE) spezialisiert hat.</p>"
+    "<p>Wir bieten Ihnen unter anderem:</p>"
+    "<ul>" + "".join(f"<li>{b}</li>" for b in _OFFER_BULLETS) + "</ul>"
+    "<p>Um Ihr Objekt kennenzulernen und mich Ihnen vorzustellen, würde ich mit "
+    "Ihnen gern einen Termin vereinbaren. Wann würde es Ihnen passen?</p>"
+    "<p>Bei Fragen bitte gern an mich wenden.</p>"
+    "<p>Einen schönen Tag und freundliche Grüße!</p>"
+    "<p>" + "<br>".join(_OFFER_SIGNATURE_LINES) + "</p>"
 )
 _OFFER_EMAIL_TEXT = (
-    "Guten Tag,\n\nvielen Dank für Ihre Anfrage. Im Anhang finden Sie unser "
-    "Angebot.\n\nMit freundlichen Grüßen\nWagner Hausverwaltung GmbH"
+    "Sehr geehrte Damen und Herren,\n\n"
+    "hiermit bewerben wir uns um die Verwaltung Ihres Objektes.\n\n"
+    "Anbei erhalten Sie das Angebot zur Verwaltung Ihres Objektes. Da in einem "
+    "VDIV-Standardangebot die individuellen Themen eher nicht berücksichtigt "
+    "werden, hier noch einige Ergänzungen, die uns besser charakterisieren.\n\n"
+    "Wir sind eine Hausverwaltung, die sich auf die Bedürfnisse kleinerer "
+    "Eigentümergemeinschaften und Objekte (bis 20 WE) spezialisiert hat.\n\n"
+    "Wir bieten Ihnen unter anderem:\n"
+    + "".join(f"- {b}\n" for b in _OFFER_BULLETS)
+    + "\nUm Ihr Objekt kennenzulernen und mich Ihnen vorzustellen, würde ich mit "
+    "Ihnen gern einen Termin vereinbaren. Wann würde es Ihnen passen?\n\n"
+    "Bei Fragen bitte gern an mich wenden.\n\n"
+    "Einen schönen Tag und freundliche Grüße!\n\n" + "\n".join(_OFFER_SIGNATURE_LINES)
 )
 
 
