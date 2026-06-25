@@ -29,7 +29,6 @@ struct EinstellungenView: View {
     var body: some View {
         NavigationStack {
             List {
-                liegenschaftSection
                 appearanceSection
                 languageSection
                 sicherheitSection
@@ -129,37 +128,6 @@ struct EinstellungenView: View {
     }
 
     // MARK: - Sections
-
-    @ViewBuilder
-    private var liegenschaftSection: some View {
-        if let l = liegenschaftStore.selected {
-            // Bare row in its own section so the library backdrop
-            // stays clean — tap pushes the §8.3 detail screen
-            // (address card + Verwaltung-Kontakt + units + quick
-            // actions). "Liegenschaft wechseln" lives on the detail
-            // page now rather than the tap action — discoverable
-            // but not destructive on accidental taps.
-            Section {
-                NavigationLink {
-                    PropertyDetailView(property: l)
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(l.name)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            Text(l.address)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 2)
-                }
-                .listRowBackground(PropertyBackground())
-            }
-        }
-    }
 
     private var appearanceSection: some View {
         Section("Erscheinungsbild") {

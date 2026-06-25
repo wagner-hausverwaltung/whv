@@ -74,6 +74,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { to: "/admin/assemblies", label: t("admin.assemblies") },
     { to: "/admin/signatures", label: t("admin.signatures") },
     { to: "/admin/announcements", label: t("admin.announcements") },
+    { to: "/admin/anfragen", label: t("admin.anfragen") },
+    { to: "/admin/offers", label: t("admin.offers") },
     { to: "/admin/invites", label: t("admin.invites") },
     { to: "/admin/assistant-log", label: t("admin.assistantLog") },
   ];

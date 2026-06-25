@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "@/admin/AdminLayout";
 import { AdminAnnouncementDetailPage } from "@/admin/pages/AdminAnnouncementDetailPage";
+import { AdminAnfragenPage } from "@/admin/pages/AdminAnfragenPage";
 import { AdminAnnouncementsAllPage } from "@/admin/pages/AdminAnnouncementsAllPage";
 import { AdminAssembliesPage } from "@/admin/pages/AdminAssembliesPage";
 import { AdminAssemblyDetailPage } from "@/admin/pages/AdminAssemblyDetailPage";
@@ -11,6 +12,7 @@ import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
+import { AdminOffersPage } from "@/admin/pages/AdminOffersPage";
 import { AdminPropertiesPage } from "@/admin/pages/AdminPropertiesPage";
 import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
 import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
@@ -225,6 +227,26 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminTicketDetailPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/anfragen"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminAnfragenPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/offers"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminOffersPage />
                 </AdminLayout>
               </AdminRoute>
             }

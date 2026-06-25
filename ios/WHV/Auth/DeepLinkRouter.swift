@@ -29,25 +29,15 @@ enum DeepLinkTarget: Equatable {
     case announcement(id: String)
 }
 
-/// One enum per tab the widget might want to deep-link to. Mirrors
-/// the `.tag(_:)` integers in RootTabView so the router doesn't
-/// need to know about magic numbers.
+/// One enum per feature a widget / push might deep-link to. The shell
+/// (`RootTabView.consumeDeepLink`) maps these onto its feature sheets;
+/// `news` is treated as Mitteilungen.
 enum WHVTab {
     case mitteilungen
     case tickets
     case etv
     case news
     case einstellungen
-
-    var selection: Int {
-        switch self {
-        case .mitteilungen: return 0
-        case .tickets: return 1
-        case .etv: return 2
-        case .news: return 3
-        case .einstellungen: return 4
-        }
-    }
 }
 
 @MainActor

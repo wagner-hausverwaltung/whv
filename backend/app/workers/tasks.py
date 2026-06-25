@@ -1006,3 +1006,60 @@ def index_rag_masterdata(property_id: str, entity_id: str, card_type: str = "die
     (``card_type="contact"``), or an ETV card (``card_type="etv"``). Enqueued by
     the master-data backfill; no-op when rag_enabled is off."""
     return asyncio.run(_index_rag_masterdata_async(property_id, entity_id, card_type))
+
+
+@celery_app.task(
+    name="app.workers.tasks.extract_offer_inquiry",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def extract_offer_inquiry(inquiry_id: str) -> str:
+    """anfragen@ inquiry → LLM extract, then gated auto-send or park for
+    review (ADR-0019). Enqueued by the inbound webhook."""
+    return asyncio.run(_extract_offer_inquiry_async(inquiry_id))
+
+
+async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
+    from datetime import date
+
+    from app.models import OfferInquiry, OfferInquiryStatus
+    from app.services import offer_extraction
+    from app.services import offers as offers_svc
+
+    inquiry_id = uuid.UUID(inquiry_id_str)
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            await offer_extraction.extract_inquiry(session, inquiry_id=inquiry_id)
+            inquiry = await session.get(OfferInquiry, inquiry_id)
+            if inquiry is None:
+                await session.commit()
+                return "inquiry_gone"
+            # Only EXTRACTED rows are candidates to send; IGNORED (not an offer
+            # request) and NEEDS_REVIEW (provider down) just persist + stop.
+            if inquiry.status != OfferInquiryStatus.EXTRACTED.value:
+                await session.commit()
+                return inquiry.status.lower()
+
+            req = offer_extraction.build_offer_request(inquiry)
+            if req is None or not offer_extraction.auto_send_allowed(inquiry, settings=settings):
+                inquiry.status = OfferInquiryStatus.NEEDS_REVIEW.value
+                await session.commit()
+                return "needs_review"
+
+            client = EmailClient(settings)
+            try:
+                await offers_svc.email_offer_for_inquiry(
+                    inquiry, req, email_client=client, settings=settings, today=date.today()
+                )
+            except (EmailError, ValueError) as exc:
+                inquiry.status = OfferInquiryStatus.FAILED.value
+                inquiry.error = str(exc)
+            await session.commit()
+            return inquiry.status.lower()
+    finally:
+        await engine.dispose()

@@ -684,6 +684,19 @@ Property-scoped messages from Verwalter to Eigentümer / Mieter / Beirat, with a
 - At least one Umlaufbeschluss successfully run end-to-end with a real WEG
 - One ETV held in hybrid mode
 
+### 10.10 anfragen@ auto-offer (Angebotsgenerator) — ⏳ Phase 1 (manual) shipped 2026-06-25
+Prospects email `anfragen@wagner-hausverwaltung.com` for a WEG- or
+Mietverwaltungs-Angebot; the system fills the matching offer template (address,
+costing, dates) and replies with the PDF. Pricing: WEG 40–50 €/unit/month
+(default 45; 35 € if > 15 units), floor 270 €/WEG/month, +1 €/unit/month/year;
+MV 30 €/unit/month, +1 €/unit/year; 4-year default term; start defaults to
+1 Jan next year. Offers are produced by **template-overlay** (white-out +
+re-stamp), not regeneration. See **ADR-0019**.
+- **Phase 1 (done):** pricing engine, WEG + MV generators, manual Verwalter
+  `POST /admin/offers/generate` + Admin "Angebote" form.
+- **Phase 2 (planned):** `anfragen@` SES-inbound routing → Gemini extraction →
+  auto-generate → confidence-gated auto-send (feature-flagged) via Resend.
+
 ---
 
 ## 11. Phase 5 — AI Layer (8–12 weeks, parallelizable with Phase 4)

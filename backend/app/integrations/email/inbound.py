@@ -74,6 +74,9 @@ class ParsedInboundEmail:
     # body). Empty tuple when the message had none — keeps the call site
     # branch-free.
     attachments: tuple[ParsedInboundAttachment, ...] = ()
+    # Envelope recipients (mail.destination), lowercased — used to route
+    # anfragen@ inquiries to the offer pipeline instead of the ticket flow.
+    recipients: tuple[str, ...] = ()
 
 
 class InboundEmailParseError(Exception):
@@ -270,6 +273,7 @@ def parse_ses_sns_payload(
     mail = outer.get("mail", {})
     receipt = outer.get("receipt", {})
     common_headers = mail.get("commonHeaders", {})
+    recipients = tuple(str(r).strip().lower() for r in (mail.get("destination") or []) if r)
 
     raw_from = ""
     from_list = common_headers.get("from") or []
@@ -324,4 +328,5 @@ def parse_ses_sns_payload(
         spam_pass=_verdict_pass(receipt, "spamVerdict"),
         virus_pass=_verdict_pass(receipt, "virusVerdict"),
         attachments=attachments,
+        recipients=recipients,
     )

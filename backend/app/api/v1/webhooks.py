@@ -438,6 +438,35 @@ async def email_inbound(
         await session.commit()
         return {"status": "rejected_spam_or_virus"}
 
+    # --- anfragen@ inquiries → offer pipeline (ADR-0019) ----------------------
+    # Match on the local-part so both anfragen@wagner-hausverwaltung.com (apex,
+    # via the Bluehost forward) and anfragen@inbound.* (what SES actually sees)
+    # route here, regardless of the configured form.
+    anfragen_local = settings.anfragen_inbound_address.split("@", 1)[0].lower()
+    if any(r.split("@", 1)[0].lower() == anfragen_local for r in parsed.recipients):
+        from app.models import OfferInquiry, OfferInquiryStatus
+        from app.workers.tasks import extract_offer_inquiry
+
+        if parsed.message_id:
+            dup = await session.scalar(
+                select(OfferInquiry).where(OfferInquiry.received_message_id == parsed.message_id)
+            )
+            if dup is not None:
+                return {"status": "duplicate_inquiry", "inquiry_id": str(dup.id)}
+        inquiry = OfferInquiry(
+            organization_id=WHV_ORGANIZATION_ID,
+            sender_email=parsed.sender_email,
+            subject=parsed.subject,
+            body=parsed.body,
+            received_message_id=parsed.message_id,
+            status=OfferInquiryStatus.NEW.value,
+        )
+        session.add(inquiry)
+        await session.commit()
+        extract_offer_inquiry.delay(str(inquiry.id))
+        logger.info("email_inbound: created offer inquiry %s", inquiry.id)
+        return {"status": "offer_inquiry_created", "inquiry_id": str(inquiry.id)}
+
     # Idempotency: if we've already stored a message with this email_message_id,
     # SNS is retrying — ack silently.
     if parsed.message_id:
