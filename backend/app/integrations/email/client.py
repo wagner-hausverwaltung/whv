@@ -61,6 +61,8 @@ class EmailClient:
         headers: dict[str, str] | None = None,
         attachments: list[dict[str, str]] | None = None,
         reply_to: str | None = None,
+        from_address: str | None = None,
+        from_name: str | None = None,
     ) -> str:
         """Send a single transactional email. Returns Resend's message id.
 
@@ -86,7 +88,12 @@ class EmailClient:
                 code=EMAIL_ERROR_NO_API_KEY,
             )
 
-        from_value = f"{self._settings.email_from_name} <{self._settings.email_from_address}>"
+        # Per-call sender override (e.g. anfragen@ offer replies) — both parts
+        # fall back to the global EMAIL_FROM_* settings. The address must be on
+        # the Resend-verified domain.
+        eff_from_name = from_name or self._settings.email_from_name
+        eff_from_address = from_address or self._settings.email_from_address
+        from_value = f"{eff_from_name} <{eff_from_address}>"
         # Resend's `to` field accepts a list of valid `email@host` (or
         # `Name <email@host>`) strings — NOT a single comma-joined
         # string. We used to do `",".join(recipients)` upstream which

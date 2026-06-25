@@ -59,6 +59,20 @@ class Settings(BaseSettings):
     # header unset so we don't direct staging replies into a void.
     email_inbound_address: str = ""
 
+    # anfragen@ auto-offer (ADR-0019). Inbound inquiries to this recipient are
+    # routed to the offer pipeline instead of the ticket flow. Replies are sent
+    # FROM offer_from_address (must be on the Resend-verified domain).
+    anfragen_inbound_address: str = "anfragen@wagner-hausverwaltung.com"
+    offer_from_address: str = "anfragen@wagner-hausverwaltung.com"
+    offer_from_name: str = "Wagner Hausverwaltung"
+    # KILL SWITCH — when False (default), inbound inquiries are extracted and
+    # parked for manual review but NEVER auto-emailed. Set True only to enable
+    # fully-automatic sending of generated offers to prospects.
+    offer_auto_send_enabled: bool = False
+    # Minimum extraction confidence (0..1) required before an offer may be
+    # auto-sent; below this the inquiry is parked as NEEDS_REVIEW.
+    offer_auto_send_min_confidence: float = 0.8
+
     jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 15
