@@ -1484,9 +1484,22 @@ struct APIClient {
     /// new pair and we replay the original request. A second 401
     /// (or a refresh-side 401) bubbles up as `.unauthorized` so the
     /// app can sign out.
+    /// Build a request URL from a path that may carry a query string.
+    /// `URL.appending(path:)` percent-encodes "?" *into the path* (swallowing
+    /// the whole query → a 404), so split the query off and set it separately.
+    static func requestURL(_ base: URL, _ path: String) -> URL {
+        guard let qi = path.firstIndex(of: "?") else { return base.appending(path: path) }
+        let bare = base.appending(path: String(path[..<qi]))
+        guard var comps = URLComponents(url: bare, resolvingAgainstBaseURL: false) else {
+            return base.appending(path: path)
+        }
+        comps.percentEncodedQuery = String(path[path.index(after: qi)...])
+        return comps.url ?? base.appending(path: path)
+    }
+
     private func authedGET<T: Decodable>(_ path: String) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        let url = baseURL.appending(path: path)
+        let url = Self.requestURL(baseURL, path)
         do {
             let (data, response) = try await sendAuthed(url: url, method: "GET", body: nil, token: token)
             try Self.throwIfNotOK(response: response, data: data)
@@ -1507,7 +1520,7 @@ struct APIClient {
         body: B
     ) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        let url = baseURL.appending(path: path)
+        let url = Self.requestURL(baseURL, path)
         let encoded = try JSONEncoder().encode(body)
         do {
             let (data, response) = try await sendAuthed(url: url, method: method, body: encoded, token: token)
@@ -1533,7 +1546,7 @@ struct APIClient {
         mimeType: String = "image/jpeg"
     ) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        let url = baseURL.appending(path: path)
+        let url = Self.requestURL(baseURL, path)
         let boundary = "whv-\(UUID().uuidString)"
         let body = Self.multipartBody(
             boundary: boundary,
@@ -1611,7 +1624,7 @@ struct APIClient {
     /// user finally sees.
     private func authedDownload(_ path: String, saveAs filename: String) async throws -> URL {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
-        let url = baseURL.appending(path: path)
+        let url = Self.requestURL(baseURL, path)
         let result: (Data, URLResponse)
         do {
             let r = try await sendAuthed(url: url, method: "GET", body: nil, token: token)
