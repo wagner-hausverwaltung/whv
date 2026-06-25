@@ -1,0 +1,501 @@
+{
+  "_about": "EnBW WOWI Zähler inventory for the WHV portfolio (18 Objekte). PHYSICAL meters only — Strom / Gas / Wasser. The EnBW 'Schmutzwasser' rows are intentionally omitted: each reuses the matching Wasser meter's number (it is a billing twin of the water meter, not a separately readable counter). 'location' carries the EnBW Marktlokation where the source listed one. 54 EnBW rows -> 36 physical meters.",
+  "properties": [
+    {
+      "match": {
+        "postal_code": "70176",
+        "street": "Hasenbergstr.",
+        "number": "32"
+      },
+      "meters": [
+        {
+          "meter_number": "1APA0160217297",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50751290054"
+        },
+        {
+          "meter_number": "1930382",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "2959.00",
+            "read_on": "2026-04-27"
+          }
+        },
+        {
+          "meter_number": "2018697",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1.00",
+            "read_on": "2026-04-28"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70186",
+        "street": "Gablenberger Hauptstr.",
+        "number": "25B"
+      },
+      "meters": [
+        {
+          "meter_number": "1994803",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "568.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70186",
+        "street": "Waldmeisterweg",
+        "number": "28"
+      },
+      "meters": [
+        {
+          "meter_number": "1991095",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "603.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70195",
+        "street": "Regerstr.",
+        "number": "50"
+      },
+      "meters": [
+        {
+          "meter_number": "4341328",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50752246577",
+          "reading": {
+            "value": "17222.00",
+            "read_on": "2026-01-24"
+          }
+        },
+        {
+          "meter_number": "2389964",
+          "meter_type": "GAS",
+          "description": "Gas",
+          "location": "Marktlokation 50757724750",
+          "reading": {
+            "value": "8686.11",
+            "read_on": "2026-02-06"
+          }
+        },
+        {
+          "meter_number": "2028490",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1.00",
+            "read_on": "2026-03-02"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70199",
+        "street": "Burgstallstr.",
+        "number": "11"
+      },
+      "meters": [
+        {
+          "meter_number": "1962239",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "2397.00",
+            "read_on": "2026-05-09"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70199",
+        "street": "Hahnstr.",
+        "number": "33"
+      },
+      "meters": [
+        {
+          "meter_number": "2000825",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "669.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70327",
+        "street": "Augsburger Str.",
+        "number": "303"
+      },
+      "meters": [
+        {
+          "meter_number": "1ISK0072929711",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50752492881",
+          "reading": {
+            "value": "380.00",
+            "read_on": "2025-12-31"
+          }
+        },
+        {
+          "meter_number": "1968694",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "2076.28",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70329",
+        "street": "Lonseer Str.",
+        "number": "7"
+      },
+      "meters": [
+        {
+          "meter_number": "1952047",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "140.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70329",
+        "street": "Uhlbacher Str.",
+        "number": "204A"
+      },
+      "meters": [
+        {
+          "meter_number": "1ISK0094541246",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50752753522"
+        },
+        {
+          "meter_number": "20687285",
+          "meter_type": "STROM",
+          "description": "Strom (ET/HT + NT)",
+          "location": "Marktlokation 50752753499",
+          "reading": {
+            "value": "37703.60",
+            "read_on": "2025-12-31"
+          }
+        },
+        {
+          "meter_number": "2004457",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70372",
+        "street": "Schmidener Str.",
+        "number": "32"
+      },
+      "meters": [
+        {
+          "meter_number": "798161",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50752848828",
+          "reading": {
+            "value": "79576.60",
+            "read_on": "2025-12-31"
+          }
+        },
+        {
+          "meter_number": "1953604",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70378",
+        "street": "Königsseestr.",
+        "number": "30"
+      },
+      "meters": [
+        {
+          "meter_number": "1ISK0075537286",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753308136",
+          "reading": {
+            "value": "1767.00",
+            "read_on": "2025-12-31"
+          }
+        },
+        {
+          "meter_number": "1930672",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1272.49",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70469",
+        "street": "Hohewartstr.",
+        "number": "13"
+      },
+      "meters": [
+        {
+          "meter_number": "20438579",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753731618",
+          "reading": {
+            "value": "36589.40",
+            "read_on": "2026-05-05"
+          }
+        },
+        {
+          "meter_number": "1LGZ0060394629",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753731593",
+          "reading": {
+            "value": "1061.00",
+            "read_on": "2026-05-05"
+          }
+        },
+        {
+          "meter_number": "1LGZ0060394620",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753731600",
+          "reading": {
+            "value": "7095.00",
+            "read_on": "2026-05-05"
+          }
+        },
+        {
+          "meter_number": "2392528",
+          "meter_type": "GAS",
+          "description": "Gas",
+          "location": "Marktlokation 50758395211",
+          "reading": {
+            "value": "4636.25",
+            "read_on": "2026-05-05"
+          }
+        },
+        {
+          "meter_number": "1941683",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "257.00",
+            "read_on": "2026-03-27"
+          }
+        },
+        {
+          "meter_number": "1941814",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "199.00",
+            "read_on": "2026-05-05"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70469",
+        "street": "Staufeneckstr.",
+        "number": "17"
+      },
+      "meters": [
+        {
+          "meter_number": "1942530",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "234.00",
+            "read_on": "2026-03-27"
+          }
+        },
+        {
+          "meter_number": "1949707",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "265.00",
+            "read_on": "2026-03-27"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "70499",
+        "street": "Mähdachstr.",
+        "number": "8"
+      },
+      "meters": [
+        {
+          "meter_number": "573336",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753945011",
+          "reading": {
+            "value": "77347.10",
+            "read_on": "2026-06-10"
+          }
+        },
+        {
+          "meter_number": "559839",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50753945003",
+          "reading": {
+            "value": "77108.80",
+            "read_on": "2026-03-17"
+          }
+        },
+        {
+          "meter_number": "1929040",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "1.00",
+            "read_on": "2026-02-16"
+          }
+        },
+        {
+          "meter_number": "2027451",
+          "meter_type": "WASSER",
+          "description": "Wasser",
+          "reading": {
+            "value": "3.00",
+            "read_on": "2026-02-15"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "71083",
+        "street": "Eibenweg",
+        "number": "5"
+      },
+      "meters": [
+        {
+          "meter_number": "1ISK0091828891",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50252700958",
+          "reading": {
+            "value": "457.00",
+            "read_on": "2026-03-03"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "71254",
+        "street": "Burgstr.",
+        "number": "6"
+      },
+      "meters": [
+        {
+          "meter_number": "39874940",
+          "meter_type": "GAS",
+          "description": "Gas",
+          "location": "Marktlokation 10104134291",
+          "reading": {
+            "value": "44539.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "71638",
+        "street": "Friedrichstr.",
+        "number": "33"
+      },
+      "meters": [
+        {
+          "meter_number": "1DZG0050069644",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 51218220633",
+          "reading": {
+            "value": "753.00",
+            "read_on": "2025-12-31"
+          }
+        }
+      ]
+    },
+    {
+      "match": {
+        "postal_code": "71642",
+        "street": "Hauptstraße",
+        "number": "103"
+      },
+      "meters": [
+        {
+          "meter_number": "1EBZ0100318351",
+          "meter_type": "STROM",
+          "description": "Strom",
+          "location": "Marktlokation 50264145770",
+          "reading": {
+            "value": "5576.00",
+            "read_on": "2026-04-30"
+          }
+        }
+      ]
+    }
+  ]
+}
