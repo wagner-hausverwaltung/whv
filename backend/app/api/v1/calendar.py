@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
 from app.db import get_session
+from app.integrations.calendar_ics import render_property_calendar_ics
 from app.integrations.pdf.calendar_document import render_calendar_pdf
 from app.models import CalendarEvent, Property, User, UserRole
 from app.schemas.calendar import (
@@ -113,6 +114,36 @@ async def my_calendar(
         property_id=property_id,
         range_start=start,
         range_end=end,
+    )
+
+
+@me_router.get("/properties/{property_id}/calendar.ics")
+async def my_calendar_ics(
+    property_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Whole-property calendar as an .ics — ETV meetings (timed, with location
+    + Teams link) plus Winterdienst/Kehrwoche/Termin events. For import into
+    Outlook / Apple Calendar / Google."""
+    prop = await _member_property_or_404(session, current_user, property_id)
+    assemblies, events = await calendar_svc.export_source(
+        session,
+        organization_id=current_user.organization_id,
+        property_id=property_id,
+    )
+    ics = render_property_calendar_ics(
+        property_name=prop.name,
+        property_address=_format_address(prop),
+        assemblies=assemblies,
+        events=events,
+        now=datetime.now(UTC),
+    )
+    filename = f"kalender-{property_id.hex[:8]}.ics"
+    return Response(
+        content=ics,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

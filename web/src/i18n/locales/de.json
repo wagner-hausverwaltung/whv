@@ -728,7 +728,9 @@
     "loadFailed": "Kalender konnte nicht geladen werden.",
     "prevMonth": "Vorheriger Monat",
     "nextMonth": "Nächster Monat",
-    "myTask": "Ihre Aufgabe"
+    "myTask": "Ihre Aufgabe",
+    "exportIcs": "Zum Kalender hinzufügen (.ics)",
+    "exportFailed": "Export fehlgeschlagen."
   },
   "signature": {
     "here": "Hier unterschreiben",

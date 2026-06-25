@@ -10,12 +10,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
+  Button,
   Chip,
   IconButton,
   Paper,
   Stack,
   Typography,
 } from "@mui/material";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { api } from "@/api/client";
@@ -72,6 +74,23 @@ export function MyCalendarPage() {
     if (e.kind === "ETV" && e.assembly_id) navigate(`/assemblies/${e.assembly_id}`);
   };
 
+  // Download the whole property calendar as .ics (ETV + Winterdienst/Kehrwoche/
+  // Termin) for import into Outlook / Apple Calendar / Google.
+  const exportIcs = async () => {
+    if (!id) return;
+    try {
+      const r = await api.get(`/me/properties/${id}/calendar.ics`, { responseType: "blob" });
+      const url = URL.createObjectURL(r.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kalender.ics";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError(t("calendar.exportFailed"));
+    }
+  };
+
   const sorted = [...(entries ?? [])].sort((a, b) => a.starts_on.localeCompare(b.starts_on));
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString(
     i18n.language.startsWith("en") ? "en-US" : "de-DE",
@@ -81,6 +100,12 @@ export function MyCalendarPage() {
   return (
     <Stack spacing={2}>
       {error && <Alert severity="error">{error}</Alert>}
+
+      <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
+        <Button size="small" startIcon={<CalendarMonthIcon />} onClick={() => void exportIcs()}>
+          {t("calendar.exportIcs")}
+        </Button>
+      </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "center" }} spacing={2}>
         <IconButton onClick={() => shift(-1)} aria-label={t("calendar.prevMonth")}>

@@ -1282,6 +1282,14 @@ struct APIClient {
         return try await authedGET("/me/properties/\(propertyId)/calendar?year=\(year)&month=\(month)")
     }
 
+    /// GET /me/properties/{id}/calendar.ics → tmp file URL with the whole
+    /// property calendar (ETV + Winterdienst/Kehrwoche/Termin) for sharing
+    /// into Outlook / Apple Calendar.
+    func downloadCalendarIcs(propertyId: String) async throws -> URL {
+        try await authedDownload(
+            "/me/properties/\(propertyId)/calendar.ics", saveAs: "kalender.ics")
+    }
+
     // MARK: - Tickets
 
     /// GET /me/tickets — every ticket the caller can see. Sorted

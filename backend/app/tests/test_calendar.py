@@ -167,6 +167,42 @@ async def test_calendar_pdf(test_engine: AsyncEngine) -> None:
         assert r.content[:5] == b"%PDF-"
 
 
+async def test_calendar_ics_export(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    pid = ctx["prop"].id
+    await _make_assembly(
+        test_engine, org=ctx["org"], prop=ctx["prop"], when=datetime(2026, 7, 15, 13, 0, tzinfo=UTC)
+    )
+    with TestClient(app) as client:
+        _create_event(client, ctx["v_token"], pid, event_type="KEHRWOCHE", starts_on="2026-06-03")
+        r = client.get(f"/me/properties/{pid}/calendar.ics", headers=_auth(ctx["m_token"]))
+        assert r.status_code == 200, r.text
+        assert "text/calendar" in r.headers["content-type"]
+        body = r.text
+        assert body.startswith("BEGIN:VCALENDAR")
+        assert "END:VCALENDAR" in body
+        assert "\r\n" in body  # RFC 5545 line endings
+        # ETV → timed VEVENT (real start/end + location)
+        assert "UID:etv-" in body
+        assert "DTSTART:20260715T130000Z" in body
+        assert "SUMMARY:ETV: ETV 2026" in body
+        assert "LOCATION:Vor Ort" in body
+        # stored event → all-day VEVENT, end date exclusive
+        assert "UID:event-" in body
+        assert "DTSTART;VALUE=DATE:20260603" in body
+        assert "DTEND;VALUE=DATE:20260604" in body
+
+    # cross-org: an org-B member can't export org-A's property calendar
+    ctx_b = await _setup(test_engine)
+    with TestClient(app) as client:
+        assert (
+            client.get(
+                f"/me/properties/{pid}/calendar.ics", headers=_auth(ctx_b["m_token"])
+            ).status_code
+            == 404
+        )
+
+
 async def test_member_cannot_create_and_cross_org_isolation(test_engine: AsyncEngine) -> None:
     ctx_a = await _setup(test_engine)
     ctx_b = await _setup(test_engine)

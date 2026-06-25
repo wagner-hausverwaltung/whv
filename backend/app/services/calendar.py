@@ -41,6 +41,39 @@ def _title(event: CalendarEvent) -> str:
     return event.title or _DEFAULT_TITLE.get(event.event_type, "Termin")
 
 
+async def export_source(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    property_id: uuid.UUID,
+) -> tuple[list[EtvAssembly], list[CalendarEvent]]:
+    """All ETV assemblies + stored events for a property — the source for the
+    .ics export. No date window: the export carries everything and the client's
+    calendar dedups/updates by UID on re-import."""
+    assemblies = list(
+        await session.scalars(
+            select(EtvAssembly)
+            .where(
+                EtvAssembly.organization_id == organization_id,
+                EtvAssembly.property_id == property_id,
+                EtvAssembly.deleted_at.is_(None),
+            )
+            .order_by(EtvAssembly.scheduled_start)
+        )
+    )
+    events = list(
+        await session.scalars(
+            select(CalendarEvent)
+            .where(
+                CalendarEvent.organization_id == organization_id,
+                CalendarEvent.property_id == property_id,
+            )
+            .order_by(CalendarEvent.starts_on)
+        )
+    )
+    return assemblies, events
+
+
 # --- CRUD --------------------------------------------------------------------
 
 

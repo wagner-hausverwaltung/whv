@@ -4,6 +4,7 @@
 // highlighted, and an ETV entry links to the assembly.
 
 import SwiftUI
+import UIKit
 
 private let _isoDay: DateFormatter = {
     let f = DateFormatter()
@@ -71,6 +72,7 @@ struct CalendarView: View {
     @State private var entries: [CalendarEntry] = []
     @State private var isLoading = true
     @State private var error: String?
+    @State private var shareItem: ShareItem?
 
     private let api = APIClient()
     private let cols = Array(repeating: GridItem(.flexible(), spacing: 1), count: 7)
@@ -98,7 +100,24 @@ struct CalendarView: View {
             }
             .navigationTitle("Kalender")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            if let url = try? await api.downloadCalendarIcs(propertyId: propertyId) {
+                                shareItem = ShareItem(url: url)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Kalender exportieren")
+                }
+            }
             .task(id: "\(year)-\(month)") { await load() }
+            .sheet(item: $shareItem) { item in
+                ActivityView(url: item.url)
+            }
         }
     }
 
@@ -237,4 +256,19 @@ struct CalendarView: View {
         }
         isLoading = false
     }
+}
+
+private struct ShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Share sheet for the exported .ics — lets the user "Add to Calendar" or
+/// send it to Outlook / Mail / Files.
+private struct ActivityView: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

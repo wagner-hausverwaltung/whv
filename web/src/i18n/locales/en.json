@@ -728,7 +728,9 @@
     "loadFailed": "Could not load the calendar.",
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
-    "myTask": "Your task"
+    "myTask": "Your task",
+    "exportIcs": "Add to calendar (.ics)",
+    "exportFailed": "Export failed."
   },
   "signature": {
     "here": "Sign here",

@@ -60,3 +60,15 @@ PDF in WHV design to post in the Hausflur would be nice.
   rescheduled/cancelled; deriving live is always correct.
 - **Weekly Kehrwoche auto-rotation** — deferred; discrete entries cover the
   need and avoid guessing the rotation order/holidays for v1.
+
+## Update — .ics export (2026-06-25)
+
+Members can export a property's whole calendar as an iCalendar file for
+Outlook / Apple Calendar / Google: `GET /me/properties/{id}/calendar.ics`
+(`app/integrations/calendar_ics.py`, hand-rolled RFC 5545, no extra dep). ETV
+assemblies export as **timed** VEVENTs (real `scheduled_start/end`, `LOCATION`,
+Teams URL); Winterdienst/Kehrwoche/Termin as **all-day** VEVENTs. Stable UIDs
+(`etv-<id>@…` / `event-<id>@…`) so a re-import updates rather than duplicates.
+Portal: download button on the Kalender tab. iOS: share-sheet from the Kalender
+sheet ("Add to Calendar" / send to Outlook). One-shot download (no subscription
+feed) — no standing tokenised exposure of calendar data.
