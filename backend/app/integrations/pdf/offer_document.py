@@ -27,7 +27,7 @@ def de_money(value: Decimal) -> str:
     """Format a Decimal as German money without the symbol: 1234.5 -> 1.234,50."""
     sign = "-" if value < 0 else ""
     whole, frac = f"{abs(value):.2f}".split(".")
-    groups = []
+    groups: list[str] = []
     while len(whole) > 3:
         groups.insert(0, whole[-3:])
         whole = whole[:-3]
@@ -374,6 +374,83 @@ def _mv_fields(inp: MvOfferInput) -> list[StampField]:
             cover=(436.0, 224.0, 467.0, 240.0),
         )
     )
+    # --- Page 2 contract body: Auftraggeber parties block (centered lines) ---
+    cx = 314.0  # the parties/objects lines are centered around here, not page mid
+    fields += [
+        StampField(
+            page=2,
+            text=inp.recipient_name,
+            x=cx,
+            y_top=337.0,
+            size=11.0,
+            cover=(150.0, 335.0, 480.0, 353.0),
+            align="center",
+        ),
+        StampField(
+            page=2,
+            text=inp.recipient_street,
+            x=cx,
+            y_top=354.0,
+            size=11.0,
+            cover=(150.0, 353.0, 480.0, 369.0),
+            align="center",
+        ),
+        StampField(
+            page=2,
+            text=inp.recipient_plz_city,
+            x=cx,
+            y_top=370.0,
+            size=11.0,
+            cover=(150.0, 369.0, 480.0, 386.0),
+            align="center",
+        ),
+    ]
+    if inp.representative_name:
+        fields += [
+            StampField(
+                page=2,
+                text=inp.representative_name,
+                x=cx,
+                y_top=436.0,
+                size=11.0,
+                cover=(150.0, 434.0, 480.0, 452.0),
+                align="center",
+            ),
+            StampField(
+                page=2,
+                text=inp.representative_street or "",
+                x=cx,
+                y_top=453.0,
+                size=11.0,
+                cover=(150.0, 452.0, 480.0, 468.0),
+                align="center",
+            ),
+            StampField(
+                page=2,
+                text=inp.representative_plz_city or "",
+                x=cx,
+                y_top=469.0,
+                size=11.0,
+                cover=(150.0, 468.0, 480.0, 485.0),
+                align="center",
+            ),
+        ]
+    else:  # erase "vertreten durch" + the representative lines
+        fields.append(
+            StampField(
+                page=2, text="", x=cx, y_top=436.0, size=11.0, cover=(150.0, 401.0, 480.0, 485.0)
+            )
+        )
+    # Vertragsgegenstand — the managed objects, one centered line each.
+    fields.append(
+        StampField(
+            page=2, text="", x=cx, y_top=651.0, size=11.0, cover=(150.0, 649.0, 480.0, 705.0)
+        )
+    )
+    for i, obj in enumerate(inp.objects[:3]):
+        fields.append(
+            StampField(page=2, text=obj, x=cx, y_top=651.0 + i * 16.5, size=11.0, align="center")
+        )
     return fields
 
 

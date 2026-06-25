@@ -48,7 +48,7 @@ class StampField:
     # White rectangle (x0, y0, x1, y1) painted before stamping; None = no cover.
     cover: tuple[float, float, float, float] | None = None
     bold: bool = False
-    align: str = "left"  # "left" anchors at x, "right" anchors x as the right edge
+    align: str = "left"  # "left"/"right"/"center" anchor at x
 
 
 def stamp_pdf(base_pdf: bytes, fields: list[StampField]) -> bytes:
@@ -109,6 +109,8 @@ def _render_overlay(
         x = left + f.x
         if f.align == "right":
             c.drawRightString(x, baseline, f.text)
+        elif f.align == "center":
+            c.drawCentredString(x, baseline, f.text)
         else:
             c.drawString(x, baseline, f.text)
 
