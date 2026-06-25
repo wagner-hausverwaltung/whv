@@ -96,6 +96,10 @@ struct PropertyDetailView: View {
     @StateObject private var store = PropertyDetailStore()
     @EnvironmentObject var authStore: AuthStore
     @EnvironmentObject var liegenschaftStore: LiegenschaftStore
+    /// The Versammlungen / Anliegen / Mitteilungen quick-action rows route
+    /// through the shell's deep-link path (which dismisses any open sheet,
+    /// resets the feature's nav path, then presents) by setting pendingTarget.
+    @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     /// Sheet binding. nil = closed.
     @State private var contactSheetTarget: ContactSheetTarget?
     @State private var invoiceSheetTarget: InvoiceSheetTarget?
@@ -216,6 +220,27 @@ struct PropertyDetailView: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             VStack(spacing: 8) {
+                // Versammlungen / Anliegen / Mitteilungen — open their full
+                // screens as sheets via the shell's deep-link path (reuse the
+                // existing tab views; widget + push deep links land here too).
+                Button {
+                    deepLinkRouter.pendingTarget = .tab(.etv)
+                } label: {
+                    quickRow(title: "Versammlungen", systemImage: "person.3.fill", color: .purple)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    deepLinkRouter.pendingTarget = .tab(.tickets)
+                } label: {
+                    quickRow(title: "Anliegen", systemImage: "tray.full.fill", color: .orange)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    deepLinkRouter.pendingTarget = .tab(.mitteilungen)
+                } label: {
+                    quickRow(title: "Mitteilungen", systemImage: "megaphone.fill", color: .pink)
+                }
+                .buttonStyle(.plain)
                 // Documents — the iOS counterpart of the portal Dokumente tab.
                 Button {
                     showDocuments = true
