@@ -130,3 +130,41 @@ async def test_verwalter_missing_fields_422(test_engine: AsyncEngine) -> None:
             json={"art": "WEG", "units": 5},  # missing object_* -> schema rejects
         )
     assert r.status_code == 422
+
+
+# --- Auto-Modus settings ------------------------------------------------------
+
+
+async def test_offer_settings_default_false(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get("/admin/offer-settings", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    assert r.json()["auto_send_enabled"] is False
+
+
+async def test_offer_settings_put_persists(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            "/admin/offer-settings", headers=_auth(token), json={"auto_send_enabled": True}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["auto_send_enabled"] is True
+        r2 = client.get("/admin/offer-settings", headers=_auth(token))
+    assert r2.json()["auto_send_enabled"] is True
+
+
+async def test_offer_settings_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            "/admin/offer-settings", headers=_auth(token), json={"auto_send_enabled": True}
+        )
+    assert r.status_code == 403

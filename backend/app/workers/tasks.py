@@ -1024,7 +1024,7 @@ def extract_offer_inquiry(inquiry_id: str) -> str:
 async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
     from datetime import date
 
-    from app.models import OfferInquiry, OfferInquiryStatus
+    from app.models import OfferInquiry, OfferInquiryStatus, Organization
     from app.services import offer_extraction
     from app.services import offers as offers_svc
 
@@ -1046,7 +1046,9 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
                 return inquiry.status.lower()
 
             req = offer_extraction.build_offer_request(inquiry)
-            if req is None or not offer_extraction.auto_send_allowed(inquiry, settings=settings):
+            org = await session.get(Organization, inquiry.organization_id)
+            allowed = org is not None and offer_extraction.auto_send_allowed(inquiry, org=org)
+            if req is None or not allowed:
                 inquiry.status = OfferInquiryStatus.NEEDS_REVIEW.value
                 await session.commit()
                 return "needs_review"

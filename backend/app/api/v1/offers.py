@@ -19,8 +19,13 @@ from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.models import OfferInquiry, OfferInquiryStatus, User, UserRole
-from app.schemas.offer import OfferGenerateRequest, OfferInquiryResponse
+from app.models import OfferInquiry, OfferInquiryStatus, Organization, User, UserRole
+from app.schemas.offer import (
+    OfferGenerateRequest,
+    OfferInquiryResponse,
+    OfferSettingsResponse,
+    OfferSettingsUpdate,
+)
 from app.services import offers as offers_svc
 from app.services.offers import generate_offer
 
@@ -45,6 +50,33 @@ async def admin_generate_offer(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@admin_router.get("/offer-settings", response_model=OfferSettingsResponse)
+async def admin_get_offer_settings(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferSettingsResponse:
+    """Read the org's anfragen@ "Auto-Modus" flag."""
+    org = await session.get(Organization, current_user.organization_id)
+    enabled = bool(org.offer_auto_send_enabled) if org is not None else False
+    return OfferSettingsResponse(auto_send_enabled=enabled)
+
+
+@admin_router.put("/offer-settings", response_model=OfferSettingsResponse)
+async def admin_update_offer_settings(
+    payload: OfferSettingsUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferSettingsResponse:
+    """Toggle the org's "Auto-Modus". When on, future inbound inquiries that
+    yield a valid offer are emailed automatically (no manual review)."""
+    org = await session.get(Organization, current_user.organization_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    org.offer_auto_send_enabled = payload.auto_send_enabled
+    await session.commit()
+    return OfferSettingsResponse(auto_send_enabled=org.offer_auto_send_enabled)
 
 
 @admin_router.get("/offer-inquiries", response_model=list[OfferInquiryResponse])

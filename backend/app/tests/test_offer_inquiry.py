@@ -6,8 +6,7 @@ import json
 from datetime import date
 from decimal import Decimal
 
-from app.config import Settings
-from app.models import OfferInquiry
+from app.models import OfferInquiry, Organization
 from app.services import offer_extraction
 
 
@@ -36,11 +35,10 @@ def _inquiry(
     return i
 
 
-def _settings(*, enabled: bool, minimum: float = 0.8) -> Settings:
-    s = Settings()
-    s.offer_auto_send_enabled = enabled
-    s.offer_auto_send_min_confidence = minimum
-    return s
+def _org(*, enabled: bool) -> Organization:
+    o = Organization()
+    o.offer_auto_send_enabled = enabled
+    return o
 
 
 # --- build_offer_request ------------------------------------------------------
@@ -79,27 +77,22 @@ def test_mv_without_recipient_returns_none() -> None:
     assert offer_extraction.build_offer_request(_inquiry(art="MV", sender=None)) is None
 
 
-# --- auto_send_allowed (the kill switch + confidence gate) --------------------
+# --- auto_send_allowed (the per-org Auto-Modus gate) --------------------------
 
 
-def test_auto_send_blocked_when_flag_off() -> None:
-    inq = _inquiry(confidence="0.99")
-    assert offer_extraction.auto_send_allowed(inq, settings=_settings(enabled=False)) is False
+def test_auto_send_blocked_when_auto_mode_off() -> None:
+    assert offer_extraction.auto_send_allowed(_inquiry(), org=_org(enabled=False)) is False
 
 
-def test_auto_send_allowed_when_flag_on_and_confident() -> None:
-    inq = _inquiry(confidence="0.85")
-    assert offer_extraction.auto_send_allowed(inq, settings=_settings(enabled=True)) is True
+def test_auto_send_allowed_when_auto_mode_on() -> None:
+    assert offer_extraction.auto_send_allowed(_inquiry(), org=_org(enabled=True)) is True
 
 
-def test_auto_send_blocked_when_low_confidence() -> None:
-    inq = _inquiry(confidence="0.5")
-    assert offer_extraction.auto_send_allowed(inq, settings=_settings(enabled=True)) is False
-
-
-def test_auto_send_blocked_when_confidence_missing() -> None:
-    inq = _inquiry(confidence=None)
-    assert offer_extraction.auto_send_allowed(inq, settings=_settings(enabled=True)) is False
+def test_auto_send_ignores_confidence() -> None:
+    # "Everything that parses": even a low-confidence extraction auto-sends when
+    # Auto-Modus is on (completeness is enforced by build_offer_request, not here).
+    inq = _inquiry(confidence="0.1")
+    assert offer_extraction.auto_send_allowed(inq, org=_org(enabled=True)) is True
 
 
 def test_desired_start_flows_into_request() -> None:

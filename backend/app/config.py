@@ -65,12 +65,13 @@ class Settings(BaseSettings):
     anfragen_inbound_address: str = "anfragen@wagner-hausverwaltung.com"
     offer_from_address: str = "anfragen@wagner-hausverwaltung.com"
     offer_from_name: str = "Wagner Hausverwaltung"
-    # KILL SWITCH — when False (default), inbound inquiries are extracted and
-    # parked for manual review but NEVER auto-emailed. Set True only to enable
-    # fully-automatic sending of generated offers to prospects.
+    # Auto-send is now controlled per-organization via the "Auto-Modus" toggle
+    # on Admin -> Anfragen (organizations.offer_auto_send_enabled), NOT by these
+    # env vars. They are retained for backwards-compat / possible future global
+    # gating but no longer drive the send decision (see
+    # services.offer_extraction.auto_send_allowed). Auto-Modus emails any inbound
+    # inquiry that yields a valid offer, regardless of extraction confidence.
     offer_auto_send_enabled: bool = False
-    # Minimum extraction confidence (0..1) required before an offer may be
-    # auto-sent; below this the inquiry is parked as NEEDS_REVIEW.
     offer_auto_send_min_confidence: float = 0.8
 
     jwt_secret: str = DEFAULT_JWT_SECRET
