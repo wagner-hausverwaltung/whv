@@ -1,4 +1,4 @@
-"""Template-overlay engine for the anfragen@ offer generator (ADR-0017).
+"""Template-overlay engine for the anfragen@ offer generator (ADR-0019).
 
 The two offer templates are pre-printed PDFs whose per-customer fields we
 *white-out and re-stamp* rather than regenerate from scratch — keeping every

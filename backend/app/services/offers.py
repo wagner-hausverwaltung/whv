@@ -1,4 +1,4 @@
-"""Offer (Angebot) generation orchestration (ADR-0017).
+"""Offer (Angebot) generation orchestration (ADR-0019).
 
 Turns an :class:`OfferGenerateRequest` into a filled offer PDF by computing the
 pricing and stamping the per-customer values onto the committed base template.

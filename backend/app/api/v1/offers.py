@@ -1,4 +1,4 @@
-"""Offer (Angebot) generation endpoints (ADR-0017).
+"""Offer (Angebot) generation endpoints (ADR-0019).
 
 Verwalter-only. Phase 1 exposes a manual generator: POST a filled
 OfferGenerateRequest, get back the rendered WEG/MV offer PDF. The inbound

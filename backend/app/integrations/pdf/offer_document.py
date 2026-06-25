@@ -32,6 +32,7 @@ def load_base_template(art: str) -> bytes:
         raise ValueError(f"unknown offer art {art!r}")
     return (_TEMPLATE_DIR / name).read_bytes()
 
+
 # --- German formatting helpers ------------------------------------------------
 
 

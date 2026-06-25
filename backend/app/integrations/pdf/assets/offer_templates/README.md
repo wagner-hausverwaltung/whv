@@ -1,4 +1,4 @@
-# Offer base templates (anfragen@ auto-offer, ADR-0017)
+# Offer base templates (anfragen@ auto-offer, ADR-0019)
 
 Blanked, PII-free base PDFs the offer generator stamps per-customer values onto
 (`app/integrations/pdf/offer_document.py`).
