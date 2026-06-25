@@ -15,6 +15,7 @@ the `OfferInquiryStatus` StrEnum below is the canonical set used in code.
 import enum
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -54,7 +55,7 @@ class OfferInquiry(OrganizationScopedMixin, TimestampMixin, Base):
     object_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     units: Mapped[int | None] = mapped_column(Integer, nullable=True)
     desired_start: Mapped[date | None] = mapped_column(Date, nullable=True)
-    confidence: Mapped[float | None] = mapped_column(Numeric(4, 3), nullable=True)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
     extraction_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Outcome.

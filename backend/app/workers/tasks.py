@@ -1006,3 +1006,82 @@ def index_rag_masterdata(property_id: str, entity_id: str, card_type: str = "die
     (``card_type="contact"``), or an ETV card (``card_type="etv"``). Enqueued by
     the master-data backfill; no-op when rag_enabled is off."""
     return asyncio.run(_index_rag_masterdata_async(property_id, entity_id, card_type))
+
+
+@celery_app.task(
+    name="app.workers.tasks.extract_offer_inquiry",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def extract_offer_inquiry(inquiry_id: str) -> str:
+    """anfragen@ inquiry → LLM extract, then gated auto-send or park for
+    review (ADR-0019). Enqueued by the inbound webhook."""
+    return asyncio.run(_extract_offer_inquiry_async(inquiry_id))
+
+
+async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
+    from datetime import UTC, date, datetime
+
+    from app.models import OfferInquiry, OfferInquiryStatus
+    from app.services import offer_extraction
+    from app.services.offers import generate_offer
+
+    inquiry_id = uuid.UUID(inquiry_id_str)
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            await offer_extraction.extract_inquiry(session, inquiry_id=inquiry_id)
+            inquiry = await session.get(OfferInquiry, inquiry_id)
+            if inquiry is None:
+                await session.commit()
+                return "inquiry_gone"
+            # Only EXTRACTED rows are candidates to send; IGNORED (not an offer
+            # request) and NEEDS_REVIEW (provider down) just persist + stop.
+            if inquiry.status != OfferInquiryStatus.EXTRACTED.value:
+                await session.commit()
+                return inquiry.status.lower()
+
+            req = offer_extraction.build_offer_request(inquiry)
+            if req is None or not offer_extraction.auto_send_allowed(inquiry, settings=settings):
+                inquiry.status = OfferInquiryStatus.NEEDS_REVIEW.value
+                await session.commit()
+                return "needs_review"
+
+            try:
+                pdf, filename = await asyncio.to_thread(generate_offer, req, today=date.today())
+                client = EmailClient(settings)
+                msg_id = await client.send(
+                    to=inquiry.sender_email,
+                    subject="Ihr Angebot der Wagner Hausverwaltung",
+                    html=(
+                        "<p>Guten Tag,</p><p>vielen Dank für Ihre Anfrage. "
+                        "Im Anhang finden Sie unser Angebot.</p>"
+                        "<p>Mit freundlichen Grüßen<br>Wagner Hausverwaltung GmbH</p>"
+                    ),
+                    text=(
+                        "Guten Tag,\n\nvielen Dank für Ihre Anfrage. Im Anhang "
+                        "finden Sie unser Angebot.\n\nMit freundlichen Grüßen\n"
+                        "Wagner Hausverwaltung GmbH"
+                    ),
+                    attachments=[
+                        {"filename": filename, "content": base64.b64encode(pdf).decode("ascii")}
+                    ],
+                    from_address=settings.offer_from_address,
+                    from_name=settings.offer_from_name,
+                    reply_to=settings.offer_from_address,
+                )
+                inquiry.status = OfferInquiryStatus.SENT.value
+                inquiry.sent_at = datetime.now(UTC)
+                inquiry.sent_message_id = msg_id
+                inquiry.generated_offer_filename = filename
+            except (EmailError, ValueError) as exc:
+                inquiry.status = OfferInquiryStatus.FAILED.value
+                inquiry.error = str(exc)
+            await session.commit()
+            return inquiry.status.lower()
+    finally:
+        await engine.dispose()

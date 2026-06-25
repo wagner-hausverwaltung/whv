@@ -218,6 +218,20 @@ class GeminiProvider:
             response_schema=response_schema,
         )
 
+    async def extract_from_text(
+        self,
+        *,
+        text: str,
+        prompt: str,
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        # Structured extraction from plain text (e.g. an inbound email body) —
+        # no inline blob part, just the instruction + the text.
+        return await self._run_structured(
+            parts=[prompt, text],
+            response_schema=response_schema,
+        )
+
     async def _extract_inline(
         self,
         *,
@@ -228,6 +242,20 @@ class GeminiProvider:
     ) -> LLMResult[T]:
         """Shared structured-extraction path for any inline blob (PDF or
         image). The public methods differ only in the part's mime_type."""
+        return await self._run_structured(
+            parts=[{"mime_type": mime_type, "data": data}, prompt],
+            response_schema=response_schema,
+        )
+
+    async def _run_structured(
+        self,
+        *,
+        parts: list[Any],
+        response_schema: type[T],
+    ) -> LLMResult[T]:
+        """Run a structured (JSON-schema-constrained) generation over `parts`
+        (a mix of inline-blob dicts and prompt/text strings) and validate the
+        response against `response_schema`."""
         # Lazy import keeps `import app.integrations.llm` cheap on
         # processes that never make a call (the FastAPI worker, for
         # instance — only Celery actually talks to Gemini).
@@ -248,12 +276,7 @@ class GeminiProvider:
             },
         )
         started = time.perf_counter()
-        response = await model.generate_content_async(
-            [
-                {"mime_type": mime_type, "data": data},
-                prompt,
-            ]
-        )
+        response = await model.generate_content_async(parts)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
 
         # Gemini's SDK returns a top-level `.text` (the JSON string)
