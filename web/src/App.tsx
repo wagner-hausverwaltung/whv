@@ -11,6 +11,7 @@ import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
+import { AdminOffersPage } from "@/admin/pages/AdminOffersPage";
 import { AdminPropertiesPage } from "@/admin/pages/AdminPropertiesPage";
 import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
 import { AdminResolutionDetailPage } from "@/admin/pages/AdminResolutionDetailPage";
@@ -225,6 +226,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminTicketDetailPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/offers"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminOffersPage />
                 </AdminLayout>
               </AdminRoute>
             }
