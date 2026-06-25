@@ -100,8 +100,9 @@ async def test_generate_offer_requires_auth(test_engine: AsyncEngine) -> None:
 async def test_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
     _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
     with TestClient(app) as client:
-        r = client.post("/admin/offers/generate", headers=_auth(_login(email, pw)), json=_WEG_BODY)
+        r = client.post("/admin/offers/generate", headers=_auth(token), json=_WEG_BODY)
     assert r.status_code == 403
 
 
@@ -109,8 +110,9 @@ async def test_verwalter_generates_weg_pdf(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
     _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
     await make_property(test_engine, org=org)
+    token = _login(email, pw)
     with TestClient(app) as client:
-        r = client.post("/admin/offers/generate", headers=_auth(_login(email, pw)), json=_WEG_BODY)
+        r = client.post("/admin/offers/generate", headers=_auth(token), json=_WEG_BODY)
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("application/pdf")
     assert r.content[:5] == b"%PDF-"
@@ -120,10 +122,11 @@ async def test_verwalter_generates_weg_pdf(test_engine: AsyncEngine) -> None:
 async def test_verwalter_missing_fields_422(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
     _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
     with TestClient(app) as client:
         r = client.post(
             "/admin/offers/generate",
-            headers=_auth(_login(email, pw)),
+            headers=_auth(token),
             json={"art": "WEG", "units": 5},  # missing object_* -> schema rejects
         )
     assert r.status_code == 422

@@ -21,8 +21,24 @@ from app.schemas.offer import OfferGenerateRequest
 from app.services.offer_pricing import price_offer
 
 
+_TRANSLIT = {
+    "ä": "ae",
+    "ö": "oe",
+    "ü": "ue",
+    "ß": "ss",
+    "Ä": "Ae",
+    "Ö": "Oe",
+    "Ü": "Ue",
+}
+
+
 def _safe_slug(text: str) -> str:
-    keep = [c if c.isalnum() else "-" for c in text]
+    """ASCII-only slug for the download filename. The Content-Disposition
+    header is latin-1/ASCII, so umlauts (ß/ä/ö/ü — common in German
+    addresses) must be transliterated, not just kept (they're isalnum())."""
+    for src, dst in _TRANSLIT.items():
+        text = text.replace(src, dst)
+    keep = [c if (c.isascii() and c.isalnum()) else "-" for c in text]
     return "".join(keep).strip("-")[:60] or "Angebot"
 
 
