@@ -20,7 +20,6 @@ from app.integrations.pdf.offer_document import (
 from app.schemas.offer import OfferGenerateRequest
 from app.services.offer_pricing import price_offer
 
-
 _TRANSLIT = {
     "ä": "ae",
     "ö": "oe",
