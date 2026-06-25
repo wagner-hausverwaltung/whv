@@ -425,7 +425,7 @@
       "match": {
         "postal_code": "71083",
         "street": "Eibenweg",
-        "number": "5"
+        "number": "5/7"
       },
       "meters": [
         {
@@ -444,7 +444,7 @@
       "match": {
         "postal_code": "71254",
         "street": "Burgstr.",
-        "number": "6"
+        "number": "6, 8"
       },
       "meters": [
         {
@@ -463,7 +463,8 @@
       "match": {
         "postal_code": "71638",
         "street": "Friedrichstr.",
-        "number": "33"
+        "number": "33",
+        "property_id": "019e782b-f02b-70b3-bf4a-22fa76b29ed6"
       },
       "meters": [
         {

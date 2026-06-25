@@ -95,3 +95,6 @@ docker-compose.override.yml
 logs/
 tmp/
 .tmp/
+
+# Local secret-bearing run scripts (never commit)
+*.local.sh

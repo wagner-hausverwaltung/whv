@@ -96,6 +96,14 @@ def find_property(props, match):
     set when we deliberately decline — "ambiguous" if more than one property
     shares the same PLZ+street+number — so the caller never silently writes to
     the wrong Liegenschaft."""
+    # An explicit property_id pins a specific Liegenschaft — used when one
+    # address legitimately maps to two entities (e.g. a WEG + an SEV).
+    pid = match.get("property_id")
+    if pid:
+        for p in props:
+            if str(p.get("id")) == pid:
+                return p, None
+        return None, f"property_id {pid} not found"
     pc = (match["postal_code"] or "").strip()
     ms, mn = norm_street(match["street"]), norm_num(match["number"])
     cands = [
@@ -121,6 +129,8 @@ def main() -> int:
     ap.add_argument("--apply", action="store_true", help="actually write (otherwise dry-run)")
     ap.add_argument("--no-readings", action="store_true", help="create meters only, skip initial readings")
     args = ap.parse_args()
+    if args.token:
+        args.token = args.token.strip()  # tolerate trailing newline/space from a pasted token
     seed_readings = not args.no_readings
 
     inv = json.loads(Path(args.data).read_text())["properties"]
