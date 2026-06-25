@@ -46,9 +46,11 @@ def test_generate_mv_pdf() -> None:
     assert name.startswith("Angebot-MV-")
 
 
-def test_weg_requires_object_fields() -> None:
-    with pytest.raises(ValueError):
-        OfferGenerateRequest(art="WEG", units=5)
+def test_weg_object_address_optional() -> None:
+    # WEG offers no longer require an object address — only the unit count.
+    req = OfferGenerateRequest(art="WEG", units=5)
+    assert req.object_street is None
+    assert req.object_plz_city is None
 
 
 def test_mv_requires_recipient_and_objects() -> None:
@@ -119,7 +121,20 @@ async def test_verwalter_generates_weg_pdf(test_engine: AsyncEngine) -> None:
     assert "attachment" in r.headers.get("content-disposition", "")
 
 
-async def test_verwalter_missing_fields_422(test_engine: AsyncEngine) -> None:
+async def test_verwalter_weg_without_address_ok(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        # No object address — WEG only needs units; should still render a PDF.
+        r = client.post(
+            "/admin/offers/generate", headers=_auth(token), json={"art": "WEG", "units": 5}
+        )
+    assert r.status_code == 200, r.text
+    assert r.content[:5] == b"%PDF-"
+
+
+async def test_verwalter_mv_missing_fields_422(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
     _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
     token = _login(email, pw)
@@ -127,7 +142,7 @@ async def test_verwalter_missing_fields_422(test_engine: AsyncEngine) -> None:
         r = client.post(
             "/admin/offers/generate",
             headers=_auth(token),
-            json={"art": "WEG", "units": 5},  # missing object_* -> schema rejects
+            json={"art": "MV", "units": 5},  # missing recipient/objects -> schema rejects
         )
     assert r.status_code == 422
 

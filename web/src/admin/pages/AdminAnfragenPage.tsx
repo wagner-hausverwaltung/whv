@@ -71,9 +71,12 @@ function defaultStartDate(): string {
 // land in their own fields; fall back to street-only when there's no PLZ.
 function splitGermanAddress(address: string | null): [string, string] {
   if (!address) return ["", ""];
-  const m = address.match(/^(.*?)[,\s]+(\d{5}\s+.+)$/);
+  const a = address.trim();
+  // Only a PLZ + city, no street (e.g. "70499 Stuttgart") → keep it in PLZ + Ort.
+  if (/^\d{5}\s+\S/.test(a)) return ["", a];
+  const m = a.match(/^(.*?)[,\s]+(\d{5}\s+.+)$/);
   if (m) return [(m[1] ?? "").replace(/[,\s]+$/, "").trim(), (m[2] ?? "").trim()];
-  return [address.trim(), ""];
+  return [a, ""];
 }
 
 export function AdminAnfragenPage() {

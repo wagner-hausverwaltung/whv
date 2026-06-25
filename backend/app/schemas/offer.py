@@ -42,11 +42,10 @@ class OfferGenerateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _require_per_art_fields(self) -> OfferGenerateRequest:
-        if self.art == "WEG":
-            missing = [n for n in ("object_street", "object_plz_city") if not getattr(self, n)]
-            if missing:
-                raise ValueError(f"WEG offer requires: {', '.join(missing)}")
-        else:  # MV
+        # WEG needs only the unit count — the object address is optional. Not
+        # every inquiry includes one, and a blank address line simply renders
+        # empty on the contract.
+        if self.art == "MV":
             missing = [
                 n
                 for n in ("recipient_name", "recipient_street", "recipient_plz_city", "salutation")
