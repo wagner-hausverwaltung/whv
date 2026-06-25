@@ -61,6 +61,18 @@ class OfferGenerateRequest(BaseModel):
         return self
 
 
+class OfferSettingsResponse(BaseModel):
+    """Org-level anfragen@ settings shown on the Admin review queue."""
+
+    auto_send_enabled: bool
+
+
+class OfferSettingsUpdate(BaseModel):
+    """Toggle the org's "Auto-Modus" (auto-approve + email inbound offers)."""
+
+    auto_send_enabled: bool
+
+
 class OfferInquiryResponse(BaseModel):
     """An inbound anfragen@ inquiry, for the Admin review queue."""
 

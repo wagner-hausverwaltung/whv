@@ -18,10 +18,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
 from app.integrations.llm import get_llm_provider
 from app.integrations.llm.base import LLMProvider, LLMProviderUnavailableError
-from app.models import OfferInquiry, OfferInquiryStatus
+from app.models import OfferInquiry, OfferInquiryStatus, Organization
 from app.schemas.offer import OfferGenerateRequest
 from app.services import llm_audit
 
@@ -224,13 +223,17 @@ def build_offer_request(inquiry: OfferInquiry) -> OfferGenerateRequest | None:
         return None
 
 
-def auto_send_allowed(inquiry: OfferInquiry, *, settings: Settings) -> bool:
-    """Gate: the kill switch is on AND extraction was confident enough."""
-    if not settings.offer_auto_send_enabled:
-        return False
-    if inquiry.confidence is None:
-        return False
-    return float(inquiry.confidence) >= settings.offer_auto_send_min_confidence
+def auto_send_allowed(inquiry: OfferInquiry, *, org: Organization) -> bool:
+    """Gate: the inquiry's organization has "Auto-Modus" enabled.
+
+    Per the chosen policy, auto-send fires for *anything that parses* — i.e.
+    any inquiry we can turn into a valid offer. Completeness (art/units/object)
+    is enforced separately by :func:`build_offer_request` returning ``None``,
+    and non-offer mail is already marked IGNORED at extraction time. So the only
+    remaining gate here is whether the org opted in. Extraction confidence is
+    intentionally NOT a gate.
+    """
+    return bool(org.offer_auto_send_enabled)
 
 
 # --- helpers ------------------------------------------------------------------

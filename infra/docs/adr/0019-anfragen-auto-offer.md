@@ -77,6 +77,20 @@ route to a manual review queue instead of sending. Phase 1 ships only the
 manual generator (`POST /admin/offers/generate`, Verwalter-only) — nothing
 sends automatically yet.
 
+### Update 2026-06-26 — "Auto-Modus" toggle (per-org, in the UI)
+
+The kill switch moved from a static env var to a **persisted per-organization
+flag** (`organizations.offer_auto_send_enabled`), surfaced as an **"Auto-Modus"
+switch on Admin → Anfragen** (`GET`/`PUT /admin/offer-settings`, Verwalter-only).
+When on, inbound inquiries that yield a valid offer are emailed automatically;
+when off (default), they park as `NEEDS_REVIEW`. Per Luis's choice the gate is
+**"everything that parses"** — confidence is *not* a gate (it dropped from
+`auto_send_allowed`); completeness is still enforced by `build_offer_request`
+(art + units + object), and non-offer mail is still `IGNORED` at extraction. The
+toggle is **forward-only**: it never sweeps inquiries already in the queue. The
+env vars `offer_auto_send_enabled` / `offer_auto_send_min_confidence` are kept
+for backwards-compat but no longer drive the decision.
+
 ## Consequences
 
 - Manual offer generation works today from the Admin "Angebote" page.

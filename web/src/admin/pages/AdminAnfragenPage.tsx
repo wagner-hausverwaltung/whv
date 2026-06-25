@@ -12,7 +12,9 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -21,6 +23,7 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
@@ -57,6 +60,22 @@ const STATUS_COLOR: Record<
   IGNORED: "default",
 };
 
+// 1 Jan of next year as an ISO date — mirrors the backend pricing default so the
+// date field shows the real start instead of an empty input rendering today.
+function defaultStartDate(): string {
+  return `${new Date().getFullYear() + 1}-01-01`;
+}
+
+// The LLM returns a single combined object address ("Straße 1, 70123 Stadt").
+// Split it on the German 5-digit Postleitzahl so "Straße + Nr." and "PLZ + Ort"
+// land in their own fields; fall back to street-only when there's no PLZ.
+function splitGermanAddress(address: string | null): [string, string] {
+  if (!address) return ["", ""];
+  const m = address.match(/^(.*?)[,\s]+(\d{5}\s+.+)$/);
+  if (m) return [(m[1] ?? "").replace(/[,\s]+$/, "").trim(), (m[2] ?? "").trim()];
+  return [address.trim(), ""];
+}
+
 export function AdminAnfragenPage() {
   const { t } = useTranslation();
   const tp = (k: string) => t(`admin.anfragenPage.${k}`);
@@ -64,13 +83,19 @@ export function AdminAnfragenPage() {
   const [rows, setRows] = useState<OfferInquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoMode, setAutoMode] = useState(false);
+  const [autoBusy, setAutoBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<OfferInquiry[]>("/admin/offer-inquiries");
-      setRows(res.data);
+      const [inq, settings] = await Promise.all([
+        api.get<OfferInquiry[]>("/admin/offer-inquiries"),
+        api.get<{ auto_send_enabled: boolean }>("/admin/offer-settings"),
+      ]);
+      setRows(inq.data);
+      setAutoMode(settings.data.auto_send_enabled);
     } catch {
       setError(tp("loadError"));
     } finally {
@@ -83,6 +108,21 @@ export function AdminAnfragenPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Persist the Auto-Modus toggle org-wide. Optimistic, with revert on failure.
+  async function toggleAutoMode(next: boolean) {
+    setAutoBusy(true);
+    setAutoMode(next);
+    setError(null);
+    try {
+      await api.put("/admin/offer-settings", { auto_send_enabled: next });
+    } catch {
+      setAutoMode(!next);
+      setError(tp("autoModeError"));
+    } finally {
+      setAutoBusy(false);
+    }
+  }
 
   // --- send dialog ---
   const [target, setTarget] = useState<OfferInquiry | null>(null);
@@ -105,9 +145,10 @@ export function AdminAnfragenPage() {
     const a: Art = inq.art === "MV" ? "MV" : "WEG";
     setArt(a);
     setUnits(inq.units != null ? String(inq.units) : "");
-    setStartDate(inq.desired_start ?? "");
-    setObjectStreet(inq.object_address ?? "");
-    setObjectPlzCity("");
+    setStartDate(inq.desired_start ?? defaultStartDate());
+    const [street, plzCity] = splitGermanAddress(inq.object_address);
+    setObjectStreet(street);
+    setObjectPlzCity(plzCity);
     setRecipientName(inq.sender_name ?? "");
     setRecipientStreet("");
     setRecipientPlzCity("");
@@ -151,14 +192,34 @@ export function AdminAnfragenPage() {
         sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}
       >
         <Typography variant="h4">{tp("title")}</Typography>
-        <Button onClick={() => void load()} disabled={loading}>
-          {tp("refresh")}
-        </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Tooltip title={tp("autoModeHint")}>
+            <FormControlLabel
+              sx={{ mr: 0 }}
+              control={
+                <Switch
+                  checked={autoMode}
+                  onChange={(e) => void toggleAutoMode(e.target.checked)}
+                  disabled={autoBusy || loading}
+                />
+              }
+              label={tp("autoMode")}
+            />
+          </Tooltip>
+          <Button onClick={() => void load()} disabled={loading}>
+            {tp("refresh")}
+          </Button>
+        </Box>
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {tp("subtitle")}
       </Typography>
 
+      {autoMode && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {tp("autoModeActive")}
+        </Alert>
+      )}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {loading ? (
         <CircularProgress />
