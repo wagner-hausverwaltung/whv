@@ -1022,11 +1022,11 @@ def extract_offer_inquiry(inquiry_id: str) -> str:
 
 
 async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
-    from datetime import UTC, date, datetime
+    from datetime import date
 
     from app.models import OfferInquiry, OfferInquiryStatus
     from app.services import offer_extraction
-    from app.services.offers import generate_offer
+    from app.services import offers as offers_svc
 
     inquiry_id = uuid.UUID(inquiry_id_str)
     settings = get_settings()
@@ -1051,33 +1051,11 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
                 await session.commit()
                 return "needs_review"
 
+            client = EmailClient(settings)
             try:
-                pdf, filename = await asyncio.to_thread(generate_offer, req, today=date.today())
-                client = EmailClient(settings)
-                msg_id = await client.send(
-                    to=inquiry.sender_email,
-                    subject="Ihr Angebot der Wagner Hausverwaltung",
-                    html=(
-                        "<p>Guten Tag,</p><p>vielen Dank für Ihre Anfrage. "
-                        "Im Anhang finden Sie unser Angebot.</p>"
-                        "<p>Mit freundlichen Grüßen<br>Wagner Hausverwaltung GmbH</p>"
-                    ),
-                    text=(
-                        "Guten Tag,\n\nvielen Dank für Ihre Anfrage. Im Anhang "
-                        "finden Sie unser Angebot.\n\nMit freundlichen Grüßen\n"
-                        "Wagner Hausverwaltung GmbH"
-                    ),
-                    attachments=[
-                        {"filename": filename, "content": base64.b64encode(pdf).decode("ascii")}
-                    ],
-                    from_address=settings.offer_from_address,
-                    from_name=settings.offer_from_name,
-                    reply_to=settings.offer_from_address,
+                await offers_svc.email_offer_for_inquiry(
+                    inquiry, req, email_client=client, settings=settings, today=date.today()
                 )
-                inquiry.status = OfferInquiryStatus.SENT.value
-                inquiry.sent_at = datetime.now(UTC)
-                inquiry.sent_message_id = msg_id
-                inquiry.generated_offer_filename = filename
             except (EmailError, ValueError) as exc:
                 inquiry.status = OfferInquiryStatus.FAILED.value
                 inquiry.error = str(exc)

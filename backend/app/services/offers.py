@@ -69,3 +69,52 @@ def generate_offer(req: OfferGenerateRequest, *, today: date | None = None) -> t
 
     filename = f"Angebot-{req.art}-{_safe_slug(label)}.pdf"
     return pdf, filename
+
+
+_OFFER_EMAIL_HTML = (
+    "<p>Guten Tag,</p><p>vielen Dank für Ihre Anfrage. Im Anhang finden Sie "
+    "unser Angebot.</p><p>Mit freundlichen Grüßen<br>Wagner Hausverwaltung GmbH</p>"
+)
+_OFFER_EMAIL_TEXT = (
+    "Guten Tag,\n\nvielen Dank für Ihre Anfrage. Im Anhang finden Sie unser "
+    "Angebot.\n\nMit freundlichen Grüßen\nWagner Hausverwaltung GmbH"
+)
+
+
+async def email_offer_for_inquiry(
+    inquiry: object,
+    req: OfferGenerateRequest,
+    *,
+    email_client: object,
+    settings: object,
+    today: date | None = None,
+) -> str:
+    """Generate the offer PDF, email it to the inquiry's sender FROM anfragen@,
+    and stamp the inquiry SENT. Returns the Resend message id; raises on send
+    failure so the caller can mark the inquiry FAILED.
+
+    Shared by the Celery auto-send task and the admin "approve & send" endpoint
+    so the send path (from-address, attachment, status stamping) is identical.
+    """
+    import asyncio
+    import base64
+    from datetime import UTC, datetime
+
+    from app.models import OfferInquiryStatus
+
+    pdf, filename = await asyncio.to_thread(generate_offer, req, today=today)
+    msg_id: str = await email_client.send(  # type: ignore[attr-defined]
+        to=inquiry.sender_email,  # type: ignore[attr-defined]
+        subject="Ihr Angebot der Wagner Hausverwaltung",
+        html=_OFFER_EMAIL_HTML,
+        text=_OFFER_EMAIL_TEXT,
+        attachments=[{"filename": filename, "content": base64.b64encode(pdf).decode("ascii")}],
+        from_address=settings.offer_from_address,  # type: ignore[attr-defined]
+        from_name=settings.offer_from_name,  # type: ignore[attr-defined]
+        reply_to=settings.offer_from_address,  # type: ignore[attr-defined]
+    )
+    inquiry.status = OfferInquiryStatus.SENT.value  # type: ignore[attr-defined]
+    inquiry.sent_at = datetime.now(UTC)  # type: ignore[attr-defined]
+    inquiry.sent_message_id = msg_id  # type: ignore[attr-defined]
+    inquiry.generated_offer_filename = filename  # type: ignore[attr-defined]
+    return msg_id

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date
+import uuid
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class OfferGenerateRequest(BaseModel):
@@ -58,3 +59,22 @@ class OfferGenerateRequest(BaseModel):
             if len(self.objects) > 3:
                 raise ValueError("MV offer supports at most 3 objects")
         return self
+
+
+class OfferInquiryResponse(BaseModel):
+    """An inbound anfragen@ inquiry, for the Admin review queue."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    sender_email: str
+    sender_name: str | None
+    subject: str
+    status: str
+    art: str | None
+    object_address: str | None
+    units: int | None
+    desired_start: date | None
+    confidence: float | None
+    sent_at: datetime | None
+    created_at: datetime
