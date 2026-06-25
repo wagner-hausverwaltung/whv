@@ -4,9 +4,16 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
 from app.models import MeterReadingSource, MeterType
+
+
+def _decimal_to_float(v: Decimal | None) -> float | None:
+    """Serialize Decimal reading/value fields as JSON numbers. Pydantic v2's
+    default is a JSON string, which the iOS clients (Double) can't decode —
+    so the meter list 'Couldn't load' once any reading existed."""
+    return float(v) if v is not None else None
 
 
 class MeterCreate(BaseModel):
@@ -69,6 +76,10 @@ class MeterResponse(BaseModel):
     latest_reading_on: date | None = None
     reading_count: int = 0
 
+    @field_serializer("latest_reading_value")
+    def _ser_latest_reading_value(self, v: Decimal | None) -> float | None:
+        return _decimal_to_float(v)
+
 
 class MeterBulkCreateRequest(BaseModel):
     """Seed many meters at once (the Verwalter pastes an extracted list)."""
@@ -99,6 +110,10 @@ class MeterReadingResponse(BaseModel):
     reported_by_user_id: uuid.UUID | None = None
     reported_by_email: str | None = None
     created_at: datetime
+
+    @field_serializer("value")
+    def _ser_value(self, v: Decimal) -> float:
+        return float(v)
 
 
 class MeterReadingOCR(BaseModel):
@@ -137,3 +152,7 @@ class MeterReadingOCRResult(BaseModel):
     # False when the LLM provider isn't configured — the client then just
     # shows manual entry without an error (OCR is a convenience, not a gate).
     provider_available: bool = True
+
+    @field_serializer("suggested_value")
+    def _ser_suggested_value(self, v: Decimal | None) -> float | None:
+        return _decimal_to_float(v)

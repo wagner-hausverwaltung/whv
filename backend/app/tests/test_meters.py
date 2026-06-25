@@ -138,6 +138,9 @@ async def test_member_submits_reading_and_sees_history(test_engine: AsyncEngine)
         assert r_sub.status_code == 201, r_sub.text
         reading = r_sub.json()
         assert Decimal(str(reading["value"])) == Decimal("1234.5")
+        # Must be a JSON number, not Pydantic's default Decimal-as-string —
+        # the iOS client decodes it into a Double (regression: "Couldn't load Zähler").
+        assert isinstance(reading["value"], int | float), type(reading["value"])
         assert reading["has_photo"] is False
 
         # shows in history
@@ -155,6 +158,9 @@ async def test_member_submits_reading_and_sees_history(test_engine: AsyncEngine)
         )
         row = next(m for m in r_list2.json() if m["id"] == meter["id"])
         assert Decimal(str(row["latest_reading_value"])) == Decimal("1234.5")
+        assert isinstance(row["latest_reading_value"], int | float), type(
+            row["latest_reading_value"]
+        )
         assert row["reading_count"] == 1
 
 
