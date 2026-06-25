@@ -1,8 +1,10 @@
 // Thin UIImagePickerController wrapper for capturing a meter photo with
 // the camera. PhotosPicker covers the library path (no permission needed);
 // this covers "take a fresh photo", which is the primary meter-reading
-// flow. Requires NSCameraUsageDescription (set as an INFOPLIST_KEY on the
-// app target). On the simulator the camera source is unavailable, so call
+// flow. Requires NSCameraUsageDescription in WHV-Info.plist — it must live in
+// the physical plist, NOT as an INFOPLIST_KEY build setting (those are ignored
+// when GENERATE_INFOPLIST_FILE = NO, which is how this app crashed on first
+// camera use). On the simulator the camera source is unavailable, so call
 // sites gate on `CameraPicker.isAvailable`.
 
 import SwiftUI

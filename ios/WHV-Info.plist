@@ -25,6 +25,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Wird verwendet, um Zählerstände per Foto zu erfassen.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>WHV verwendet Face ID, um die App zu entsperren, wenn sie länger im Hintergrund war.</string>
 	<key>NSSupportsLiveActivities</key>
