@@ -195,13 +195,13 @@ def build_offer_request(inquiry: OfferInquiry) -> OfferGenerateRequest | None:
     plz_city = extra.get("object_plz_city")
     try:
         if inquiry.art == "WEG":
-            if not street:
-                return None
+            # The object address is optional — a WEG offer only needs the unit
+            # count to be priced; a missing street/PLZ just renders blank.
             return OfferGenerateRequest(
                 art="WEG",
                 units=inquiry.units,
                 start_date=inquiry.desired_start,
-                object_street=street,
+                object_street=street or "",
                 object_plz_city=plz_city or "",
             )
         # MV needs a recipient + object; from a bare inquiry we rarely have the

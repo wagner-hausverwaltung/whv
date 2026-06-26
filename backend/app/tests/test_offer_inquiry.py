@@ -69,8 +69,22 @@ def test_missing_units_returns_none() -> None:
     assert offer_extraction.build_offer_request(_inquiry(units=None)) is None
 
 
-def test_weg_without_street_returns_none() -> None:
-    assert offer_extraction.build_offer_request(_inquiry(art="WEG", street=None)) is None
+def test_weg_without_street_still_builds() -> None:
+    # WEG address is optional: a PLZ-only (or fully address-less) inquiry still
+    # yields a sendable request so Auto-Modus can answer it.
+    req = offer_extraction.build_offer_request(
+        _inquiry(art="WEG", street=None, plz_city="70499 Stuttgart")
+    )
+    assert req is not None
+    assert req.object_street == ""
+    assert req.object_plz_city == "70499 Stuttgart"
+
+
+def test_weg_without_any_address_still_builds() -> None:
+    req = offer_extraction.build_offer_request(_inquiry(art="WEG", street=None, plz_city=None))
+    assert req is not None
+    assert req.object_street == ""
+    assert req.object_plz_city == ""
 
 
 def test_mv_without_recipient_returns_none() -> None:

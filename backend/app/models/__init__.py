@@ -1,4 +1,4 @@
-from app.models.anfrage import OfferInquiry, OfferInquiryStatus
+from app.models.anfrage import OfferInquiry, OfferInquiryStatus, OfferLeadStatus
 from app.models.announcement import (
     Announcement,
     AnnouncementAttachment,
@@ -126,6 +126,7 @@ __all__ = [
     "NotificationChannel",
     "OfferInquiry",
     "OfferInquiryStatus",
+    "OfferLeadStatus",
     "Organization",
     "OrganizationPropertySelection",
     "PasswordResetToken",

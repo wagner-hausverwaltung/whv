@@ -13,6 +13,8 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  MenuItem,
+  Select,
   Stack,
   Switch,
   Table,
@@ -39,6 +41,7 @@ interface OfferInquiry {
   sender_name: string | null;
   subject: string;
   status: string;
+  lead_status: string;
   art: string | null;
   object_address: string | null;
   units: number | null;
@@ -47,6 +50,8 @@ interface OfferInquiry {
   sent_at: string | null;
   created_at: string;
 }
+
+const LEAD_STATUSES = ["OPEN", "ON_HOLD", "ACCEPTED", "DECLINED"] as const;
 
 const STATUS_COLOR: Record<
   string,
@@ -71,9 +76,12 @@ function defaultStartDate(): string {
 // land in their own fields; fall back to street-only when there's no PLZ.
 function splitGermanAddress(address: string | null): [string, string] {
   if (!address) return ["", ""];
-  const m = address.match(/^(.*?)[,\s]+(\d{5}\s+.+)$/);
+  const a = address.trim();
+  // Only a PLZ + city, no street (e.g. "70499 Stuttgart") → keep it in PLZ + Ort.
+  if (/^\d{5}\s+\S/.test(a)) return ["", a];
+  const m = a.match(/^(.*?)[,\s]+(\d{5}\s+.+)$/);
   if (m) return [(m[1] ?? "").replace(/[,\s]+$/, "").trim(), (m[2] ?? "").trim()];
-  return [address.trim(), ""];
+  return [a, ""];
 }
 
 export function AdminAnfragenPage() {
@@ -121,6 +129,21 @@ export function AdminAnfragenPage() {
       setError(tp("autoModeError"));
     } finally {
       setAutoBusy(false);
+    }
+  }
+
+  // Per-offer sales status. Optimistic; revert the row's value on failure.
+  async function updateLeadStatus(id: string, next: string) {
+    const prev = rows.find((r) => r.id === id)?.lead_status;
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, lead_status: next } : r)));
+    setError(null);
+    try {
+      await api.put(`/admin/offer-inquiries/${id}/lead-status`, { lead_status: next });
+    } catch {
+      setRows((rs) =>
+        rs.map((r) => (r.id === id && prev ? { ...r, lead_status: prev } : r)),
+      );
+      setError(tp("leadStatusError"));
     }
   }
 
@@ -236,6 +259,7 @@ export function AdminAnfragenPage() {
               <TableCell align="right">{tp("colUnits")}</TableCell>
               <TableCell align="right">{tp("colConfidence")}</TableCell>
               <TableCell>{tp("colStatus")}</TableCell>
+              <TableCell>{tp("colLeadStatus")}</TableCell>
               <TableCell />
             </TableRow>
           </TableHead>
@@ -262,6 +286,21 @@ export function AdminAnfragenPage() {
                     label={r.status}
                     color={STATUS_COLOR[r.status] ?? "default"}
                   />
+                </TableCell>
+                <TableCell>
+                  <Select
+                    size="small"
+                    variant="standard"
+                    value={r.lead_status}
+                    onChange={(e) => void updateLeadStatus(r.id, e.target.value)}
+                    sx={{ minWidth: 120 }}
+                  >
+                    {LEAD_STATUSES.map((s) => (
+                      <MenuItem key={s} value={s}>
+                        {tp(`lead.${s}`)}
+                      </MenuItem>
+                    ))}
+                  </Select>
                 </TableCell>
                 <TableCell align="right">
                   {r.status !== "SENT" && r.status !== "IGNORED" && (

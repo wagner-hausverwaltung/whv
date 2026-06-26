@@ -312,6 +312,7 @@
       "autoModeHint": "New inquiries that yield a valid offer are answered automatically by email — without manual review. Spam and incomplete inquiries stay in the review queue.",
       "autoModeActive": "Auto mode is on: matching new inquiries are answered automatically. Inquiries already in the queue are left untouched.",
       "autoModeError": "Could not save auto mode.",
+      "leadStatusError": "Could not save status.",
       "empty": "No inquiries yet.",
       "loadError": "Could not load inquiries.",
       "sendError": "Could not send the offer.",
@@ -321,7 +322,14 @@
       "colObject": "Object",
       "colUnits": "Units",
       "colConfidence": "Confidence",
-      "colStatus": "Status",
+      "colStatus": "Processing",
+      "colLeadStatus": "Status",
+      "lead": {
+        "OPEN": "Open",
+        "ON_HOLD": "On hold",
+        "ACCEPTED": "Accepted",
+        "DECLINED": "Declined"
+      },
       "send": "Send offer",
       "dialogTitle": "Review and send offer",
       "units": "Units",

@@ -34,6 +34,16 @@ class OfferInquiryStatus(enum.StrEnum):
     IGNORED = "IGNORED"  # not an offer request / spam
 
 
+class OfferLeadStatus(enum.StrEnum):
+    """Manual sales/deal status a Verwalter tracks per offer, independent of the
+    processing `status` above. New inquiries start OPEN."""
+
+    OPEN = "OPEN"
+    ON_HOLD = "ON_HOLD"
+    ACCEPTED = "ACCEPTED"
+    DECLINED = "DECLINED"
+
+
 class OfferInquiry(OrganizationScopedMixin, TimestampMixin, Base):
     __tablename__ = "offer_inquiries"
 
@@ -49,6 +59,13 @@ class OfferInquiry(OrganizationScopedMixin, TimestampMixin, Base):
     received_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
 
     status: Mapped[str] = mapped_column(Text, nullable=False, default=OfferInquiryStatus.NEW.value)
+    # Manual sales/deal status (Verwalter-set dropdown), starts OPEN on creation.
+    lead_status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=OfferLeadStatus.OPEN.value,
+        server_default=OfferLeadStatus.OPEN.value,
+    )
 
     # Extracted fields (NULL until the LLM task runs).
     art: Mapped[str | None] = mapped_column(Text, nullable=True)  # "WEG" | "MV"
