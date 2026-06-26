@@ -23,6 +23,7 @@ from app.models import OfferInquiry, OfferInquiryStatus, Organization, User, Use
 from app.schemas.offer import (
     OfferGenerateRequest,
     OfferInquiryResponse,
+    OfferLeadStatusUpdate,
     OfferSettingsResponse,
     OfferSettingsUpdate,
 )
@@ -118,6 +119,23 @@ async def admin_send_offer_inquiry(
         inquiry.error = str(exc)
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Send failed: {exc}") from exc
+    await session.commit()
+    await session.refresh(inquiry)
+    return inquiry
+
+
+@admin_router.put("/offer-inquiries/{inquiry_id}/lead-status", response_model=OfferInquiryResponse)
+async def admin_set_offer_lead_status(
+    inquiry_id: uuid.UUID,
+    payload: OfferLeadStatusUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferInquiry:
+    """Set an inquiry's manual sales status (OPEN/ON_HOLD/ACCEPTED/DECLINED)."""
+    inquiry = await session.get(OfferInquiry, inquiry_id)
+    if inquiry is None or inquiry.organization_id != current_user.organization_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Inquiry not found")
+    inquiry.lead_status = payload.lead_status
     await session.commit()
     await session.refresh(inquiry)
     return inquiry

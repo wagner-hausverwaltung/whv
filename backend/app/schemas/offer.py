@@ -72,6 +72,12 @@ class OfferSettingsUpdate(BaseModel):
     auto_send_enabled: bool
 
 
+class OfferLeadStatusUpdate(BaseModel):
+    """Set the manual sales status of one inquiry from the review queue."""
+
+    lead_status: Literal["OPEN", "ON_HOLD", "ACCEPTED", "DECLINED"]
+
+
 class OfferInquiryResponse(BaseModel):
     """An inbound anfragen@ inquiry, for the Admin review queue."""
 
@@ -82,6 +88,7 @@ class OfferInquiryResponse(BaseModel):
     sender_name: str | None
     subject: str
     status: str
+    lead_status: str
     art: str | None
     object_address: str | None
     units: int | None

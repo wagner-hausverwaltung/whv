@@ -8,13 +8,26 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.main import app
-from app.models import UserRole
+from app.models import OfferInquiry, Organization, UserRole
 from app.schemas.offer import OfferGenerateRequest
 from app.services.offers import generate_offer
 from app.tests._factories import make_org, make_property, make_user
+
+
+async def _make_inquiry(engine: AsyncEngine, org: Organization) -> OfferInquiry:
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        inq = OfferInquiry(
+            organization_id=org.id, sender_email="prospect@example.com", subject="Anfrage", body="x"
+        )
+        s.add(inq)
+        await s.commit()
+        await s.refresh(inq)
+    return inq
+
 
 _TODAY = date(2026, 6, 25)
 
@@ -181,5 +194,63 @@ async def test_offer_settings_eigentuemer_forbidden(test_engine: AsyncEngine) ->
     with TestClient(app) as client:
         r = client.put(
             "/admin/offer-settings", headers=_auth(token), json={"auto_send_enabled": True}
+        )
+    assert r.status_code == 403
+
+
+# --- per-offer lead status ----------------------------------------------------
+
+
+async def test_lead_status_defaults_open(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get("/admin/offer-inquiries", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    row = next(x for x in r.json() if x["id"] == str(inq.id))
+    assert row["lead_status"] == "OPEN"
+
+
+async def test_lead_status_update(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/lead-status",
+            headers=_auth(token),
+            json={"lead_status": "ACCEPTED"},
+        )
+    assert r.status_code == 200, r.text
+    assert r.json()["lead_status"] == "ACCEPTED"
+
+
+async def test_lead_status_invalid_422(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/lead-status",
+            headers=_auth(token),
+            json={"lead_status": "MAYBE"},
+        )
+    assert r.status_code == 422
+
+
+async def test_lead_status_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/lead-status",
+            headers=_auth(token),
+            json={"lead_status": "ACCEPTED"},
         )
     assert r.status_code == 403
