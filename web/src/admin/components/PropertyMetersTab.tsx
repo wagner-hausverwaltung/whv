@@ -82,6 +82,7 @@ interface MeterFormState {
   supplier_email: string;
   installation_date: string;
   calibration_valid_until: string;
+  reading_due_date: string;
 }
 
 const EMPTY_FORM: MeterFormState = {
@@ -94,6 +95,7 @@ const EMPTY_FORM: MeterFormState = {
   supplier_email: "",
   installation_date: "",
   calibration_valid_until: "",
+  reading_due_date: "",
 };
 
 // Mounted fresh per open (parent gates with `{formOpen && …}` + a key), so
@@ -121,6 +123,7 @@ function MeterFormDialog({
           supplier_email: editing.supplier_email ?? "",
           installation_date: editing.installation_date ?? "",
           calibration_valid_until: editing.calibration_valid_until ?? "",
+          reading_due_date: editing.reading_due_date ?? "",
         }
       : EMPTY_FORM,
   );
@@ -147,6 +150,7 @@ function MeterFormDialog({
       supplier_email: form.supplier_email.trim() || null,
       installation_date: form.installation_date || null,
       calibration_valid_until: form.calibration_valid_until || null,
+      reading_due_date: form.reading_due_date || null,
     };
     try {
       if (editing) {
@@ -253,6 +257,16 @@ function MeterFormDialog({
               slotProps={{ inputLabel: { shrink: true } }}
             />
           </Stack>
+          <TextField
+            label="Nächste Ablesung fällig"
+            type="date"
+            value={form.reading_due_date}
+            onChange={(e) => set("reading_due_date", e.target.value)}
+            fullWidth
+            size="small"
+            helperText="Erinnert Eigentümer/Mieter, den Zählerstand bis zu diesem Datum zu erfassen."
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
         </Stack>
       </DialogContent>
       <DialogActions>

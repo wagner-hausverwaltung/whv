@@ -28,6 +28,7 @@ class MeterCreate(BaseModel):
     unit_label: str | None = Field(None, max_length=20)
     installation_date: date | None = None
     calibration_valid_until: date | None = None
+    reading_due_date: date | None = None
     supplier_name: str | None = Field(None, max_length=120)
     supplier_email: EmailStr | None = None
 
@@ -45,6 +46,7 @@ class MeterUpdate(BaseModel):
     unit_label: str | None = Field(None, max_length=20)
     installation_date: date | None = None
     calibration_valid_until: date | None = None
+    reading_due_date: date | None = None
     supplier_name: str | None = Field(None, max_length=120)
     supplier_email: EmailStr | None = None
     is_active: bool | None = None
@@ -63,6 +65,7 @@ class MeterResponse(BaseModel):
     unit_label: str | None
     installation_date: date | None
     calibration_valid_until: date | None
+    reading_due_date: date | None
     supplier_name: str | None
     supplier_email: str | None
     is_active: bool

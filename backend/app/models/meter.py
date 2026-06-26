@@ -87,6 +87,10 @@ class Meter(OrganizationScopedMixin, TimestampMixin, Base):
     installation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Eichfrist — when the meter's calibration expires and it must be swapped.
     calibration_valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Next reading due date — drives the "Zählerstand erfassen" reminder in the
+    # activity feed. The reminder shows while this is set and no reading has been
+    # recorded on/after it; capturing such a reading clears it implicitly.
+    reading_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Supplier (EnBW …). Stored on the meter so a future "forward to supplier"
     # send has the address without coupling to a separate Dienstleister model.
     supplier_name: Mapped[str | None] = mapped_column(Text, nullable=True)

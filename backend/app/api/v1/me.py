@@ -1,8 +1,8 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -54,6 +54,7 @@ from app.services import notification_prefs
 from app.services import units as units_svc
 from app.services import vendors as vendors_svc
 from app.services.access import active_contract_filter
+from app.services.activity import ActivityItem, build_activity_feed
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -386,6 +387,40 @@ async def get_my_properties(
     stmt = _visible_properties_stmt(current_user).order_by(Property.name)
     rows = (await session.scalars(stmt)).all()
     return [PropertyResponse.model_validate(p) for p in rows]
+
+
+@router.get("/activity", response_model=list[ActivityItem])
+async def get_my_activity(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> list[ActivityItem]:
+    """Unified "Was gibt's Neues" feed for the iOS home-screen widget.
+
+    One call returns a ready-sorted, ACL-scoped list of recent +
+    actionable events (Beschlüsse, ETV, Dokumente, Rechnungen,
+    Mitteilungen, Kalender, Zählerstand-Erinnerungen) across every
+    Liegenschaft the caller can see. Visibility is resolved here with the
+    exact same primitives as the other /me endpoints and handed to the
+    aggregation service, so the feed never crosses a property/owner
+    boundary."""
+    if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
+        return []
+
+    property_rows = list((await session.scalars(_visible_properties_stmt(current_user))).all())
+    if not property_rows:
+        return []
+
+    return await build_activity_feed(
+        session,
+        user=current_user,
+        property_rows=property_rows,
+        doc_filter=_document_visibility_filter(current_user),
+        invoice_filter=_invoice_visibility_filter(current_user),
+        today=date.today(),
+        now=datetime.now(UTC),
+        limit=limit,
+    )
 
 
 @router.get("/properties/{property_id}", response_model=PropertyDetailResponse)

@@ -988,6 +988,7 @@ export interface MeterResponse {
   unit_label: string | null;
   installation_date: string | null;
   calibration_valid_until: string | null;
+  reading_due_date: string | null;
   supplier_name: string | null;
   supplier_email: string | null;
   is_active: boolean;
@@ -1034,6 +1035,7 @@ export interface MeterCreateRequest {
   unit_label?: string | null;
   installation_date?: string | null;
   calibration_valid_until?: string | null;
+  reading_due_date?: string | null;
   supplier_name?: string | null;
   supplier_email?: string | null;
 }
