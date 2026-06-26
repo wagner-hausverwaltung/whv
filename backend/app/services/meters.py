@@ -164,6 +164,7 @@ def _build_meter(
         unit_label=(data.unit_label or _DEFAULT_UNIT_LABEL.get(data.meter_type)),
         installation_date=data.installation_date,
         calibration_valid_until=data.calibration_valid_until,
+        reading_due_date=data.reading_due_date,
         supplier_name=(data.supplier_name.strip() if data.supplier_name else None),
         supplier_email=(str(data.supplier_email) if data.supplier_email else None),
         created_by_user_id=actor_id,
