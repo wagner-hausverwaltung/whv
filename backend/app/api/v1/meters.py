@@ -41,6 +41,7 @@ from app.schemas.meter import (
     MeterCreate,
     MeterReadingOCRResult,
     MeterReadingResponse,
+    MeterReplaceRequest,
     MeterResponse,
     MeterUpdate,
 )
@@ -236,6 +237,38 @@ async def admin_update_meter(
     except meters_svc.MeterServiceError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await meters_svc.meter_response(session, meter=meter)
+
+
+@admin_router.post(
+    "/meters/{meter_id}/replace",
+    response_model=MeterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_replace_meter(
+    meter_id: uuid.UUID,
+    req: MeterReplaceRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> MeterResponse:
+    """Zählerwechsel — record a physical meter swap. The OLD meter gets its
+    Schlussstand + goes inactive (linked to the replacement); a NEW active meter
+    with the new Zählernummer + its Anfangsstand is created and returned."""
+    meter = await _admin_meter_or_404(session, current_user, meter_id)
+    try:
+        new_meter = await meters_svc.replace_meter(
+            session,
+            meter=meter,
+            change_date=req.change_date,
+            new_meter_number=req.new_meter_number,
+            old_final_reading=req.old_final_reading,
+            new_initial_reading=req.new_initial_reading,
+            user=current_user,
+        )
+    except meters_svc.MeterServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    await session.commit()
+    await session.refresh(new_meter)
+    return await meters_svc.meter_response(session, meter=new_meter)
 
 
 @admin_router.delete("/meters/{meter_id}", status_code=status.HTTP_204_NO_CONTENT)

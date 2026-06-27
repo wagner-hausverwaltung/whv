@@ -992,6 +992,9 @@ export interface MeterResponse {
   supplier_name: string | null;
   supplier_email: string | null;
   is_active: boolean;
+  /// Zählerwechsel: set on the OLD meter once swapped out.
+  replaced_at: string | null;
+  successor_meter_id: string | null;
   created_at: string;
   updated_at: string;
   // Denormalised for list views.
@@ -1038,6 +1041,13 @@ export interface MeterCreateRequest {
   reading_due_date?: string | null;
   supplier_name?: string | null;
   supplier_email?: string | null;
+}
+
+export interface MeterReplaceRequest {
+  change_date: string;
+  new_meter_number: string;
+  old_final_reading: number | string;
+  new_initial_reading: number | string;
 }
 
 export interface MeterBulkCreateError {

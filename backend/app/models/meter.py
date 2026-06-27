@@ -103,6 +103,16 @@ class Meter(OrganizationScopedMixin, TimestampMixin, Base):
         default=True,
         server_default="true",
     )
+    # Zählerwechsel — a meter is physically swapped roughly every 6 years. The
+    # OLD meter is kept (with its readings, for Abrechnung) but deactivated:
+    # `replaced_at` records the swap date and `successor_meter_id` links it to
+    # the NEW meter that took its place.
+    replaced_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    successor_meter_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("meters.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

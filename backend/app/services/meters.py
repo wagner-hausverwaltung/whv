@@ -301,6 +301,93 @@ async def update_meter(
     return meter
 
 
+async def replace_meter(
+    session: AsyncSession,
+    *,
+    meter: Meter,
+    change_date: date,
+    new_meter_number: str,
+    old_final_reading: Decimal,
+    new_initial_reading: Decimal,
+    user: User,
+) -> Meter:
+    """Zählerwechsel — record a physical meter swap.
+
+    The OLD meter gets its final reading (Schlussstand) and is deactivated +
+    linked to its replacement; a NEW meter (new Zählernummer) is created active
+    with its initial reading (Anfangsstand). Both meters + all their readings
+    are kept for Abrechnung. Caller commits. Returns the NEW meter.
+    """
+    if not meter.is_active:
+        raise MeterServiceError("Dieser Zähler wurde bereits gewechselt oder ist inaktiv.")
+
+    new_meter = Meter(
+        organization_id=meter.organization_id,
+        property_id=meter.property_id,
+        unit_id=meter.unit_id,
+        meter_number=new_meter_number.strip(),
+        meter_type=meter.meter_type,
+        description=meter.description,
+        location=meter.location,
+        unit_label=meter.unit_label,
+        installation_date=change_date,
+        calibration_valid_until=meter.calibration_valid_until,
+        # The daily roll task points this at the current quarter; leave it unset
+        # so the new meter joins the normal reading cadence.
+        reading_due_date=None,
+        supplier_name=meter.supplier_name,
+        supplier_email=meter.supplier_email,
+        is_active=True,
+        created_by_user_id=user.id,
+    )
+    session.add(new_meter)
+    await session.flush()  # need new_meter.id for the link + the readings
+
+    meter.is_active = False
+    meter.replaced_at = change_date
+    meter.successor_meter_id = new_meter.id
+
+    session.add(
+        MeterReading(
+            meter_id=meter.id,
+            value=old_final_reading,
+            read_on=change_date,
+            source=MeterReadingSource.MANUAL,
+            note="Schlussstand (Zählerwechsel)",
+            reported_by_user_id=user.id,
+        )
+    )
+    session.add(
+        MeterReading(
+            meter_id=new_meter.id,
+            value=new_initial_reading,
+            read_on=change_date,
+            source=MeterReadingSource.MANUAL,
+            note="Anfangsstand (Zählerwechsel)",
+            reported_by_user_id=user.id,
+        )
+    )
+
+    session.add(
+        AuditLog(
+            organization_id=meter.organization_id,
+            actor_user_id=user.id,
+            action="meter_replaced",
+            target_type="meters",
+            target_id=str(meter.id),
+            payload_json={
+                "old_meter_id": str(meter.id),
+                "new_meter_id": str(new_meter.id),
+                "new_meter_number": new_meter.meter_number,
+                "change_date": change_date.isoformat(),
+                "old_final_reading": str(old_final_reading),
+                "new_initial_reading": str(new_initial_reading),
+            },
+        )
+    )
+    return new_meter
+
+
 async def list_meters(
     session: AsyncSession,
     *,

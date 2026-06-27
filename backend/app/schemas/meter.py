@@ -52,6 +52,17 @@ class MeterUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class MeterReplaceRequest(BaseModel):
+    """Zählerwechsel — swap a meter. The OLD meter gets `old_final_reading`
+    (Schlussstand) + goes inactive; a NEW meter with `new_meter_number` is
+    created active with `new_initial_reading` (Anfangsstand)."""
+
+    change_date: date
+    new_meter_number: str = Field(..., min_length=1, max_length=120)
+    old_final_reading: Decimal = Field(..., ge=0)
+    new_initial_reading: Decimal = Field(..., ge=0)
+
+
 class MeterResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -69,6 +80,10 @@ class MeterResponse(BaseModel):
     supplier_name: str | None
     supplier_email: str | None
     is_active: bool
+    # Zählerwechsel — set on the OLD meter once it's swapped out: when it
+    # happened + the link to the replacement meter.
+    replaced_at: date | None
+    successor_meter_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 
