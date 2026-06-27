@@ -19,6 +19,18 @@ final class PropertyDetailStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published var lastError: String?
 
+    /// Per-category "something new/upcoming" hints for this property —
+    /// drive the blue NEU badge on the Versammlungen / Anliegen /
+    /// Mitteilungen / Dokumente quick-action rows. All four are computed
+    /// from best-effort, silent-fail fetches (see `loadAttentionHints`):
+    /// a failure leaves the flag false rather than blocking the Start tab.
+    /// Blue NEU = "neu/anstehend"; the meter row's red "N fällig" accent
+    /// (overdue) stays separate.
+    @Published private(set) var hasNewAssembly = false
+    @Published private(set) var hasNewTicket = false
+    @Published private(set) var hasNewAnnouncement = false
+    @Published private(set) var hasNewDocument = false
+
     /// Active meters whose reading is due soon — drives the red/orange
     /// accent on the Zähler quick-action row.
     var dueSoonMeterCount: Int {
@@ -35,6 +47,11 @@ final class PropertyDetailStore: ObservableObject {
     func load(id: String) async {
         isLoading = true
         defer { isLoading = false }
+        // Per-category NEU hints run alongside the section loads as an
+        // independent, best-effort job: they must never block the Start
+        // tab nor surface an error, so they're fired-and-not-awaited
+        // here and self-contained in their own try?-per-call below.
+        Task { await self.loadAttentionHints(id: id) }
         do {
             // Fetch detail + vendors in parallel — they share the
             // same scope check, so a failure in one doesn't tell us
@@ -81,6 +98,70 @@ final class PropertyDetailStore: ObservableObject {
         } catch {
             self.lastError = error.localizedDescription
         }
+    }
+
+    /// Compute the four per-category NEU hints for the current property.
+    /// Each fetch runs in parallel and fails silently — a thrown error
+    /// (incl. unauthorized / demo / transient) just leaves that flag
+    /// false; this job never touches `lastError` or `onUnauthorized` so
+    /// it can't blank or bounce the Start tab. Reuses the shared 7-day
+    /// `isRecentlyNew` window from NeuBadge.swift.
+    private func loadAttentionHints(id: String) async {
+        async let assembliesTask = (try? await api.listMyAssemblies(propertyId: id)) ?? []
+        // listMyOpenTickets has no per-property filter (returns the
+        // caller's open tickets across all properties), so scope to this
+        // property client-side via TicketSummary.property_id.
+        async let ticketsTask = (try? await api.listMyOpenTickets()) ?? []
+        async let announcementsTask = (try? await api.listMyAnnouncementsForProperty(id)) ?? []
+        async let documentsTask = (try? await api.getMyPropertyDocuments(propertyId: id)) ?? []
+
+        let assemblies = await assembliesTask
+        let tickets = await ticketsTask
+        let announcements = await announcementsTask
+        let documents = await documentsTask
+
+        let now = Date()
+
+        // Versammlungen: any upcoming assembly (scheduled_start >= now)
+        // OR one that just arrived (Einladung-upload / creation within 7d).
+        self.hasNewAssembly = assemblies.contains { a in
+            a.scheduled_start >= now || isRecentlyNew(a.addedRecentlyDate)
+        }
+
+        // Anliegen: open tickets on THIS property whose status is NEU,
+        // or whose last activity is within the last 7 days. listMyOpenTickets
+        // already excludes closed/resolved (GESCHLOSSEN); we still guard
+        // with isActive in case the endpoint shape changes.
+        self.hasNewTicket = tickets.contains { t in
+            guard t.property_id == id, t.status.isActive else { return false }
+            return t.status == .neu || isRecentlyNew(t.last_message_at)
+        }
+
+        // Mitteilungen: any announcement published within the last 7 days
+        // (notification_sent_at if sent, else the scheduled publish date).
+        self.hasNewAnnouncement = announcements.contains { ann in
+            isRecentlyNew(ann.notification_sent_at ?? ann.scheduled_publish_at)
+        }
+
+        // Dokumente: any document added/synced within the last 7 days.
+        // uploaded_at is an ISO-8601 string on DocumentResponse — parse it
+        // with the shared decoder's date strategy; unparsable → not new.
+        self.hasNewDocument = documents.contains { doc in
+            isRecentlyNew(Self.parseISODate(doc.uploaded_at))
+        }
+    }
+
+    /// Parse the ISO-8601 `uploaded_at` string DocumentResponse carries
+    /// (the list otherwise treats it as an opaque string). Tolerant of the
+    /// fractional-seconds and plain `…Z` variants the API returns.
+    private static func parseISODate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = withFractional.date(from: value) { return d }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: value)
     }
 }
 
@@ -269,26 +350,46 @@ struct PropertyDetailView: View {
                 Button {
                     deepLinkRouter.pendingTarget = .tab(.etv)
                 } label: {
-                    quickRow(title: "Versammlungen", systemImage: "person.3.fill", color: .purple)
+                    quickRow(
+                        title: "Versammlungen",
+                        systemImage: "person.3.fill",
+                        color: .purple,
+                        showNeu: store.hasNewAssembly
+                    )
                 }
                 .buttonStyle(.plain)
                 Button {
                     deepLinkRouter.pendingTarget = .tab(.tickets)
                 } label: {
-                    quickRow(title: "Anliegen", systemImage: "tray.full.fill", color: .orange)
+                    quickRow(
+                        title: "Anliegen",
+                        systemImage: "tray.full.fill",
+                        color: .orange,
+                        showNeu: store.hasNewTicket
+                    )
                 }
                 .buttonStyle(.plain)
                 Button {
                     deepLinkRouter.pendingTarget = .tab(.mitteilungen)
                 } label: {
-                    quickRow(title: "Mitteilungen", systemImage: "megaphone.fill", color: .pink)
+                    quickRow(
+                        title: "Mitteilungen",
+                        systemImage: "megaphone.fill",
+                        color: .pink,
+                        showNeu: store.hasNewAnnouncement
+                    )
                 }
                 .buttonStyle(.plain)
                 // Documents — the iOS counterpart of the portal Dokumente tab.
                 Button {
                     showDocuments = true
                 } label: {
-                    quickRow(title: "Dokumente", systemImage: "folder.fill", color: .blue)
+                    quickRow(
+                        title: "Dokumente",
+                        systemImage: "folder.fill",
+                        color: .blue,
+                        showNeu: store.hasNewDocument
+                    )
                 }
                 .buttonStyle(.plain)
                 // Zähler — meter list + reading capture (ADR-0016).
@@ -333,11 +434,17 @@ struct PropertyDetailView: View {
     /// `dueCount > 0` lights the row with the meter "due soon" accent
     /// (orange fill + red frame) and shows a red count capsule. Default
     /// 0 keeps every other quick-action row visually unchanged.
+    ///
+    /// `showNeu` adds a trailing blue NEU badge (before the chevron) when
+    /// the category has something new/upcoming for this property — kept
+    /// visually distinct from the red "N fällig" overdue meter accent.
+    /// Default false leaves the row unchanged.
     private func quickRow(
         title: LocalizedStringResource,
         systemImage: String,
         color: Color,
-        dueCount: Int = 0
+        dueCount: Int = 0,
+        showNeu: Bool = false
     ) -> some View {
         let isDue = dueCount > 0
         return HStack(spacing: 12) {
@@ -360,6 +467,9 @@ struct PropertyDetailView: View {
                     .clipShape(Capsule())
             }
             Spacer()
+            if showNeu {
+                NeuBadge()
+            }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.tertiary)
