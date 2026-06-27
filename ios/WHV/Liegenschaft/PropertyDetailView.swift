@@ -298,8 +298,28 @@ struct PropertyDetailView: View {
 
     // MARK: - Header card
 
+    /// The name already carries the address ("WEG Hasenbergstraße 32,
+    /// 70176 Stuttgart"), so the card shows only name + WEG/MV pill.
+    /// When the property has a hero photo (`image_url`, auth-gated) it
+    /// becomes the card background under a bottom-weighted scrim so the
+    /// white text stays legible; without one we keep the plain
+    /// secondarySystemBackground card. Tapping opens Google Maps at the
+    /// property address.
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        Button {
+            openInMaps()
+        } label: {
+            headerCardContent
+        }
+        .buttonStyle(.plain)
+        // Only act as a tappable map link when we have an address to
+        // search — otherwise it's a plain (inert-looking) card.
+        .disabled(mapsURL == nil)
+    }
+
+    private var headerCardContent: some View {
+        let hasPhoto = (store.detail?.image_url?.isEmpty == false)
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 // Show the German-correspondence label (WEG / MV /
                 // SEV) rather than Impower's raw OWNER/RENTAL/STRATA
@@ -315,24 +335,90 @@ struct PropertyDetailView: View {
                 if store.isLoading {
                     ProgressView().controlSize(.small)
                 }
+                Spacer(minLength: 0)
             }
             Text(property.name)
                 .font(.title3.bold())
-            Label(property.address, systemImage: "mappin.and.ellipse")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if let hrId = store.detail?.property_hr_id, !hrId.isEmpty {
-                Label(hrId, systemImage: "number")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
+                // Force white over a photo (works in both light + dark);
+                // fall back to the adaptive primary colour on the plain card.
+                .foregroundStyle(hasPhoto ? Color.white : Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
+        // Photo cards reserve a bit more height so the image reads as a
+        // hero, not a thin strip behind two text lines.
+        .frame(maxWidth: .infinity, minHeight: hasPhoto ? 140 : nil, alignment: hasPhoto ? .bottomLeading : .leading)
+        .background(headerBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Photo background (under a dark scrim) when `image_url` is present;
+    /// otherwise the plain secondarySystemBackground fill.
+    @ViewBuilder
+    private var headerBackground: some View {
+        if let imagePath = store.detail?.image_url, !imagePath.isEmpty {
+            AuthedAsyncImage(path: imagePath) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .overlay(scrim)
+            } placeholder: {
+                // While the authed fetch is in flight (or if it fails) keep
+                // the plain card so the text never sits on a blank/illegible
+                // surface.
+                Color(.secondarySystemBackground)
+            }
+        } else {
+            Color(.secondarySystemBackground)
+        }
+    }
+
+    /// Bottom-weighted black scrim so the white name + pill stay legible
+    /// over any photo, in both light and dark mode.
+    private var scrim: some View {
+        LinearGradient(
+            colors: [
+                Color.black.opacity(0.15),
+                Color.black.opacity(0.55),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
         )
+    }
+
+    // MARK: - Maps deep link
+
+    /// Full street + PLZ + city address for the Maps query. Prefers the
+    /// structured fields from the fetched detail; falls back to the
+    /// single-line address the picker collapsed onto `Liegenschaft`.
+    private var fullAddress: String {
+        if let d = store.detail {
+            let streetLine = [d.street, d.number].compactMap { $0 }.joined(separator: " ")
+            let cityLine = [d.postal_code, d.city].compactMap { $0 }.joined(separator: " ")
+            let combined = [streetLine, cityLine]
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                .joined(separator: ", ")
+            if !combined.isEmpty { return combined }
+        }
+        return property.address
+    }
+
+    /// Google Maps universal search URL. Opens the Google Maps app when
+    /// installed, otherwise the browser / Apple Maps. nil when we have no
+    /// usable address (the card then renders as a plain, non-tappable card).
+    private var mapsURL: URL? {
+        let address = fullAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty, address != "—" else { return nil }
+        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "https://www.google.com/maps/search/?api=1&query=\(encoded)")
+    }
+
+    private func openInMaps() {
+        guard let url = mapsURL else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Quick actions

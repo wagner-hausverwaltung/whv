@@ -1496,6 +1496,29 @@ struct APIClient {
         )
     }
 
+    // MARK: - Authed images
+
+    /// Fetch raw image bytes for an auth-gated image path (e.g. the
+    /// property hero photo at `/admin/property-images/{id}.png`, which is
+    /// JWT-protected — a plain AsyncImage would 401). `path` is the
+    /// relative `image_url` the API returns; we prepend `baseURL` and send
+    /// the same Bearer token + one-shot 401-refresh-retry the JSON helpers
+    /// use. Returns the body bytes; the caller turns them into a UIImage.
+    func fetchImageData(path: String) async throws -> Data {
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        let url = Self.requestURL(baseURL, path)
+        do {
+            let (data, response) = try await sendAuthed(url: url, method: "GET", body: nil, token: token)
+            try Self.throwIfNotOK(response: response, data: data)
+            return data
+        } catch APIError.unauthorized {
+            let fresh = try await refreshOrThrow()
+            let (data, response) = try await sendAuthed(url: url, method: "GET", body: nil, token: fresh)
+            try Self.throwIfNotOK(response: response, data: data)
+            return data
+        }
+    }
+
     // MARK: - Plumbing
 
     /// Generic authed JSON GET. The path is relative to baseURL and
