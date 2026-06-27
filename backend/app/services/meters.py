@@ -13,11 +13,11 @@ import io
 import logging
 import re
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -635,3 +635,41 @@ async def readings_csv_for_property(
             ]
         )
     return buf.getvalue()
+
+
+# --- quarterly reading cadence ------------------------------------------------
+# WHV reads every meter once per quarter. `reading_due_date` carries the current
+# quarter's deadline (its last day); the activity feed shows a "Zählerstand
+# erfassen" reminder in the run-up to it and clears once a reading lands in that
+# quarter. A daily Celery beat task (roll_meter_reading_due_dates) keeps the
+# date pointed at the current quarter, advancing it automatically each quarter.
+
+
+def quarter_start(d: date) -> date:
+    """First day of the calendar quarter containing ``d``."""
+    return date(d.year, ((d.month - 1) // 3) * 3 + 1, 1)
+
+
+def quarter_end(d: date) -> date:
+    """Last day of the calendar quarter containing ``d``."""
+    start = quarter_start(d)
+    if start.month == 10:  # Q4 → 31 Dec
+        return date(start.year, 12, 31)
+    return date(start.year, start.month + 3, 1) - timedelta(days=1)
+
+
+async def roll_reading_due_dates(session: AsyncSession, *, today: date) -> int:
+    """Point every active meter's ``reading_due_date`` at the current quarter's
+    end. Idempotent: a no-op once already set, and it advances to the next
+    quarter automatically on the first run of a new quarter. Returns the number
+    of meters updated. Caller commits."""
+    target = quarter_end(today)
+    result = await session.execute(
+        update(Meter)
+        .where(
+            Meter.is_active.is_(True),
+            Meter.reading_due_date.is_distinct_from(target),
+        )
+        .values(reading_due_date=target)
+    )
+    return result.rowcount or 0  # type: ignore[attr-defined]

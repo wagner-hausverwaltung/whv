@@ -5,18 +5,19 @@ export, cross-org isolation, and the delete-guard for meters with history.
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.config import get_settings
 from app.integrations.llm.base import LLMCallStats, LLMResult
 from app.main import app
-from app.models import UserRole
+from app.models import Meter, MeterType, UserRole
 from app.services import meters as meters_svc
 from app.tests._factories import (
     make_contact_with_contract_link,
@@ -365,3 +366,59 @@ async def test_cross_org_meter_isolation(test_engine: AsyncEngine) -> None:
             json={"description": "hijack"},
         )
         assert r_patch.status_code == 404
+
+
+# --- quarterly reading cadence ------------------------------------------------
+
+
+def test_quarter_helpers() -> None:
+    assert meters_svc.quarter_start(date(2026, 2, 15)) == date(2026, 1, 1)
+    assert meters_svc.quarter_start(date(2026, 12, 31)) == date(2026, 10, 1)
+    assert meters_svc.quarter_end(date(2026, 1, 1)) == date(2026, 3, 31)
+    assert meters_svc.quarter_end(date(2026, 5, 1)) == date(2026, 6, 30)
+    assert meters_svc.quarter_end(date(2026, 8, 20)) == date(2026, 9, 30)
+    assert meters_svc.quarter_end(date(2026, 11, 5)) == date(2026, 12, 31)
+
+
+async def test_roll_reading_due_dates(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        active = Meter(
+            organization_id=org.id,
+            property_id=prop.id,
+            meter_number=f"ACT-{uuid.uuid4().hex[:6]}",
+            meter_type=MeterType.STROM,
+            unit_label="kWh",
+            is_active=True,
+        )
+        inactive = Meter(
+            organization_id=org.id,
+            property_id=prop.id,
+            meter_number=f"INA-{uuid.uuid4().hex[:6]}",
+            meter_type=MeterType.STROM,
+            unit_label="kWh",
+            is_active=False,
+        )
+        s.add_all([active, inactive])
+        await s.commit()
+        aid, iid = active.id, inactive.id
+
+    today = date(2026, 5, 10)
+    async with sm() as s:
+        updated = await meters_svc.roll_reading_due_dates(s, today=today)
+        await s.commit()
+    assert updated >= 1  # at least our active meter (shared DB may hold others)
+
+    async with sm() as s:
+        rolled = await s.get(Meter, aid)
+        untouched = await s.get(Meter, iid)
+        assert rolled is not None and untouched is not None
+        assert rolled.reading_due_date == date(2026, 6, 30)
+        assert untouched.reading_due_date is None  # inactive untouched
+
+    # Idempotent: a second run for the same quarter changes nothing.
+    async with sm() as s:
+        assert await meters_svc.roll_reading_due_dates(s, today=today) == 0
+        await s.commit()
