@@ -49,6 +49,7 @@ from app.models import (
 )
 from app.services import announcements as announcements_svc
 from app.services.access import active_contract_filter
+from app.services.meters import quarter_start
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -414,8 +415,9 @@ async def build_activity_feed(
 
     # --- METER_DUE (Zählerstand erfassen) --------------------------------
     # Scope: meters on visible properties only. Fires when reading_due_date
-    # is set, within the look-ahead (or overdue), AND no reading exists on/
-    # after it (capturing one implicitly clears the reminder).
+    # is set, within the look-ahead (or overdue), AND no reading exists for the
+    # current quarter yet (capturing one anytime in the quarter clears it —
+    # reading_due_date carries the quarter's end, set by the daily roll task).
     due_horizon = today + timedelta(days=METER_DUE_LOOKAHEAD_DAYS)
     meter_rows = (
         await session.scalars(
@@ -435,7 +437,7 @@ async def build_activity_feed(
             select(MeterReading.id)
             .where(
                 MeterReading.meter_id == m.id,
-                MeterReading.read_on >= due,
+                MeterReading.read_on >= quarter_start(due),
             )
             .limit(1)
         )

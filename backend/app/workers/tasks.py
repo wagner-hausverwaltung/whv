@@ -1065,3 +1065,29 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
             return inquiry.status.lower()
     finally:
         await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.roll_meter_reading_due_dates")
+def roll_meter_reading_due_dates() -> int:
+    """Quarterly Zählerstand cadence: keep every active meter's reading_due_date
+    pointed at the current quarter's end. Daily + idempotent, so it advances
+    automatically each quarter and the activity feed surfaces the reminder."""
+    return asyncio.run(_roll_meter_reading_due_dates_async())
+
+
+async def _roll_meter_reading_due_dates_async() -> int:
+    from datetime import date
+
+    from app.services.meters import roll_reading_due_dates
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            updated = await roll_reading_due_dates(session, today=date.today())
+            await session.commit()
+    finally:
+        await engine.dispose()
+    logger.info("meter due-date roll: updated=%d", updated)
+    return updated

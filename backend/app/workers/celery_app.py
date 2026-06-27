@@ -62,4 +62,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.publish_due_announcements",
         "schedule": crontab(minute="*"),
     },
+    # Meters are read once per quarter. Keep each active meter's reading_due_date
+    # pointed at the current quarter's end so the activity-feed "Zählerstand
+    # erfassen" reminder fires (and advances) each quarter. Daily + idempotent.
+    "roll-meter-due-dates-daily": {
+        "task": "app.workers.tasks.roll_meter_reading_due_dates",
+        "schedule": crontab(hour=4, minute=20),
+    },
 }
