@@ -83,10 +83,15 @@ struct MetersView: View {
                                     RoundedRectangle(cornerRadius: 10)
                                         .fill(Color.orange.opacity(0.15))
                                         .overlay(
+                                            // strokeBorder draws the line INSIDE the
+                                            // shape's bounds so the frame isn't clipped
+                                            // at the row edges (plain stroke centers on
+                                            // the edge → outer half gets cropped).
                                             RoundedRectangle(cornerRadius: 10)
-                                                .stroke(Color.red, lineWidth: 1.5)
+                                                .strokeBorder(Color.red, lineWidth: 1.5)
                                         )
                                         .padding(.vertical, 2)
+                                        .padding(.horizontal, 2)
                                 }
                             }
                         )

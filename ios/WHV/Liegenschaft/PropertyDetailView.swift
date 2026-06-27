@@ -372,7 +372,7 @@ struct PropertyDetailView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.red, lineWidth: isDue ? 1.5 : 0)
+                .strokeBorder(Color.red, lineWidth: isDue ? 1.5 : 0)
         )
     }
 
