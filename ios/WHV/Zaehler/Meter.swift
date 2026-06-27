@@ -19,6 +19,25 @@ private func flexibleDouble<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key:
     return nil
 }
 
+/// Parse a backend date-only string ("YYYY-MM-DD") into a Date at the
+/// start of that day. The API serializes meter `reading_due_date` and
+/// `latest_reading_on` as date-only values, which APIClient.jsonDecoder
+/// (full ISO-8601 only) can't decode — so they stay String on the wire
+/// and we parse them here for the highlight math.
+private let meterDayFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.timeZone = .current
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+}()
+
+private func parseMeterDay(_ iso: String?) -> Date? {
+    guard let iso else { return nil }
+    guard let parsed = meterDayFormatter.date(from: iso) else { return nil }
+    return Calendar.current.startOfDay(for: parsed)
+}
+
 enum MeterType: String, CaseIterable {
     case strom = "STROM"
     case gas = "GAS"
@@ -63,14 +82,48 @@ struct MeterSummary: Codable, Hashable, Identifiable {
     let unit_name: String?
     let latest_reading_value: Double?
     let latest_reading_on: String?
+    // Current quarter's reading deadline ("YYYY-MM-DD"). Kept String
+    // for the same reason as latest_reading_on — see parseMeterDay.
+    let reading_due_date: String?
     let reading_count: Int
 
     var type: MeterType { MeterType(rawValue: meter_type) ?? .sonstiges }
 
+    /// How close (in days) a `reading_due_date` may be before the meter
+    /// is flagged "due soon" — and the look-back window that a recent
+    /// reading must fall within to clear that flag.
+    static let dueSoonWindowDays = 45
+
+    /// The reading deadline parsed to a start-of-day Date, or nil.
+    var readingDueDate: Date? { parseMeterDay(reading_due_date) }
+
+    /// The latest actual reading date parsed to a start-of-day Date, or nil.
+    var latestReadingDate: Date? { parseMeterDay(latest_reading_on) }
+
+    /// True when this meter needs reading attention: there's a due date
+    /// within the next `dueSoonWindowDays` (or already overdue) AND no
+    /// actual reading was taken in the last `dueSoonWindowDays`. A recent
+    /// reading clears the flag; an old/absent reading with an approaching
+    /// deadline keeps it lit. Pure date math, no quarter logic.
+    var isReadingDueSoon: Bool {
+        guard let due = readingDueDate else { return false }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let dueThreshold = cal.date(byAdding: .day, value: Self.dueSoonWindowDays, to: today)
+        else { return false }
+        // Due within the window (or overdue)?
+        guard due <= dueThreshold else { return false }
+        // Cleared by a reading taken in the last window of days?
+        guard let recentCutoff = cal.date(byAdding: .day, value: -Self.dueSoonWindowDays, to: today)
+        else { return true }
+        if let last = latestReadingDate, last >= recentCutoff { return false }
+        return true
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, property_id, unit_id, meter_number, meter_type
         case description, location, unit_label, is_active, unit_name
-        case latest_reading_value, latest_reading_on, reading_count
+        case latest_reading_value, latest_reading_on, reading_due_date, reading_count
     }
 
     init(from decoder: Decoder) throws {
@@ -87,6 +140,7 @@ struct MeterSummary: Codable, Hashable, Identifiable {
         unit_name = try c.decodeIfPresent(String.self, forKey: .unit_name)
         latest_reading_value = flexibleDouble(c, .latest_reading_value)
         latest_reading_on = try c.decodeIfPresent(String.self, forKey: .latest_reading_on)
+        reading_due_date = try c.decodeIfPresent(String.self, forKey: .reading_due_date)
         reading_count = try c.decode(Int.self, forKey: .reading_count)
     }
 }
