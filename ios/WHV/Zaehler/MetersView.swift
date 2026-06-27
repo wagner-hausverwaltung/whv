@@ -5,6 +5,7 @@
 // melden" flow that photographs the meter (camera or library), OCRs the
 // value server-side to pre-fill it, and submits after the user confirms.
 
+import Charts
 import PhotosUI
 import SwiftUI
 
@@ -42,6 +43,50 @@ private func numberString(_ value: Double) -> String {
     f.locale = Locale(identifier: "de_DE")
     f.maximumFractionDigits = 3
     return f.string(from: NSNumber(value: value)) ?? String(value)
+}
+
+// MARK: - Verbrauch (consumption)
+
+/// One consumption interval: the difference between two consecutive
+/// cumulative meter readings, attributed to the interval's END date.
+private struct ConsumptionPoint: Identifiable {
+    let id: String  // the closing reading's id — stable & unique
+    let date: Date  // the interval's end date (later reading's read_on)
+    let value: Double  // reading[n].value − reading[n-1].value (always > 0)
+
+    /// Calendar year of the interval's end date — used to group/colour
+    /// bars year-over-year. String so it reads as a discrete category.
+    var year: String { String(Calendar.current.component(.year, from: date)) }
+}
+
+/// Build the consumption series from raw readings.
+///
+/// - Sort readings ascending by `read_on`.
+/// - For each consecutive pair, the consumption is the cumulative-value
+///   delta `value[n] − value[n-1]`, dated to the later reading.
+/// - Non-positive deltas are skipped: a decrease means a meter reset /
+///   Zählerwechsel / rollover, not real consumption.
+/// - With fewer than two readings there are no pairs, so the result is
+///   empty and the caller hides the chart.
+private func consumptionPoints(from readings: [MeterReadingItem]) -> [ConsumptionPoint] {
+    let sorted =
+        readings
+        .compactMap { r -> (date: Date, item: MeterReadingItem)? in
+            guard let d = isoDayFormatter.date(from: r.read_on) else { return nil }
+            return (d, r)
+        }
+        .sorted { $0.date < $1.date }
+
+    guard sorted.count >= 2 else { return [] }
+
+    var points: [ConsumptionPoint] = []
+    for i in 1..<sorted.count {
+        let delta = sorted[i].item.value - sorted[i - 1].item.value
+        guard delta > 0 else { continue }
+        points.append(
+            ConsumptionPoint(id: sorted[i].item.id, date: sorted[i].date, value: delta))
+    }
+    return points
 }
 
 // MARK: - List
@@ -164,6 +209,9 @@ struct MeterDetailView: View {
 
     private let api = APIClient()
 
+    /// Consumption deltas between consecutive cumulative readings.
+    private var consumption: [ConsumptionPoint] { consumptionPoints(from: readings) }
+
     var body: some View {
         List {
             Section {
@@ -171,6 +219,22 @@ struct MeterDetailView: View {
                     showReport = true
                 } label: {
                     Label("Stand melden", systemImage: "gauge.with.dots.needle.bottom.50percent")
+                }
+            }
+
+            Section("Verbrauch") {
+                if isLoading {
+                    ProgressView()
+                } else if consumption.isEmpty {
+                    Text("Noch keine Verbrauchsdaten")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ConsumptionChart(
+                        points: consumption,
+                        unit: meter.unit_label ?? ""
+                    )
+                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 12))
                 }
             }
 
@@ -216,6 +280,58 @@ struct MeterDetailView: View {
             readings = []
         }
         isLoading = false
+    }
+}
+
+// MARK: - Consumption chart
+
+/// Bar chart of per-interval consumption. Bars are grouped/coloured by
+/// calendar year so multiple years read as distinct year-over-year series;
+/// a single year stays clean (one colour, legend still labels the year).
+private struct ConsumptionChart: View {
+    let points: [ConsumptionPoint]
+    let unit: String
+
+    /// Distinct years present, ascending — drives the legend and whether
+    /// a legend is worth showing at all.
+    private var years: [String] {
+        Array(Set(points.map(\.year))).sorted()
+    }
+
+    /// "1.234 kWh" — German-formatted value with the meter's unit appended.
+    private func valueLabel(_ value: Double) -> String {
+        let n = numberString(value)
+        return unit.isEmpty ? n : "\(n) \(unit)"
+    }
+
+    var body: some View {
+        Chart(points) { point in
+            BarMark(
+                x: .value("Zeitraum", point.date, unit: .month),
+                y: .value("Verbrauch", point.value)
+            )
+            .foregroundStyle(by: .value("Jahr", point.year))
+        }
+        .chartForegroundStyleScale(domain: years)
+        .chartLegend(years.count > 1 ? .visible : .hidden)
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(valueLabel(v)).font(.caption2)
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .month, count: 3)) { _ in
+                AxisGridLine()
+                AxisTick()
+                AxisValueLabel(format: .dateTime.month(.abbreviated), centered: false)
+            }
+        }
+        .frame(height: 200)
     }
 }
 
