@@ -354,6 +354,11 @@ struct ReportReadingSheet: View {
     @State private var ocrHint: String?
     @State private var busy = false
     @State private var error: String?
+    /// Backend plausibility warning (HTTP 409). When set, the
+    /// "Ungewöhnlicher Wert" alert is shown with a "Trotzdem speichern"
+    /// action that resubmits the same entry with `force: true`. Cleared
+    /// on dismiss so the user can correct the value and try again.
+    @State private var plausibilityWarning: String?
 
     private let api = APIClient()
 
@@ -443,6 +448,27 @@ struct ReportReadingSheet: View {
                     }
                 }
             }
+            // Plausibility soft-block (HTTP 409): the backend flagged the
+            // value as unusual. Offer to save anyway (force) or go back and
+            // fix it. "Abbrechen" keeps the entry so the user can correct it.
+            .alert(
+                "Ungewöhnlicher Wert",
+                isPresented: Binding(
+                    get: { plausibilityWarning != nil },
+                    set: { if !$0 { plausibilityWarning = nil } }
+                ),
+                presenting: plausibilityWarning
+            ) { _ in
+                Button("Trotzdem speichern") {
+                    plausibilityWarning = nil
+                    Task { await submit(force: true) }
+                }
+                Button("Abbrechen", role: .cancel) {
+                    plausibilityWarning = nil
+                }
+            } message: { message in
+                Text(message)
+            }
         }
     }
 
@@ -467,7 +493,13 @@ struct ReportReadingSheet: View {
         }
     }
 
-    private func submit() async {
+    /// Submit the entered reading. `force` overrides the backend's
+    /// plausibility soft-block: the first attempt is `force: false`; an
+    /// `APIError.implausibleReading` (HTTP 409) raises the "Ungewöhnlicher
+    /// Wert" alert, whose "Trotzdem speichern" action re-calls this with
+    /// `force: true`. On the forced retry any further (non-409) error
+    /// surfaces normally. A 201 dismisses the sheet either way.
+    private func submit(force: Bool = false) async {
         let normalized = value.replacingOccurrences(of: ",", with: ".")
             .trimmingCharacters(in: .whitespaces)
         guard let numeric = Double(normalized), numeric >= 0 else {
@@ -483,10 +515,14 @@ struct ReportReadingSheet: View {
                 readOn: isoDayFormatter.string(from: readOn),
                 note: note.isEmpty ? nil : note,
                 source: ocrApplied ? "OCR" : "MANUAL",
-                imageData: imageData
+                imageData: imageData,
+                force: force
             )
             onSaved()
             dismiss()
+        } catch let APIError.implausibleReading(message, _, _, _) {
+            // Soft-block: keep the entry, ask the user to confirm or fix.
+            plausibilityWarning = message
         } catch {
             self.error = error.localizedDescription
         }

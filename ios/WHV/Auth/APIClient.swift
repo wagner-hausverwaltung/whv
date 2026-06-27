@@ -603,6 +603,13 @@ enum APIError: Error, LocalizedError {
     /// Surfaces as a friendly message in any composer that tries
     /// to write (POST comment / new ticket / etc.).
     case demoReadOnly
+    /// The meter-reading submit endpoint soft-blocked an implausible
+    /// value (HTTP 409). The backend's structured `detail` carries a
+    /// German `message`, a machine `code` (below_last / unusual_high /
+    /// unusual_low), and the last/new values. The reading flow catches
+    /// this distinctly to offer "Trotzdem speichern" (resubmit with
+    /// `force: true`) instead of treating it as a hard error.
+    case implausibleReading(message: String, code: String, lastValue: Double?, newValue: Double?)
 
     var errorDescription: String? {
         switch self {
@@ -621,6 +628,8 @@ enum APIError: Error, LocalizedError {
             return "E-Mail oder Passwort ungültig."
         case .demoReadOnly:
             return String(localized: "Im Demo-Modus nicht verfügbar.")
+        case .implausibleReading(let message, _, _, _):
+            return message
         }
     }
 }
@@ -1477,16 +1486,30 @@ struct APIClient {
     /// POST /me/meters/{id}/readings — submit a reading, optionally with a
     /// photo. `source` is "OCR" when the value came from a photo, "MANUAL"
     /// otherwise.
+    ///
+    /// `force` overrides the backend's plausibility soft-block: a normal
+    /// submit (`force: false`) that looks implausible (below the last
+    /// Zählerstand, or consumption wildly off) returns 409, which
+    /// `throwIfNotOK` surfaces as `APIError.implausibleReading`. Re-calling
+    /// with `force: true` creates the reading despite the warning. The flag
+    /// rides along as a plain multipart text field, so it applies whether or
+    /// not a photo is attached.
     func submitMeterReading(
         meterId: String,
         value: String,
         readOn: String,
         note: String?,
         source: String,
-        imageData: Data?
+        imageData: Data?,
+        force: Bool = false
     ) async throws -> MeterReadingItem {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
-        var fields = ["value": value, "read_on": readOn, "source": source]
+        var fields = [
+            "value": value,
+            "read_on": readOn,
+            "source": source,
+            "force": force ? "true" : "false",
+        ]
         if let note, !note.isEmpty { fields["note"] = note }
         return try await authedMultipart(
             "/me/meters/\(meterId)/readings",
@@ -1759,10 +1782,31 @@ struct APIClient {
         // Backend uses FastAPI's `{detail: "..."}` for 4xx. Pull
         // the human-readable message out so the UI can surface it
         // verbatim — easier debugging than a numeric status code.
-        var detail: String? = nil
-        if let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            detail = parsed["detail"] as? String
+        let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        // The meter-reading submit endpoint soft-blocks an implausible
+        // value with a 409 whose `detail` is a STRUCTURED object
+        // ({code, message, last_value, new_value}) rather than a plain
+        // string. Surface it as a typed error so the reading flow can
+        // offer "Trotzdem speichern" (force) instead of a dead-end alert.
+        if http.statusCode == 409,
+            let structured = parsed?["detail"] as? [String: Any],
+            let code = structured["code"] as? String,
+            let message = structured["message"] as? String
+        {
+            // last_value / new_value arrive as JSON numbers — a whole
+            // number bridges to NSNumber (not Double), so go via NSNumber
+            // to accept both 42 and 42.5 (and null → nil).
+            func numeric(_ key: String) -> Double? {
+                (structured[key] as? NSNumber)?.doubleValue
+            }
+            throw APIError.implausibleReading(
+                message: message,
+                code: code,
+                lastValue: numeric("last_value"),
+                newValue: numeric("new_value")
+            )
         }
+        let detail = parsed?["detail"] as? String
         throw APIError.http(status: http.statusCode, detail: detail)
     }
 
