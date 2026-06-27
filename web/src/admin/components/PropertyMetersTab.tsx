@@ -36,12 +36,14 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { api } from "@/api/client";
 import {
   METER_TYPE_LABELS,
   type MeterBulkCreateResponse,
   type MeterCreateRequest,
   type MeterReadingResponse,
+  type MeterReplaceRequest,
   type MeterResponse,
   type MeterType,
 } from "@/api/types";
@@ -281,6 +283,124 @@ function MeterFormDialog({
   );
 }
 
+// --- Zählerwechsel (meter replacement) dialog ---------------------------------
+
+// Mounted fresh per open (parent gates with `{replacing && …}` + a key), so the
+// initial form state comes straight from the meter being replaced.
+function MeterReplaceDialog({
+  meter,
+  onClose,
+  onSaved,
+}: {
+  meter: MeterResponse;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [changeDate, setChangeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newNumber, setNewNumber] = useState("");
+  const [oldFinal, setOldFinal] = useState("");
+  const [newInitial, setNewInitial] = useState("0");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!changeDate) {
+      setError("Wechseldatum ist erforderlich.");
+      return;
+    }
+    if (!newNumber.trim()) {
+      setError("Neue Zählernummer ist erforderlich.");
+      return;
+    }
+    if (oldFinal.trim() === "" || newInitial.trim() === "") {
+      setError("Schlussstand und Anfangsstand sind erforderlich.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const body: MeterReplaceRequest = {
+      change_date: changeDate,
+      new_meter_number: newNumber.trim(),
+      old_final_reading: oldFinal.trim(),
+      new_initial_reading: newInitial.trim(),
+    };
+    try {
+      await api.post(`/admin/meters/${meter.id}/replace`, body);
+      onSaved();
+      onClose();
+    } catch (e) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Zählerwechsel fehlgeschlagen.";
+      setError(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Zähler wechseln</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography variant="body2" color="text.secondary">
+            Alter Zähler <strong>{meter.meter_number}</strong> wird mit dem
+            Schlussstand stillgelegt; ein neuer aktiver Zähler wird mit dem
+            Anfangsstand angelegt. Die Historie des alten Zählers bleibt erhalten.
+          </Typography>
+          <TextField
+            label="Wechseldatum"
+            type="date"
+            value={changeDate}
+            onChange={(e) => setChangeDate(e.target.value)}
+            required
+            fullWidth
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Neue Zählernummer"
+            value={newNumber}
+            onChange={(e) => setNewNumber(e.target.value)}
+            required
+            fullWidth
+            size="small"
+          />
+          <Stack direction="row" spacing={2}>
+            <TextField
+              label={`Schlussstand (alt)${meter.unit_label ? ` in ${meter.unit_label}` : ""}`}
+              type="number"
+              value={oldFinal}
+              onChange={(e) => setOldFinal(e.target.value)}
+              required
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label={`Anfangsstand (neu)${meter.unit_label ? ` in ${meter.unit_label}` : ""}`}
+              type="number"
+              value={newInitial}
+              onChange={(e) => setNewInitial(e.target.value)}
+              required
+              fullWidth
+              size="small"
+            />
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={busy}>
+          Abbrechen
+        </Button>
+        <Button variant="contained" onClick={save} disabled={busy}>
+          {busy ? "Wechselt…" : "Zähler wechseln"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // --- bulk-import dialog --------------------------------------------------------
 
 // Mounted fresh per open (parent gates with `{bulkOpen && …}`), so initial
@@ -497,6 +617,7 @@ export function PropertyMetersTab({ propertyId }: { propertyId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MeterResponse | null>(null);
+  const [replacing, setReplacing] = useState<MeterResponse | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -631,6 +752,13 @@ export function PropertyMetersTab({ propertyId }: { propertyId: string }) {
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
+                    {m.is_active && (
+                      <Tooltip title="Zähler wechseln">
+                        <IconButton size="small" onClick={() => setReplacing(m)}>
+                          <SwapHorizIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     <Tooltip title="Bearbeiten">
                       <IconButton
                         size="small"
@@ -681,6 +809,14 @@ export function PropertyMetersTab({ propertyId }: { propertyId: string }) {
         <BulkImportDialog
           propertyId={propertyId}
           onClose={() => setBulkOpen(false)}
+          onSaved={() => void load()}
+        />
+      )}
+      {replacing && (
+        <MeterReplaceDialog
+          key={replacing.id}
+          meter={replacing}
+          onClose={() => setReplacing(null)}
           onSaved={() => void load()}
         />
       )}

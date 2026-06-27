@@ -368,6 +368,173 @@ async def test_cross_org_meter_isolation(test_engine: AsyncEngine) -> None:
         assert r_patch.status_code == 404
 
 
+# --- Zählerwechsel (meter replacement) ----------------------------------------
+
+
+async def test_replace_meter_swaps_and_links(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        old = _create_meter(
+            client,
+            ctx["v_token"],  # type: ignore[arg-type]
+            prop_id,
+            meter_number="OLD-METER-1",
+            unit_label="kWh",
+        )
+        # give the old meter some prior history so we can prove it's kept
+        client.post(
+            f"/me/meters/{old['id']}/readings",
+            headers=_auth(ctx["m_token"]),  # type: ignore[arg-type]
+            data={"value": "1000", "read_on": "2026-01-01"},
+        )
+
+        r = client.post(
+            f"/admin/meters/{old['id']}/replace",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={
+                "change_date": "2026-06-15",
+                "new_meter_number": "NEW-METER-1",
+                "old_final_reading": "1850.5",
+                "new_initial_reading": "0",
+            },
+        )
+        assert r.status_code == 201, r.text
+        new_meter = r.json()
+        # response is the NEW meter: active, new number, new fields present
+        assert new_meter["meter_number"] == "NEW-METER-1"
+        assert new_meter["is_active"] is True
+        assert new_meter["replaced_at"] is None
+        assert new_meter["successor_meter_id"] is None
+        assert new_meter["id"] != old["id"]
+        # descriptive fields copied from the old meter
+        assert new_meter["meter_type"] == old["meter_type"]
+        assert new_meter["unit_label"] == old["unit_label"]
+        # the Anfangsstand surfaces as the new meter's latest reading
+        assert Decimal(str(new_meter["latest_reading_value"])) == Decimal("0")
+        assert new_meter["reading_count"] == 1
+
+        # old meter is now inactive, replaced_at set, linked to the successor
+        r_admin = client.get(
+            f"/admin/properties/{prop_id}/meters",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+        )
+        admin_rows = {m["id"]: m for m in r_admin.json()}
+        old_row = admin_rows[old["id"]]
+        assert old_row["is_active"] is False
+        assert old_row["replaced_at"] == "2026-06-15"
+        assert old_row["successor_meter_id"] == new_meter["id"]
+
+        # old meter kept its prior reading + got the Schlussstand → 2 readings
+        r_old_hist = client.get(
+            f"/admin/meters/{old['id']}/readings",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+        )
+        old_hist = r_old_hist.json()
+        assert len(old_hist) == 2
+        schluss = next(x for x in old_hist if x["read_on"] == "2026-06-15")
+        assert Decimal(str(schluss["value"])) == Decimal("1850.5")
+
+        # new meter has exactly the Anfangsstand reading on the change date
+        r_new_hist = client.get(
+            f"/admin/meters/{new_meter['id']}/readings",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+        )
+        new_hist = r_new_hist.json()
+        assert len(new_hist) == 1
+        assert new_hist[0]["read_on"] == "2026-06-15"
+        assert Decimal(str(new_hist[0]["value"])) == Decimal("0")
+
+
+async def test_member_sees_only_active_after_replace(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        old = _create_meter(client, ctx["v_token"], prop_id, meter_number="MEM-OLD-1")  # type: ignore[arg-type]
+        r = client.post(
+            f"/admin/meters/{old['id']}/replace",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={
+                "change_date": "2026-06-15",
+                "new_meter_number": "MEM-NEW-1",
+                "old_final_reading": "500",
+                "new_initial_reading": "0",
+            },
+        )
+        assert r.status_code == 201, r.text
+        new_id = r.json()["id"]
+
+        r_list = client.get(
+            f"/me/properties/{prop_id}/meters",
+            headers=_auth(ctx["m_token"]),  # type: ignore[arg-type]
+        )
+        assert r_list.status_code == 200
+        member_ids = {m["id"] for m in r_list.json()}
+        assert old["id"] not in member_ids  # inactive old hidden
+        assert new_id in member_ids  # new active shown
+
+
+async def test_replace_already_inactive_meter_400(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        # deactivate first
+        client.patch(
+            f"/admin/meters/{meter['id']}",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={"is_active": False},
+        )
+        r = client.post(
+            f"/admin/meters/{meter['id']}/replace",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={
+                "change_date": "2026-06-15",
+                "new_meter_number": "X-NEW",
+                "old_final_reading": "1",
+                "new_initial_reading": "0",
+            },
+        )
+        assert r.status_code == 400, r.text
+
+
+async def test_member_cannot_replace_meter(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        r = client.post(
+            f"/admin/meters/{meter['id']}/replace",
+            headers=_auth(ctx["m_token"]),  # type: ignore[arg-type]
+            json={
+                "change_date": "2026-06-15",
+                "new_meter_number": "X-NEW",
+                "old_final_reading": "1",
+                "new_initial_reading": "0",
+            },
+        )
+        assert r.status_code == 403
+
+
+async def test_replace_cross_org_404(test_engine: AsyncEngine) -> None:
+    ctx_a = await _setup(test_engine)
+    ctx_b = await _setup(test_engine)
+    prop_a = ctx_a["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter_a = _create_meter(client, ctx_a["v_token"], prop_a)  # type: ignore[arg-type]
+        r = client.post(
+            f"/admin/meters/{meter_a['id']}/replace",
+            headers=_auth(ctx_b["v_token"]),  # type: ignore[arg-type]
+            json={
+                "change_date": "2026-06-15",
+                "new_meter_number": "X-NEW",
+                "old_final_reading": "1",
+                "new_initial_reading": "0",
+            },
+        )
+        assert r.status_code == 404
+
+
 # --- quarterly reading cadence ------------------------------------------------
 
 
