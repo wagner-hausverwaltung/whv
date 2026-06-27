@@ -12,7 +12,9 @@
 		5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */; };
 		701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */; };
 		7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
-		9ED26CC9D0D015BE24E43BAC /* UpcomingEtvWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */; };
+		AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
+		AA10000000000000000A0003 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
+		AA10000000000000000A0005 /* ActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0004 /* ActivityWidget.swift */; };
 		AB272D1906F68DF105F342C8 /* RunningLateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB39A43568E05D893E91175 /* RunningLateIntent.swift */; };
 		C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */; };
 		EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -50,8 +52,9 @@
 		C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json.xcstrings; name = Localizable.xcstrings; path = WHV/Localizable.xcstrings; sourceTree = "<group>"; };
 		CDB39A43568E05D893E91175 /* RunningLateIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunningLateIntent.swift; sourceTree = "<group>"; };
 		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
+		AA10000000000000000A0001 /* ActivitySnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivitySnapshot.swift; sourceTree = "<group>"; };
+		AA10000000000000000A0004 /* ActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityWidget.swift; sourceTree = "<group>"; };
 		E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVLiveActivity.swift; sourceTree = "<group>"; };
-		E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpcomingEtvWidget.swift; sourceTree = "<group>"; };
 		FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -128,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */,
+				AA10000000000000000A0001 /* ActivitySnapshot.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -135,7 +139,7 @@
 		C19384519A4F8842436FA03A /* WHVWidgets */ = {
 			isa = PBXGroup;
 			children = (
-				E62432967222365B0DE5D407 /* UpcomingEtvWidget.swift */,
+				AA10000000000000000A0004 /* ActivityWidget.swift */,
 				D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */,
 				1EA64FA4821C489C506029BB /* Info.plist */,
 				C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */,
@@ -254,6 +258,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */,
+				AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,7 +266,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9ED26CC9D0D015BE24E43BAC /* UpcomingEtvWidget.swift in Sources */,
+				AA10000000000000000A0005 /* ActivityWidget.swift in Sources */,
+				AA10000000000000000A0003 /* ActivitySnapshot.swift in Sources */,
 				C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */,
 				051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */,
 				701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */,
@@ -287,7 +293,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -435,7 +441,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -463,7 +469,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -490,7 +496,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;

@@ -42,16 +42,11 @@ final class AssemblyListStore: ObservableObject {
             let rows = try await api.listMyAssemblies(propertyId: propertyId)
             self.assemblies = rows
             self.loadedPropertyId = propertyId
-            // Surface the next upcoming ETV + other relevant items
-            // (tickets, comments, announcements) on the Lock/Home
-            // Screen widget. Best-effort: a failing fetch leaves
-            // its slot nil; the snapshot still ships.
+            // Republish the unified "what's new" activity feed onto the
+            // Home/Lock Screen widget via GET /me/activity. Best-effort:
+            // a failing fetch leaves the previous snapshot in place.
             let apiRef = self.api
-            await WidgetSync.refresh(
-                api: apiRef,
-                propertyId: propertyId,
-                assemblies: rows
-            )
+            await ActivitySync.refresh(api: apiRef)
             // Live Activity is a separate surface — fires only when
             // an ETV is within 5h, so most refreshes are no-ops.
             await LiveActivityManager.reconcile(with: rows) { id in

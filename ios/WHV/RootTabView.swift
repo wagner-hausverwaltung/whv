@@ -106,10 +106,30 @@ struct RootTabView: View {
                 }
             case .assembly(let id):
                 deepLinkRouter.etvPath = [id]; featureSheet = .etv
+            case .resolution(let id):
+                // VersammlungenTab's NavigationStack maps a "res:"-prefixed
+                // token to the Beschluss detail view.
+                deepLinkRouter.etvPath = ["res:\(id)"]; featureSheet = .etv
             case .ticket(let id):
                 deepLinkRouter.ticketsPath = [id]; featureSheet = .tickets
             case .announcement(let id):
                 deepLinkRouter.mitteilungenPath = [id]; featureSheet = .mitteilungen
+            case .propertyTab(let tab, let propertyId):
+                // No feature sheet — land on the Start tab and let
+                // PropertyDetailView open the matching property sheet.
+                // The activity feed is cross-property, so first switch
+                // the active Liegenschaft to the item's own property
+                // (by id, when it's in the user's list); if it's nil or
+                // unknown, keep the currently-active property. Then ask
+                // PropertyDetailView to open the requested tab.
+                if let pid = propertyId,
+                   pid != store.selected?.id,
+                   let match = store.available.first(where: { $0.id == pid })
+                {
+                    store.select(match)
+                }
+                selection = 0
+                deepLinkRouter.pendingPropertyTab = tab
             }
         }
     }
