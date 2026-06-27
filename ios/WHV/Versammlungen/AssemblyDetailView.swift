@@ -273,6 +273,25 @@ struct AssemblyDetailView: View {
         return URL(string: raw)
     }
 
+    /// Google Maps universal search URL for the meeting venue (mirrors
+    /// the Liegenschaft header card). Opens the Google Maps app when
+    /// installed, otherwise the browser / Apple Maps. nil when the
+    /// location is empty / the "—" placeholder, so the row then renders
+    /// as plain, non-tappable text.
+    private var locationMapsURL: URL? {
+        let location = displayLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !location.isEmpty, location != "—" else { return nil }
+        guard let encoded = location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "https://www.google.com/maps/search/?api=1&query=\(encoded)")
+    }
+
+    private func openLocationInMaps() {
+        guard let url = locationMapsURL else { return }
+        UIApplication.shared.open(url)
+    }
+
     /// True when the signed-in user is the Verwalter — gates the
     /// per-agenda-item "Aufgabe erstellen" action (mirrors the admin
     /// SPA, which is Verwalter-only by route).
@@ -334,11 +353,35 @@ struct AssemblyDetailView: View {
                         Image(systemName: "calendar")
                     }
                 }
-                Label {
-                    Text(displayLocation)
-                        .font(.subheadline)
-                } icon: {
-                    Image(systemName: "mappin.and.ellipse")
+                // Tap the venue to open Google Maps — same affordance as
+                // the Liegenschaft header card. Falls back to plain text
+                // when there's no usable address to search.
+                if locationMapsURL != nil {
+                    Button {
+                        openLocationInMaps()
+                    } label: {
+                        Label {
+                            HStack(spacing: 4) {
+                                Text(displayLocation)
+                                    .font(.subheadline)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption2)
+                                    .opacity(0.7)
+                            }
+                        } icon: {
+                            Image(systemName: "mappin.and.ellipse")
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Öffnet die Adresse in Google Maps")
+                } else {
+                    Label {
+                        Text(displayLocation)
+                            .font(.subheadline)
+                    } icon: {
+                        Image(systemName: "mappin.and.ellipse")
+                    }
                 }
             }
             .foregroundStyle(.secondary)

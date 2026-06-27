@@ -81,7 +81,12 @@ struct UnitContractSummary: Codable, Hashable, Identifiable {
     let start_date: String?     // ISO-8601 date, no time
     let end_date: String?
 
-    var id: String { contract_id }
+    // Identity must be unique per (contract × contact): a single
+    // owner/tenant contract can carry several joint contacts (e.g.
+    // a couple co-owning one unit), so keying on contract_id alone
+    // gave two rows the same id — SwiftUI's ForEach then rendered
+    // the first contact's chip twice instead of both names.
+    var id: String { "\(contract_id)#\(contact_id ?? "—")#\(role ?? "")" }
 
     /// "Eigentümer" / "Mieter" / "Verwalter (objekt-eigen)"
     /// for the chip label. Falls back to raw `type` if the

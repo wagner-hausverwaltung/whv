@@ -1023,36 +1023,14 @@ private struct VendorRow: View {
                 .frame(width: 32, height: 32)
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(vendor.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                HStack(spacing: 6) {
-                    if let last = vendor.last_service_date,
-                       let formatted = formatDate(last)
-                    {
-                        Text("Zuletzt \(formatted)")
-                            .font(.caption2)
-                            .foregroundStyle(Color.secondary)
-                    }
-                    // Split singular/plural into clean localizable keys (the old
-                    // inline "Rechnung\(…)" suffix couldn't translate to English).
-                    Text(vendor.invoice_count == 1
-                        ? "· \(vendor.invoice_count) Rechnung"
-                        : "· \(vendor.invoice_count) Rechnungen")
-                        .font(.caption2)
-                        .foregroundStyle(Color.secondary)
-                    if let total = vendor.total_amount {
-                        // Backend now reports the CURRENT calendar year's
-                        // total only — label it with the year so it's not
-                        // mistaken for the all-time figure.
-                        Text("· \(formatAmount(total)) € (\(Calendar.current.component(.year, from: Date())))")
-                            .font(.caption2)
-                            .foregroundStyle(Color.secondary)
-                    }
-                }
-            }
-            Spacer(minLength: 0)
+            // Collapsed row shows only the name — the per-year invoice
+            // list (with dates + amounts) is the "detail" revealed on
+            // expand, so the summary subtitle (Zuletzt / N Rechnungen /
+            // Jahressumme) was redundant noise here.
+            Text(vendor.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
