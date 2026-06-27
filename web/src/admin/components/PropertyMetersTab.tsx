@@ -43,6 +43,7 @@ import {
   type MeterBulkCreateResponse,
   type MeterCreateRequest,
   type MeterReadingResponse,
+  type MeterReadingUpdate,
   type MeterReplaceRequest,
   type MeterResponse,
   type MeterType,
@@ -521,11 +522,119 @@ function BulkImportDialog({
   );
 }
 
+// --- reading correction (Stand bearbeiten) dialog -----------------------------
+
+// Mounted fresh per open (gated with `{editingReading && …}` + a key), so the
+// initial form state comes straight from the reading being corrected.
+function ReadingEditDialog({
+  meterId,
+  reading,
+  onClose,
+  onSaved,
+}: {
+  meterId: string;
+  reading: MeterReadingResponse;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(() => String(reading.value));
+  const [readOn, setReadOn] = useState(reading.read_on);
+  const [note, setNote] = useState(reading.note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (value.trim() === "") {
+      setError("Wert ist erforderlich.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const body: MeterReadingUpdate = {
+      value: value.trim(),
+      read_on: readOn || null,
+      note: note.trim() || null,
+    };
+    try {
+      await api.patch(`/admin/meters/${meterId}/readings/${reading.id}`, body);
+      onSaved();
+      onClose();
+    } catch (e) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Speichern fehlgeschlagen.";
+      setError(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>Stand bearbeiten</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography variant="body2" color="text.secondary">
+            Korrektur einer erfassten Ablesung (z. B. vergessenes Komma). Die
+            Plausibilitätsprüfung wird hier nicht angewendet.
+          </Typography>
+          <TextField
+            label="Wert"
+            type="number"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            required
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Datum"
+            type="date"
+            value={readOn}
+            onChange={(e) => setReadOn(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Notiz"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            fullWidth
+            multiline
+            minRows={2}
+            size="small"
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={busy}>
+          Abbrechen
+        </Button>
+        <Button variant="contained" onClick={save} disabled={busy}>
+          {busy ? "Speichert…" : "Speichern"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // --- readings panel (per-meter expand) ----------------------------------------
 
 function ReadingsPanel({ meterId }: { meterId: string }) {
   const [rows, setRows] = useState<MeterReadingResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingReading, setEditingReading] = useState<MeterReadingResponse | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.get<MeterReadingResponse[]>(`/admin/meters/${meterId}/readings`);
+      setRows(r.data);
+    } catch {
+      setError("Ablesungen konnten nicht geladen werden.");
+    }
+  }, [meterId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -557,56 +666,79 @@ function ReadingsPanel({ meterId }: { meterId: string }) {
     );
 
   return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>Datum</TableCell>
-          <TableCell align="right">Wert</TableCell>
-          <TableCell>Quelle</TableCell>
-          <TableCell>Erfasst von</TableCell>
-          <TableCell>Notiz</TableCell>
-          <TableCell align="right">Foto</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {rows.map((r) => (
-          <TableRow key={r.id}>
-            <TableCell>{fmtDate(r.read_on)}</TableCell>
-            <TableCell align="right">{fmtNum(r.value)}</TableCell>
-            <TableCell>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={r.source === "OCR" ? "Foto/OCR" : "Manuell"}
-              />
-            </TableCell>
-            <TableCell>
-              <Typography variant="caption" color="text.secondary">
-                {r.reported_by_email ?? "—"}
-              </Typography>
-            </TableCell>
-            <TableCell>
-              <Typography variant="caption" color="text.secondary">
-                {r.note ?? "—"}
-              </Typography>
-            </TableCell>
-            <TableCell align="right">
-              {r.has_photo ? (
-                <IconButton
-                  size="small"
-                  onClick={() => void openReadingPhoto(meterId, r.id)}
-                  aria-label="Foto öffnen"
-                >
-                  <PhotoCameraIcon fontSize="small" />
-                </IconButton>
-              ) : (
-                "—"
-              )}
-            </TableCell>
+    <>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Datum</TableCell>
+            <TableCell align="right">Wert</TableCell>
+            <TableCell>Quelle</TableCell>
+            <TableCell>Erfasst von</TableCell>
+            <TableCell>Notiz</TableCell>
+            <TableCell align="right">Foto</TableCell>
+            <TableCell align="right">Aktion</TableCell>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHead>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell>{fmtDate(r.read_on)}</TableCell>
+              <TableCell align="right">{fmtNum(r.value)}</TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={r.source === "OCR" ? "Foto/OCR" : "Manuell"}
+                />
+              </TableCell>
+              <TableCell>
+                <Typography variant="caption" color="text.secondary">
+                  {r.reported_by_email ?? "—"}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="caption" color="text.secondary">
+                  {r.note ?? "—"}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                {r.has_photo ? (
+                  <IconButton
+                    size="small"
+                    onClick={() => void openReadingPhoto(meterId, r.id)}
+                    aria-label="Foto öffnen"
+                  >
+                    <PhotoCameraIcon fontSize="small" />
+                  </IconButton>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+              <TableCell align="right">
+                <Tooltip title="Stand bearbeiten">
+                  <IconButton
+                    size="small"
+                    onClick={() => setEditingReading(r)}
+                    aria-label="Stand bearbeiten"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {editingReading && (
+        <ReadingEditDialog
+          key={editingReading.id}
+          meterId={meterId}
+          reading={editingReading}
+          onClose={() => setEditingReading(null)}
+          onSaved={() => void load()}
+        />
+      )}
+    </>
   );
 }
 
