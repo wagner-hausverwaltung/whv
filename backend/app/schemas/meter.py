@@ -134,6 +134,38 @@ class MeterReadingResponse(BaseModel):
         return float(v)
 
 
+class MeterReadingUpdate(BaseModel):
+    """Admin correction of a recorded reading — PATCH semantics: only fields
+    present in the body are applied (`model_dump(exclude_unset=True)`), so an
+    omitted field is left as-is. Used to fix a misread (e.g. a missed decimal:
+    295900 → 2959,00). Admin edits do not run the plausibility check."""
+
+    value: Decimal | None = Field(None, ge=0)
+    read_on: date | None = None
+    note: str | None = Field(None, max_length=2000)
+
+
+class ReadingWarning(BaseModel):
+    """A plausibility concern raised when a new reading is submitted. Surfaced
+    to the client as the `detail` of a 409 (soft block) so the user can confirm
+    and resubmit with `force=true`. `last_value`/`new_value` are JSON numbers
+    so the iOS client (Double) decodes them directly."""
+
+    # "below_last" | "unusual_high" | "unusual_low"
+    code: str
+    message: str
+    last_value: Decimal | None = None
+    new_value: Decimal
+
+    @field_serializer("last_value")
+    def _ser_last_value(self, v: Decimal | None) -> float | None:
+        return _decimal_to_float(v)
+
+    @field_serializer("new_value")
+    def _ser_new_value(self, v: Decimal) -> float:
+        return float(v)
+
+
 class MeterReadingOCR(BaseModel):
     """Structured output requested from the LLM for a meter-face photo.
 

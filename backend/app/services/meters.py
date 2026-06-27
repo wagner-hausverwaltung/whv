@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import csv
 import io
+import itertools
 import logging
 import re
+import statistics
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
@@ -42,8 +44,10 @@ from app.schemas.meter import (
     MeterReadingOCR,
     MeterReadingOCRResult,
     MeterReadingResponse,
+    MeterReadingUpdate,
     MeterResponse,
     MeterUpdate,
+    ReadingWarning,
 )
 from app.services import llm_audit
 
@@ -52,6 +56,19 @@ logger = logging.getLogger(__name__)
 
 class MeterServiceError(ValueError):
     """Validation error mapped to HTTP 400 by the endpoints."""
+
+
+# --- reading plausibility -----------------------------------------------------
+# A new reading should never go below the meter's last value (it only counts up),
+# and consumption between readings shouldn't suddenly jump or collapse vs. the
+# meter's own recent history. We soft-block (HTTP 409) so the user can confirm
+# and resubmit with force=true — the typical trigger is a missed decimal comma.
+READING_SPIKE_FACTOR = 4  # new delta > 4x median prior delta -> "unusual_high"
+READING_DIP_FACTOR = 4  # new delta < median / 4 -> "unusual_low"
+READING_MIN_PRIOR_DELTAS = 2  # need at least this many prior deltas to judge
+# Below this absolute jump we treat a "high" delta as noise on a tiny meter and
+# don't warn (e.g. a water meter ticking from 3 to 20 m³ isn't a missed comma).
+READING_MIN_ABSOLUTE_JUMP = Decimal("50")
 
 
 _DEFAULT_UNIT_LABEL: dict[MeterType, str | None] = {
@@ -594,6 +611,148 @@ async def get_reading(
             MeterReading.meter_id == meter_id,
         )
     )
+    return reading
+
+
+def assess_reading_plausibility(
+    prior_readings: list[MeterReading],
+    *,
+    new_value: Decimal,
+    new_read_on: date,
+) -> ReadingWarning | None:
+    """Judge whether a new reading looks plausible against the meter's history.
+
+    Pure function (no DB) so it's easy to unit-test. Returns the first triggered
+    warning or None:
+
+    * ``below_last`` — the reading is lower than the last value at/before its
+      date (meters only count up). Highest priority.
+    * ``unusual_high`` — the consumption since the last reading is more than
+      READING_SPIKE_FACTOR times the median of prior consecutive positive
+      deltas (and the absolute jump is meaningfully large) — a missed comma.
+    * ``unusual_low`` — the consumption is less than 1/READING_DIP_FACTOR of
+      that median.
+
+    Needs at least READING_MIN_PRIOR_DELTAS prior positive deltas to judge a
+    spike/dip; with too little history only ``below_last`` can fire.
+    """
+    if not prior_readings:
+        return None
+
+    # Chronological order so deltas are consumption between consecutive reads.
+    history = sorted(prior_readings, key=lambda r: (r.read_on, r.created_at))
+
+    # `last` = the most recent prior reading at/before the new date, else the
+    # latest prior reading overall.
+    at_or_before = [r for r in history if r.read_on <= new_read_on]
+    last = at_or_before[-1] if at_or_before else history[-1]
+
+    if new_value < last.value:
+        return ReadingWarning(
+            code="below_last",
+            message=(
+                f"Der neue Wert ({new_value}) ist niedriger als der letzte "
+                f"erfasste Stand ({last.value}). Zähler zählen normalerweise nur "
+                "aufwärts — bitte prüfen."
+            ),
+            last_value=last.value,
+            new_value=new_value,
+        )
+
+    # Prior consecutive POSITIVE deltas from the history.
+    deltas: list[Decimal] = []
+    for prev, cur in itertools.pairwise(history):
+        diff = cur.value - prev.value
+        if diff > 0:
+            deltas.append(diff)
+    if len(deltas) < READING_MIN_PRIOR_DELTAS:
+        return None
+
+    med = statistics.median(deltas)
+    new_delta = new_value - last.value
+
+    if (
+        med > 0
+        and new_delta > READING_SPIKE_FACTOR * med
+        and new_delta >= READING_MIN_ABSOLUTE_JUMP
+    ):
+        return ReadingWarning(
+            code="unusual_high",
+            message=(
+                f"Der Verbrauch seit dem letzten Stand ({new_delta}) ist "
+                "ungewöhnlich hoch. Wurde vielleicht das Komma vergessen? "
+                "Bitte prüfen."
+            ),
+            last_value=last.value,
+            new_value=new_value,
+        )
+
+    if med > 0 and new_delta < med / READING_DIP_FACTOR:
+        return ReadingWarning(
+            code="unusual_low",
+            message=(
+                f"Der Verbrauch seit dem letzten Stand ({new_delta}) ist "
+                "ungewöhnlich niedrig. Bitte prüfen."
+            ),
+            last_value=last.value,
+            new_value=new_value,
+        )
+
+    return None
+
+
+async def prior_readings_for_meter(
+    session: AsyncSession, *, meter_id: uuid.UUID
+) -> list[MeterReading]:
+    """All existing readings for a meter (chronological enrichment is done by the
+    plausibility helper). Used to assess a new reading before it's created."""
+    rows = await session.scalars(
+        select(MeterReading)
+        .where(MeterReading.meter_id == meter_id)
+        .order_by(MeterReading.read_on, MeterReading.created_at)
+    )
+    return list(rows.all())
+
+
+async def update_reading(
+    session: AsyncSession,
+    *,
+    reading: MeterReading,
+    actor_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    data: MeterReadingUpdate,
+) -> MeterReading:
+    """Admin correction of a recorded reading — apply only the provided fields
+    and write an audit row capturing the old→new value. The plausibility block
+    is deliberately NOT run here: the admin edit IS the correction. Caller has
+    already resolved the reading within the user's org scope."""
+    changes = data.model_dump(exclude_unset=True)
+    old_value = reading.value
+    if "value" in changes and changes["value"] is not None:
+        reading.value = changes["value"]
+    if "read_on" in changes and changes["read_on"] is not None:
+        reading.read_on = changes["read_on"]
+    if "note" in changes:
+        note = changes["note"]
+        reading.note = note.strip() if isinstance(note, str) and note.strip() else None
+
+    session.add(
+        AuditLog(
+            organization_id=organization_id,
+            actor_user_id=actor_id,
+            action="meter_reading_edited",
+            target_type="meter_readings",
+            target_id=str(reading.id),
+            payload_json={
+                "meter_id": str(reading.meter_id),
+                "fields": sorted(changes.keys()),
+                "old_value": str(old_value),
+                "new_value": str(reading.value),
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(reading)
     return reading
 
 

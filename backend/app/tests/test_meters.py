@@ -5,7 +5,7 @@ export, cross-org isolation, and the delete-guard for meters with history.
 
 import uuid
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.config import get_settings
 from app.integrations.llm.base import LLMCallStats, LLMResult
 from app.main import app
-from app.models import Meter, MeterType, UserRole
+from app.models import Meter, MeterReading, MeterType, UserRole
 from app.services import meters as meters_svc
 from app.tests._factories import (
     make_contact_with_contract_link,
@@ -533,6 +533,228 @@ async def test_replace_cross_org_404(test_engine: AsyncEngine) -> None:
             },
         )
         assert r.status_code == 404
+
+
+# --- reading plausibility (soft block + override) -----------------------------
+
+
+def _submit_reading(client: TestClient, token: Any, meter_id: str, **data: Any) -> Any:
+    return client.post(
+        f"/me/meters/{meter_id}/readings",
+        headers=_auth(token),
+        data=data,
+    )
+
+
+async def test_reading_below_last_soft_blocks_then_force(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    mtok, vtok = ctx["m_token"], ctx["v_token"]
+    with TestClient(app) as client:
+        meter = _create_meter(client, vtok, prop_id)  # type: ignore[arg-type]
+        # first reading establishes a baseline
+        r0 = _submit_reading(client, mtok, meter["id"], value="1000", read_on="2026-01-01")
+        assert r0.status_code == 201, r0.text
+
+        # a lower value soft-blocks with 409 + below_last
+        r1 = _submit_reading(client, mtok, meter["id"], value="900", read_on="2026-04-01")
+        assert r1.status_code == 409, r1.text
+        detail = r1.json()["detail"]
+        assert detail["code"] == "below_last"
+        assert detail["last_value"] == 1000.0
+        assert detail["new_value"] == 900.0
+        assert isinstance(detail["message"], str) and detail["message"]
+
+        # force=true overrides and creates
+        r2 = _submit_reading(
+            client, mtok, meter["id"], value="900", read_on="2026-04-01", force="true"
+        )
+        assert r2.status_code == 201, r2.text
+
+
+async def test_reading_unusual_high_missed_comma(test_engine: AsyncEngine) -> None:
+    """History ~2000 -> 2100 -> 2200, then 220000 (missed comma) -> 409 high."""
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    mtok, vtok = ctx["m_token"], ctx["v_token"]
+    with TestClient(app) as client:
+        meter = _create_meter(client, vtok, prop_id)  # type: ignore[arg-type]
+        for val, day in (("2000", "2026-01-01"), ("2100", "2026-02-01"), ("2200", "2026-03-01")):
+            r = _submit_reading(client, mtok, meter["id"], value=val, read_on=day)
+            assert r.status_code == 201, r.text
+
+        r_spike = _submit_reading(client, mtok, meter["id"], value="220000", read_on="2026-04-01")
+        assert r_spike.status_code == 409, r_spike.text
+        detail = r_spike.json()["detail"]
+        assert detail["code"] == "unusual_high"
+        assert detail["last_value"] == 2200.0
+        assert detail["new_value"] == 220000.0
+
+        # force overrides
+        r_force = _submit_reading(
+            client, mtok, meter["id"], value="220000", read_on="2026-04-01", force="true"
+        )
+        assert r_force.status_code == 201, r_force.text
+
+
+async def test_reading_in_range_creates_normally(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    mtok, vtok = ctx["m_token"], ctx["v_token"]
+    with TestClient(app) as client:
+        meter = _create_meter(client, vtok, prop_id)  # type: ignore[arg-type]
+        for val, day in (("2000", "2026-01-01"), ("2100", "2026-02-01"), ("2200", "2026-03-01")):
+            r = _submit_reading(client, mtok, meter["id"], value=val, read_on=day)
+            assert r.status_code == 201, r.text
+        # a normal +100 step is fine, no force needed
+        r_ok = _submit_reading(client, mtok, meter["id"], value="2300", read_on="2026-04-01")
+        assert r_ok.status_code == 201, r_ok.text
+
+
+def test_assess_plausibility_unit() -> None:
+    """Pure-function checks for the plausibility helper (no DB)."""
+
+    def _r(value: str, read_on: date, tiebreak: int) -> MeterReading:
+        return MeterReading(
+            value=Decimal(value),
+            read_on=read_on,
+            created_at=datetime(2026, 1, 1, 0, 0, 0, tiebreak, tzinfo=UTC),
+        )
+
+    # no history -> no warning
+    assert (
+        meters_svc.assess_reading_plausibility(
+            [], new_value=Decimal("5"), new_read_on=date(2026, 5, 1)
+        )
+        is None
+    )
+
+    hist = [
+        _r("2000", date(2026, 1, 1), 1),
+        _r("2100", date(2026, 2, 1), 2),
+        _r("2200", date(2026, 3, 1), 3),
+    ]
+    # below last
+    w_below = meters_svc.assess_reading_plausibility(
+        hist, new_value=Decimal("100"), new_read_on=date(2026, 4, 1)
+    )
+    assert w_below is not None and w_below.code == "below_last"
+    # missed comma
+    w_high = meters_svc.assess_reading_plausibility(
+        hist, new_value=Decimal("220000"), new_read_on=date(2026, 4, 1)
+    )
+    assert w_high is not None and w_high.code == "unusual_high"
+    # normal
+    assert (
+        meters_svc.assess_reading_plausibility(
+            hist, new_value=Decimal("2300"), new_read_on=date(2026, 4, 1)
+        )
+        is None
+    )
+
+
+# --- admin reading correction (edit) ------------------------------------------
+
+
+async def test_admin_edits_reading_value_and_audits(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        # member records a misread (missed decimal: should be 2959,00)
+        r_sub = _submit_reading(
+            client, ctx["m_token"], meter["id"], value="295900", read_on="2026-06-01"
+        )
+        assert r_sub.status_code == 201, r_sub.text
+        reading_id = r_sub.json()["id"]
+
+        # Verwalter corrects it (no plausibility block on admin edit)
+        r_patch = client.patch(
+            f"/admin/meters/{meter['id']}/readings/{reading_id}",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={"value": "2959.00", "note": "Komma korrigiert"},
+        )
+        assert r_patch.status_code == 200, r_patch.text
+        body = r_patch.json()
+        assert Decimal(str(body["value"])) == Decimal("2959.00")
+        assert body["note"] == "Komma korrigiert"
+        assert body["read_on"] == "2026-06-01"  # untouched
+        assert isinstance(body["value"], int | float), type(body["value"])
+
+        # audit row written with old->new value
+        from sqlalchemy import select as _select
+
+        from app.models import AuditLog
+
+        sm = async_sessionmaker(test_engine, expire_on_commit=False)
+        async with sm() as s:
+            rows = (
+                await s.scalars(
+                    _select(AuditLog).where(
+                        AuditLog.action == "meter_reading_edited",
+                        AuditLog.target_id == reading_id,
+                    )
+                )
+            ).all()
+        assert len(rows) == 1
+        payload = rows[0].payload_json
+        assert payload is not None
+        assert Decimal(payload["old_value"]) == Decimal("295900")
+        assert Decimal(payload["new_value"]) == Decimal("2959.00")
+        assert "value" in payload["fields"] and "note" in payload["fields"]
+
+
+async def test_admin_edit_reading_cross_org_404(test_engine: AsyncEngine) -> None:
+    ctx_a = await _setup(test_engine)
+    ctx_b = await _setup(test_engine)
+    prop_a = ctx_a["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter_a = _create_meter(client, ctx_a["v_token"], prop_a)  # type: ignore[arg-type]
+        r_sub = _submit_reading(
+            client, ctx_a["m_token"], meter_a["id"], value="10", read_on="2026-06-01"
+        )
+        reading_id = r_sub.json()["id"]
+        # org B Verwalter cannot edit org A's reading
+        r_patch = client.patch(
+            f"/admin/meters/{meter_a['id']}/readings/{reading_id}",
+            headers=_auth(ctx_b["v_token"]),  # type: ignore[arg-type]
+            json={"value": "999"},
+        )
+        assert r_patch.status_code == 404
+
+
+async def test_admin_edit_reading_wrong_meter_404(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        m1 = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        m2 = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        r_sub = _submit_reading(client, ctx["m_token"], m1["id"], value="10", read_on="2026-06-01")
+        reading_id = r_sub.json()["id"]
+        # reading belongs to m1, addressing it under m2 -> 404
+        r_patch = client.patch(
+            f"/admin/meters/{m2['id']}/readings/{reading_id}",
+            headers=_auth(ctx["v_token"]),  # type: ignore[arg-type]
+            json={"value": "999"},
+        )
+        assert r_patch.status_code == 404
+
+
+async def test_member_cannot_edit_reading_403(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    prop_id = ctx["prop"].id  # type: ignore[attr-defined]
+    with TestClient(app) as client:
+        meter = _create_meter(client, ctx["v_token"], prop_id)  # type: ignore[arg-type]
+        r_sub = _submit_reading(
+            client, ctx["m_token"], meter["id"], value="10", read_on="2026-06-01"
+        )
+        reading_id = r_sub.json()["id"]
+        r_patch = client.patch(
+            f"/admin/meters/{meter['id']}/readings/{reading_id}",
+            headers=_auth(ctx["m_token"]),  # type: ignore[arg-type]
+            json={"value": "999"},
+        )
+        assert r_patch.status_code == 403
 
 
 # --- quarterly reading cadence ------------------------------------------------

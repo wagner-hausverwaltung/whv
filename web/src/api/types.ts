@@ -1019,6 +1019,14 @@ export interface MeterReadingResponse {
   created_at: string;
 }
 
+export interface MeterReadingUpdate {
+  // Admin correction of a recorded reading. Only provided fields are applied
+  // (PATCH semantics) — e.g. fixing a misread / missed decimal.
+  value?: number | string | null;
+  read_on?: string | null;
+  note?: string | null;
+}
+
 export interface MeterReadingOCRResult {
   suggested_value: number | string | null;
   meter_number: string | null;

@@ -41,6 +41,7 @@ from app.schemas.meter import (
     MeterCreate,
     MeterReadingOCRResult,
     MeterReadingResponse,
+    MeterReadingUpdate,
     MeterReplaceRequest,
     MeterResponse,
     MeterUpdate,
@@ -324,6 +325,7 @@ async def admin_create_reading(
     source: Annotated[MeterReadingSource, Form()] = MeterReadingSource.MANUAL,
     ocr_raw: Annotated[str | None, Form()] = None,
     photo: UploadFile | None = None,
+    force: Annotated[bool, Form()] = False,
 ) -> MeterReadingResponse:
     meter = await _admin_meter_or_404(session, current_user, meter_id)
     return await _do_create_reading(
@@ -337,7 +339,35 @@ async def admin_create_reading(
         source=source,
         ocr_raw=ocr_raw,
         photo=photo,
+        force=force,
     )
+
+
+@admin_router.patch("/meters/{meter_id}/readings/{reading_id}", response_model=MeterReadingResponse)
+async def admin_update_reading(
+    meter_id: uuid.UUID,
+    reading_id: uuid.UUID,
+    req: MeterReadingUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> MeterReadingResponse:
+    """Correct a recorded reading (e.g. a misread / missed decimal). Verwalter-
+    only, org-scoped — the reading must belong to a meter in the caller's org.
+    The plausibility block does NOT run here: the admin edit is the correction."""
+    meter = await _admin_meter_or_404(session, current_user, meter_id)
+    reading = await _resolve_reading_or_404(session, meter=meter, reading_id=reading_id)
+    reading = await meters_svc.update_reading(
+        session,
+        reading=reading,
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        data=req,
+    )
+    reporter_email: str | None = None
+    if reading.reported_by_user_id is not None:
+        reporter = await session.get(User, reading.reported_by_user_id)
+        reporter_email = reporter.email if reporter is not None else None
+    return meters_svc.to_reading_response(reading, reported_by_email=reporter_email)
 
 
 @admin_router.get("/meters/{meter_id}/readings/{reading_id}/photo")
@@ -391,6 +421,7 @@ async def my_create_reading(
     source: Annotated[MeterReadingSource, Form()] = MeterReadingSource.MANUAL,
     ocr_raw: Annotated[str | None, Form()] = None,
     photo: UploadFile | None = None,
+    force: Annotated[bool, Form()] = False,
 ) -> MeterReadingResponse:
     meter = await _member_meter_or_404(session, current_user, meter_id, require_active=True)
     return await _do_create_reading(
@@ -404,6 +435,7 @@ async def my_create_reading(
         source=source,
         ocr_raw=ocr_raw,
         photo=photo,
+        force=force,
     )
 
 
@@ -473,18 +505,38 @@ async def _do_create_reading(
     source: MeterReadingSource,
     ocr_raw: str | None,
     photo: UploadFile | None,
+    force: bool = False,
 ) -> MeterReadingResponse:
     if value < 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Zählerstand darf nicht negativ sein."
         )
+    effective_read_on = read_on or date.today()
+    if not force:
+        prior = await meters_svc.prior_readings_for_meter(session, meter_id=meter.id)
+        warning = meters_svc.assess_reading_plausibility(
+            prior, new_value=value, new_read_on=effective_read_on
+        )
+        if warning is not None:
+            # Soft block: the client re-submits with force=true to override.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": warning.code,
+                    "message": warning.message,
+                    "last_value": float(warning.last_value)
+                    if warning.last_value is not None
+                    else None,
+                    "new_value": float(warning.new_value),
+                },
+            )
     try:
         reading = await meters_svc.create_reading(
             session,
             meter=meter,
             actor_id=actor.id,
             value=value,
-            read_on=read_on or date.today(),
+            read_on=effective_read_on,
             source=source,
             settings=settings,
             ocr_raw=ocr_raw,
