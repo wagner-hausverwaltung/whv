@@ -100,6 +100,69 @@ final class DemoStore: ObservableObject {
     func vendors(for propertyId: String) -> [VendorSummary] {
         seed?.vendors[propertyId] ?? []
     }
+
+    /// Canned activity feed for the widget while demo mode is active.
+    /// Synthesised from the existing seed (assemblies / announcements /
+    /// tickets) so the demo widget mirrors what the demo user sees in
+    /// the app, without hitting GET /me/activity. Returned pre-sorted
+    /// (most urgent first) and capped to `limit`, matching the live feed.
+    func activity(limit: Int) -> [ActivityItem] {
+        guard let seed else { return [] }
+        var items: [ActivityItem] = []
+        let now = Date()
+
+        // Next upcoming ETV → highest priority.
+        if let etv = seed.assemblies
+            .filter({ $0.scheduled_start > now })
+            .sorted(by: { $0.scheduled_start < $1.scheduled_start })
+            .first {
+            items.append(
+                ActivityItem(
+                    type: "ETV",
+                    id: etv.id,
+                    title: etv.title,
+                    subtitle: etv.location,
+                    timestamp: etv.scheduled_start,
+                    priority: 0,
+                    propertyName: etv.property_name,
+                    deepLink: "whv://etv/\(etv.id)"
+                ))
+        }
+        // Newest announcement.
+        if let ann = seed.announcements
+            .sorted(by: { $0.scheduled_publish_at > $1.scheduled_publish_at })
+            .first {
+            items.append(
+                ActivityItem(
+                    type: "ANNOUNCEMENT",
+                    id: ann.id,
+                    title: ann.title,
+                    subtitle: String(ann.body.prefix(100)),
+                    timestamp: ann.scheduled_publish_at,
+                    priority: 10,
+                    propertyName: ann.property_name,
+                    deepLink: "whv://announcement/\(ann.id)"
+                ))
+        }
+        // Newest open ticket.
+        if let ticket = seed.tickets
+            .filter({ $0.status == .offen || $0.status == .neu })
+            .sorted(by: { $0.last_message_at > $1.last_message_at })
+            .first {
+            items.append(
+                ActivityItem(
+                    type: "DOCUMENT",
+                    id: ticket.id,
+                    title: ticket.subject,
+                    subtitle: ticket.category.labelString,
+                    timestamp: ticket.last_message_at,
+                    priority: 20,
+                    propertyName: ticket.property_name,
+                    deepLink: "whv://ticket/\(ticket.id)"
+                ))
+        }
+        return Array(items.prefix(limit))
+    }
 }
 
 /// Synchronous mirror of DemoStore.shared.isActive for APIClient,

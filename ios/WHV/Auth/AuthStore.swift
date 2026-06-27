@@ -138,7 +138,7 @@ final class AuthStore: ObservableObject {
             defaults.removeObject(forKey: cachedUserKey)
         }
         user = nil
-        WidgetSync.clear()
+        ActivitySync.clear()
         Task { await LiveActivityManager.endAll() }
         onSignOut?()
     }

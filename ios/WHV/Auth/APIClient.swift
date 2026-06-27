@@ -831,6 +831,21 @@ struct APIClient {
         try await authedGET("/me")
     }
 
+    // MARK: Activity feed (unified "what's new")
+
+    /// GET /me/activity?limit={limit} — the unified, server-sorted
+    /// activity feed (most urgent first) that drives the Home/Lock
+    /// Screen widget. Read-only; demo mode short-circuits to a small
+    /// canned set so the widget still renders in the screenshot/demo
+    /// loop without touching the network. `limit` defaults to 10 —
+    /// enough to fill the systemLarge family with headroom.
+    func getMyActivity(limit: Int = 10) async throws -> [ActivityItem] {
+        if DemoFlag.isActive {
+            return await DemoStore.shared.activity(limit: limit)
+        }
+        return try await authedGET("/me/activity?limit=\(limit)")
+    }
+
     // MARK: Assistant (ADR-0013)
 
     /// POST /assistant/query — ask the RAG document assistant. The backend

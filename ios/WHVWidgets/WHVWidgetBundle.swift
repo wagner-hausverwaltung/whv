@@ -1,7 +1,7 @@
-// Widget bundle entry point. Today: one widget (Upcoming ETV).
-// Phase 4 brings in open-tickets + Mitteilungen + a Live Activity
-// for an in-progress ETV — each becomes another @WidgetBundleBuilder
-// member, no changes to the host app side.
+// Widget bundle entry point. Two members:
+//   • ActivityWidget — the unified "Aktuelles" home/lock-screen widget
+//     driven by GET /me/activity (App Group snapshot).
+//   • ETVLiveActivity — the in-progress ETV Live Activity (unchanged).
 
 import SwiftUI
 import WidgetKit
@@ -9,7 +9,7 @@ import WidgetKit
 @main
 struct WHVWidgetBundle: WidgetBundle {
     var body: some Widget {
-        UpcomingEtvWidget()
+        ActivityWidget()
         ETVLiveActivity()
     }
 }

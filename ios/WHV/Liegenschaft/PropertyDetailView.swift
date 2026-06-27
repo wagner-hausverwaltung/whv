@@ -137,6 +137,14 @@ struct PropertyDetailView: View {
                 store.onUnauthorized = { [weak authStore] in
                     authStore?.signOut()
                 }
+                // Cold-launch: a deep link may have set this before the
+                // view mounted.
+                consumePropertyTab(deepLinkRouter.pendingPropertyTab)
+            }
+            // Runtime: an activity-widget document / invoice / meter /
+            // calendar tap routes here via DeepLinkRouter.
+            .onChange(of: deepLinkRouter.pendingPropertyTab) { _, tab in
+                consumePropertyTab(tab)
             }
             .task(id: property.id) {
                 await store.load(id: property.id)
@@ -168,6 +176,26 @@ struct PropertyDetailView: View {
             .sheet(isPresented: $showCalendar) {
                 CalendarView(propertyId: property.id)
                     .environmentObject(authStore)
+            }
+        }
+    }
+
+    /// Open the property sheet a deep link asked for, then clear the
+    /// router slot so it doesn't re-fire. Mirrors the booleans the
+    /// Schnellzugriff rows toggle, so widget taps and in-app taps land
+    /// in the same place. Dismisses any other open property sheet first
+    /// so SwiftUI reliably presents the new one.
+    private func consumePropertyTab(_ tab: PropertyTab?) {
+        guard let tab else { return }
+        deepLinkRouter.consumePropertyTab()
+        showDocuments = false
+        showMeters = false
+        showCalendar = false
+        DispatchQueue.main.async {
+            switch tab {
+            case .documents: showDocuments = true
+            case .meters: showMeters = true
+            case .calendar: showCalendar = true
             }
         }
     }
