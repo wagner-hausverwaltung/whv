@@ -135,9 +135,9 @@ struct ActivityWidgetView: View {
             RectangularActivityView(item: entry.items.first)
                 .widgetURL(entry.items.first?.tapURL)
         case .systemMedium:
-            ListActivityView(items: entry.items, maxRows: 3)
+            ListActivityView(items: entry.items, maxRows: 2)
         case .systemLarge:
-            ListActivityView(items: entry.items, maxRows: 6)
+            ListActivityView(items: entry.items, maxRows: 4)
         // .systemSmall + any other (unsupported) family fall back to
         // the single-item small layout.
         default:
@@ -269,6 +269,10 @@ private struct ListActivityView: View {
         Array(items.prefix(maxRows))
     }
 
+    // Widgets can't scroll, so anything past `maxRows` is summarised in a
+    // footer instead of overflowing (and getting clipped) off the bottom.
+    private var overflow: Int { max(0, items.count - shown.count) }
+
     var body: some View {
         if shown.isEmpty {
             EmptyActivityView()
@@ -279,6 +283,12 @@ private struct ListActivityView: View {
                     if idx != shown.count - 1 {
                         Divider()
                     }
+                }
+                if overflow > 0 {
+                    Text("+\(overflow) weitere")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
                 }
                 Spacer(minLength: 0)
             }
