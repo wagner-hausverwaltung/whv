@@ -272,9 +272,16 @@ private struct AssemblyList: View {
             HStack(alignment: .center, spacing: 12) {
                 statusBadge(for: a.status)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(a.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(a.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        // New = the Einladung arrived (or the record was
+                        // created) within the last neuBadgeWindowDays.
+                        if isRecentlyNew(a.addedRecentlyDate) {
+                            NeuBadge()
+                        }
+                    }
                     if let propertyLine = propertyLine(for: a) {
                         HStack(spacing: 6) {
                             Image(systemName: "building.2")

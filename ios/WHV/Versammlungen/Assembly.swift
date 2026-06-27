@@ -253,6 +253,59 @@ struct AssemblySummary: Codable, Identifiable, Hashable {
     let teams_meeting_url: String?
     let protocol_pdf_url: String?
     let protocol_uploaded_at: Date?
+    /// When the Einladung-PDF was uploaded — the most accurate "this
+    /// assembly just arrived for the owner" signal. Optional: not every
+    /// assembly has an invitation yet.
+    let invitation_uploaded_at: Date?
+    /// When the assembly record was created. Fallback for the NEU badge
+    /// when no invitation has been uploaded.
+    let created_at: Date?
+
+    /// Best available "added recently" date driving the NEU badge:
+    /// the Einladung upload if present, else the record creation date.
+    var addedRecentlyDate: Date? {
+        invitation_uploaded_at ?? created_at
+    }
+
+    /// Explicit memberwise init with defaults for the recency dates so
+    /// the demo builders (which don't have them) keep compiling. A plain
+    /// memberwise init does NOT suppress Codable synthesis, so the
+    /// network decode path is unaffected.
+    init(
+        id: String,
+        property_id: String,
+        property_name: String?,
+        property_hr_id: String?,
+        title: String,
+        status: AssemblyStatus,
+        scheduled_start: Date,
+        scheduled_end: Date,
+        actual_start: Date?,
+        actual_end: Date?,
+        location: String,
+        teams_meeting_url: String?,
+        protocol_pdf_url: String?,
+        protocol_uploaded_at: Date?,
+        invitation_uploaded_at: Date? = nil,
+        created_at: Date? = nil
+    ) {
+        self.id = id
+        self.property_id = property_id
+        self.property_name = property_name
+        self.property_hr_id = property_hr_id
+        self.title = title
+        self.status = status
+        self.scheduled_start = scheduled_start
+        self.scheduled_end = scheduled_end
+        self.actual_start = actual_start
+        self.actual_end = actual_end
+        self.location = location
+        self.teams_meeting_url = teams_meeting_url
+        self.protocol_pdf_url = protocol_pdf_url
+        self.protocol_uploaded_at = protocol_uploaded_at
+        self.invitation_uploaded_at = invitation_uploaded_at
+        self.created_at = created_at
+    }
 }
 
 /// Full detail returned by GET /me/assemblies/{id}. Comments are

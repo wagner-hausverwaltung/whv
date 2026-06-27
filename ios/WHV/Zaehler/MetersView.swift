@@ -23,6 +23,20 @@ private func germanDay(_ iso: String?) -> String {
     return out.string(from: date)
 }
 
+private let germanDueFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "de_DE")
+    f.dateFormat = "dd.MM.yyyy"
+    return f
+}()
+
+/// "Fällig bis 30.06.2026" — the German short-date deadline label for a
+/// due-soon meter. Falls back to the raw ISO string if parsing fails.
+func germanDueShort(_ date: Date?) -> String {
+    guard let date else { return "—" }
+    return germanDueFormatter.string(from: date)
+}
+
 private func numberString(_ value: Double) -> String {
     let f = NumberFormatter()
     f.locale = Locale(identifier: "de_DE")
@@ -60,6 +74,22 @@ struct MetersView: View {
                         NavigationLink(destination: MeterDetailView(meter: meter)) {
                             MeterRow(meter: meter)
                         }
+                        // Due-soon meters get the red frame + orange fill
+                        // drawn behind the whole row; clear the default list
+                        // row background so the accent shows through.
+                        .listRowBackground(
+                            Group {
+                                if meter.isReadingDueSoon {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color.orange.opacity(0.15))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(Color.red, lineWidth: 1.5)
+                                        )
+                                        .padding(.vertical, 2)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -106,6 +136,11 @@ private struct MeterRow: View {
                     )
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                }
+                if meter.isReadingDueSoon {
+                    Text("Fällig bis \(germanDueShort(meter.readingDueDate))")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.red)
                 }
             }
         }

@@ -15,8 +15,15 @@ final class PropertyDetailStore: ObservableObject {
     @Published private(set) var vendors: [VendorSummary] = []
     @Published private(set) var account: HausgeldAccount?
     @Published private(set) var rentSettlements: [RentSettlement] = []
+    @Published private(set) var meters: [MeterSummary] = []
     @Published private(set) var isLoading = false
     @Published var lastError: String?
+
+    /// Active meters whose reading is due soon — drives the red/orange
+    /// accent on the Zähler quick-action row.
+    var dueSoonMeterCount: Int {
+        meters.filter { $0.isReadingDueSoon }.count
+    }
 
     var onUnauthorized: (() -> Void)?
     private let api: APIClient
@@ -37,6 +44,7 @@ final class PropertyDetailStore: ObservableObject {
             async let vendorsTask = api.getMyPropertyVendors(propertyId: id)
             async let accountTask = api.getMyAccount(propertyId: id)
             async let rentTask = api.getMyRentSettlements(propertyId: id)
+            async let metersTask = api.listMeters(propertyId: id)
             self.detail = try await detailTask
             // A vendor-list failure shouldn't blank the property
             // detail. Swallow + log into lastError only if the detail
@@ -58,6 +66,13 @@ final class PropertyDetailStore: ObservableObject {
                 self.rentSettlements = try await rentTask
             } catch {
                 self.rentSettlements = []
+            }
+            // Zähler — only needed to drive the "due soon" accent on the
+            // quick-action row; a failure just leaves the row un-accented.
+            do {
+                self.meters = try await metersTask
+            } catch {
+                self.meters = []
             }
         } catch APIError.unauthorized {
             onUnauthorized?()
@@ -277,10 +292,18 @@ struct PropertyDetailView: View {
                 }
                 .buttonStyle(.plain)
                 // Zähler — meter list + reading capture (ADR-0016).
+                // When readings are due soon, the row takes the same
+                // red-frame / orange-fill accent as the Zähler list rows,
+                // plus a count badge.
                 Button {
                     showMeters = true
                 } label: {
-                    quickRow(title: "Zähler", systemImage: "gauge.medium", color: .teal)
+                    quickRow(
+                        title: "Zähler",
+                        systemImage: "gauge.medium",
+                        color: .teal,
+                        dueCount: store.dueSoonMeterCount
+                    )
                 }
                 .buttonStyle(.plain)
                 // Kalender — ETV + Winterdienst/Kehrwoche (ADR-0018).
@@ -307,10 +330,17 @@ struct PropertyDetailView: View {
         }
     }
 
-    private func quickRow(title: LocalizedStringResource, systemImage: String, color: Color)
-        -> some View
-    {
-        HStack(spacing: 12) {
+    /// `dueCount > 0` lights the row with the meter "due soon" accent
+    /// (orange fill + red frame) and shows a red count capsule. Default
+    /// 0 keeps every other quick-action row visually unchanged.
+    private func quickRow(
+        title: LocalizedStringResource,
+        systemImage: String,
+        color: Color,
+        dueCount: Int = 0
+    ) -> some View {
+        let isDue = dueCount > 0
+        return HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.title3)
                 .foregroundStyle(.white)
@@ -320,6 +350,15 @@ struct PropertyDetailView: View {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
+            if isDue {
+                Text("\(dueCount) fällig")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.red)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+            }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
@@ -329,7 +368,11 @@ struct PropertyDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.secondarySystemBackground))
+                .fill(isDue ? AnyShapeStyle(Color.orange.opacity(0.15)) : AnyShapeStyle(Color(.secondarySystemBackground)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.red, lineWidth: isDue ? 1.5 : 0)
         )
     }
 

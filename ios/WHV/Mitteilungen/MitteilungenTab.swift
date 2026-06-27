@@ -175,9 +175,16 @@ private struct AnnouncementList: View {
                     .background(Color.accentColor)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(a.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(a.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        // New = published (notification_sent_at) within the
+                        // last neuBadgeWindowDays.
+                        if isRecentlyNew(a.notification_sent_at) {
+                            NeuBadge()
+                        }
+                    }
                     if let prop = a.property_name, !prop.isEmpty {
                         HStack(spacing: 6) {
                             Image(systemName: "building.2")
