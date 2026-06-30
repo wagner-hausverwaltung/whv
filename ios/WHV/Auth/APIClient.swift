@@ -912,6 +912,25 @@ struct APIClient {
         return try await authedDownload("/admin/offer-inquiries/\(id)/offer.pdf", saveAs: filename)
     }
 
+    // MARK: Jahresabrechnung tracker
+
+    /// GET /me/properties/{id}/accounting?year= — read-only stage progress.
+    func getAccountingProgress(propertyId: String, year: Int) async throws -> AccountingProgress {
+        if DemoFlag.isActive { return AccountingProgress.demo(year: year) }
+        return try await authedGET("/me/properties/\(propertyId)/accounting?year=\(year)")
+    }
+
+    /// PUT /admin/properties/{id}/accounting/{year}/stages/{code} — Verwalter tick.
+    func setAccountingStage(
+        propertyId: String, year: Int, code: String, done: Bool, note: String? = nil
+    ) async throws -> AccountingProgress {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/admin/properties/\(propertyId)/accounting/\(year)/stages/\(code)",
+            method: "PUT", body: AccountingStageBody(done: done, note: note)
+        )
+    }
+
     // MARK: Assistant (ADR-0013)
 
     /// POST /assistant/query — ask the RAG document assistant. The backend
