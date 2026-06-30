@@ -5,6 +5,7 @@ Verwalter-only POST /admin/offers/generate endpoint end-to-end.
 """
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.main import app
 from app.models import OfferInquiry, Organization, UserRole
 from app.schemas.offer import OfferGenerateRequest
+from app.services.offer_pricing import price_offer
 from app.services.offers import generate_offer
 from app.tests._factories import make_org, make_property, make_user
 
@@ -64,6 +66,42 @@ def test_weg_object_address_optional() -> None:
     req = OfferGenerateRequest(art="WEG", units=5)
     assert req.object_street is None
     assert req.object_plz_city is None
+
+
+def test_weg_monthly_fee_override_bypasses_floor() -> None:
+    # 6 units would normally hit the 270 € floor; an explicit fee wins.
+    p = price_offer("WEG", units=6, start_date=_TODAY, monthly_fee_net_override=Decimal("300"))
+    assert p.year1_monthly_net == Decimal("300.00")
+    assert p.year1_monthly_gross == Decimal("357.00")  # 300 x 1.19
+    assert p.floor_applied is False
+
+
+def test_end_date_override_drives_term_and_schedule() -> None:
+    p = price_offer(
+        "WEG", units=6, start_date=date(2027, 1, 1), end_date_override=date(2029, 12, 31)
+    )
+    assert p.end_date == date(2029, 12, 31)
+    assert p.term_years == 3  # ~3 whole years 01.01.2027 → 31.12.2029
+    assert len(p.schedule) == 3
+
+
+def test_end_date_must_be_after_start() -> None:
+    with pytest.raises(ValueError):
+        OfferGenerateRequest(
+            art="WEG", units=5, start_date=date(2027, 1, 1), end_date=date(2026, 12, 31)
+        )
+
+
+def test_end_date_before_default_start_rejected() -> None:
+    # start omitted (defaults to 1 Jan next year); a past end date must still fail
+    # rather than slip through and print a backwards contract.
+    with pytest.raises(ValueError):
+        OfferGenerateRequest(art="WEG", units=5, end_date=date(2000, 1, 1))
+
+
+def test_price_engine_rejects_end_before_start() -> None:
+    with pytest.raises(ValueError):
+        price_offer("WEG", units=5, start_date=date(2027, 1, 1), end_date_override=date(2026, 1, 1))
 
 
 def test_mv_requires_recipient_and_objects() -> None:
@@ -324,6 +362,27 @@ async def test_send_persists_request_and_enables_download(test_engine: AsyncEngi
     assert pdf.headers["content-type"].startswith("application/pdf")
     assert pdf.content[:5] == b"%PDF-"
     assert "attachment" in pdf.headers.get("content-disposition", "")
+
+
+async def test_send_with_price_and_date_overrides(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    body = {
+        **_WEG_BODY,
+        "start_date": "2026-01-01",
+        "end_date": "2029-12-31",
+        "monthly_fee_net_override": "333.00",
+    }
+    with TestClient(app) as client:
+        sent = client.post(f"/admin/offer-inquiries/{inq.id}/send", headers=_auth(token), json=body)
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["status"] == "SENT"
+        # The override is captured in sent_request_json → re-download works.
+        pdf = client.get(f"/admin/offer-inquiries/{inq.id}/offer.pdf", headers=_auth(token))
+    assert pdf.status_code == 200, pdf.text
+    assert pdf.content[:5] == b"%PDF-"
 
 
 async def test_download_409_when_not_sent(test_engine: AsyncEngine) -> None:

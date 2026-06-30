@@ -93,6 +93,37 @@ function defaultStartDate(): string {
   return `${new Date().getFullYear() + 1}-01-01`;
 }
 
+// Default contract Laufzeit (years) — mirrors the backend pricing default.
+const DEFAULT_TERM_YEARS = 4;
+
+// Mirrors the backend pricing engine for the dialog's live PREVIEW only. The
+// authoritative figure is recomputed server-side; when the Verwalter overrides
+// the fee, that value is what's sent + stamped.
+function computedMonthlyNet(art: Art, unitsNum: number): number | null {
+  if (!Number.isFinite(unitsNum) || unitsNum < 1) return null;
+  if (art === "MV") return unitsNum * 30;
+  const rate = unitsNum > 15 ? 35 : 45;
+  return Math.max(unitsNum * rate, 270);
+}
+
+function grossFromNet(net: number): number {
+  return Math.round(net * 1.19 * 100) / 100;
+}
+
+// start + DEFAULT_TERM_YEARS − 1 day, as an ISO date (yyyy-mm-dd).
+function computedEndDate(startISO: string): string {
+  if (!startISO) return "";
+  const d = new Date(startISO);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setFullYear(d.getFullYear() + DEFAULT_TERM_YEARS);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatEur(n: number): string {
+  return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -334,6 +365,13 @@ export function AdminAnfragenPage() {
   const [recipientPlzCity, setRecipientPlzCity] = useState("");
   const [salutation, setSalutation] = useState("");
   const [object1, setObject1] = useState("");
+  // Price + end date: prefilled with the computed values (so the Verwalter
+  // *sees* them) and overridable. `*Touched` stops the live recompute once the
+  // Verwalter has typed their own value.
+  const [monthlyFee, setMonthlyFee] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [priceTouched, setPriceTouched] = useState(false);
+  const [endTouched, setEndTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -343,7 +381,8 @@ export function AdminAnfragenPage() {
     const a: Art = inq.art === "MV" ? "MV" : "WEG";
     setArt(a);
     setUnits(inq.units != null ? String(inq.units) : "");
-    setStartDate(inq.desired_start ?? defaultStartDate());
+    const startISO = inq.desired_start ?? defaultStartDate();
+    setStartDate(startISO);
     const [street, plzCity] = splitGermanAddress(inq.object_address);
     setObjectStreet(street);
     setObjectPlzCity(plzCity);
@@ -352,7 +391,27 @@ export function AdminAnfragenPage() {
     setRecipientPlzCity("");
     setSalutation(inq.sender_name ? `Sehr geehrte/r ${inq.sender_name},` : "");
     setObject1(inq.object_address ?? "");
+    const cmf = computedMonthlyNet(a, inq.units ?? 0);
+    setMonthlyFee(cmf != null ? String(cmf) : "");
+    setEndDate(computedEndDate(startISO));
+    setPriceTouched(false);
+    setEndTouched(false);
   }
+
+  // Keep the price preview in step with units/Art until the Verwalter overrides.
+  useEffect(() => {
+    if (!target || priceTouched) return;
+    const cmf = computedMonthlyNet(art, Number(units));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMonthlyFee(cmf != null ? String(cmf) : "");
+  }, [art, units, priceTouched, target]);
+
+  // Keep the end date (= start + 4y − 1d) in step with the start until overridden.
+  useEffect(() => {
+    if (!target || endTouched) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEndDate(computedEndDate(startDate));
+  }, [startDate, endTouched, target]);
 
   async function submitSend() {
     if (!target) return;
@@ -363,6 +422,8 @@ export function AdminAnfragenPage() {
         art,
         units: Number(units),
         start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        monthly_fee_net_override: monthlyFee ? Number(monthlyFee) : undefined,
       };
       if (art === "WEG") {
         payload.object_street = objectStreet;
@@ -704,7 +765,40 @@ export function AdminAnfragenPage() {
                 label={tp("start")}
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                }}
+                slotProps={{ inputLabel: { shrink: true } }}
+                fullWidth
+              />
+            </Stack>
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label={tp("priceNet")}
+                type="number"
+                value={monthlyFee}
+                onChange={(e) => {
+                  setMonthlyFee(e.target.value);
+                  setPriceTouched(true);
+                }}
+                slotProps={{ htmlInput: { min: 0.01, step: "0.01" } }}
+                helperText={
+                  monthlyFee
+                    ? tp("priceGrossHint", {
+                        gross: formatEur(grossFromNet(Number(monthlyFee))),
+                      })
+                    : undefined
+                }
+                fullWidth
+              />
+              <TextField
+                label={tp("end")}
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setEndTouched(true);
+                }}
                 slotProps={{ inputLabel: { shrink: true } }}
                 fullWidth
               />

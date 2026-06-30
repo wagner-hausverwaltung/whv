@@ -21,9 +21,16 @@ class OfferGenerateRequest(BaseModel):
     art: Literal["WEG", "MV"]
     units: int = Field(ge=1, le=1000)
     start_date: date | None = None
+    # Optional explicit contract end date (else start + term - 1 day). When set,
+    # a whole-year term is derived for the MV "N Jahren" clause + fee schedule.
+    end_date: date | None = None
     term_years: int = Field(default=4, ge=1, le=10)
     # Optional per-unit net rate override (else the standard default applies).
     rate_per_unit_net: Decimal | None = Field(default=None, gt=0, le=10000)
+    # Optional override of the headline year-1 monthly net Festverguetung - what
+    # the Verwalter sees + can overwrite in the send dialog. Bypasses the
+    # units*rate + 270 EUR floor calc; gross + escalator derive from it.
+    monthly_fee_net_override: Decimal | None = Field(default=None, gt=0, le=100000)
 
     # --- WEG ---
     object_street: str | None = Field(default=None, max_length=200)
@@ -42,6 +49,15 @@ class OfferGenerateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _require_per_art_fields(self) -> OfferGenerateRequest:
+        # An explicit end date must sit after the start (when both are given;
+        # an unset start defaults to 1 Jan next year, validated server-side).
+        if self.end_date is not None:
+            # start_date defaults to 1 Jan next year when omitted — validate the
+            # end against that EFFECTIVE start, else a blank-start + past-end
+            # request would slip through and print a backwards contract.
+            effective_start = self.start_date or date(date.today().year + 1, 1, 1)
+            if self.end_date <= effective_start:
+                raise ValueError("end_date must be after the contract start")
         # WEG needs only the unit count — the object address is optional. Not
         # every inquiry includes one, and a blank address line simply renders
         # empty on the contract.
