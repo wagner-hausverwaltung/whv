@@ -206,6 +206,7 @@ struct PropertyDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerCard
+                AccountingProgressCard(propertyId: property.id)
                 quickActionsSection()
                 if let account = store.account, account.account_id != nil {
                     hausgeldkontoSection(account: account)
