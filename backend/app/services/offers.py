@@ -194,4 +194,63 @@ async def email_offer_for_inquiry(
     inquiry.sent_at = datetime.now(UTC)  # type: ignore[attr-defined]
     inquiry.sent_message_id = msg_id  # type: ignore[attr-defined]
     inquiry.generated_offer_filename = filename  # type: ignore[attr-defined]
+    # Persist the exact request so the offer can be re-downloaded byte-for-byte
+    # later (the PDF itself isn't stored — it's regenerated from this).
+    inquiry.sent_request_json = req.model_dump_json()  # type: ignore[attr-defined]
+    return msg_id
+
+
+# Friendly follow-up reminder (no attachment) — sent after an offer when the
+# prospect hasn't replied. Deliberately short + warm; the original offer PDF is
+# NOT re-attached (they already have it).
+_REMINDER_EMAIL_HTML = (
+    "<p>Sehr geehrte Damen und Herren,</p>"
+    "<p>vor Kurzem haben wir Ihnen unser Angebot zur Verwaltung Ihres Objektes "
+    "zukommen lassen. Wir wollten kurz nachfragen, ob Sie unsere Unterlagen "
+    "erhalten haben und ob bereits Fragen aufgekommen sind.</p>"
+    "<p>Gern stellen wir uns Ihnen auch persönlich vor und besprechen alle "
+    "Details in einem unverbindlichen Termin. Wann würde es Ihnen passen?</p>"
+    "<p>Wir freuen uns auf Ihre Rückmeldung.</p>"
+    "<p>Einen schönen Tag und freundliche Grüße!</p>"
+    "<p>" + "<br>".join(_OFFER_SIGNATURE_LINES) + "</p>"
+)
+_REMINDER_EMAIL_TEXT = (
+    "Sehr geehrte Damen und Herren,\n\n"
+    "vor Kurzem haben wir Ihnen unser Angebot zur Verwaltung Ihres Objektes "
+    "zukommen lassen. Wir wollten kurz nachfragen, ob Sie unsere Unterlagen "
+    "erhalten haben und ob bereits Fragen aufgekommen sind.\n\n"
+    "Gern stellen wir uns Ihnen auch persönlich vor und besprechen alle Details "
+    "in einem unverbindlichen Termin. Wann würde es Ihnen passen?\n\n"
+    "Wir freuen uns auf Ihre Rückmeldung.\n\n"
+    "Einen schönen Tag und freundliche Grüße!\n\n" + "\n".join(_OFFER_SIGNATURE_LINES)
+)
+
+
+async def send_reminder_for_inquiry(
+    inquiry: object,
+    *,
+    email_client: object,
+    settings: object,
+) -> str:
+    """Email a friendly follow-up reminder to the inquiry's sender FROM anfragen@.
+
+    Unlike :func:`email_offer_for_inquiry` this sends NO attachment and does NOT
+    touch ``status`` / ``sent_at`` / ``generated_offer_filename`` — the original
+    send must stay intact. Stamps ``last_reminder_at`` + bumps ``reminder_count``
+    on success. Returns the Resend message id; raises on send failure (the caller
+    must NOT flip the inquiry to FAILED — a failed reminder is not a failed offer).
+    """
+    from datetime import UTC, datetime
+
+    msg_id: str = await email_client.send(  # type: ignore[attr-defined]
+        to=inquiry.sender_email,  # type: ignore[attr-defined]
+        subject="Ihr Angebot der Wagner Hausverwaltung — kurze Nachfrage",
+        html=_REMINDER_EMAIL_HTML,
+        text=_REMINDER_EMAIL_TEXT,
+        from_address=settings.offer_from_address,  # type: ignore[attr-defined]
+        from_name=settings.offer_from_name,  # type: ignore[attr-defined]
+        reply_to=settings.offer_from_address,  # type: ignore[attr-defined]
+    )
+    inquiry.last_reminder_at = datetime.now(UTC)  # type: ignore[attr-defined]
+    inquiry.reminder_count = (inquiry.reminder_count or 0) + 1  # type: ignore[attr-defined]
     return msg_id

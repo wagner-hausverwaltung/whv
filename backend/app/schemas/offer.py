@@ -79,7 +79,9 @@ class OfferLeadStatusUpdate(BaseModel):
 
 
 class OfferInquiryResponse(BaseModel):
-    """An inbound anfragen@ inquiry, for the Admin review queue."""
+    """An inbound anfragen@ inquiry, for the Admin review queue. Lean by design —
+    the heavy fields (raw email body, note, error) live on the detail response so
+    the list payload stays small."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,3 +98,39 @@ class OfferInquiryResponse(BaseModel):
     confidence: float | None
     sent_at: datetime | None
     created_at: datetime
+    # Lightweight flags the list needs for per-row actions (download/reminder)
+    # without pulling the full detail. generated_offer_filename gates the
+    # re-download button; the reminder fields gate/annotate the reminder button.
+    generated_offer_filename: str | None = None
+    last_reminder_at: datetime | None = None
+    reminder_count: int = 0
+
+
+class OfferInquiryDetailResponse(OfferInquiryResponse):
+    """Single-inquiry detail — adds the full email body, the shared note, the
+    error detail (when FAILED), and the sent message id. Returned by the GET
+    detail endpoint and by the note / reminder mutations."""
+
+    body: str
+    review_note: str | None
+    error: str | None
+    sent_message_id: str | None
+
+
+class OfferInquiryNoteUpdate(BaseModel):
+    """Set the shared free-text note on one inquiry (visible to every Verwalter
+    in the org). Empty string / null clears it."""
+
+    review_note: str | None = Field(default=None, max_length=5000)
+
+
+class OfferInquiryFieldsUpdate(BaseModel):
+    """Verwalter corrections to the extracted inquiry fields — e.g. fill in a
+    street + number the prospect didn't disclose initially, or fix the unit
+    count / type the LLM got wrong. Overwrites the stored values (null clears a
+    field), so the list, the send dialog, and a re-extract all see the correction."""
+
+    art: Literal["WEG", "MV"] | None = None
+    object_address: str | None = Field(default=None, max_length=400)
+    units: int | None = Field(default=None, ge=1, le=1000)
+    desired_start: date | None = None

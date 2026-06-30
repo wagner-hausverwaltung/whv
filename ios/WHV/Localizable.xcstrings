@@ -3116,6 +3116,16 @@
         }
       }
     },
+    "Öffnet die Adresse in Google Maps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens the address in Google Maps"
+          }
+        }
+      }
+    },
     "Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung" : {
       "localizations" : {
         "en" : {
