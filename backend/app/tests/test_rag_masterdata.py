@@ -20,7 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.rag.constants import EMBEDDING_DIM
 from app.rag.masterdata import (
+    SOURCE_TYPE_ANFRAGE,
     SOURCE_TYPE_DIENSTLEISTER,
+    anfrage_doc_id,
+    build_anfrage_card,
     build_contact_card,
     build_dienstleister_card,
     build_etv_card,
@@ -129,6 +132,45 @@ def test_etv_doc_id_distinct_from_other_cards() -> None:
     assert etv_doc_id(p, e) != dienstleister_doc_id(p, e)
 
 
+def test_build_anfrage_card_full() -> None:
+    card = build_anfrage_card(
+        sender_name="Roman Klassen",
+        sender_email="roman@example.de",
+        subject="Anfrage Hausverwaltung",
+        art="WEG",
+        object_address="Hermann-Essig-Str. 5, 71701 Schwieberdingen",
+        units=6,
+        status="NEEDS_REVIEW",
+        lead_status="OPEN",
+        received_on="2026-06-28",
+    )
+    assert card == (
+        "Anfrage (anfragen@): Roman Klassen · E-Mail: roman@example.de · "
+        "Betreff: Anfrage Hausverwaltung · Art: WEG · "
+        "Objekt: Hermann-Essig-Str. 5, 71701 Schwieberdingen · Einheiten: 6 · "
+        "Bearbeitung: NEEDS_REVIEW · Status: OPEN · Eingegangen: 2026-06-28"
+    )
+
+
+def test_build_anfrage_card_skips_missing() -> None:
+    # No sender name → the prospect's email becomes the heading (and the
+    # separate "E-Mail:" line is suppressed to avoid repeating it).
+    assert (
+        build_anfrage_card(sender_name=None, sender_email="x@y.de") == "Anfrage (anfragen@): x@y.de"
+    )
+
+
+def test_anfrage_doc_id_distinct_from_other_cards() -> None:
+    org, inq = uuid.uuid4(), uuid.uuid4()
+    assert anfrage_doc_id(org, inq) == anfrage_doc_id(org, inq)  # stable
+    assert anfrage_doc_id(org, inq) != anfrage_doc_id(org, uuid.uuid4())  # per inquiry
+    # Disjoint from every other card namespace so it stays VERWALTER-only and
+    # can never collide with a contact/vendor/ETV admission.
+    assert anfrage_doc_id(org, inq) != contact_doc_id(org, inq)
+    assert anfrage_doc_id(org, inq) != dienstleister_doc_id(org, inq)
+    assert anfrage_doc_id(org, inq) != etv_doc_id(org, inq)
+
+
 class _StubEmbedder:
     async def embed_texts(
         self, texts: Sequence[str], *, task_type: str = "retrieval_document"
@@ -173,6 +215,46 @@ async def test_masterdata_card_is_verwalter_only(rag_session: AsyncSession) -> N
 
     # A non-VERWALTER whose visible docs are real document ids never matches the
     # synthetic master-data id → cards are invisible to them.
+    owner = CallerScope(
+        organization_id=org,
+        is_verwalter=False,
+        visible_document_ids=frozenset({uuid.uuid4()}),
+    )
+    got_owner = await retrieve(rag_session, scope=owner, query_embedding=query, min_similarity=0.0)
+    assert all(c.document_id != doc_id for c in got_owner)
+
+
+@_RAG
+async def test_anfrage_card_is_verwalter_only(rag_session: AsyncSession) -> None:
+    """An Anfrage card (prospect PII) must be retrievable by the VERWALTER and
+    NEVER by a member — the security-critical claim for indexing anfragen."""
+    from app.rag.ingestion import index_masterdata_card
+    from app.rag.retrieval import CallerScope, retrieve
+
+    org = uuid.uuid4()
+    inquiry = uuid.uuid4()
+    doc_id = anfrage_doc_id(org, inquiry)
+
+    await index_masterdata_card(
+        rag_session,
+        _StubEmbedder(),
+        document_id=doc_id,
+        organization_id=org,
+        source_type=SOURCE_TYPE_ANFRAGE,
+        card_text="Anfrage (anfragen@): Roman Klassen · E-Mail: roman@example.de · Art: WEG",
+        contact_name="Roman Klassen",
+        sensitivity="high",
+        source_kind="ANFRAGE",
+    )
+    await rag_session.flush()
+
+    query = [0.1] * EMBEDDING_DIM
+
+    verwalter = CallerScope(organization_id=org, is_verwalter=True, visible_document_ids=None)
+    got = await retrieve(rag_session, scope=verwalter, query_embedding=query, min_similarity=0.0)
+    assert any(c.document_id == doc_id for c in got)
+
+    # A member (real visible-doc set) can never match the synthetic anfrage id.
     owner = CallerScope(
         organization_id=org,
         is_verwalter=False,

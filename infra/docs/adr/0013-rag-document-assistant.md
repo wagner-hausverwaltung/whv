@@ -158,6 +158,18 @@ Two options considered:
 - Sensitivity: Dienstleister are org-wide (VERWALTER); owner/contact
   user data is PII → `sensitivity=high`, retrievable only by VERWALTER
   (or the data subject themselves), enforced by the §2 filter.
+- **Card types shipped:** Dienstleister, Kontakte, ETV — and (2026-06-30)
+  **Anfragen** (`source_type="anfrage"`): one card per inbound anfragen@
+  offer inquiry (sender, subject, Art/Objekt/Einheiten, Bearbeitung/Status),
+  so the assistant can pull a prospect's contact info or surface inquiries.
+  Org-scoped (synthetic id `anfrage:{org}:{inquiry}`, not property-scoped),
+  `sensitivity=high` prospect PII → **VERWALTER-only by construction** (a
+  member's visible-doc set never contains the synthetic id, identical to the
+  Dienstleister guarantee; red-team test in `test_rag_masterdata.py`). IGNORED
+  (spam) inquiries are never carded. Re-indexed near-real-time at the end of
+  `extract_offer_inquiry` and swept in `enqueue_masterdata_indexing` (full
+  backfill). No new data-protection surface — same Gemini embedding AVV; add
+  `OfferInquiry` to the processed-entities list in the Datenschutzerklärung.
 
 ### 5. Embeddings + store + generation
 
