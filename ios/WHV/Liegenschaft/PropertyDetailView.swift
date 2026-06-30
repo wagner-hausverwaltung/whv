@@ -410,10 +410,6 @@ struct PropertyDetailView: View {
 
     private func quickActionsSection() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Schnellzugriff")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
             VStack(spacing: 8) {
                 // Einheiten + Dienstleister open their own screens (the detail
                 // lives behind the button, not inline below). Shown only when
