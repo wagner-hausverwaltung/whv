@@ -1,18 +1,26 @@
 // Verwalter review queue for inbound anfragen@ inquiries (ADR-0019). Lists
-// inquiries with status; for one that needs review, opens a dialog prefilled
-// from the LLM extraction so the Verwalter can correct + send the offer.
+// inquiries with status; each row expands to show the full email body, a shared
+// note, a re-download of the generated offer, and a "send friendly reminder"
+// action. For one that needs review, a dialog prefilled from the LLM extraction
+// lets the Verwalter correct + send the offer.
+import DownloadIcon from "@mui/icons-material/Download";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import SendIcon from "@mui/icons-material/Send";
 import {
   Alert,
   Box,
   Button,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   MenuItem,
   Select,
   Stack,
@@ -28,7 +36,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "@/api/client";
@@ -49,6 +57,16 @@ interface OfferInquiry {
   confidence: number | null;
   sent_at: string | null;
   created_at: string;
+  generated_offer_filename: string | null;
+  last_reminder_at: string | null;
+  reminder_count: number;
+}
+
+interface OfferInquiryDetail extends OfferInquiry {
+  body: string;
+  review_note: string | null;
+  error: string | null;
+  sent_message_id: string | null;
 }
 
 const LEAD_STATUSES = ["OPEN", "ON_HOLD", "ACCEPTED", "DECLINED"] as const;
@@ -65,10 +83,20 @@ const STATUS_COLOR: Record<
   IGNORED: "default",
 };
 
+// Total columns including the leading expander cell — used as the Collapse
+// row's colSpan so the panel spans the full table width.
+const COL_SPAN = 10;
+
 // 1 Jan of next year as an ISO date — mirrors the backend pricing default so the
 // date field shows the real start instead of an empty input rendering today.
 function defaultStartDate(): string {
   return `${new Date().getFullYear() + 1}-01-01`;
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
 }
 
 // The LLM returns a single combined object address ("Straße 1, 70123 Stadt").
@@ -86,13 +114,36 @@ function splitGermanAddress(address: string | null): [string, string] {
 
 export function AdminAnfragenPage() {
   const { t } = useTranslation();
-  const tp = (k: string) => t(`admin.anfragenPage.${k}`);
+  const tp = (k: string, opts?: Record<string, unknown>) =>
+    t(`admin.anfragenPage.${k}`, opts ?? {});
 
   const [rows, setRows] = useState<OfferInquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [autoBusy, setAutoBusy] = useState(false);
+
+  // --- row expansion / detail panel ---
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, OfferInquiryDetail>>({});
+  const [detailBusy, setDetailBusy] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [panelBusy, setPanelBusy] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  // Editable extracted fields (Art / Objekt-Adresse / Einheiten / Vertragsbeginn),
+  // seeded from the loaded detail. Only one row is expanded at a time, so a
+  // single set of edit-state vars is enough.
+  const [editArt, setEditArt] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editUnits, setEditUnits] = useState("");
+  const [editStart, setEditStart] = useState("");
+
+  function seedEdit(d: OfferInquiry) {
+    setEditArt(d.art ?? "");
+    setEditAddress(d.object_address ?? "");
+    setEditUnits(d.units != null ? String(d.units) : "");
+    setEditStart(d.desired_start ?? "");
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +155,10 @@ export function AdminAnfragenPage() {
       ]);
       setRows(inq.data);
       setAutoMode(settings.data.auto_send_enabled);
+      // Drop cached detail + collapse on a fresh load so the panel never shows
+      // stale body/note/reminder data.
+      setDetails({});
+      setExpandedId(null);
     } catch {
       setError(tp("loadError"));
     } finally {
@@ -144,6 +199,126 @@ export function AdminAnfragenPage() {
         rs.map((r) => (r.id === id && prev ? { ...r, lead_status: prev } : r)),
       );
       setError(tp("leadStatusError"));
+    }
+  }
+
+  // Lazy-fetch the detail (full body + note) the first time a row is expanded.
+  async function toggleExpand(id: string) {
+    setPanelError(null);
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    const cached = details[id];
+    if (cached) {
+      setNoteDraft(cached.review_note ?? "");
+      seedEdit(cached);
+      return;
+    }
+    setDetailBusy(id);
+    try {
+      const r = await api.get<OfferInquiryDetail>(`/admin/offer-inquiries/${id}`);
+      setDetails((d) => ({ ...d, [id]: r.data }));
+      setNoteDraft(r.data.review_note ?? "");
+      seedEdit(r.data);
+    } catch {
+      setPanelError(tp("detailError"));
+    } finally {
+      setDetailBusy(null);
+    }
+  }
+
+  async function saveFields(id: string) {
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const r = await api.put<OfferInquiryDetail>(`/admin/offer-inquiries/${id}/fields`, {
+        art: editArt || null,
+        object_address: editAddress.trim() || null,
+        units: editUnits ? Number(editUnits) : null,
+        desired_start: editStart || null,
+      });
+      setDetails((d) => ({ ...d, [id]: r.data }));
+      setRows((rs) =>
+        rs.map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                art: r.data.art,
+                object_address: r.data.object_address,
+                units: r.data.units,
+                desired_start: r.data.desired_start,
+              }
+            : x,
+        ),
+      );
+      seedEdit(r.data);
+    } catch {
+      setPanelError(tp("fieldsError"));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function saveNote(id: string) {
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const r = await api.put<OfferInquiryDetail>(`/admin/offer-inquiries/${id}/note`, {
+        review_note: noteDraft,
+      });
+      setDetails((d) => ({ ...d, [id]: r.data }));
+      setNoteDraft(r.data.review_note ?? "");
+    } catch {
+      setPanelError(tp("noteError"));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function sendReminder(id: string) {
+    if (!window.confirm(tp("reminderConfirm"))) return;
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const r = await api.post<OfferInquiryDetail>(`/admin/offer-inquiries/${id}/reminder`);
+      setDetails((d) => ({ ...d, [id]: r.data }));
+      setRows((rs) =>
+        rs.map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                last_reminder_at: r.data.last_reminder_at,
+                reminder_count: r.data.reminder_count,
+              }
+            : x,
+        ),
+      );
+    } catch {
+      setPanelError(tp("reminderError"));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function downloadOffer(id: string, filename: string | null) {
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const r = await api.get(`/admin/offer-inquiries/${id}/offer.pdf`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "Angebot.pdf";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setPanelError(tp("downloadError"));
+    } finally {
+      setPanelBusy(false);
     }
   }
 
@@ -252,6 +427,7 @@ export function AdminAnfragenPage() {
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell sx={{ width: 40 }} />
               <TableCell>{tp("colSender")}</TableCell>
               <TableCell>{tp("colSubject")}</TableCell>
               <TableCell>{tp("colArt")}</TableCell>
@@ -264,53 +440,240 @@ export function AdminAnfragenPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id} hover>
-                <TableCell>
-                  {r.sender_name || r.sender_email}
-                  <br />
-                  <Typography variant="caption" color="text.secondary">
-                    {r.sender_email}
-                  </Typography>
-                </TableCell>
-                <TableCell>{r.subject}</TableCell>
-                <TableCell>{r.art ?? "—"}</TableCell>
-                <TableCell>{r.object_address ?? "—"}</TableCell>
-                <TableCell align="right">{r.units ?? "—"}</TableCell>
-                <TableCell align="right">
-                  {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : "—"}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    size="small"
-                    label={r.status}
-                    color={STATUS_COLOR[r.status] ?? "default"}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Select
-                    size="small"
-                    variant="standard"
-                    value={r.lead_status}
-                    onChange={(e) => void updateLeadStatus(r.id, e.target.value)}
-                    sx={{ minWidth: 120 }}
-                  >
-                    {LEAD_STATUSES.map((s) => (
-                      <MenuItem key={s} value={s}>
-                        {tp(`lead.${s}`)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell align="right">
-                  {r.status !== "SENT" && r.status !== "IGNORED" && (
-                    <Button size="small" variant="outlined" onClick={() => openSend(r)}>
-                      {tp("send")}
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {rows.map((r) => {
+              const open = expandedId === r.id;
+              const detail = details[r.id];
+              const fieldsDirty =
+                !!detail &&
+                ((detail.art ?? "") !== editArt ||
+                  (detail.object_address ?? "") !== editAddress ||
+                  (detail.units != null ? String(detail.units) : "") !== editUnits ||
+                  (detail.desired_start ?? "") !== editStart);
+              return (
+                <Fragment key={r.id}>
+                  <TableRow hover>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      <IconButton
+                        size="small"
+                        aria-label={tp("expandAria")}
+                        onClick={() => void toggleExpand(r.id)}
+                      >
+                        {open ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+                      </IconButton>
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.sender_name || r.sender_email}
+                      <br />
+                      <Typography variant="caption" color="text.secondary">
+                        {r.sender_email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.subject}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.art ?? "—"}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.object_address ?? "—"}
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.units ?? "—"}
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : "—"}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      <Chip
+                        size="small"
+                        label={r.status}
+                        color={STATUS_COLOR[r.status] ?? "default"}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
+                      <Select
+                        size="small"
+                        variant="standard"
+                        value={r.lead_status}
+                        onChange={(e) => void updateLeadStatus(r.id, e.target.value)}
+                        sx={{ minWidth: 120 }}
+                      >
+                        {LEAD_STATUSES.map((s) => (
+                          <MenuItem key={s} value={s}>
+                            {tp(`lead.${s}`)}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderBottom: open ? "none" : undefined }}>
+                      {r.status !== "SENT" && r.status !== "IGNORED" && (
+                        <Button size="small" variant="outlined" onClick={() => openSend(r)}>
+                          {tp("send")}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ py: 0, border: 0 }} colSpan={COL_SPAN}>
+                      <Collapse in={open} timeout="auto" unmountOnExit>
+                        <Box sx={{ py: 2, px: 1 }}>
+                          {detailBusy === r.id ? (
+                            <CircularProgress size={22} />
+                          ) : detail ? (
+                            <Stack spacing={2}>
+                              {panelError && <Alert severity="error">{panelError}</Alert>}
+                              {detail.error && (
+                                <Alert severity="error">{detail.error}</Alert>
+                              )}
+                              <Box>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  {tp("emailBody")}
+                                </Typography>
+                                <Box
+                                  sx={{
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    maxHeight: 320,
+                                    overflow: "auto",
+                                    bgcolor: "action.hover",
+                                    p: 1.5,
+                                    borderRadius: 1,
+                                    fontSize: "0.85rem",
+                                    fontFamily: "ui-monospace, monospace",
+                                  }}
+                                >
+                                  {detail.body.trim() || tp("noEmailBody")}
+                                </Box>
+                              </Box>
+                              <Box>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  {tp("editTitle")}
+                                </Typography>
+                                <Stack spacing={1.5}>
+                                  <Stack direction="row" spacing={2}>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      label={tp("colArt")}
+                                      value={editArt}
+                                      onChange={(e) => setEditArt(e.target.value)}
+                                      sx={{ minWidth: 150 }}
+                                    >
+                                      <MenuItem value="">{tp("artUnknown")}</MenuItem>
+                                      <MenuItem value="WEG">WEG</MenuItem>
+                                      <MenuItem value="MV">Mietverwaltung</MenuItem>
+                                    </TextField>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      label={tp("units")}
+                                      value={editUnits}
+                                      onChange={(e) => setEditUnits(e.target.value)}
+                                      slotProps={{ htmlInput: { min: 1, max: 1000 } }}
+                                      sx={{ width: 120 }}
+                                    />
+                                    <TextField
+                                      size="small"
+                                      type="date"
+                                      label={tp("start")}
+                                      value={editStart}
+                                      onChange={(e) => setEditStart(e.target.value)}
+                                      slotProps={{ inputLabel: { shrink: true } }}
+                                    />
+                                  </Stack>
+                                  <TextField
+                                    size="small"
+                                    fullWidth
+                                    label={tp("fieldObject")}
+                                    value={editAddress}
+                                    onChange={(e) => setEditAddress(e.target.value)}
+                                  />
+                                  <Box>
+                                    <Button
+                                      size="small"
+                                      onClick={() => void saveFields(r.id)}
+                                      disabled={panelBusy || !fieldsDirty}
+                                    >
+                                      {tp("fieldsSave")}
+                                    </Button>
+                                  </Box>
+                                </Stack>
+                              </Box>
+                              <Box>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  {tp("notes")}
+                                </Typography>
+                                <TextField
+                                  multiline
+                                  minRows={2}
+                                  fullWidth
+                                  size="small"
+                                  placeholder={tp("notesPlaceholder")}
+                                  value={noteDraft}
+                                  onChange={(e) => setNoteDraft(e.target.value)}
+                                />
+                                <Button
+                                  size="small"
+                                  sx={{ mt: 1 }}
+                                  onClick={() => void saveNote(r.id)}
+                                  disabled={panelBusy || noteDraft === (detail.review_note ?? "")}
+                                >
+                                  {tp("notesSave")}
+                                </Button>
+                              </Box>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexDirection: "row",
+                                  gap: 2,
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {!!r.generated_offer_filename && (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<DownloadIcon />}
+                                    onClick={() =>
+                                      void downloadOffer(r.id, r.generated_offer_filename)
+                                    }
+                                    disabled={panelBusy}
+                                  >
+                                    {tp("downloadOffer")}
+                                  </Button>
+                                )}
+                                {r.status === "SENT" && (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<SendIcon />}
+                                    onClick={() => void sendReminder(r.id)}
+                                    disabled={panelBusy}
+                                  >
+                                    {tp("reminder")}
+                                  </Button>
+                                )}
+                                {r.reminder_count > 0 && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {tp("reminderSent", {
+                                      count: r.reminder_count,
+                                      date: formatDateTime(r.last_reminder_at),
+                                    })}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Stack>
+                          ) : (
+                            panelError && <Alert severity="error">{panelError}</Alert>
+                          )}
+                        </Box>
+                      </Collapse>
+                    </TableCell>
+                  </TableRow>
+                </Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       )}

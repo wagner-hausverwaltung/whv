@@ -77,7 +77,21 @@ class OfferInquiry(OrganizationScopedMixin, TimestampMixin, Base):
 
     # Outcome.
     generated_offer_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Exact OfferGenerateRequest (JSON) used at send time — lets the Verwalter
+    # re-download the *as-sent* offer byte-for-byte, since the PDF itself is
+    # not persisted (regenerated on demand from these inputs). NULL for offers
+    # sent before this column existed (re-download falls back to the stored
+    # extracted fields for those).
+    sent_request_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_message_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Friendly follow-up reminders sent after the offer. Tracked so the UI can
+    # show "Erinnerung gesendet am …" and guard against accidental double-sends.
+    last_reminder_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reminder_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

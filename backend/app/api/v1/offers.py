@@ -22,6 +22,9 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.models import OfferInquiry, OfferInquiryStatus, Organization, User, UserRole
 from app.schemas.offer import (
     OfferGenerateRequest,
+    OfferInquiryDetailResponse,
+    OfferInquiryFieldsUpdate,
+    OfferInquiryNoteUpdate,
     OfferInquiryResponse,
     OfferLeadStatusUpdate,
     OfferSettingsResponse,
@@ -139,3 +142,136 @@ async def admin_set_offer_lead_status(
     await session.commit()
     await session.refresh(inquiry)
     return inquiry
+
+
+async def _get_owned_inquiry(
+    session: AsyncSession, inquiry_id: uuid.UUID, current_user: User
+) -> OfferInquiry:
+    """Fetch an inquiry, 404 unless it belongs to the caller's org. Collapsing
+    missing/foreign → 404 avoids disclosing existence across orgs."""
+    inquiry = await session.get(OfferInquiry, inquiry_id)
+    if inquiry is None or inquiry.organization_id != current_user.organization_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Inquiry not found")
+    return inquiry
+
+
+@admin_router.get("/offer-inquiries/{inquiry_id}", response_model=OfferInquiryDetailResponse)
+async def admin_get_offer_inquiry(
+    inquiry_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferInquiry:
+    """Full detail for one inquiry — adds the raw email body, the shared note,
+    and the error reason on top of the lean list fields."""
+    return await _get_owned_inquiry(session, inquiry_id, current_user)
+
+
+@admin_router.put("/offer-inquiries/{inquiry_id}/fields", response_model=OfferInquiryDetailResponse)
+async def admin_update_offer_fields(
+    inquiry_id: uuid.UUID,
+    payload: OfferInquiryFieldsUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferInquiry:
+    """Correct the extracted inquiry fields (e.g. fill in a street + number the
+    prospect didn't disclose initially). Overwrites the stored values so the
+    list, the send dialog, and re-download all pick up the correction."""
+    inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
+    inquiry.art = payload.art
+    inquiry.object_address = (payload.object_address or "").strip() or None
+    inquiry.units = payload.units
+    inquiry.desired_start = payload.desired_start
+    await session.commit()
+    await session.refresh(inquiry)
+    return inquiry
+
+
+@admin_router.put("/offer-inquiries/{inquiry_id}/note", response_model=OfferInquiryDetailResponse)
+async def admin_set_offer_note(
+    inquiry_id: uuid.UUID,
+    payload: OfferInquiryNoteUpdate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OfferInquiry:
+    """Set the shared free-text note on an inquiry (visible to every Verwalter
+    in the org)."""
+    inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
+    note = (payload.review_note or "").strip()
+    inquiry.review_note = note or None
+    await session.commit()
+    await session.refresh(inquiry)
+    return inquiry
+
+
+@admin_router.post(
+    "/offer-inquiries/{inquiry_id}/reminder", response_model=OfferInquiryDetailResponse
+)
+async def admin_send_offer_reminder(
+    inquiry_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> OfferInquiry:
+    """Email a friendly follow-up reminder to the prospect. Only valid once the
+    offer has actually been sent — and a failed reminder must NOT corrupt the
+    original SENT state, so we never flip the inquiry to FAILED here."""
+    inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
+    if inquiry.status != OfferInquiryStatus.SENT.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Reminder only available after the offer was sent"
+        )
+    try:
+        await offers_svc.send_reminder_for_inquiry(
+            inquiry, email_client=email_client, settings=settings
+        )
+    except EmailError as exc:
+        # Do not touch status/sent_at — the original offer is still validly sent.
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Reminder failed: {exc}") from exc
+    await session.commit()
+    await session.refresh(inquiry)
+    return inquiry
+
+
+def _redownload_request(inquiry: OfferInquiry) -> OfferGenerateRequest:
+    """Reconstruct the OfferGenerateRequest for a re-download. Prefers the exact
+    as-sent JSON; falls back to the stored extracted fields for offers sent
+    before that was persisted (WEG only — MV recipient fields weren't stored)."""
+    if inquiry.sent_request_json:
+        return OfferGenerateRequest.model_validate_json(inquiry.sent_request_json)
+    if inquiry.art not in ("WEG", "MV") or not inquiry.units:
+        raise ValueError("Keine gespeicherten Angebotsdaten zum Neu-Erzeugen")
+    if inquiry.art == "MV":
+        # Legacy MV offers didn't persist recipient/salutation → can't rebuild.
+        raise ValueError("MV-Angebot kann ohne gespeicherte Daten nicht neu erzeugt werden")
+    return OfferGenerateRequest(
+        art="WEG",
+        units=inquiry.units,
+        start_date=inquiry.desired_start,
+        object_street=inquiry.object_address or None,
+    )
+
+
+@admin_router.get("/offer-inquiries/{inquiry_id}/offer.pdf")
+async def admin_download_offer(
+    inquiry_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Re-download the generated offer for a sent inquiry. The PDF isn't stored;
+    it's regenerated from the exact as-sent request (or, for legacy offers, the
+    stored extracted fields)."""
+    inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
+    download_name = inquiry.generated_offer_filename
+    if not download_name:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No offer has been sent for this inquiry")
+    try:
+        req = _redownload_request(inquiry)
+        pdf, _ = await asyncio.to_thread(generate_offer, req)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )

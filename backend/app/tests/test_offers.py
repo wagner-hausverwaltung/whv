@@ -254,3 +254,164 @@ async def test_lead_status_eigentuemer_forbidden(test_engine: AsyncEngine) -> No
             json={"lead_status": "ACCEPTED"},
         )
     assert r.status_code == 403
+
+
+# --- detail, notes, re-download, reminder -------------------------------------
+
+
+async def test_inquiry_detail_returns_body(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)  # body == "x"
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["body"] == "x"
+    assert body["review_note"] is None
+    assert body["reminder_count"] == 0
+
+
+async def test_inquiry_detail_cross_org_404(test_engine: AsyncEngine) -> None:
+    org_a = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org_a)
+    org_b = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org_b, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
+    assert r.status_code == 404
+
+
+async def test_inquiry_note_set_and_clear(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/note",
+            headers=_auth(token),
+            json={"review_note": "Beirat zuerst fragen"},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["review_note"] == "Beirat zuerst fragen"
+        # Blank string clears it back to NULL.
+        r2 = client.put(
+            f"/admin/offer-inquiries/{inq.id}/note",
+            headers=_auth(token),
+            json={"review_note": "   "},
+        )
+    assert r2.json()["review_note"] is None
+
+
+async def test_send_persists_request_and_enables_download(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        sent = client.post(
+            f"/admin/offer-inquiries/{inq.id}/send", headers=_auth(token), json=_WEG_BODY
+        )
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["status"] == "SENT"
+        assert sent.json()["generated_offer_filename"]
+        # Re-download regenerates the as-sent PDF.
+        pdf = client.get(f"/admin/offer-inquiries/{inq.id}/offer.pdf", headers=_auth(token))
+    assert pdf.status_code == 200, pdf.text
+    assert pdf.headers["content-type"].startswith("application/pdf")
+    assert pdf.content[:5] == b"%PDF-"
+    assert "attachment" in pdf.headers.get("content-disposition", "")
+
+
+async def test_download_409_when_not_sent(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get(f"/admin/offer-inquiries/{inq.id}/offer.pdf", headers=_auth(token))
+    assert r.status_code == 409
+
+
+async def test_reminder_requires_sent(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)  # status NEW
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(f"/admin/offer-inquiries/{inq.id}/reminder", headers=_auth(token))
+    assert r.status_code == 409
+
+
+async def test_reminder_on_sent_stamps_count(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        client.post(
+            f"/admin/offer-inquiries/{inq.id}/send", headers=_auth(token), json=_WEG_BODY
+        ).raise_for_status()
+        r = client.post(f"/admin/offer-inquiries/{inq.id}/reminder", headers=_auth(token))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["reminder_count"] == 1
+        assert body["last_reminder_at"] is not None
+        # status stays SENT — a reminder must not corrupt the original send.
+        assert body["status"] == "SENT"
+        # Second reminder bumps the count again.
+        r2 = client.post(f"/admin/offer-inquiries/{inq.id}/reminder", headers=_auth(token))
+    assert r2.json()["reminder_count"] == 2
+
+
+async def test_fields_update_persists(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)  # art/units/object_address all NULL
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/fields",
+            headers=_auth(token),
+            json={
+                "art": "WEG",
+                "object_address": "Musterstraße 12, 70123 Stuttgart",
+                "units": 6,
+                "desired_start": "2027-01-01",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["object_address"] == "Musterstraße 12, 70123 Stuttgart"
+        # The correction shows in the list too.
+        lst = client.get("/admin/offer-inquiries", headers=_auth(token))
+    row = next(x for x in lst.json() if x["id"] == str(inq.id))
+    assert row["art"] == "WEG"
+    assert row["units"] == 6
+    assert row["object_address"] == "Musterstraße 12, 70123 Stuttgart"
+
+
+async def test_fields_update_validates_units(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.put(
+            f"/admin/offer-inquiries/{inq.id}/fields",
+            headers=_auth(token),
+            json={"units": 0},  # below ge=1
+        )
+    assert r.status_code == 422
+
+
+async def test_reminder_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(f"/admin/offer-inquiries/{inq.id}/reminder", headers=_auth(token))
+    assert r.status_code == 403
