@@ -31,6 +31,7 @@ _MASTERDATA_NS = uuid.UUID("5d3a9f00-2c41-4e8e-9a7b-6f0c1d2e3f40")
 SOURCE_TYPE_DIENSTLEISTER = "dienstleister"
 SOURCE_TYPE_CONTACT = "contact"
 SOURCE_TYPE_ETV = "etv"
+SOURCE_TYPE_ANFRAGE = "anfrage"
 
 
 def dienstleister_doc_id(property_id: uuid.UUID, contact_id: uuid.UUID) -> uuid.UUID:
@@ -57,6 +58,55 @@ def etv_doc_id(property_id: uuid.UUID, assembly_id: uuid.UUID) -> uuid.UUID:
     ``resolve_caller_scope``), matching the portal's ETV tab and the
     property-wide invitation/protocol documents."""
     return uuid.uuid5(_MASTERDATA_NS, f"etv:{property_id}:{assembly_id}")
+
+
+def anfrage_doc_id(organization_id: uuid.UUID, inquiry_id: uuid.UUID) -> uuid.UUID:
+    """Deterministic synthetic document id for one anfragen@ offer inquiry.
+
+    Anfragen are org-scoped (prospect-initiated, not tied to a property), so the
+    id keys off (organization, inquiry). The ``anfrage:`` prefix keeps it
+    disjoint from the other card kinds — and since a non-VERWALTER's retrieval
+    scope is built only from real docs + their own contact + ETV cards, an
+    ``anfrage`` synthetic id is never in that set → **VERWALTER-only by
+    construction** (prospect PII, ``sensitivity=high``), like Dienstleister.
+    """
+    return uuid.uuid5(_MASTERDATA_NS, f"anfrage:{organization_id}:{inquiry_id}")
+
+
+def build_anfrage_card(
+    *,
+    sender_name: str | None,
+    sender_email: str,
+    subject: str | None = None,
+    art: str | None = None,
+    object_address: str | None = None,
+    units: int | None = None,
+    status: str | None = None,
+    lead_status: str | None = None,
+    received_on: str | None = None,
+) -> str:
+    """Render one inbound offer inquiry (Anfrage) to a compact German card so the
+    assistant can answer "wie lautet die Kontakt-Mail der Anfrage zur WEG in …?"
+    or "welche offenen Anfragen gibt es?". VERWALTER-only (prospect PII)."""
+    who = sender_name or sender_email
+    parts: list[str] = [f"Anfrage (anfragen@): {who}"]
+    if sender_name and sender_email:
+        parts.append(f"E-Mail: {sender_email}")
+    if subject:
+        parts.append(f"Betreff: {subject}")
+    if art:
+        parts.append(f"Art: {art}")
+    if object_address:
+        parts.append(f"Objekt: {object_address}")
+    if units is not None:
+        parts.append(f"Einheiten: {units}")
+    if status:
+        parts.append(f"Bearbeitung: {status}")
+    if lead_status:
+        parts.append(f"Status: {lead_status}")
+    if received_on:
+        parts.append(f"Eingegangen: {received_on}")
+    return " · ".join(parts)
 
 
 def build_dienstleister_card(

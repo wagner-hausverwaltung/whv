@@ -945,11 +945,14 @@ async def _index_rag_masterdata_async(
     from app.integrations.llm import get_llm_provider
     from app.rag.db import provision_rag_store
     from app.rag.service import (
+        reindex_anfrage_card,
         reindex_contact_card,
         reindex_dienstleister_card,
         reindex_etv_card,
     )
 
+    # For "anfrage" the first slot carries the ORG id (anfragen are org-scoped,
+    # not per-property); for the others it's the property id.
     property_id = uuid.UUID(property_id_str)
     entity_id = uuid.UUID(entity_id_str)
     app_engine = create_async_engine(settings.database_url)
@@ -960,7 +963,15 @@ async def _index_rag_masterdata_async(
         rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
         async with app_factory() as app_session, rag_factory() as rag_session:
             provider = get_llm_provider()
-            if card_type == "etv":
+            if card_type == "anfrage":
+                result = await reindex_anfrage_card(
+                    app_session,
+                    rag_session,
+                    provider,
+                    organization_id=property_id,  # org id in the first slot
+                    inquiry_id=entity_id,
+                )
+            elif card_type == "etv":
                 result = await reindex_etv_card(
                     app_session,
                     rag_session,
@@ -1008,6 +1019,23 @@ def index_rag_masterdata(property_id: str, entity_id: str, card_type: str = "die
     return asyncio.run(_index_rag_masterdata_async(property_id, entity_id, card_type))
 
 
+def _enqueue_anfrage_reindex(inquiry: object, settings: object) -> None:
+    """Refresh one inquiry's VERWALTER-only RAG card after extraction/edit so the
+    assistant can pull its contact info. No-op when rag is off or the inquiry is
+    spam (IGNORED — never carded)."""
+    from app.models import OfferInquiryStatus
+
+    if not settings.rag_enabled:  # type: ignore[attr-defined]
+        return
+    if inquiry.status == OfferInquiryStatus.IGNORED.value:  # type: ignore[attr-defined]
+        return
+    index_rag_masterdata.delay(
+        str(inquiry.organization_id),  # type: ignore[attr-defined]
+        str(inquiry.id),  # type: ignore[attr-defined]
+        "anfrage",
+    )
+
+
 @celery_app.task(
     name="app.workers.tasks.extract_offer_inquiry",
     autoretry_for=(Exception,),
@@ -1043,6 +1071,7 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
             # request) and NEEDS_REVIEW (provider down) just persist + stop.
             if inquiry.status != OfferInquiryStatus.EXTRACTED.value:
                 await session.commit()
+                _enqueue_anfrage_reindex(inquiry, settings)
                 return inquiry.status.lower()
 
             req = offer_extraction.build_offer_request(inquiry)
@@ -1051,6 +1080,7 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
             if req is None or not allowed:
                 inquiry.status = OfferInquiryStatus.NEEDS_REVIEW.value
                 await session.commit()
+                _enqueue_anfrage_reindex(inquiry, settings)
                 return "needs_review"
 
             client = EmailClient(settings)
@@ -1062,6 +1092,7 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
                 inquiry.status = OfferInquiryStatus.FAILED.value
                 inquiry.error = str(exc)
             await session.commit()
+            _enqueue_anfrage_reindex(inquiry, settings)
             return inquiry.status.lower()
     finally:
         await engine.dispose()

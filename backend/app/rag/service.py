@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.integrations.storage.documents import document_path
+from app.models.anfrage import OfferInquiry, OfferInquiryStatus
 from app.models.contact import Contact, ContactKind
 from app.models.contract import Contract, ContractContact, ContractType
 from app.models.document import Document
@@ -39,9 +40,12 @@ from app.rag.ingestion import (
     index_masterdata_card,
 )
 from app.rag.masterdata import (
+    SOURCE_TYPE_ANFRAGE,
     SOURCE_TYPE_CONTACT,
     SOURCE_TYPE_DIENSTLEISTER,
     SOURCE_TYPE_ETV,
+    anfrage_doc_id,
+    build_anfrage_card,
     build_contact_card,
     build_dienstleister_card,
     build_etv_card,
@@ -409,6 +413,50 @@ async def reindex_etv_card(
     )
 
 
+async def reindex_anfrage_card(
+    app_session: AsyncSession,
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    organization_id: uuid.UUID,
+    inquiry_id: uuid.UUID,
+    force: bool = False,
+) -> IndexResult | None:
+    """Render one anfragen@ offer inquiry to a German card and index it as
+    VERWALTER-only master-data (prospect PII, ``sensitivity=high`` — kept
+    Verwalter-only by the synthetic ``anfrage:`` document id, like Dienstleister).
+    Skips IGNORED (spam / non-offer) inquiries. Returns None if the inquiry is
+    gone or out of org. Flushes the rag_session; the caller commits."""
+    inquiry = await app_session.get(OfferInquiry, inquiry_id)
+    if inquiry is None or inquiry.organization_id != organization_id:
+        return None
+    if inquiry.status == OfferInquiryStatus.IGNORED.value:
+        return None
+    card = build_anfrage_card(
+        sender_name=inquiry.sender_name,
+        sender_email=inquiry.sender_email,
+        subject=inquiry.subject or None,
+        art=inquiry.art,
+        object_address=inquiry.object_address,
+        units=inquiry.units,
+        status=inquiry.status,
+        lead_status=inquiry.lead_status,
+        received_on=inquiry.created_at.date().isoformat() if inquiry.created_at else None,
+    )
+    return await index_masterdata_card(
+        rag_session,
+        embedder,
+        document_id=anfrage_doc_id(organization_id, inquiry_id),
+        organization_id=organization_id,
+        source_type=SOURCE_TYPE_ANFRAGE,
+        card_text=card,
+        contact_name=inquiry.sender_name or inquiry.sender_email,
+        sensitivity="high",
+        source_kind="ANFRAGE",
+        force=force,
+    )
+
+
 async def _contact_ids_for_property(
     app_session: AsyncSession, property_id: uuid.UUID
 ) -> list[uuid.UUID]:
@@ -473,6 +521,20 @@ async def enqueue_masterdata_indexing(
         pairs.extend((pid, cid, SOURCE_TYPE_CONTACT) for cid in contact_ids)
         assembly_ids = await _assembly_ids_for_property(app_session, pid)
         pairs.extend((pid, aid, SOURCE_TYPE_ETV) for aid in assembly_ids)
+
+    # Anfragen (offer inquiries) are org-scoped, not per-property — only sweep
+    # them on a full backfill. The first tuple slot carries the organization id
+    # for these rows (the worker routes "anfrage" to reindex_anfrage_card).
+    if property_id is None:
+        anfrage_rows = (
+            await app_session.execute(
+                select(OfferInquiry.organization_id, OfferInquiry.id).where(
+                    OfferInquiry.status != OfferInquiryStatus.IGNORED.value
+                )
+            )
+        ).all()
+        pairs.extend((org_id, inq_id, SOURCE_TYPE_ANFRAGE) for org_id, inq_id in anfrage_rows)
+
     if limit is not None:
         pairs = pairs[:limit]
 

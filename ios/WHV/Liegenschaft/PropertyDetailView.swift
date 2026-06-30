@@ -196,43 +196,34 @@ struct PropertyDetailView: View {
     /// through the shell's deep-link path (which dismisses any open sheet,
     /// resets the feature's nav path, then presents) by setting pendingTarget.
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
-    /// Sheet binding. nil = closed.
-    @State private var contactSheetTarget: ContactSheetTarget?
-    @State private var invoiceSheetTarget: InvoiceSheetTarget?
+    @State private var showEinheiten = false
+    @State private var showDienstleister = false
     @State private var showDocuments = false
     @State private var showMeters = false
     @State private var showCalendar = false
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    headerCard
-                    quickActionsSection(scroll: proxy)
-                    if let units = store.detail?.units, !units.isEmpty {
-                        einheitenSection(units: units)
-                    }
-                    if let account = store.account, account.account_id != nil {
-                        hausgeldkontoSection(account: account)
-                    }
-                    if !store.rentSettlements.isEmpty {
-                        mietabrechnungSection(settlements: store.rentSettlements)
-                    }
-                    if !store.vendors.isEmpty {
-                        dienstleisterSection(vendors: store.vendors)
-                            .id("dienstleister")
-                    }
-                    wechselnSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                headerCard
+                quickActionsSection()
+                if let account = store.account, account.account_id != nil {
+                    hausgeldkontoSection(account: account)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+                if !store.rentSettlements.isEmpty {
+                    mietabrechnungSection(settlements: store.rentSettlements)
+                }
+                wechselnSection
             }
-            .navigationTitle("Liegenschaft")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                store.onUnauthorized = { [weak authStore] in
-                    authStore?.signOut()
-                }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+        .navigationTitle("Liegenschaft")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            store.onUnauthorized = { [weak authStore] in
+                authStore?.signOut()
+            }
                 // Cold-launch: a deep link may have set this before the
                 // view mounted.
                 consumePropertyTab(deepLinkRouter.pendingPropertyTab)
@@ -246,22 +237,16 @@ struct PropertyDetailView: View {
                 await store.load(id: property.id)
             }
             .refreshable { await store.load(id: property.id) }
-            .sheet(item: $contactSheetTarget) { target in
-                ContactDetailSheet(
-                    contractId: target.contractId,
-                    contactId: target.contactId,
-                    fallbackLabel: target.fallbackLabel,
-                    contractType: target.contractType
+            .sheet(isPresented: $showEinheiten) {
+                EinheitenScreen(
+                    units: store.detail?.units ?? [],
+                    showMea: property.hasOwnershipShares
                 )
                 .environmentObject(authStore)
             }
-            .sheet(item: $invoiceSheetTarget) { target in
-                InvoiceDetailSheet(
-                    propertyId: property.id,
-                    vendorName: target.vendorName,
-                    invoice: target.invoice
-                )
-                .environmentObject(authStore)
+            .sheet(isPresented: $showDienstleister) {
+                DienstleisterScreen(vendors: store.vendors, propertyId: property.id)
+                    .environmentObject(authStore)
             }
             .sheet(isPresented: $showDocuments) {
                 DocumentsView(propertyId: property.id)
@@ -273,7 +258,6 @@ struct PropertyDetailView: View {
                 CalendarView(propertyId: property.id)
                     .environmentObject(authStore)
             }
-        }
     }
 
     /// Open the property sheet a deep link asked for, then clear the
@@ -423,24 +407,53 @@ struct PropertyDetailView: View {
 
     // MARK: - Quick actions
 
-    private func quickActionsSection(scroll: ScrollViewProxy) -> some View {
+    private func quickActionsSection() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Schnellzugriff")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             VStack(spacing: 8) {
-                // Versammlungen / Anliegen / Mitteilungen — open their full
-                // screens as sheets via the shell's deep-link path (reuse the
-                // existing tab views; widget + push deep links land here too).
+                // Einheiten + Dienstleister open their own screens (the detail
+                // lives behind the button, not inline below). Shown only when
+                // there's data to open.
+                if let units = store.detail?.units, !units.isEmpty {
+                    Button {
+                        showEinheiten = true
+                    } label: {
+                        quickRow(
+                            title: "Einheiten",
+                            systemImage: "building.2.fill",
+                            color: .green,
+                            trailingCount: units.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                if !store.vendors.isEmpty {
+                    Button {
+                        showDienstleister = true
+                    } label: {
+                        quickRow(
+                            title: "Dienstleister",
+                            systemImage: "wrench.and.screwdriver.fill",
+                            color: .gray,
+                            trailingCount: store.vendors.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Mitteilungen / Anliegen / Versammlungen — open their full
+                // screens via the shell's deep-link path (reuse the existing tab
+                // views; widget + push deep links land here too).
                 Button {
-                    deepLinkRouter.pendingTarget = .tab(.etv)
+                    deepLinkRouter.pendingTarget = .tab(.mitteilungen)
                 } label: {
                     quickRow(
-                        title: "Versammlungen",
-                        systemImage: "person.3.fill",
-                        color: .purple,
-                        showNeu: store.hasNewAssembly
+                        title: "Mitteilungen",
+                        systemImage: "megaphone.fill",
+                        color: .pink,
+                        showNeu: store.hasNewAnnouncement
                     )
                 }
                 .buttonStyle(.plain)
@@ -456,13 +469,13 @@ struct PropertyDetailView: View {
                 }
                 .buttonStyle(.plain)
                 Button {
-                    deepLinkRouter.pendingTarget = .tab(.mitteilungen)
+                    deepLinkRouter.pendingTarget = .tab(.etv)
                 } label: {
                     quickRow(
-                        title: "Mitteilungen",
-                        systemImage: "megaphone.fill",
-                        color: .pink,
-                        showNeu: store.hasNewAnnouncement
+                        title: "Versammlungen",
+                        systemImage: "person.3.fill",
+                        color: .purple,
+                        showNeu: store.hasNewAssembly
                     )
                 }
                 .buttonStyle(.plain)
@@ -500,19 +513,6 @@ struct PropertyDetailView: View {
                     quickRow(title: "Kalender", systemImage: "calendar", color: .indigo)
                 }
                 .buttonStyle(.plain)
-                // Jump to the Dienstleister section below (only when present).
-                if !store.vendors.isEmpty {
-                    Button {
-                        withAnimation { scroll.scrollTo("dienstleister", anchor: .top) }
-                    } label: {
-                        quickRow(
-                            title: "Dienstleister",
-                            systemImage: "wrench.and.screwdriver.fill",
-                            color: .gray
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
             }
         }
     }
@@ -525,12 +525,16 @@ struct PropertyDetailView: View {
     /// the category has something new/upcoming for this property — kept
     /// visually distinct from the red "N fällig" overdue meter accent.
     /// Default false leaves the row unchanged.
+    /// `trailingCount` shows a muted count (e.g. number of Einheiten /
+    /// Dienstleister) just before the chevron — the at-a-glance hint that
+    /// used to sit in the inline section headers.
     private func quickRow(
         title: LocalizedStringResource,
         systemImage: String,
         color: Color,
         dueCount: Int = 0,
-        showNeu: Bool = false
+        showNeu: Bool = false,
+        trailingCount: Int? = nil
     ) -> some View {
         let isDue = dueCount > 0
         return HStack(spacing: 12) {
@@ -553,6 +557,11 @@ struct PropertyDetailView: View {
                     .clipShape(Capsule())
             }
             Spacer()
+            if let trailingCount {
+                Text("\(trailingCount)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
             if showNeu {
                 NeuBadge()
             }
@@ -570,87 +579,6 @@ struct PropertyDetailView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(Color.red, lineWidth: isDue ? 1.5 : 0)
         )
-    }
-
-    // MARK: - Einheiten
-
-    private func einheitenSection(units: [UnitResponse]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .lastTextBaseline) {
-                Text("Einheiten")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Spacer()
-                Text("\(units.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            VStack(spacing: 0) {
-                ForEach(units) { unit in
-                    // hasOwnershipShares gates the MEA metric — on MV
-                    // (Mietverwaltung) rentals there's no Anteil, so
-                    // suppressing the metric entirely is the honest
-                    // render. WEG and SEV keep it.
-                    UnitRow(
-                        unit: unit,
-                        showMea: property.hasOwnershipShares,
-                        onContactTap: { target in
-                            contactSheetTarget = target
-                        }
-                    )
-                    if unit.id != units.last?.id {
-                        Divider().padding(.leading, 48)
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.secondarySystemBackground))
-            )
-        }
-    }
-
-    // MARK: - Dienstleister
-
-    /// Per-vendor cards aggregating every invoice on the property,
-    /// keyed by contact_id. The actionable bits — name + phone +
-    /// email + "letzte Tätigkeit am …" — let owners call back the
-    /// firm that fixed their last problem without paging the
-    /// Verwalter. Backend assembles the aggregate; we just render.
-    private func dienstleisterSection(vendors: [VendorSummary]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .lastTextBaseline) {
-                Text("Dienstleister")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Spacer()
-                Text("\(vendors.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            VStack(spacing: 0) {
-                ForEach(vendors) { vendor in
-                    VendorRow(
-                        vendor: vendor,
-                        onInvoiceTap: { invoice in
-                            invoiceSheetTarget = InvoiceSheetTarget(
-                                vendorName: vendor.name,
-                                invoice: invoice
-                            )
-                        }
-                    )
-                    if vendor.contact_id != vendors.last?.contact_id {
-                        Divider().padding(.leading, 56)
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.secondarySystemBackground))
-            )
-        }
     }
 
     // MARK: - Hausgeldkonto
@@ -800,6 +728,132 @@ struct PropertyDetailView: View {
                 .padding(.vertical, 12)
         }
         .buttonStyle(.bordered)
+    }
+}
+
+/// Einheiten list — opened from the Liegenschaft "Schnellzugriff" button (the
+/// detail lives behind the button, not inline). Owns its own contact sheet.
+private struct EinheitenScreen: View {
+    let units: [UnitResponse]
+    /// WEG / SEV → true (show MEA); MV → false. Passed from the parent.
+    let showMea: Bool
+    @EnvironmentObject var authStore: AuthStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var contactSheetTarget: ContactSheetTarget?
+    @State private var query = ""
+
+    /// Filter by unit number / position / type / any owner-or-tenant name.
+    private var filteredUnits: [UnitResponse] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return units }
+        return units.filter { unit in
+            let haystack =
+                [unit.unit_hr_id, unit.position, unit.type].compactMap { $0 }
+                + unit.current_contracts.compactMap { $0.contact_label }
+            return haystack.contains { $0.lowercased().contains(q) }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(filteredUnits) { unit in
+                        UnitRow(
+                            unit: unit,
+                            showMea: showMea,
+                            onContactTap: { contactSheetTarget = $0 }
+                        )
+                        if unit.id != filteredUnits.last?.id {
+                            Divider().padding(.leading, 48)
+                        }
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .padding(20)
+            }
+            .searchable(text: $query, prompt: "Einheit oder Name suchen")
+            .navigationTitle("Einheiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+            .sheet(item: $contactSheetTarget) { target in
+                ContactDetailSheet(
+                    contractId: target.contractId,
+                    contactId: target.contactId,
+                    fallbackLabel: target.fallbackLabel,
+                    contractType: target.contractType
+                )
+                .environmentObject(authStore)
+            }
+        }
+    }
+}
+
+/// Dienstleister list — opened from the Liegenschaft "Schnellzugriff" button.
+/// Per-vendor accordion (call/mail + recent invoices); owns its invoice sheet.
+private struct DienstleisterScreen: View {
+    let vendors: [VendorSummary]
+    let propertyId: String
+    @EnvironmentObject var authStore: AuthStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var invoiceSheetTarget: InvoiceSheetTarget?
+    @State private var query = ""
+
+    private var filteredVendors: [VendorSummary] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return vendors }
+        return vendors.filter { $0.name.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(filteredVendors) { vendor in
+                        VendorRow(
+                            vendor: vendor,
+                            onInvoiceTap: { invoice in
+                                invoiceSheetTarget = InvoiceSheetTarget(
+                                    vendorName: vendor.name,
+                                    invoice: invoice
+                                )
+                            }
+                        )
+                        if vendor.contact_id != filteredVendors.last?.contact_id {
+                            Divider().padding(.leading, 56)
+                        }
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .padding(20)
+            }
+            .searchable(text: $query, prompt: "Dienstleister suchen")
+            .navigationTitle("Dienstleister")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+            .sheet(item: $invoiceSheetTarget) { target in
+                InvoiceDetailSheet(
+                    propertyId: propertyId,
+                    vendorName: target.vendorName,
+                    invoice: target.invoice
+                )
+                .environmentObject(authStore)
+            }
+        }
     }
 }
 

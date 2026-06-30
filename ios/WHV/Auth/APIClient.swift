@@ -860,6 +860,58 @@ struct APIClient {
         return try await authedGET("/me/activity?limit=\(limit)")
     }
 
+    // MARK: Anfragen / Angebote (Verwalter-only, ADR-0019)
+
+    /// GET /admin/offer-inquiries — inbound anfragen@ inquiries (newest first).
+    func listOfferInquiries() async throws -> [OfferInquirySummary] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/admin/offer-inquiries")
+    }
+
+    func getOfferInquiry(id: String) async throws -> OfferInquiryDetail {
+        try await authedGET("/admin/offer-inquiries/\(id)")
+    }
+
+    /// PUT lead-status returns the lean summary (no body/note); decode as such.
+    func setOfferLeadStatus(id: String, status: String) async throws -> OfferInquirySummary {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/admin/offer-inquiries/\(id)/lead-status", method: "PUT",
+            body: OfferLeadStatusBody(lead_status: status)
+        )
+    }
+
+    func setOfferNote(id: String, note: String?) async throws -> OfferInquiryDetail {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/admin/offer-inquiries/\(id)/note", method: "PUT", body: OfferNoteBody(review_note: note)
+        )
+    }
+
+    func setOfferFields(id: String, body: OfferFieldsBody) async throws -> OfferInquiryDetail {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/admin/offer-inquiries/\(id)/fields", method: "PUT", body: body)
+    }
+
+    func sendOfferReminder(id: String) async throws -> OfferInquiryDetail {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON(
+            "/admin/offer-inquiries/\(id)/reminder", method: "POST", body: EmptyJSONBody()
+        )
+    }
+
+    /// POST send returns the lean summary (status now SENT).
+    func sendOffer(id: String, body: OfferGenerateBody) async throws -> OfferInquirySummary {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/admin/offer-inquiries/\(id)/send", method: "POST", body: body)
+    }
+
+    /// GET offer.pdf → local file URL for QuickLook (regenerated server-side).
+    func downloadOffer(id: String, filename: String) async throws -> URL {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedDownload("/admin/offer-inquiries/\(id)/offer.pdf", saveAs: filename)
+    }
+
     // MARK: Assistant (ADR-0013)
 
     /// POST /assistant/query — ask the RAG document assistant. The backend
