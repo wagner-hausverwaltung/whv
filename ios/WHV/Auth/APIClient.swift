@@ -872,20 +872,6 @@ struct APIClient {
         try await authedGET("/admin/offer-inquiries/\(id)")
     }
 
-    func getOfferAutoMode() async throws -> Bool {
-        if DemoFlag.isActive { return false }
-        let r: OfferSettingsResp = try await authedGET("/admin/offer-settings")
-        return r.auto_send_enabled
-    }
-
-    func setOfferAutoMode(_ enabled: Bool) async throws -> Bool {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
-        let r: OfferSettingsResp = try await authedJSON(
-            "/admin/offer-settings", method: "PUT", body: OfferSettingsBody(auto_send_enabled: enabled)
-        )
-        return r.auto_send_enabled
-    }
-
     /// PUT lead-status returns the lean summary (no body/note); decode as such.
     func setOfferLeadStatus(id: String, status: String) async throws -> OfferInquirySummary {
         if DemoFlag.isActive { throw APIError.demoReadOnly }

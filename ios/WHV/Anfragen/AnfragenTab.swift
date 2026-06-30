@@ -51,8 +51,6 @@ struct OfferInquiryDetail: Codable, Identifiable, Hashable {
     let sent_message_id: String?
 }
 
-struct OfferSettingsResp: Codable { let auto_send_enabled: Bool }
-struct OfferSettingsBody: Encodable { let auto_send_enabled: Bool }
 struct OfferLeadStatusBody: Encodable { let lead_status: String }
 struct OfferNoteBody: Encodable { let review_note: String? }
 struct EmptyJSONBody: Encodable {}
@@ -191,7 +189,6 @@ struct OfferPreviewItem: Identifiable { let id = UUID(); let url: URL }
 @MainActor
 final class AnfragenStore: ObservableObject {
     @Published var items: [OfferInquirySummary] = []
-    @Published var autoMode = false
     @Published var loading = false
     @Published var error: String?
 
@@ -202,25 +199,11 @@ final class AnfragenStore: ObservableObject {
         loading = true
         error = nil
         do {
-            async let inq = api.listOfferInquiries()
-            async let auto = api.getOfferAutoMode()
-            items = try await inq
-            autoMode = try await auto
+            items = try await api.listOfferInquiries()
         } catch {
             self.error = "Anfragen konnten nicht geladen werden."
         }
         loading = false
-    }
-
-    func setAutoMode(_ on: Bool) {
-        let prev = autoMode
-        autoMode = on
-        Task {
-            do { autoMode = try await api.setOfferAutoMode(on) } catch {
-                autoMode = prev
-                self.error = "Auto-Modus konnte nicht gespeichert werden."
-            }
-        }
     }
 }
 
@@ -232,23 +215,6 @@ struct AnfragenTab: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Toggle(
-                        "Auto-Modus",
-                        isOn: Binding(get: { store.autoMode }, set: { store.setAutoMode($0) })
-                    )
-                    if store.autoMode {
-                        Text(
-                            "Passende neue Anfragen werden automatisch beantwortet. "
-                                + "Bereits vorliegende Anfragen bleiben unberührt."
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("Automatik")
-                }
-
                 if let error = store.error {
                     Section { Text(error).foregroundStyle(.red).font(.callout) }
                 }
