@@ -50,6 +50,8 @@ def generate_offer(req: OfferGenerateRequest, *, today: date | None = None) -> t
         term_years=req.term_years,
         rate_per_unit_net=req.rate_per_unit_net,
         today=today,
+        end_date_override=req.end_date,
+        monthly_fee_net_override=req.monthly_fee_net_override,
     )
     base = load_base_template(req.art)
 

@@ -97,6 +97,26 @@ def contract_end_date(start: date, term_years: int) -> date:
     return _add_years(start, term_years) - timedelta(days=1)
 
 
+def _resolve_term_end(
+    start: date, term_years: int, end_date_override: date | None
+) -> tuple[int, date]:
+    """Resolve (effective term in whole years, end date).
+
+    With no override, end = start + term - 1 day. With a Verwalter-set end date
+    we stamp that date verbatim and derive a whole-year term for the MV
+    "auf die Dauer von N Jahren" clause + the year-by-year fee schedule.
+    """
+    if end_date_override is None:
+        return term_years, contract_end_date(start, term_years)
+    if end_date_override <= start:
+        # Defense-in-depth — the schema validator already rejects this, but a
+        # backwards contract must never reach the PDF.
+        raise ValueError("end_date must be after the contract start")
+    days = (end_date_override - start).days
+    derived = max(1, round(days / 365.25))
+    return derived, end_date_override
+
+
 # --- result types -------------------------------------------------------------
 
 
@@ -163,11 +183,18 @@ def price_weg(
     rate_per_unit_net: Decimal | None = None,
     vat_rate: Decimal = VAT_RATE,
     today: date | None = None,
+    end_date_override: date | None = None,
+    monthly_fee_net_override: Decimal | None = None,
 ) -> OfferPricing:
     """Price a WEG offer.
 
     The base is the per-unit rate x units, floored at 270 €; the yearly
     escalator is 1 €/unit/month summed across the WEG (§ 8.1 a/b).
+
+    A Verwalter may override the headline year-1 monthly net fee
+    (``monthly_fee_net_override`` - bypasses the units x rate + 270 EUR floor)
+    and/or the contract end date (``end_date_override`` - drives the stamped end
+    + a derived whole-year term).
     """
     if units < 1:
         raise ValueError("units must be >= 1")
@@ -178,16 +205,21 @@ def price_weg(
     if rate is None:
         rate = WEG_RATE_LARGE if units > WEG_LARGE_THRESHOLD else WEG_RATE_STANDARD
 
-    raw_base = rate * units
-    year1_net = _money(max(raw_base, WEG_FLOOR_NET))
-    floor_applied = raw_base < WEG_FLOOR_NET
+    if monthly_fee_net_override is not None:
+        year1_net = _money(monthly_fee_net_override)
+        floor_applied = False
+    else:
+        raw_base = rate * units
+        year1_net = _money(max(raw_base, WEG_FLOOR_NET))
+        floor_applied = raw_base < WEG_FLOOR_NET
     monthly_escalator = _money(WEG_ESCALATOR_PER_UNIT_NET * units)
 
     start = start_date or default_start_date(today=today)
+    eff_term, end = _resolve_term_end(start, term_years, end_date_override)
     schedule = _build_schedule(
         year1_monthly_net=year1_net,
         monthly_escalator_net=monthly_escalator,
-        term_years=term_years,
+        term_years=eff_term,
         vat=vat_rate,
     )
     return OfferPricing(
@@ -197,8 +229,8 @@ def price_weg(
         floor_applied=floor_applied,
         vat_rate=vat_rate,
         start_date=start,
-        end_date=contract_end_date(start, term_years),
-        term_years=term_years,
+        end_date=end,
+        term_years=eff_term,
         first_escalation_date=_add_years(start, 1),
         year1_monthly_net=schedule[0].monthly_net,
         year1_monthly_gross=schedule[0].monthly_gross,
@@ -216,26 +248,36 @@ def price_mv(
     rate_per_unit_net: Decimal = MV_RATE_STANDARD,
     vat_rate: Decimal = VAT_RATE,
     today: date | None = None,
+    end_date_override: date | None = None,
+    monthly_fee_net_override: Decimal | None = None,
 ) -> OfferPricing:
     """Price an MV offer.
 
     Per-unit, per-month (§ 6): 30 €/unit/month year 1, escalating +1 €/unit
     each year from start + 1 year. The headline monthly figure is the whole-
     object total (units x per-unit rate); the per-unit rate is what § 6 prints.
+
+    Overrides mirror :func:`price_weg`: ``monthly_fee_net_override`` replaces the
+    headline year-1 monthly net total; ``end_date_override`` sets the end date +
+    a derived whole-year term.
     """
     if units < 1:
         raise ValueError("units must be >= 1")
     if term_years < 1:
         raise ValueError("term_years must be >= 1")
 
-    year1_net = _money(rate_per_unit_net * units)
+    if monthly_fee_net_override is not None:
+        year1_net = _money(monthly_fee_net_override)
+    else:
+        year1_net = _money(rate_per_unit_net * units)
     monthly_escalator = _money(MV_ESCALATOR_PER_UNIT_NET * units)
 
     start = start_date or default_start_date(today=today)
+    eff_term, end = _resolve_term_end(start, term_years, end_date_override)
     schedule = _build_schedule(
         year1_monthly_net=year1_net,
         monthly_escalator_net=monthly_escalator,
-        term_years=term_years,
+        term_years=eff_term,
         vat=vat_rate,
     )
     return OfferPricing(
@@ -245,8 +287,8 @@ def price_mv(
         floor_applied=False,
         vat_rate=vat_rate,
         start_date=start,
-        end_date=contract_end_date(start, term_years),
-        term_years=term_years,
+        end_date=end,
+        term_years=eff_term,
         first_escalation_date=_add_years(start, 1),
         year1_monthly_net=schedule[0].monthly_net,
         year1_monthly_gross=schedule[0].monthly_gross,
@@ -265,6 +307,8 @@ def price_offer(
     rate_per_unit_net: Decimal | None = None,
     vat_rate: Decimal = VAT_RATE,
     today: date | None = None,
+    end_date_override: date | None = None,
+    monthly_fee_net_override: Decimal | None = None,
 ) -> OfferPricing:
     """Dispatch to :func:`price_weg` / :func:`price_mv` by product line."""
     key = art.strip().upper()
@@ -276,6 +320,8 @@ def price_offer(
             rate_per_unit_net=rate_per_unit_net,
             vat_rate=vat_rate,
             today=today,
+            end_date_override=end_date_override,
+            monthly_fee_net_override=monthly_fee_net_override,
         )
     if key == "MV":
         return price_mv(
@@ -285,5 +331,7 @@ def price_offer(
             rate_per_unit_net=rate_per_unit_net or MV_RATE_STANDARD,
             vat_rate=vat_rate,
             today=today,
+            end_date_override=end_date_override,
+            monthly_fee_net_override=monthly_fee_net_override,
         )
     raise ValueError(f"unknown offer art {art!r} (expected WEG or MV)")
