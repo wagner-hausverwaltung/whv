@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.v1 import accounting as accounting_router
 from app.api.v1 import admin as admin_router
 from app.api.v1 import admin_assistant as admin_assistant_router
 from app.api.v1 import announcements as announcements_router
@@ -98,6 +99,8 @@ app.include_router(calendar_router.me_router)
 app.include_router(calendar_router.admin_router)
 app.include_router(circular_router.me_router)
 app.include_router(circular_router.admin_router)
+app.include_router(accounting_router.me_router)
+app.include_router(accounting_router.admin_router)
 app.include_router(circular_router.public_router)
 app.include_router(announcements_router.me_router)
 app.include_router(announcements_router.admin_router)
