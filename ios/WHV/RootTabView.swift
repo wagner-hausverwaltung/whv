@@ -102,7 +102,7 @@ struct RootTabView: View {
                 case .tickets: deepLinkRouter.ticketsPath = []; featureSheet = .tickets
                 case .mitteilungen, .news:
                     deepLinkRouter.mitteilungenPath = []; featureSheet = .mitteilungen
-                case .einstellungen: selection = 1
+                case .einstellungen: selection = 2
                 }
             case .assembly(let id):
                 deepLinkRouter.etvPath = [id]; featureSheet = .etv
@@ -134,6 +134,14 @@ struct RootTabView: View {
         }
     }
 
+    /// Anfragen is a Verwalter-only tab (the offer-inquiry queue); members
+    /// never see it. Tags stay stable (Start 0, Anfragen 1, Einstellungen 2) so
+    /// the `.einstellungen` deep link lands correctly whether or not tab 1 is
+    /// mounted.
+    private var isVerwalter: Bool {
+        authStore.user?.role.lowercased() == "verwalter"
+    }
+
     private var tabs: some View {
         TabView(selection: $selection) {
             HomeTab()
@@ -142,11 +150,19 @@ struct RootTabView: View {
                 }
                 .tag(0)
 
+            if isVerwalter {
+                AnfragenTab()
+                    .tabItem {
+                        Label("Anfragen", systemImage: "envelope.badge")
+                    }
+                    .tag(1)
+            }
+
             EinstellungenView()
                 .tabItem {
                     Label("Einstellungen", systemImage: "gear")
                 }
-                .tag(1)
+                .tag(2)
         }
     }
 }
