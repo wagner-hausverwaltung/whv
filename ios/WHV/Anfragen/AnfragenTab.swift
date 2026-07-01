@@ -115,6 +115,20 @@ func offerLeadLabel(_ s: String) -> String {
     }
 }
 
+enum OfferLead {
+    /// Lead state → traffic-light colour (the state the Verwalter tracks
+    /// once an offer is out: open · parked · won · lost).
+    static func color(_ s: String) -> Color {
+        switch s {
+        case "OPEN": return .orange       // needs a decision
+        case "ON_HOLD": return .secondary // parked
+        case "ACCEPTED": return .green     // won
+        case "DECLINED": return .red       // lost
+        default: return .secondary
+        }
+    }
+}
+
 /// "2027-01-01" or a full ISO datetime → "01.01.2027".
 func offerDateDE(_ s: String?) -> String {
     guard let s, s.count >= 10 else { return "—" }
@@ -254,45 +268,56 @@ private struct AnfrageRow: View {
     let item: OfferInquirySummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
                 Text(item.sender_name ?? item.sender_email)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Spacer()
-                Text(OfferStatus.label(item.status))
-                    .font(.caption2.weight(.bold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(OfferStatus.color(item.status).opacity(0.18))
-                    .foregroundStyle(OfferStatus.color(item.status))
-                    .clipShape(Capsule())
+                Spacer(minLength: 8)
+                statusBadge
             }
-            if !item.subject.isEmpty {
-                Text(item.subject).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            HStack(spacing: 8) {
-                if let art = item.art { tag(art) }
-                if let obj = item.object_address, !obj.isEmpty {
-                    Text(obj).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-                if let u = item.units { tag("\(u) WE") }
-                Spacer()
-                Text(offerLeadLabel(item.lead_status))
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.tertiary)
+            if !metaLine.isEmpty {
+                Text(metaLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
 
-    private func tag(_ s: String) -> some View {
-        Text(s)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color(.tertiarySystemFill))
-            .clipShape(Capsule())
+    /// Once an offer is sent, "Gesendet" is true of every row — so we show the
+    /// lead state (Offen / Angenommen …) as a traffic-light dot instead. Only a
+    /// not-yet-sent or failed inquiry falls back to the processing status, which
+    /// is the thing that then needs attention.
+    @ViewBuilder private var statusBadge: some View {
+        if item.status == "SENT" {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(OfferLead.color(item.lead_status))
+                    .frame(width: 8, height: 8)
+                Text(offerLeadLabel(item.lead_status))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(OfferLead.color(item.lead_status))
+            }
+        } else {
+            Text(OfferStatus.label(item.status))
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(OfferStatus.color(item.status).opacity(0.18))
+                .foregroundStyle(OfferStatus.color(item.status))
+                .clipShape(Capsule())
+        }
+    }
+
+    /// One tidy secondary line: "WEG · 71254 Ditzingen · 3 WE".
+    private var metaLine: String {
+        var parts: [String] = []
+        if let art = item.art, !art.isEmpty { parts.append(art) }
+        if let obj = item.object_address, !obj.isEmpty { parts.append(obj) }
+        if let u = item.units { parts.append("\(u) WE") }
+        return parts.joined(separator: " · ")
     }
 }
 
