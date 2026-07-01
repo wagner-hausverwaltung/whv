@@ -28,3 +28,14 @@ class AccountingStageUpdate(BaseModel):
     done: bool
     # Optional note; null leaves the existing note unchanged, "" clears it.
     note: str | None = Field(default=None, max_length=2000)
+
+
+class AccountingBoardRow(BaseModel):
+    """One property's progress for the admin cross-property board."""
+
+    property_id: uuid.UUID
+    property_name: str
+    year: int
+    done_count: int
+    total: int
+    stages: list[AccountingStageResponse]

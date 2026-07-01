@@ -12,6 +12,7 @@ import { AdminContractsPage } from "@/admin/pages/AdminContractsPage";
 import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
+import { AdminJahresabrechnungPage } from "@/admin/pages/AdminJahresabrechnungPage";
 import { AdminOffersPage } from "@/admin/pages/AdminOffersPage";
 import { AdminPropertiesPage } from "@/admin/pages/AdminPropertiesPage";
 import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
@@ -34,6 +35,7 @@ import { MyAnnouncementDetailPage } from "@/pages/MyAnnouncementDetailPage";
 import { MyAnnouncementsPage } from "@/pages/MyAnnouncementsPage";
 import { MyAssembliesPage } from "@/pages/MyAssembliesPage";
 import { MyAssemblyDetailPage } from "@/pages/MyAssemblyDetailPage";
+import { MyAccountingPage } from "@/pages/MyAccountingPage";
 import { MyMetersPage } from "@/pages/MyMetersPage";
 import { MyCalendarPage } from "@/pages/MyCalendarPage";
 import { InviteRedeemPage } from "@/pages/InviteRedeemPage";
@@ -112,6 +114,7 @@ function App() {
             <Route path="documents" element={<PropertyDocumentsPage />} />
             <Route path="vendors" element={<PropertyVendorsPage />} />
             <Route path="meters" element={<MyMetersPage />} />
+            <Route path="jahresabrechnung" element={<MyAccountingPage />} />
             <Route path="calendar" element={<MyCalendarPage />} />
           </Route>
 
@@ -237,6 +240,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminAnfragenPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/jahresabrechnung"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminJahresabrechnungPage />
                 </AdminLayout>
               </AdminRoute>
             }

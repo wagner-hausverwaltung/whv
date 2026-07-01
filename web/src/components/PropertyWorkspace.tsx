@@ -45,6 +45,7 @@ const TAB_DEFS = [
   { value: "documents" },
   { value: "vendors" },
   { value: "meters" },
+  { value: "jahresabrechnung" },
   { value: "calendar" },
 ] as const;
 

@@ -19,7 +19,11 @@ from app.api.v1.me import _visible_properties_stmt
 from app.auth.dependencies import get_current_user, require_role
 from app.db import get_session
 from app.models import Property, User, UserRole
-from app.schemas.accounting import AccountingProgressResponse, AccountingStageUpdate
+from app.schemas.accounting import (
+    AccountingBoardRow,
+    AccountingProgressResponse,
+    AccountingStageUpdate,
+)
 from app.services import accounting as accounting_svc
 
 me_router = APIRouter(prefix="/me", tags=["accounting"])
@@ -47,6 +51,20 @@ async def get_my_property_accounting(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
     y = year if year is not None else accounting_svc.active_accounting_year()
     return await accounting_svc.get_progress(session, property_id=property_id, year=y)
+
+
+@admin_router.get("/accounting", response_model=list[AccountingBoardRow])
+async def get_accounting_board(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    year: Annotated[int | None, Query()] = None,
+) -> list[AccountingBoardRow]:
+    """Cross-property board for the admin SPA — every property with its A-I
+    stage status for the year. Defaults to the active accounting year."""
+    y = year if year is not None else accounting_svc.active_accounting_year()
+    return await accounting_svc.get_board(
+        session, organization_id=current_user.organization_id, year=y
+    )
 
 
 @admin_router.put(

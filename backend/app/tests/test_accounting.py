@@ -91,6 +91,36 @@ async def test_eigentuemer_cannot_tick(test_engine: AsyncEngine) -> None:
     assert r.status_code == 403
 
 
+async def test_admin_board_lists_all_properties(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    p1 = await make_property(test_engine, org=org, name="WEG Alpha")
+    await make_property(test_engine, org=org, name="WEG Beta")
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        client.put(
+            f"/admin/properties/{p1.id}/accounting/2025/stages/A",
+            headers=_auth(token),
+            json={"done": True},
+        ).raise_for_status()
+        r = client.get("/admin/accounting?year=2025", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    by_name = {row["property_name"]: row for row in r.json()}
+    assert {"WEG Alpha", "WEG Beta"} <= set(by_name)
+    assert by_name["WEG Alpha"]["done_count"] == 1
+    assert by_name["WEG Beta"]["done_count"] == 0
+    assert len(by_name["WEG Alpha"]["stages"]) == 9
+
+
+async def test_admin_board_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get("/admin/accounting", headers=_auth(token))
+    assert r.status_code == 403
+
+
 async def test_progress_cross_org_404(test_engine: AsyncEngine) -> None:
     org_a = await make_org(test_engine)
     prop = await make_property(test_engine, org=org_a)
