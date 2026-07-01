@@ -12,6 +12,7 @@
 // re-checks access server-side, then render in QuickLook (FilePreview).
 
 import SwiftUI
+import UIKit
 
 // MARK: - Model
 
@@ -197,6 +198,10 @@ struct AssistantView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
+            // Tap anywhere in the conversation (empty space, a bubble) to drop
+            // the keyboard. Simultaneous so it doesn't steal taps from the
+            // citation buttons or text selection inside a bubble.
+            .simultaneousGesture(TapGesture().onEnded { inputFocused = false })
             .onChange(of: model.messages.count) { _, _ in
                 if let last = model.messages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -248,6 +253,43 @@ struct AssistantView: View {
     }
 }
 
+// MARK: - Selectable, data-detecting message text
+
+/// A read-only but SELECTABLE text view that auto-detects phone numbers,
+/// addresses and links and makes them tappable (Phone / Maps / Safari) —
+/// SwiftUI's `Text` does neither. A self-sizing `UITextView` with data
+/// detectors, sized to its content so it drops straight into the bubble.
+private struct DetectingText: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.isEditable = false
+        tv.isSelectable = true
+        tv.isScrollEnabled = false
+        tv.dataDetectorTypes = [.phoneNumber, .address, .link]
+        tv.backgroundColor = .clear
+        tv.textContainerInset = .zero
+        tv.textContainer.lineFragmentPadding = 0
+        tv.font = .preferredFont(forTextStyle: .body)
+        tv.adjustsFontForContentSizeCategory = true
+        tv.textColor = .label
+        tv.setContentHuggingPriority(.required, for: .vertical)
+        return tv
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text { uiView.text = text }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let proposed = proposal.width ?? 300
+        let width = proposed.isFinite ? proposed : 300
+        let fit = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: fit.width, height: fit.height)
+    }
+}
+
 // MARK: - Message bubble
 
 private struct MessageBubble: View {
@@ -256,8 +298,7 @@ private struct MessageBubble: View {
 
     var body: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
-            Text(message.text)
-                .font(.body)
+            DetectingText(text: message.text)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(bubbleBackground)
