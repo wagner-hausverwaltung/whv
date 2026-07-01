@@ -49,6 +49,7 @@
       "documents": "Dokumente",
       "vendors": "Dienstleister",
       "meters": "Zähler",
+      "jahresabrechnung": "Jahresabrechnung",
       "calendar": "Kalender"
     },
     "start": {
@@ -265,6 +266,18 @@
     "expand": "Vergrößern",
     "collapse": "Verkleinern"
   },
+  "accounting": {
+    "title": "Jahresabrechnung {{year}}",
+    "doneOn": "erledigt am {{date}}",
+    "readonly": "Nur-Lese-Ansicht. Die Verwaltung pflegt den Fortschritt.",
+    "loadError": "Konnte nicht geladen werden.",
+    "saveError": "Schritt konnte nicht gespeichert werden.",
+    "boardTitle": "Jahresabrechnung",
+    "boardSubtitle": "Fortschritt je Objekt – Schritt anklicken zum Abhaken.",
+    "empty": "Keine Objekte.",
+    "colProperty": "Objekt",
+    "colProgress": "Fortschritt"
+  },
   "admin": {
     "title": "Admin",
     "dashboard": "Dashboard",
@@ -304,6 +317,7 @@
       "error": "Angebot konnte nicht erstellt werden."
     },
     "anfragen": "Anfragen",
+    "accounting": "Jahresabrechnung",
     "anfragenPage": {
       "title": "Anfragen",
       "subtitle": "Eingehende Angebotsanfragen an anfragen@ prüfen und beantworten",

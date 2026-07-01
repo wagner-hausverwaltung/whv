@@ -20,8 +20,13 @@ from app.models import (
     ACCOUNTING_STAGES,
     AccountingCycle,
     AccountingCycleStage,
+    Property,
 )
-from app.schemas.accounting import AccountingProgressResponse, AccountingStageResponse
+from app.schemas.accounting import (
+    AccountingBoardRow,
+    AccountingProgressResponse,
+    AccountingStageResponse,
+)
 
 
 def active_accounting_year(today: date | None = None) -> int:
@@ -47,6 +52,19 @@ async def get_progress(
 ) -> AccountingProgressResponse:
     cycle = await _get_cycle(session, property_id, year)
     by_code = {s.stage_code: s for s in (cycle.stages if cycle else [])}
+    stages, done_count = _build_stage_list(by_code)
+    return AccountingProgressResponse(
+        property_id=property_id,
+        year=year,
+        done_count=done_count,
+        total=len(ACCOUNTING_STAGES),
+        stages=stages,
+    )
+
+
+def _build_stage_list(
+    by_code: dict[str, AccountingCycleStage],
+) -> tuple[list[AccountingStageResponse], int]:
     stages: list[AccountingStageResponse] = []
     done_count = 0
     for code, label in ACCOUNTING_STAGES:
@@ -63,13 +81,52 @@ async def get_progress(
                 note=st.note if st else None,
             )
         )
-    return AccountingProgressResponse(
-        property_id=property_id,
-        year=year,
-        done_count=done_count,
-        total=len(ACCOUNTING_STAGES),
-        stages=stages,
+    return stages, done_count
+
+
+async def get_board(
+    session: AsyncSession, *, organization_id: uuid.UUID, year: int
+) -> list[AccountingBoardRow]:
+    """Cross-property progress board for the Verwalter — every non-deleted
+    property with its stage status for the year (one row each)."""
+    props = list(
+        (
+            await session.scalars(
+                select(Property)
+                .where(Property.organization_id == organization_id, Property.deleted_at.is_(None))
+                .order_by(Property.name)
+            )
+        ).all()
     )
+    if not props:
+        return []
+    cycles = (
+        await session.scalars(
+            select(AccountingCycle)
+            .where(
+                AccountingCycle.property_id.in_([p.id for p in props]),
+                AccountingCycle.year == year,
+            )
+            .options(selectinload(AccountingCycle.stages))
+        )
+    ).all()
+    by_prop: dict[uuid.UUID, dict[str, AccountingCycleStage]] = {
+        c.property_id: {s.stage_code: s for s in c.stages} for c in cycles
+    }
+    rows: list[AccountingBoardRow] = []
+    for p in props:
+        stages, done_count = _build_stage_list(by_prop.get(p.id, {}))
+        rows.append(
+            AccountingBoardRow(
+                property_id=p.id,
+                property_name=p.name,
+                year=year,
+                done_count=done_count,
+                total=len(ACCOUNTING_STAGES),
+                stages=stages,
+            )
+        )
+    return rows
 
 
 async def set_stage(
