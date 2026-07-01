@@ -29,6 +29,9 @@ struct RootTabView: View {
     @State private var selection = 0  // Start
     @State private var newTicketSheetOpen = false
     @State private var assistantOpen = false
+    // Owned here (not in the sheet) so the assistant conversation is preserved
+    // across closing + reopening the chat within the session.
+    @StateObject private var assistantModel = AssistantChatModel()
     @State private var featureSheet: FeatureSheet?
 
     var body: some View {
@@ -55,7 +58,7 @@ struct RootTabView: View {
                     .environmentObject(store)
             }
             .sheet(isPresented: $assistantOpen) {
-                AssistantView(propertyId: store.selected?.id)
+                AssistantView(propertyId: store.selected?.id, model: assistantModel)
                     .environmentObject(deepLinkRouter)
             }
             // The three feature screens, reused unchanged. Env objects are

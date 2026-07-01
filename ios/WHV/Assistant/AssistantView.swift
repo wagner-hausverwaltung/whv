@@ -112,9 +112,11 @@ final class AssistantChatModel: ObservableObject {
 struct AssistantView: View {
     /// The active Liegenschaft id — scopes the assistant to that property.
     var propertyId: String? = nil
+    /// Owned by RootTabView (not this sheet) so the conversation survives
+    /// closing + reopening the assistant within the session.
+    @ObservedObject var model: AssistantChatModel
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var deepLinkRouter: DeepLinkRouter
-    @StateObject private var model = AssistantChatModel()
     @FocusState private var inputFocused: Bool
 
     /// Route a tapped citation. Documents download + preview inline; an ETV
@@ -395,6 +397,6 @@ struct AssistantBubble: View {
 }
 
 #Preview {
-    AssistantView()
+    AssistantView(model: AssistantChatModel())
         .environmentObject(DeepLinkRouter())
 }
