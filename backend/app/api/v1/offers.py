@@ -94,7 +94,9 @@ async def admin_list_offer_inquiries(
     stmt = select(OfferInquiry).where(OfferInquiry.organization_id == current_user.organization_id)
     if status_filter:
         stmt = stmt.where(OfferInquiry.status == status_filter)
-    stmt = stmt.order_by(OfferInquiry.created_at.desc()).limit(limit)
+    # id (uuid7) is time-ordered, so it doubles as a deterministic tiebreak
+    # when several inquiries share the same created_at (e.g. a seeded batch).
+    stmt = stmt.order_by(OfferInquiry.created_at.desc(), OfferInquiry.id.desc()).limit(limit)
     return list((await session.scalars(stmt)).all())
 
 
