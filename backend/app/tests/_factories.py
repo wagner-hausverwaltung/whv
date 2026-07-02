@@ -106,13 +106,14 @@ async def make_property(
     org: Organization,
     name: str | None = None,
     impower_id: int | None = None,
+    type: PropertyType = PropertyType.STRATA,
 ) -> Property:
     sm = async_sessionmaker(engine, expire_on_commit=False)
     async with sm() as s:
         prop = Property(
             organization_id=org.id,
             name=name or f"Test Property {_short_id()}",
-            type=PropertyType.STRATA,
+            type=type,
             state=PropertyState.READY,
             city="Stuttgart",
             impower_id=impower_id,

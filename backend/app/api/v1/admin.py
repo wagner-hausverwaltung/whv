@@ -45,6 +45,7 @@ from app.models import (
     InviteCode,
     OrganizationPropertySelection,
     Property,
+    PropertyType,
     ResolutionStatus,
     SignatureRequest,
     Ticket,
@@ -830,7 +831,9 @@ async def list_properties(
         unit_counts = {pid: int(n) for pid, n in unit_rows.all()}
 
     # Properties that already have a (non-cancelled) ETV scheduled in the
-    # current calendar year — everything else "needs" one.
+    # current calendar year — every WEG without one "needs" one. Only OWNER
+    # (WEG) properties hold Eigentümerversammlungen; SEV (STRATA) and
+    # Mietverwaltung (RENTAL) never do, so they never get the flag.
     year_start = datetime(datetime.now(UTC).year, 1, 1, tzinfo=UTC)
     next_year_start = datetime(year_start.year + 1, 1, 1, tzinfo=UTC)
     props_with_etv: set[uuid.UUID] = set()
@@ -862,7 +865,7 @@ async def list_properties(
             postal_code=p.postal_code,
             image_url=p.image_url,
             units_count=unit_counts.get(p.id, 0),
-            needs_current_year_etv=p.id not in props_with_etv,
+            needs_current_year_etv=p.type == PropertyType.OWNER and p.id not in props_with_etv,
         )
         for p in rows
     ]

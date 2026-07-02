@@ -1,6 +1,6 @@
 """Admin /properties list enrichment: per-property unit count + an
-'open ETV' flag (True when there's no non-cancelled assembly scheduled
-in the current calendar year)."""
+'open ETV' flag (True when a WEG has no non-cancelled assembly scheduled
+in the current calendar year; SEV/Mietverwaltung never get the flag)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.main import app
-from app.models import AssemblyStatus, EtvAssembly, UserRole
+from app.models import AssemblyStatus, EtvAssembly, PropertyType, UserRole
 from app.tests._factories import make_org, make_property, make_unit, make_user
 
 
@@ -54,14 +54,14 @@ async def test_admin_properties_units_count_and_open_etv(
     _, vemail, vpw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
     now = datetime.now(UTC)
 
-    # A: 2 units + a current-year ETV → not open, count 2.
-    prop_a = await make_property(test_engine, org=org, name="AAA Haus")
+    # A: WEG, 2 units + a current-year ETV → not open, count 2.
+    prop_a = await make_property(test_engine, org=org, name="AAA Haus", type=PropertyType.OWNER)
     await make_unit(test_engine, org=org, prop=prop_a)
     await make_unit(test_engine, org=org, prop=prop_a)
     await _add_assembly(sm, org_id=org.id, property_id=prop_a.id, start=now)
 
-    # B: no units, only a CANCELLED current-year ETV → still open.
-    prop_b = await make_property(test_engine, org=org, name="BBB Haus")
+    # B: WEG, no units, only a CANCELLED current-year ETV → still open.
+    prop_b = await make_property(test_engine, org=org, name="BBB Haus", type=PropertyType.OWNER)
     await _add_assembly(
         sm,
         org_id=org.id,
@@ -70,9 +70,14 @@ async def test_admin_properties_units_count_and_open_etv(
         status=AssemblyStatus.ABGESAGT,
     )
 
-    # C: only a PRIOR-year ETV → open (missing this year's).
-    prop_c = await make_property(test_engine, org=org, name="CCC Haus")
+    # C: WEG, only a PRIOR-year ETV → open (missing this year's).
+    prop_c = await make_property(test_engine, org=org, name="CCC Haus", type=PropertyType.OWNER)
     await _add_assembly(sm, org_id=org.id, property_id=prop_c.id, start=now - timedelta(days=400))
+
+    # D/E: SEV (STRATA) and Mietverwaltung (RENTAL) hold no ETVs → never
+    # flagged, even without any assembly.
+    await make_property(test_engine, org=org, name="DDD SEV", type=PropertyType.STRATA)
+    await make_property(test_engine, org=org, name="EEE MV", type=PropertyType.RENTAL)
 
     token = _login(vemail, vpw)
     with TestClient(app) as client:
@@ -89,6 +94,10 @@ async def test_admin_properties_units_count_and_open_etv(
 
     # A prior-year ETV does not count as this year's.
     assert by_name["CCC Haus"]["needs_current_year_etv"] is True
+
+    # SEV / Mietverwaltung never need an ETV.
+    assert by_name["DDD SEV"]["needs_current_year_etv"] is False
+    assert by_name["EEE MV"]["needs_current_year_etv"] is False
 
 
 async def test_property_selection_persists_org_wide(test_engine: AsyncEngine) -> None:
