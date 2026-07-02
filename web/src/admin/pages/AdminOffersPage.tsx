@@ -52,12 +52,16 @@ export function AdminOffersPage() {
     setBusy(true);
     setError(null);
     try {
+      // The rate override is optional — treat 0 / blank / junk as "no
+      // override" so the backend's default pricing applies (its schema
+      // rejects rate_per_unit_net <= 0).
+      const rateNum = Number(rate);
       const payload: Record<string, unknown> = {
         art,
         units: Number(units),
         term_years: Number(termYears),
         start_date: startDate || undefined,
-        rate_per_unit_net: rate ? Number(rate) : undefined,
+        rate_per_unit_net: Number.isFinite(rateNum) && rateNum > 0 ? rateNum : undefined,
       };
       if (art === "WEG") {
         payload.object_street = objectStreet;
@@ -151,6 +155,8 @@ export function AdminOffersPage() {
               type="number"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
+              helperText={tp("rateHint")}
+              slotProps={{ htmlInput: { min: 0 } }}
               fullWidth
             />
           </Stack>

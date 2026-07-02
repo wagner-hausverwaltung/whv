@@ -302,6 +302,7 @@
       "start": "Vertragsbeginn",
       "startHint": "Leer lassen = 1. Januar nächstes Jahr",
       "rate": "Satz je Einheit/Monat (netto, optional)",
+      "rateHint": "Leer oder 0 = Standardsatz",
       "objectStreet": "Objekt – Straße + Nr.",
       "objectPlzCity": "PLZ + Ort",
       "recipientName": "Auftraggeber",

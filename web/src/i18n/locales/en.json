@@ -302,6 +302,7 @@
       "start": "Contract start",
       "startHint": "Leave empty = 1 January next year",
       "rate": "Rate per unit/month (net, optional)",
+      "rateHint": "Empty or 0 = default rate",
       "objectStreet": "Property – street + no.",
       "objectPlzCity": "Postcode + city",
       "recipientName": "Auftraggeber",
