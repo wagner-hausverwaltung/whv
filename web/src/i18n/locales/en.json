@@ -379,7 +379,12 @@
       "reminder": "Send reminder",
       "reminderConfirm": "Send a friendly reminder email to the sender?",
       "reminderError": "Could not send the reminder.",
-      "reminderSent": "Reminder sent {{count}}×, last on {{date}}"
+      "reminderSent": "Reminder sent {{count}}×, last on {{date}}",
+      "searchPlaceholder": "Search (sender, subject, property) …",
+      "noMatches": "No matches for the search.",
+      "deleteAria": "Delete inquiry",
+      "deleteConfirm": "Permanently delete this inquiry? This cannot be undone.",
+      "deleteError": "Could not delete the inquiry."
     },
     "subtitle": "Overview of invitations, master data, and active workflows.",
     "stats": {

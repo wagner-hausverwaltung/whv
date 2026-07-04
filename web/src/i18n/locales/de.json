@@ -379,7 +379,12 @@
       "reminder": "Erinnerung senden",
       "reminderConfirm": "Eine freundliche Erinnerung per E-Mail an den Absender senden?",
       "reminderError": "Erinnerung konnte nicht gesendet werden.",
-      "reminderSent": "Erinnerung {{count}}× gesendet, zuletzt am {{date}}"
+      "reminderSent": "Erinnerung {{count}}× gesendet, zuletzt am {{date}}",
+      "searchPlaceholder": "Suchen (Absender, Betreff, Objekt) …",
+      "noMatches": "Keine Treffer für die Suche.",
+      "deleteAria": "Anfrage löschen",
+      "deleteConfirm": "Diese Anfrage endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+      "deleteError": "Anfrage konnte nicht gelöscht werden."
     },
     "subtitle": "Übersicht zu Einladungen, Stammdaten und laufenden Vorgängen.",
     "stats": {

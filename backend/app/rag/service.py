@@ -36,6 +36,7 @@ from app.rag.ingestion import (
     DocumentMeta,
     Embedder,
     IndexResult,
+    delete_masterdata_card,
     index_document,
     index_masterdata_card,
 )
@@ -425,12 +426,19 @@ async def reindex_anfrage_card(
     """Render one anfragen@ offer inquiry to a German card and index it as
     VERWALTER-only master-data (prospect PII, ``sensitivity=high`` — kept
     Verwalter-only by the synthetic ``anfrage:`` document id, like Dienstleister).
-    Skips IGNORED (spam / non-offer) inquiries. Returns None if the inquiry is
-    gone or out of org. Flushes the rag_session; the caller commits."""
+    When the inquiry is gone, out of org, or IGNORED, the card is PURGED from
+    the store instead and None is returned — deleting an inquiry (DSGVO
+    erasure) must take its PII card with it. Flushes the rag_session; the
+    caller commits (also on the None/purge path)."""
     inquiry = await app_session.get(OfferInquiry, inquiry_id)
-    if inquiry is None or inquiry.organization_id != organization_id:
-        return None
-    if inquiry.status == OfferInquiryStatus.IGNORED.value:
+    if (
+        inquiry is None
+        or inquiry.organization_id != organization_id
+        or inquiry.status == OfferInquiryStatus.IGNORED.value
+    ):
+        await delete_masterdata_card(
+            rag_session, document_id=anfrage_doc_id(organization_id, inquiry_id)
+        )
         return None
     card = build_anfrage_card(
         sender_name=inquiry.sender_name,

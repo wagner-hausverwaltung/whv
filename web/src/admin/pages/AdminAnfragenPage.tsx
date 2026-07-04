@@ -3,9 +3,11 @@
 // note, a re-download of the generated offer, and a "send friendly reminder"
 // action. For one that needs review, a dialog prefilled from the LLM extraction
 // lets the Verwalter correct + send the offer.
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import SearchIcon from "@mui/icons-material/Search";
 import SendIcon from "@mui/icons-material/Send";
 import {
   Alert,
@@ -21,6 +23,7 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   MenuItem,
   Select,
   Stack,
@@ -30,13 +33,14 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Typography,
 } from "@mui/material";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "@/api/client";
@@ -70,6 +74,39 @@ interface OfferInquiryDetail extends OfferInquiry {
 }
 
 const LEAD_STATUSES = ["OPEN", "ON_HOLD", "ACCEPTED", "DECLINED"] as const;
+
+type SortKey =
+  | "sender"
+  | "subject"
+  | "art"
+  | "object"
+  | "units"
+  | "confidence"
+  | "status"
+  | "lead";
+
+// Sort value per column — numbers compare numerically, strings via
+// localeCompare; null (empty cell) sorts last in both directions. "lead" is
+// handled at the call site: it must sort by the LOCALIZED label the column
+// displays (Angenommen/Abgelehnt/…), not the raw enum.
+function readSortValue(r: OfferInquiry, key: Exclude<SortKey, "lead">): string | number | null {
+  switch (key) {
+    case "sender":
+      return (r.sender_name || r.sender_email).toLowerCase() || null;
+    case "subject":
+      return r.subject.toLowerCase() || null;
+    case "art":
+      return r.art?.toLowerCase() ?? null;
+    case "object":
+      return r.object_address?.toLowerCase() ?? null;
+    case "units":
+      return r.units;
+    case "confidence":
+      return r.confidence;
+    case "status":
+      return r.status.toLowerCase() || null;
+  }
+}
 
 const STATUS_COLOR: Record<
   string,
@@ -154,8 +191,67 @@ export function AdminAnfragenPage() {
   const [autoMode, setAutoMode] = useState(false);
   const [autoBusy, setAutoBusy] = useState(false);
 
+  // --- search / sort / delete ---
+  const [search, setSearch] = useState("");
+  // null = server order (newest first); a click sorts by that column.
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
+
+  const visibleRows = useMemo(() => {
+    const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered =
+      tokens.length === 0
+        ? rows
+        : rows.filter((r) => {
+            const haystack = [r.sender_name, r.sender_email, r.subject, r.object_address, r.art]
+              .filter((s): s is string => !!s)
+              .join(" ")
+              .toLowerCase();
+            return tokens.every((tok) => haystack.includes(tok));
+          });
+    if (!sortKey) return filtered;
+    const value = (r: OfferInquiry): string | number | null =>
+      sortKey === "lead"
+        ? t(`admin.anfragenPage.lead.${r.lead_status}`).toLowerCase()
+        : readSortValue(r, sortKey);
+    return [...filtered].sort((a, b) => {
+      const av = value(a);
+      const bv = value(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp =
+        typeof av === "number" && typeof bv === "number"
+          ? av - bv
+          : String(av).localeCompare(String(bv), "de-DE", {
+              sensitivity: "base",
+              numeric: true,
+            });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, search, sortKey, sortDir, t]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   // --- row expansion / detail panel ---
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Ref mirror, set synchronously alongside the state: toggleExpand's async
+  // detail fetch checks it on resolve so a LATE response (row since
+  // collapsed, replaced, or deleted) can't reseed the shared edit drafts —
+  // otherwise a deleted inquiry's data could get saved onto another row.
+  const expandedIdRef = useRef<string | null>(null);
+  function setExpanded(id: string | null) {
+    expandedIdRef.current = id;
+    setExpandedId(id);
+  }
   const [details, setDetails] = useState<Record<string, OfferInquiryDetail>>({});
   const [detailBusy, setDetailBusy] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -189,7 +285,7 @@ export function AdminAnfragenPage() {
       // Drop cached detail + collapse on a fresh load so the panel never shows
       // stale body/note/reminder data.
       setDetails({});
-      setExpandedId(null);
+      setExpanded(null);
     } catch {
       setError(tp("loadError"));
     } finally {
@@ -233,14 +329,36 @@ export function AdminAnfragenPage() {
     }
   }
 
+  // Hard-delete an inquiry (removes the prospect's PII). Confirmed, then the
+  // row + any cached detail/expansion state are dropped locally.
+  async function deleteInquiry(id: string) {
+    if (!window.confirm(tp("deleteConfirm"))) return;
+    setDeleteBusy(id);
+    setError(null);
+    try {
+      await api.delete(`/admin/offer-inquiries/${id}`);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+      setDetails((d) => {
+        const next = { ...d };
+        delete next[id];
+        return next;
+      });
+      if (expandedIdRef.current === id) setExpanded(null);
+    } catch {
+      setError(tp("deleteError"));
+    } finally {
+      setDeleteBusy(null);
+    }
+  }
+
   // Lazy-fetch the detail (full body + note) the first time a row is expanded.
   async function toggleExpand(id: string) {
     setPanelError(null);
     if (expandedId === id) {
-      setExpandedId(null);
+      setExpanded(null);
       return;
     }
-    setExpandedId(id);
+    setExpanded(id);
     const cached = details[id];
     if (cached) {
       setNoteDraft(cached.review_note ?? "");
@@ -250,13 +368,17 @@ export function AdminAnfragenPage() {
     setDetailBusy(id);
     try {
       const r = await api.get<OfferInquiryDetail>(`/admin/offer-inquiries/${id}`);
+      // Stale response — the row was collapsed, replaced, or deleted while the
+      // request was in flight. Don't cache it or reseed the shared drafts.
+      if (expandedIdRef.current !== id) return;
       setDetails((d) => ({ ...d, [id]: r.data }));
       setNoteDraft(r.data.review_note ?? "");
       seedEdit(r.data);
     } catch {
-      setPanelError(tp("detailError"));
+      if (expandedIdRef.current === id) setPanelError(tp("detailError"));
     } finally {
-      setDetailBusy(null);
+      // Only clear our own spinner — a later expand may have its own fetch.
+      setDetailBusy((b) => (b === id ? null : b));
     }
   }
 
@@ -485,23 +607,62 @@ export function AdminAnfragenPage() {
       ) : rows.length === 0 ? (
         <Typography color="text.secondary">{tp("empty")}</Typography>
       ) : (
+        <>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder={tp("searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ mb: 2, maxWidth: 420 }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+        {visibleRows.length === 0 ? (
+          <Typography color="text.secondary">{tp("noMatches")}</Typography>
+        ) : (
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell sx={{ width: 40 }} />
-              <TableCell>{tp("colSender")}</TableCell>
-              <TableCell>{tp("colSubject")}</TableCell>
-              <TableCell>{tp("colArt")}</TableCell>
-              <TableCell>{tp("colObject")}</TableCell>
-              <TableCell align="right">{tp("colUnits")}</TableCell>
-              <TableCell align="right">{tp("colConfidence")}</TableCell>
-              <TableCell>{tp("colStatus")}</TableCell>
-              <TableCell>{tp("colLeadStatus")}</TableCell>
+              {(
+                [
+                  ["sender", tp("colSender"), undefined],
+                  ["subject", tp("colSubject"), undefined],
+                  ["art", tp("colArt"), undefined],
+                  ["object", tp("colObject"), undefined],
+                  ["units", tp("colUnits"), "right"],
+                  ["confidence", tp("colConfidence"), "right"],
+                  ["status", tp("colStatus"), undefined],
+                  ["lead", tp("colLeadStatus"), undefined],
+                ] as [SortKey, string, "right" | undefined][]
+              ).map(([key, label, align]) => (
+                <TableCell
+                  key={key}
+                  align={align}
+                  sortDirection={sortKey === key ? sortDir : false}
+                >
+                  <TableSortLabel
+                    active={sortKey === key}
+                    direction={sortKey === key ? sortDir : "asc"}
+                    onClick={() => toggleSort(key)}
+                  >
+                    {label}
+                  </TableSortLabel>
+                </TableCell>
+              ))}
               <TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((r) => {
+            {visibleRows.map((r) => {
               const open = expandedId === r.id;
               const detail = details[r.id];
               const fieldsDirty =
@@ -566,12 +727,28 @@ export function AdminAnfragenPage() {
                         ))}
                       </Select>
                     </TableCell>
-                    <TableCell align="right" sx={{ borderBottom: open ? "none" : undefined }}>
+                    <TableCell
+                      align="right"
+                      sx={{ borderBottom: open ? "none" : undefined, whiteSpace: "nowrap" }}
+                    >
                       {r.status !== "SENT" && r.status !== "IGNORED" && (
                         <Button size="small" variant="outlined" onClick={() => openSend(r)}>
                           {tp("send")}
                         </Button>
                       )}
+                      <Tooltip title={tp("deleteAria")}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            aria-label={tp("deleteAria")}
+                            onClick={() => void deleteInquiry(r.id)}
+                            disabled={deleteBusy === r.id}
+                            sx={{ ml: 0.5 }}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -737,6 +914,8 @@ export function AdminAnfragenPage() {
             })}
           </TableBody>
         </Table>
+        )}
+        </>
       )}
 
       <Dialog open={target !== null} onClose={() => setTarget(null)} fullWidth maxWidth="sm">

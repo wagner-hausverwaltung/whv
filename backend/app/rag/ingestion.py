@@ -272,3 +272,12 @@ async def index_masterdata_card(
     )
     await rag_session.flush()
     return IndexResult(document_id, chunk_count=1, skipped=False, ocr_engine="masterdata")
+
+
+async def delete_masterdata_card(rag_session: AsyncSession, *, document_id: uuid.UUID) -> None:
+    """Purge a synthetic card's rows (chunks + document) from the store. Used
+    when the backing entity was deleted — e.g. an anfragen@ inquiry erased for
+    DSGVO must take its PII card with it. Flushes; the caller commits."""
+    await rag_session.execute(delete(RagChunk).where(RagChunk.document_id == document_id))
+    await rag_session.execute(delete(RagDocument).where(RagDocument.document_id == document_id))
+    await rag_session.flush()

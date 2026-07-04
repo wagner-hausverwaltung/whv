@@ -9,10 +9,11 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.main import app
-from app.models import OfferInquiry, Organization, UserRole
+from app.models import AuditLog, OfferInquiry, Organization, UserRole
 from app.schemas.offer import OfferGenerateRequest
 from app.services.offer_pricing import price_offer
 from app.services.offers import generate_offer
@@ -473,4 +474,55 @@ async def test_reminder_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
     token = _login(email, pw)
     with TestClient(app) as client:
         r = client.post(f"/admin/offer-inquiries/{inq.id}/reminder", headers=_auth(token))
+    assert r.status_code == 403
+
+
+# --- delete --------------------------------------------------------------------
+
+
+async def test_delete_inquiry(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.delete(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
+        assert r.status_code == 204, r.text
+        # Gone from the list and the detail 404s.
+        rl = client.get("/admin/offer-inquiries", headers=_auth(token))
+        assert all(x["id"] != str(inq.id) for x in rl.json())
+        rd = client.get(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
+        assert rd.status_code == 404
+    # The hard delete leaves a PII-light audit trail.
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        audit = await s.scalar(
+            select(AuditLog).where(
+                AuditLog.action == "offer_inquiry_deleted",
+                AuditLog.target_id == str(inq.id),
+            )
+        )
+        assert audit is not None
+        assert audit.payload_json is not None
+        assert audit.payload_json["status"] == "NEW"
+
+
+async def test_delete_inquiry_other_org_404(test_engine: AsyncEngine) -> None:
+    org_a = await make_org(test_engine)
+    org_b = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org_a)
+    _, email, pw = await make_user(test_engine, org=org_b, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.delete(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
+    assert r.status_code == 404
+
+
+async def test_delete_inquiry_eigentuemer_forbidden(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inq = await _make_inquiry(test_engine, org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.delete(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
     assert r.status_code == 403

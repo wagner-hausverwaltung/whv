@@ -996,6 +996,9 @@ async def _index_rag_masterdata_async(
                     contact_id=entity_id,
                 )
             if result is None:
+                # A None result may have flushed a card PURGE (deleted or
+                # IGNORED anfrage) — commit so the erasure actually persists.
+                await rag_session.commit()
                 return "no_entity"
             await rag_session.commit()
             return "skipped" if result.skipped else f"indexed:{result.chunk_count}"

@@ -19,7 +19,7 @@ from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.models import OfferInquiry, OfferInquiryStatus, Organization, User, UserRole
+from app.models import AuditLog, OfferInquiry, OfferInquiryStatus, Organization, User, UserRole
 from app.schemas.offer import (
     OfferGenerateRequest,
     OfferInquiryDetailResponse,
@@ -155,6 +155,42 @@ async def _get_owned_inquiry(
     if inquiry is None or inquiry.organization_id != current_user.organization_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Inquiry not found")
     return inquiry
+
+
+@admin_router.delete("/offer-inquiries/{inquiry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_offer_inquiry(
+    inquiry_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Remove an inquiry from the queue. Hard delete of the row (prospect PII —
+    DSGVO erasure; any sent offer PDF was emailed, not persisted), plus a purge
+    of its VERWALTER-only RAG card via the reindex task (which drops the card
+    when the inquiry is gone). A PII-light AuditLog row records who deleted
+    what state, matching the other destructive admin endpoints."""
+    inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="offer_inquiry_deleted",
+            target_type="offer_inquiries",
+            target_id=str(inquiry.id),
+            payload_json={
+                "status": inquiry.status,
+                "lead_status": inquiry.lead_status,
+                "sent_at": inquiry.sent_at.isoformat() if inquiry.sent_at else None,
+            },
+        )
+    )
+    await session.delete(inquiry)
+    await session.commit()
+    if settings.rag_enabled:
+        from app.workers.tasks import index_rag_masterdata
+
+        index_rag_masterdata.delay(str(current_user.organization_id), str(inquiry_id), "anfrage")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @admin_router.get("/offer-inquiries/{inquiry_id}", response_model=OfferInquiryDetailResponse)
