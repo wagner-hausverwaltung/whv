@@ -13,6 +13,7 @@ import { AdminDashboardPage } from "@/admin/pages/AdminDashboardPage";
 import { AdminInviteNewPage } from "@/admin/pages/AdminInviteNewPage";
 import { AdminInvitesPage } from "@/admin/pages/AdminInvitesPage";
 import { AdminJahresabrechnungPage } from "@/admin/pages/AdminJahresabrechnungPage";
+import { AdminVertraegePage } from "@/admin/pages/AdminVertraegePage";
 import { AdminOffersPage } from "@/admin/pages/AdminOffersPage";
 import { AdminPropertiesPage } from "@/admin/pages/AdminPropertiesPage";
 import { AdminPropertyDetailPage } from "@/admin/pages/AdminPropertyDetailPage";
@@ -250,6 +251,16 @@ function App() {
               <AdminRoute>
                 <AdminLayout>
                   <AdminJahresabrechnungPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/vertraege"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminVertraegePage />
                 </AdminLayout>
               </AdminRoute>
             }

@@ -1144,3 +1144,82 @@ export interface CalendarEventCreateRequest {
   assigned_label?: string | null;
   note?: string | null;
 }
+
+// --- Versorgungsverträge (supplier contracts, Verwalter-only) ---------------
+
+export type SupplierContractCategory =
+  | "VERSICHERUNG"
+  | "STROM"
+  | "GAS"
+  | "HEIZOEL"
+  | "WASSER_ABWASSER"
+  | "MUELL"
+  | "GRUNDBESITZABGABEN"
+  | "MESSDIENST"
+  | "SCHORNSTEINFEGER"
+  | "HEIZUNG_WARTUNG"
+  | "AUFZUG"
+  | "HAUSMEISTER"
+  | "REINIGUNG"
+  | "GARTEN"
+  | "WINTERDIENST"
+  | "KABEL_INTERNET"
+  | "BANK"
+  | "SONSTIGES";
+
+export const SUPPLIER_CATEGORY_LABELS: Record<SupplierContractCategory, string> = {
+  VERSICHERUNG: "Versicherung",
+  STROM: "Strom",
+  GAS: "Gas",
+  HEIZOEL: "Heizöl",
+  WASSER_ABWASSER: "Wasser/Abwasser",
+  MUELL: "Müll",
+  GRUNDBESITZABGABEN: "Grundbesitzabgaben",
+  MESSDIENST: "Messdienst (ista/Techem/…)",
+  SCHORNSTEINFEGER: "Schornsteinfeger",
+  HEIZUNG_WARTUNG: "Heizungswartung",
+  AUFZUG: "Aufzug",
+  HAUSMEISTER: "Hausmeister",
+  REINIGUNG: "Reinigung",
+  GARTEN: "Garten",
+  WINTERDIENST: "Winterdienst",
+  KABEL_INTERNET: "Kabel/Internet",
+  BANK: "Bank",
+  SONSTIGES: "Sonstiges",
+};
+
+export interface SupplierContractResponse {
+  id: string;
+  property_id: string;
+  property_name: string | null;
+  meter_number: string | null;
+  category: SupplierContractCategory;
+  provider_name: string;
+  contact_id: string | null;
+  contract_number: string | null;
+  customer_number: string | null;
+  meter_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  cancellation_months: number | null;
+  auto_renew: boolean | null;
+  price: string | null;
+  price_period: "MONATLICH" | "JAEHRLICH" | null;
+  notes: string | null;
+}
+
+export interface SupplierContractBody {
+  category: SupplierContractCategory;
+  provider_name: string;
+  contact_id?: string | null;
+  contract_number?: string | null;
+  customer_number?: string | null;
+  meter_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  cancellation_months?: number | null;
+  auto_renew?: boolean | null;
+  price?: number | null;
+  price_period?: "MONATLICH" | "JAEHRLICH" | null;
+  notes?: string | null;
+}

@@ -73,6 +73,11 @@ from app.models.organization import Organization
 from app.models.organization_property_selection import OrganizationPropertySelection
 from app.models.property import Building, Property, PropertyState, PropertyType
 from app.models.signature_request import SignatureRequest, SignatureRequestStatus
+from app.models.supplier_contract import (
+    SupplierContract,
+    SupplierContractCategory,
+    SupplierContractPricePeriod,
+)
 from app.models.ticket import (
     Ticket,
     TicketCategory,
@@ -153,6 +158,9 @@ __all__ = [
     "Session",
     "SignatureRequest",
     "SignatureRequestStatus",
+    "SupplierContract",
+    "SupplierContractCategory",
+    "SupplierContractPricePeriod",
     "Ticket",
     "TicketCategory",
     "TicketMessage",
