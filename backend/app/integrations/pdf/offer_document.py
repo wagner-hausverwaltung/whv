@@ -73,97 +73,44 @@ class WegOfferInput:
 
 
 # Coordinate map for the WEG VDIV/Haus & Grund Verwaltervertrag, measured from
-# the Königsseestraße template (pdftotext -bbox, top-left points). Each entry:
-# (page, cover-box, stamp-anchor-x, y_top, size, align). The base PDF committed
-# under assets/ already has these slots blanked; the cover rects are kept so a
-# re-stamp is robust even if a future base still carries faint values.
+# the Februar-2025 Mustervertrag base (pdftotext -bbox, top-left points). The
+# committed base is WHV's pre-filled blank form (house-standard terms typed in,
+# per-customer slots empty), so the stamps sit directly on the form's ruled
+# lines — no cover rectangles needed except where we replace form wording.
 def _weg_fields(inp: WegOfferInput) -> list[StampField]:
     p = inp.pricing
     fields: list[StampField] = [
-        # Page 1 — parties block: WEG object address (two lines).
-        StampField(
-            page=1,
-            text=inp.object_street,
-            x=102.9,
-            y_top=582.3,
-            size=9.5,
-            cover=(100.0, 579.0, 300.0, 592.0),
-        ),
-        StampField(
-            page=1,
-            text=inp.object_plz_city,
-            x=104.5,
-            y_top=598.6,
-            size=9.5,
-            cover=(100.0, 595.0, 300.0, 608.0),
-        ),
-        # Page 2 — § 1 Bestellung: Beschluss date (blank for an offer) + period.
+        # Page 1 — parties block: WEG object address on the two blank rules
+        # under "Zwischen der Wohnungseigentümergemeinschaft".
+        StampField(page=1, text=inp.object_street, x=60.0, y_top=612.3, size=9.0),
+        StampField(page=1, text=inp.object_plz_city, x=60.0, y_top=632.8, size=9.0),
+        # Page 2 — § 1 Bestellung: Beschluss date (blank for an offer) + the
+        # "für die Zeit vom ___ bis ___" period.
         StampField(
             page=2,
             text=de_date(inp.beschluss_date) if inp.beschluss_date else "",
-            x=176.2,
-            y_top=198.9,
+            x=149.0,
+            y_top=152.0,
             size=8.5,
-            cover=(174.0, 197.0, 216.0, 208.0),
         ),
-        StampField(
-            page=2,
-            text=de_date(p.start_date),
-            x=378.9,
-            y_top=198.9,
-            size=8.5,
-            cover=(377.0, 197.0, 417.0, 208.0),
-        ),
-        StampField(
-            page=2,
-            text=de_date(p.end_date),
-            x=444.9,
-            y_top=198.9,
-            size=8.5,
-            cover=(443.0, 197.0, 483.0, 208.0),
-        ),
-        # Page 2 — § 3.1 Bestellungszeitraum (MM.YY).
-        StampField(
-            page=2,
-            text=de_month_year(p.start_date),
-            x=398.8,
-            y_top=329.0,
-            size=8.5,
-            cover=(397.0, 328.0, 420.0, 338.0),
-        ),
-        StampField(
-            page=2,
-            text=de_month_year(p.end_date),
-            x=427.9,
-            y_top=329.0,
-            size=8.5,
-            cover=(426.0, 328.0, 449.0, 338.0),
-        ),
-        # Page 10 — § 8.1 a) Festvergütung net / gross (over the form's blanks).
-        StampField(
-            page=10,
-            text=de_money(p.year1_monthly_net),
-            x=228.9,
-            y_top=391.0,
-            size=8.0,
-            cover=(226.0, 389.0, 259.0, 402.0),
-        ),
-        StampField(
-            page=10,
-            text=de_money(p.year1_monthly_gross),
-            x=393.0,
-            y_top=391.0,
-            size=8.0,
-            cover=(391.0, 389.0, 425.0, 402.0),
-        ),
+        StampField(page=2, text=de_date(p.start_date), x=397.5, y_top=152.0, size=8.5),
+        StampField(page=2, text=de_date(p.end_date), x=478.5, y_top=152.0, size=8.5),
+        # Page 2 — § 3.1 Bestellungszeitraum (MM.YY — the blanks are short).
+        StampField(page=2, text=de_month_year(p.start_date), x=423.5, y_top=315.7, size=8.5),
+        StampField(page=2, text=de_month_year(p.end_date), x=460.3, y_top=315.7, size=8.5),
+        # Page 10 — § 8.1 a) Festvergütung net / gross into the form's blanks.
+        StampField(page=10, text=de_money(p.year1_monthly_net), x=213.0, y_top=343.1, size=8.0),
+        StampField(page=10, text=de_money(p.year1_monthly_gross), x=416.0, y_top=343.1, size=8.0),
         # Page 10 — § 8.1 b) annual escalator, expressed for the whole WEG.
+        # The form's own "______Euro." + typed-in "pro Monat" are covered and
+        # re-written so the net/MwSt + whole-WEG qualifiers stay explicit.
         StampField(
             page=10,
             text=f"{de_money(p.monthly_escalator_net)} EUR + MwSt pro Monat für die WEG",
-            x=229.7,
-            y_top=427.0,
-            size=6.5,
-            cover=(227.0, 426.0, 470.0, 437.0),
+            x=214.0,
+            y_top=382.5,
+            size=7.5,
+            cover=(212.0, 380.0, 371.0, 392.5),
         ),
     ]
     return fields
@@ -174,26 +121,10 @@ def render_weg_offer(base_pdf: bytes, inp: WegOfferInput) -> bytes:
     return stamp_pdf(base_pdf, _weg_fields(inp))
 
 
-def weg_blanking_fields() -> list[StampField]:
-    """Cover-only fields that turn the filled source into a PII-free base.
-
-    Run once to produce the committed ``weg_template.pdf`` asset.
-    """
-    return [
-        StampField(page=f.page, text="", x=f.x, y_top=f.y_top, size=f.size, cover=f.cover)
-        for f in _weg_fields(
-            WegOfferInput(object_street="", object_plz_city="", pricing=_DUMMY_PRICING)
-        )
-    ]
-
-
-# A throwaway pricing object so weg_blanking_fields() can reuse _weg_fields()
-# purely for its cover boxes (text is dropped).
+# The WEG base (Februar-2025 Mustervertrag) is committed as WHV's pre-filled
+# blank form — its per-customer slots are already empty, so unlike the MV base
+# below it needs no one-off blanking pass.
 from app.services.offer_pricing import price_mv as _price_mv  # noqa: E402
-from app.services.offer_pricing import price_weg as _price_weg  # noqa: E402
-
-_DUMMY_PRICING = _price_weg(units=6, start_date=date(2027, 1, 1))
-
 
 # --- MV (Mietverwaltung) ------------------------------------------------------
 
