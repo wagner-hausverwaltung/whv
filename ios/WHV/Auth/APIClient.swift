@@ -912,6 +912,18 @@ struct APIClient {
         return try await authedDownload("/admin/offer-inquiries/\(id)/offer.pdf", saveAs: filename)
     }
 
+    /// DELETE /admin/offer-inquiries/{id} — hard delete (DSGVO erasure), 204.
+    func deleteOfferInquiry(id: String) async throws {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        var request = URLRequest(url: baseURL.appending(path: "/admin/offer-inquiries/\(id)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+    }
+
     // MARK: Jahresabrechnung tracker
 
     /// GET /me/properties/{id}/accounting?year= — read-only stage progress.

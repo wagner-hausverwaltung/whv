@@ -219,12 +219,42 @@ final class AnfragenStore: ObservableObject {
         }
         loading = false
     }
+
+    /// Hard delete (DSGVO erasure) — removes the row locally on success.
+    func delete(id: String) async {
+        error = nil
+        do {
+            try await api.deleteOfferInquiry(id: id)
+            items.removeAll { $0.id == id }
+        } catch {
+            self.error = "Anfrage konnte nicht gelöscht werden."
+        }
+    }
 }
 
 // MARK: - Tab (list)
 
 struct AnfragenTab: View {
     @StateObject private var store = AnfragenStore()
+    @State private var searchText = ""
+    @State private var deleteCandidate: OfferInquirySummary?
+
+    /// Token AND-search over sender, subject, address and Art — mirrors the
+    /// admin portal's search field.
+    private var visibleItems: [OfferInquirySummary] {
+        let tokens = searchText.lowercased().split(separator: " ").map(String.init)
+        guard !tokens.isEmpty else { return store.items }
+        return store.items.filter { item in
+            let haystack = [
+                item.sender_name, item.sender_email, item.subject,
+                item.object_address, item.art,
+            ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .lowercased()
+            return tokens.allSatisfy { haystack.contains($0) }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -236,13 +266,39 @@ struct AnfragenTab: View {
                 Section {
                     if store.items.isEmpty, !store.loading {
                         Text("Keine Anfragen vorhanden.").foregroundStyle(.secondary)
+                    } else if visibleItems.isEmpty, !store.loading {
+                        Text("Keine Treffer für die Suche.").foregroundStyle(.secondary)
                     }
-                    ForEach(store.items) { item in
+                    ForEach(visibleItems) { item in
                         NavigationLink(value: item.id) { AnfrageRow(item: item) }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    deleteCandidate = item
+                                } label: {
+                                    Label("Löschen", systemImage: "trash")
+                                }
+                            }
                     }
                 } header: {
-                    Text("\(store.items.count) Anfragen")
+                    Text("\(visibleItems.count) Anfragen")
                 }
+            }
+            .searchable(text: $searchText, prompt: "Absender, Betreff, Objekt …")
+            .confirmationDialog(
+                "Diese Anfrage endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+                isPresented: Binding(
+                    get: { deleteCandidate != nil },
+                    set: { if !$0 { deleteCandidate = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Anfrage löschen", role: .destructive) {
+                    if let item = deleteCandidate {
+                        Task { await store.delete(id: item.id) }
+                    }
+                    deleteCandidate = nil
+                }
+                Button("Abbrechen", role: .cancel) { deleteCandidate = nil }
             }
             .navigationTitle("Anfragen")
             .navigationDestination(for: String.self) { id in
