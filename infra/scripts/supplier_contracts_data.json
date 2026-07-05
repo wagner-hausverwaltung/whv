@@ -1,0 +1,877 @@
+{
+ "B11": [
+  {
+   "provider_name": "Jörg Engelhardt",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Kaminfeger",
+   "customer_number": "825",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kaminfeger · noch anzurufen"
+  },
+  {
+   "provider_name": "EnBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "1000182125",
+   "contract_number": "2000133586",
+   "meter_number": "1962239",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "EnBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "1000182125",
+   "contract_number": "2092107330",
+   "meter_number": "",
+   "notes": "Schmutzwasser"
+  },
+  {
+   "provider_name": "IBS / KS Steiner Service",
+   "category": "REINIGUNG",
+   "service": "Kehrwoche",
+   "customer_number": "70619-3",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kehrwoche"
+  },
+  {
+   "provider_name": "Stadtwerke Fellbach",
+   "category": "STROM",
+   "service": "Strom",
+   "customer_number": "627548-301096",
+   "contract_number": "173702",
+   "meter_number": "40089076",
+   "notes": "Strom"
+  },
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmererei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Niederschlagswasser, Abfall",
+   "customer_number": "5.0100.191793.4",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Niederschlagswasser, Abfall"
+  },
+  {
+   "provider_name": "Sparkassenversicherung",
+   "category": "VERSICHERUNG",
+   "service": "Wohngebäudeversicherung Haus- Grundbesitzerhaftpflicht",
+   "customer_number": "",
+   "contract_number": "50019995093 RV1279PB13",
+   "meter_number": "",
+   "notes": "Wohngebäudeversicherung Haus- Grundbesitzerhaftpflicht"
+  }
+ ],
+ "L7": [
+  {
+   "provider_name": "EnBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "1000179111",
+   "contract_number": "2000130552",
+   "meter_number": "1952047",
+   "notes": "Wasser · email 11.02."
+  },
+  {
+   "provider_name": "EnBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "1000179111",
+   "contract_number": "2092104677",
+   "meter_number": "1952047",
+   "notes": "Schmutzwasser · email 11.02."
+  },
+  {
+   "provider_name": "Stadtkämmerei Stuttgart",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Niederschlagswasser, Abfall",
+   "customer_number": "5.0100.292 509.4",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Niederschlagswasser, Abfall · email 11.02."
+  },
+  {
+   "provider_name": "SV Sparkassenversicherung",
+   "category": "VERSICHERUNG",
+   "service": "Gebäude, HG-Besitzerhaftpflicht",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Gebäude, HG-Besitzerhaftpflicht · erteilt"
+  },
+  {
+   "provider_name": "Stadtwerke Bonn",
+   "category": "STROM",
+   "service": "Strom",
+   "customer_number": "2005686",
+   "contract_number": "4356120",
+   "meter_number": "439882",
+   "notes": "Strom · email 11.02."
+  }
+ ],
+ "B6,8": [
+  {
+   "provider_name": "Landratsamt Ludwigsburg",
+   "category": "MUELL",
+   "service": "Abfallgebühren",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Abfallgebühren"
+  },
+  {
+   "provider_name": "McEnergieausweis",
+   "category": "SONSTIGES",
+   "service": "Energieausweis",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Energieausweis"
+  },
+  {
+   "provider_name": "Haiduc",
+   "category": "GARTEN",
+   "service": "Gartenpflege",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Gartenpflege"
+  },
+  {
+   "provider_name": "Gasfeuer GmbH",
+   "category": "GAS",
+   "service": "Wartung, Messgeräte Gas",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Wartung, Messgeräte Gas"
+  },
+  {
+   "provider_name": "Süwag",
+   "category": "GAS",
+   "service": "Gaslieferung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Gaslieferung"
+  },
+  {
+   "provider_name": "Stadtwerke Ditzingen",
+   "category": "GAS",
+   "service": "Zählerstände Gas",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Zählerstände Gas"
+  },
+  {
+   "provider_name": "Stadtwerke Fellbach",
+   "category": "GAS",
+   "service": "Endabrechnung Gas",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Endabrechnung Gas"
+  },
+  {
+   "provider_name": "Kraftwerk Messdienst",
+   "category": "MESSDIENST",
+   "service": "Zähler Miete & Abrechnung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Zähler Miete & Abrechnung"
+  },
+  {
+   "provider_name": "E.Vita",
+   "category": "SONSTIGES",
+   "service": "Energieendabrechnung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Energieendabrechnung"
+  },
+  {
+   "provider_name": "Marvin Gornik",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Schornsteinfeger",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Schornsteinfeger"
+  },
+  {
+   "provider_name": "Stadtwerke Ditzingen",
+   "category": "STROM",
+   "service": "Stromzählerwechsel",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Stromzählerwechsel"
+  },
+  {
+   "provider_name": "Vattenfall",
+   "category": "STROM",
+   "service": "Strom",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Strom"
+  },
+  {
+   "provider_name": "Stadt Ditzingen",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "Wasser BW GmbH",
+   "category": "SONSTIGES",
+   "service": "Trinkwasseruntersuchung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Trinkwasseruntersuchung"
+  },
+  {
+   "provider_name": "Die Continentale",
+   "category": "VERSICHERUNG",
+   "service": "Haftpflichtversicherung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Haftpflichtversicherung"
+  },
+  {
+   "provider_name": "Sparkassen Versicherung",
+   "category": "VERSICHERUNG",
+   "service": "Gebäudeversicherung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Gebäudeversicherung"
+  }
+ ],
+ "U204A": [
+  {
+   "provider_name": "LB BW Bank",
+   "category": "BANK",
+   "service": "Bank",
+   "customer_number": "DE12 6005 0101 0002 8613 40",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Bank"
+  },
+  {
+   "provider_name": "Lenz GmbH",
+   "category": "MESSDIENST",
+   "service": "Heizkostenabrechnung, Messtechnik Komplettservice",
+   "customer_number": "700006249 Vorgangs-Nr. 36.235",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizkostenabrechnung, Messtechnik Komplettservice"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG",
+   "category": "STROM",
+   "service": "Wärmestrom",
+   "customer_number": "",
+   "contract_number": "8122916316",
+   "meter_number": "20687285",
+   "notes": "Wärmestrom"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG",
+   "category": "STROM",
+   "service": "Heizung Allgemeinstrom",
+   "customer_number": "",
+   "contract_number": "352643572",
+   "meter_number": "255767",
+   "notes": "Heizung Allgemeinstrom"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG im Auftrag Landeshauptstadt Stuttgart",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "1000146166",
+   "contract_number": "2092042265",
+   "meter_number": "",
+   "notes": "Schmutzwasser"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG im Auftrag Landeshauptstadt Stuttgart",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "1000146166",
+   "contract_number": "2000091216",
+   "meter_number": "1897499",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "Klaus Multiparking GmbH",
+   "category": "SONSTIGES",
+   "service": "Service Parkanlage",
+   "customer_number": "210340",
+   "contract_number": "Objekt 13319",
+   "meter_number": "",
+   "notes": "Service Parkanlage"
+  },
+  {
+   "provider_name": "MergenthalerZerweck GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Heizungsservice",
+   "customer_number": "320210",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizungsservice"
+  },
+  {
+   "provider_name": "Allianz Versicherung AG durch Verscon GmbH Versicherungsmakler",
+   "category": "VERSICHERUNG",
+   "service": "Haus- und Grundstückshaftpflicht",
+   "customer_number": "",
+   "contract_number": "AS-9400213018",
+   "meter_number": "",
+   "notes": "Haus- und Grundstückshaftpflicht"
+  },
+  {
+   "provider_name": "Allianz Versicherung AG durch Verscon GmbH Versicherungsmakler",
+   "category": "VERSICHERUNG",
+   "service": "Wohngebäudeversicherung",
+   "customer_number": "",
+   "contract_number": "AS-9457066841",
+   "meter_number": "",
+   "notes": "Wohngebäudeversicherung"
+  },
+  {
+   "provider_name": "Stadt Stuttgart",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Niederschlagswasser Müll",
+   "customer_number": "",
+   "contract_number": "5.0100.392896.8",
+   "meter_number": "",
+   "notes": "Niederschlagswasser Müll"
+  },
+  {
+   "provider_name": "Rüger Fussweg-Reinigung GmbH",
+   "category": "REINIGUNG",
+   "service": "Kehrwoche",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kehrwoche"
+  }
+ ],
+ "H32": [
+  {
+   "provider_name": "Stuttgarter Dienstleistungen",
+   "category": "REINIGUNG",
+   "service": "Reinigung Hof + Treppenhaus",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Reinigung Hof + Treppenhaus"
+  },
+  {
+   "provider_name": "BW-Bank",
+   "category": "BANK",
+   "service": "Online-Banking",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Online-Banking · Konto: 4508432522427753"
+  },
+  {
+   "provider_name": "ista",
+   "category": "MESSDIENST",
+   "service": "Kaltwasserabrechnung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kaltwasserabrechnung · Kd-Nr.: 8122223 / Liegenschaftsnr: 0470030232"
+  },
+  {
+   "provider_name": "Jochen Kapp",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Schornsteinfeger",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Schornsteinfeger"
+  },
+  {
+   "provider_name": "Ergo Versicherung",
+   "category": "VERSICHERUNG",
+   "service": "Gebäudeversicherung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Gebäudeversicherung · Vertragsnummmer folgt (ab 01.07.2025)"
+  },
+  {
+   "provider_name": "Schreiber Feuerschutz",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Wartung Feuerlöscher",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Wartung Feuerlöscher"
+  },
+  {
+   "provider_name": "Allianz",
+   "category": "SONSTIGES",
+   "service": "Haus- und Grundstückshafpflichvers.",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Haus- und Grundstückshafpflichvers. · Vertragsnr: AS-9400169049"
+  },
+  {
+   "provider_name": "Stadt Stuttgart",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Müll, Niederschlagswasser",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Müll, Niederschlagswasser · Buchungszeichen 5.0100.191329.7"
+  }
+ ],
+ "R50": [
+  {
+   "provider_name": "Gernot Kunert Gebäudebetreuung",
+   "category": "MESSDIENST",
+   "service": "Heizkosten, Wasserkostenabrechnung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizkosten, Wasserkostenabrechnung"
+  },
+  {
+   "provider_name": "ERGO Versicherung AG",
+   "category": "VERSICHERUNG",
+   "service": "Gewerbe Haftpflichtversicherung",
+   "customer_number": "",
+   "contract_number": "SV97359123-258",
+   "meter_number": "",
+   "notes": "Gewerbe Haftpflichtversicherung"
+  },
+  {
+   "provider_name": "ERGO Versicherung AG",
+   "category": "VERSICHERUNG",
+   "service": "Wohngebäudeversicherung Glasversicherung",
+   "customer_number": "",
+   "contract_number": "SV97129110-258",
+   "meter_number": "",
+   "notes": "Wohngebäudeversicherung Glasversicherung"
+  },
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren",
+   "customer_number": "",
+   "contract_number": "5.0100.290526.3",
+   "meter_number": "",
+   "notes": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren"
+  },
+  {
+   "provider_name": "Stadtwerke Ludwigsburg-Kornwestheim GmbH",
+   "category": "STROM",
+   "service": "Allg. Strom",
+   "customer_number": "237183",
+   "contract_number": "",
+   "meter_number": "4341328",
+   "notes": "Allg. Strom"
+  },
+  {
+   "provider_name": "Stadtwerke Ludwigsburg-Kornwestheim GmbH",
+   "category": "GAS",
+   "service": "GAS",
+   "customer_number": "237469",
+   "contract_number": "",
+   "meter_number": "2219724",
+   "notes": "GAS"
+  },
+  {
+   "provider_name": "ENBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "2000137834",
+   "contract_number": "8141006487",
+   "meter_number": "",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "Vodafone West GmbH",
+   "category": "KABEL_INTERNET",
+   "service": "Kabelanschluss",
+   "customer_number": "6008885338",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kabelanschluss"
+  },
+  {
+   "provider_name": "Sören Thoböll Schornsteinfegermeister",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Schornstein",
+   "customer_number": "264",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Schornstein"
+  },
+  {
+   "provider_name": "Lenz GmbH",
+   "category": "MESSDIENST",
+   "service": "KHKV Funkablesung",
+   "customer_number": "12095",
+   "contract_number": "32474",
+   "meter_number": "",
+   "notes": "KHKV Funkablesung"
+  }
+ ],
+ "M 8": [
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren",
+   "customer_number": "",
+   "contract_number": "5.0100.290193.4",
+   "meter_number": "",
+   "notes": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren"
+  },
+  {
+   "provider_name": "Allianz Generalvertretung Issler und Dannenhausen GbR",
+   "category": "VERSICHERUNG",
+   "service": "Versicherung",
+   "customer_number": "",
+   "contract_number": "Haftpfl.  AS-9495906381 Gebäude AS-9496013143",
+   "meter_number": "",
+   "notes": "Versicherung"
+  },
+  {
+   "provider_name": "Minol MesstechnikW.Lehmann GmbH & Co. KG",
+   "category": "MESSDIENST",
+   "service": "Verbrauchserfassung",
+   "customer_number": "0100043916 / 0200095949",
+   "contract_number": "611363911",
+   "meter_number": "",
+   "notes": "Verbrauchserfassung"
+  },
+  {
+   "provider_name": "Marvin Gornik",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Kaminfeger",
+   "customer_number": "613",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kaminfeger"
+  },
+  {
+   "provider_name": "Gobs GmbH",
+   "category": "REINIGUNG",
+   "service": "Rohr, Kanalreinigung",
+   "customer_number": "16033",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Rohr, Kanalreinigung"
+  },
+  {
+   "provider_name": "Clean Optimal Gebäudereinigung GmbH",
+   "category": "REINIGUNG",
+   "service": "Kehrwoche, Winterdienst",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kehrwoche, Winterdienst"
+  },
+  {
+   "provider_name": "Hieber Gebäudetechnik GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Heizung, Sanitär, Lüftung, Solar",
+   "customer_number": "30587",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizung, Sanitär, Lüftung, Solar"
+  },
+  {
+   "provider_name": "Meier & Herrmann",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Tankanlagen, Reinigung, Service",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Tankanlagen, Reinigung, Service"
+  },
+  {
+   "provider_name": "Scharr Wärme GmbH & Co. KG",
+   "category": "HEIZOEL",
+   "service": "Heizöl",
+   "customer_number": "6433818",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizöl"
+  }
+ ],
+ "A303": [
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren",
+   "customer_number": "",
+   "contract_number": "5.0100.192466.3",
+   "meter_number": "",
+   "notes": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren"
+  },
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "",
+   "contract_number": "5.0181.110929.0 2092010866",
+   "meter_number": "",
+   "notes": "Schmutzwasser"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG",
+   "category": "STROM",
+   "service": "Heizung Allgemeinstrom",
+   "customer_number": "",
+   "contract_number": "352972688",
+   "meter_number": "1SK0072929711",
+   "notes": "Heizung Allgemeinstrom"
+  },
+  {
+   "provider_name": "ENBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "2000048796",
+   "contract_number": "1000106799",
+   "meter_number": "1968694",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "Alexander Eberle",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Kaminfeger",
+   "customer_number": "2",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Kaminfeger"
+  },
+  {
+   "provider_name": "SV Sparkassenversicherung Generalagentur S. Solfrank",
+   "category": "VERSICHERUNG",
+   "service": "Gebäude, HG-Besitzerhaftpflicht, Glas",
+   "customer_number": "",
+   "contract_number": "50079375990",
+   "meter_number": "",
+   "notes": "Gebäude, HG-Besitzerhaftpflicht, Glas"
+  }
+ ],
+ "W60": [
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren",
+   "customer_number": "",
+   "contract_number": "5.0100.881353.0",
+   "meter_number": "",
+   "notes": "Grundbesitzabgaben Niederschlagswasser Abfallgebühren"
+  },
+  {
+   "provider_name": "Techem Enrgy Services GmbH",
+   "category": "MESSDIENST",
+   "service": "Heizkostenerfassung/ -abrechnung",
+   "customer_number": "548672",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizkostenerfassung/ -abrechnung"
+  },
+  {
+   "provider_name": "Heizöl Bayer",
+   "category": "HEIZOEL",
+   "service": "Heizöl",
+   "customer_number": "33835",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizöl"
+  },
+  {
+   "provider_name": "Zoller-Wanderer Gebäudetechnik GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Heizungswartung",
+   "customer_number": "10544",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizungswartung"
+  },
+  {
+   "provider_name": "LKT Haustechnik GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Tankreinigung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Tankreinigung"
+  },
+  {
+   "provider_name": "Steffen Brombacher",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Schornsteinfegermeister",
+   "customer_number": "2712.000",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Schornsteinfegermeister"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG",
+   "category": "STROM",
+   "service": "Allgemeinstrom",
+   "customer_number": "",
+   "contract_number": "8123429456",
+   "meter_number": "1/TR0055251215",
+   "notes": "Allgemeinstrom"
+  },
+  {
+   "provider_name": "ENBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "2000074143",
+   "contract_number": "1000132927",
+   "meter_number": "1925767",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "R+V Allgemeine Versicherung AG",
+   "category": "VERSICHERUNG",
+   "service": "Wohngebäudeversicherung",
+   "customer_number": "",
+   "contract_number": "270 34 338598424",
+   "meter_number": "",
+   "notes": "Wohngebäudeversicherung"
+  },
+  {
+   "provider_name": "R+V Allgemeine Versicherung AG",
+   "category": "VERSICHERUNG",
+   "service": "Haftpflichtversicherung",
+   "customer_number": "",
+   "contract_number": "270 29 574121825 S",
+   "meter_number": "",
+   "notes": "Haftpflichtversicherung"
+  },
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "",
+   "contract_number": "5.0181.133068.9 2092032988",
+   "meter_number": "",
+   "notes": "Schmutzwasser"
+  }
+ ],
+ "FTS67": [
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "GRUNDBESITZABGABEN",
+   "service": "76",
+   "customer_number": "",
+   "contract_number": "5.0100.881352.2",
+   "meter_number": "",
+   "notes": "Grundbesitzabgaben (Dienstleistung-Zelle im Excel war '76')"
+  },
+  {
+   "provider_name": "Techem Enrgy Services GmbH",
+   "category": "MESSDIENST",
+   "service": "Heizkostenerfassung/ -abrechnung",
+   "customer_number": "548672",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizkostenerfassung/ -abrechnung"
+  },
+  {
+   "provider_name": "Heizöl Bayer",
+   "category": "HEIZOEL",
+   "service": "Heizöl",
+   "customer_number": "33835",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizöl"
+  },
+  {
+   "provider_name": "Zoller-Wanderer Gebäudetechnik GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Heizungswartung",
+   "customer_number": "10544",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Heizungswartung"
+  },
+  {
+   "provider_name": "LKT Haustechnik GmbH",
+   "category": "HEIZUNG_WARTUNG",
+   "service": "Tankreinigung",
+   "customer_number": "",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Tankreinigung"
+  },
+  {
+   "provider_name": "Steffen Brombacher",
+   "category": "SCHORNSTEINFEGER",
+   "service": "Schornsteinfegermeister",
+   "customer_number": "3108.000",
+   "contract_number": "",
+   "meter_number": "",
+   "notes": "Schornsteinfegermeister"
+  },
+  {
+   "provider_name": "ENBW Energie BW AG",
+   "category": "STROM",
+   "service": "Allgemeinstrom",
+   "customer_number": "",
+   "contract_number": "8123429456",
+   "meter_number": "1/TR0055251215",
+   "notes": "Allgemeinstrom"
+  },
+  {
+   "provider_name": "ENBW AG",
+   "category": "WASSER_ABWASSER",
+   "service": "Wasser",
+   "customer_number": "2000074143",
+   "contract_number": "1000132927",
+   "meter_number": "1925767",
+   "notes": "Wasser"
+  },
+  {
+   "provider_name": "SV Sparkassenversicherung Generalagentur S. Solfrank",
+   "category": "VERSICHERUNG",
+   "service": "Wohngebäude,",
+   "customer_number": "",
+   "contract_number": "50098118688",
+   "meter_number": "",
+   "notes": "Wohngebäude,"
+  },
+  {
+   "provider_name": "R+V Allgemeine Versicherung AG",
+   "category": "VERSICHERUNG",
+   "service": "Haftpflichtversicherung",
+   "customer_number": "",
+   "contract_number": "270 29 574121825 S",
+   "meter_number": "",
+   "notes": "Haftpflichtversicherung"
+  },
+  {
+   "provider_name": "Landeshauptstadt Stuttgart Stadtkämmerei",
+   "category": "WASSER_ABWASSER",
+   "service": "Schmutzwasser",
+   "customer_number": "",
+   "contract_number": "5.0181.133068.9 2092032988",
+   "meter_number": "",
+   "notes": "Schmutzwasser"
+  }
+ ]
+}
