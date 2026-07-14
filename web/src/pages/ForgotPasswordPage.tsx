@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { isAxiosError } from "axios";
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, Box, Button, Link, Stack, TextField } from "@mui/material";
 import { api } from "@/api/client";
@@ -8,19 +9,27 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formatError, setFormatError] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setFormatError(false);
     try {
       await api.post("/auth/forgot-password", {
         email: email.trim().toLowerCase(),
       });
-    } catch {
-      // /auth/forgot-password always 204s; even on transport failure we show
-      // the same confirmation (no enumeration). User can request again.
-    } finally {
       setSubmitted(true);
+    } catch (err) {
+      // 422 = the address is syntactically invalid (typo) — showing the
+      // success screen here would promise a mail that can never arrive.
+      // Anything else (transport, 5xx) keeps the no-enumeration confirmation.
+      if (isAxiosError(err) && err.response?.status === 422) {
+        setFormatError(true);
+      } else {
+        setSubmitted(true);
+      }
+    } finally {
       setSubmitting(false);
     }
   };
@@ -55,6 +64,12 @@ export function ForgotPasswordPage() {
     >
       <Box component="form" onSubmit={onSubmit}>
         <Stack spacing={2}>
+          {formatError && (
+            <Alert severity="error">
+              Diese E-Mail-Adresse ist ungültig formatiert (z. B. Tippfehler in
+              der Domain). Bitte prüfen und erneut senden.
+            </Alert>
+          )}
           <TextField
             id="email"
             type="email"

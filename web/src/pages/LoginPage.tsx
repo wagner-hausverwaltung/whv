@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { isAxiosError } from "axios";
 import {
   Link as RouterLink,
   useLocation,
@@ -42,8 +43,15 @@ export function LoginPage() {
     try {
       await login(email.trim().toLowerCase(), password);
       navigate(from, { replace: true });
-    } catch {
-      setError(t("login.failed"));
+    } catch (err) {
+      // A 422 means the EMAIL didn't pass validation (typo like a missing
+      // ".de") — the password was never even checked. Saying "check email or
+      // password" here sends people down a futile password-reset spiral.
+      setError(
+        isAxiosError(err) && err.response?.status === 422
+          ? t("login.invalidEmail")
+          : t("login.failed"),
+      );
     } finally {
       setSubmitting(false);
     }
