@@ -405,3 +405,56 @@ async def test_portal_documents_collapse_impower_duplicates(
     assert winner["issued_date"] == "2025-06-01"
     assert winner["duplicate_count"] == 2
     assert by_name["Hausordnung.pdf"][0]["duplicate_count"] == 1
+
+
+async def test_visibility_gates_portal_listing(test_engine: AsyncEngine, tmp_doc_dir: str) -> None:
+    """The visibility dropdown is enforced: property-wide PRIVATE docs (SEPA
+    mandates) are Verwalter-only; a PRIVATE doc personally pinned to the
+    caller stays visible; BEIRAT_ONLY is hidden from plain owners."""
+    from app.models import DocumentVisibility
+    from app.tests._factories import make_contact_with_contract_link, make_document
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    contact_a, _contract_a = await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=97001
+    )
+    await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=97002)
+    _, a_email, a_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=97001
+    )
+    _, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+
+    sepa = await make_document(test_engine, org=org, prop=prop, name="SEPA Mandat Nachbar.pdf")
+    own_private = await make_document(
+        test_engine, org=org, prop=prop, name="Einzelabrechnung A.pdf", contact=contact_a
+    )
+    beirat_doc = await make_document(test_engine, org=org, prop=prop, name="Beiratsprotokoll.pdf")
+    normal = await make_document(test_engine, org=org, prop=prop, name="Hausordnung 2026.pdf")
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        for did, vis in (
+            (sepa.id, DocumentVisibility.PRIVATE),
+            (own_private.id, DocumentVisibility.PRIVATE),
+            (beirat_doc.id, DocumentVisibility.BEIRAT_ONLY),
+            (normal.id, DocumentVisibility.ALL),
+        ):
+            doc = await s.get(Document, did)
+            assert doc is not None
+            doc.visibility = vis
+        await s.commit()
+
+    a_token = _login(a_email, a_pw)
+    v_token = _login(v_email, v_pw)
+    with TestClient(app) as client:
+        ra = client.get(f"/me/properties/{prop.id}/documents", headers=_auth(a_token))
+        rv = client.get(f"/me/properties/{prop.id}/documents", headers=_auth(v_token))
+    assert ra.status_code == 200 and rv.status_code == 200
+    owner_names = {d["name"] for d in ra.json()}
+    verwalter_names = {d["name"] for d in rv.json()}
+
+    assert "SEPA Mandat Nachbar.pdf" not in owner_names  # the leak, closed
+    assert "Beiratsprotokoll.pdf" not in owner_names
+    assert "Einzelabrechnung A.pdf" in owner_names  # own PRIVATE doc survives
+    assert "Hausordnung 2026.pdf" in owner_names
+    assert "SEPA Mandat Nachbar.pdf" in verwalter_names  # Verwalter sees all

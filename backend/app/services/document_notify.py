@@ -30,6 +30,7 @@ from app.models import (
     ContractContact,
     Document,
     DocumentKind,
+    DocumentVisibility,
     NotificationCategory,
     NotificationChannel,
     Property,
@@ -105,6 +106,17 @@ async def resolve_document_recipients(
         scope_terms.append(Contact.id == document.contact_id)
     if scope_terms:
         stmt = stmt.where(or_(*scope_terms))
+
+    # Mirror the portal's visibility gate: notify only who could SEE the doc.
+    if document.visibility == DocumentVisibility.OWNERS:
+        stmt = stmt.where(User.role.in_((UserRole.EIGENTUEMER, UserRole.BEIRAT)))
+    elif document.visibility == DocumentVisibility.TENANTS:
+        stmt = stmt.where(User.role == UserRole.MIETER)
+    elif document.visibility == DocumentVisibility.BEIRAT_ONLY:
+        stmt = stmt.where(User.role == UserRole.BEIRAT)
+    elif document.visibility == DocumentVisibility.PRIVATE and not scope_terms:
+        # Property-wide PRIVATE (e.g. SEPA mandates) reaches nobody.
+        return []
 
     rows = (await session.scalars(stmt.distinct())).all()
     return list(rows)

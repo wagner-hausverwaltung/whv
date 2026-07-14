@@ -149,7 +149,8 @@ class Document(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     visibility: Mapped[DocumentVisibility] = mapped_column(
         Enum(DocumentVisibility, name="document_visibility"),
         nullable=False,
-        server_default=text("'PRIVATE'"),
+        default=DocumentVisibility.ALL,
+        server_default=text("'ALL'"),
     )
     state: Mapped[DocumentState | None] = mapped_column(
         Enum(DocumentState, name="document_state"),

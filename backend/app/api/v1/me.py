@@ -338,7 +338,7 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     caller_contact = (
         select(Contact.id).where(Contact.impower_id == user.contact_id_impower).scalar_subquery()
     )
-    return or_(
+    scope_ok = or_(
         and_(
             Document.unit_id.is_(None),
             Document.contract_id.is_(None),
@@ -348,6 +348,31 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
         Document.contract_id.in_(caller_contracts),
         Document.contact_id.in_(caller_contact),
     )
+    # Visibility gate — enforced since the SEPA-Mandat leak: the Verwalter's
+    # dropdown (PRIVATE/BEIRAT_ONLY/OWNERS/TENANTS/ALL) now actually gates the
+    # portal. PRIVATE keeps ONE exception: a document personally pinned to the
+    # caller (their Einzelabrechnung, their own SEPA mandate) stays theirs.
+    from app.models import DocumentVisibility
+
+    allowed = [DocumentVisibility.ALL]
+    if user.role in (UserRole.EIGENTUEMER, UserRole.BEIRAT):
+        allowed.append(DocumentVisibility.OWNERS)
+    if user.role == UserRole.MIETER:
+        allowed.append(DocumentVisibility.TENANTS)
+    if user.role == UserRole.BEIRAT:
+        allowed.append(DocumentVisibility.BEIRAT_ONLY)
+    visibility_ok = or_(
+        Document.visibility.in_(allowed),
+        and_(
+            Document.visibility == DocumentVisibility.PRIVATE,
+            or_(
+                Document.unit_id.in_(caller_units),
+                Document.contract_id.in_(caller_contracts),
+                Document.contact_id.in_(caller_contact),
+            ),
+        ),
+    )
+    return and_(scope_ok, visibility_ok)
 
 
 def _invoice_visibility_filter(user: User):  # type: ignore[no-untyped-def]
@@ -367,12 +392,15 @@ def _invoice_visibility_filter(user: User):  # type: ignore[no-untyped-def]
     (Sondereigentum repair billed to one owner) stays scoped via the base
     filter. The caller's property access is still enforced separately, so
     this never crosses a property boundary."""
+    from app.models import DocumentVisibility
+
     return or_(
         _document_visibility_filter(user),
         and_(
             Document.kind == DocumentKind.RECHNUNG,
             Document.unit_id.is_(None),
             Document.contract_id.is_(None),
+            Document.visibility == DocumentVisibility.ALL,
         ),
     )
 

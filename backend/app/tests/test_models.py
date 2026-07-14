@@ -124,7 +124,7 @@ async def test_full_master_data_graph(session: AsyncSession) -> None:
     fetched_doc = await session.scalar(select(Document).where(Document.impower_id == 5001))
     assert fetched_doc is not None
     assert fetched_doc.kind == DocumentKind.JAHRESABRECHNUNG
-    assert fetched_doc.visibility == DocumentVisibility.PRIVATE  # server default
+    assert fetched_doc.visibility == DocumentVisibility.ALL  # server default since b2y7v1x5t0u6
 
     junction = await session.scalar(
         select(ContractContact).where(ContractContact.contract_id == contract.id)
