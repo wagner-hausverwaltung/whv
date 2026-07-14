@@ -66,7 +66,7 @@ export function ForgotPasswordPage() {
         <Stack spacing={2}>
           {formatError && (
             <Alert severity="error">
-              Diese E-Mail-Adresse ist ungültig formatiert (z. B. Tippfehler in
+              Diese E-Mail-Adresse ist ungültig formatiert (z. B. Tippfehler in
               der Domain). Bitte prüfen und erneut senden.
             </Alert>
           )}
