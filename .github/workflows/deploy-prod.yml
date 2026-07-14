@@ -169,3 +169,13 @@ jobs:
           done
           echo "::error ::prod /healthz did not return 200 within 60s"
           exit 1
+
+      - name: Prune superseded Docker images
+        # Same disk-fill protection as staging (2026-07-14 incident: prod was
+        # at 91% when staging died at 100%). After-health-check only; keeps
+        # 7 days of images for instant rollback. Best-effort.
+        if: success()
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ env.PROD_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            "docker image prune -af --filter 'until=168h' && docker builder prune -f && df -h / | tail -1"
