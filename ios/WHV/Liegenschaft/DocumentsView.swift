@@ -31,6 +31,7 @@ struct DocumentsView: View {
     @State private var loadError: String?
     @State private var downloadingId: String?
     @State private var preview: PreviewItem?
+    @State private var searchText = ""
 
     private let api = APIClient()
 
@@ -44,6 +45,7 @@ struct DocumentsView: View {
             content
                 .navigationTitle("Dokumente")
                 .navigationBarTitleDisplayMode(.inline)
+                .searchable(text: $searchText, prompt: "Name, Art, Jahr …")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Fertig") { dismiss() }
@@ -73,6 +75,8 @@ struct DocumentsView: View {
                 systemImage: "doc",
                 description: Text("Für diese Liegenschaft sind keine Dokumente hinterlegt.")
             )
+        } else if groupedByYear.isEmpty {
+            ContentUnavailableView.search(text: searchText)
         } else {
             List {
                 ForEach(groupedByYear, id: \.0) { year, docs in
@@ -149,9 +153,21 @@ struct DocumentsView: View {
 
     // MARK: - Presentation helpers
 
+    /// Token AND-search over title, kind label and year — mirrors the
+    /// portal's document search.
+    private var filteredDocuments: [DocumentResponse] {
+        let tokens = searchText.lowercased().split(separator: " ").map(String.init)
+        guard !tokens.isEmpty else { return documents }
+        return documents.filter { doc in
+            let haystack = "\(title(doc)) \(kindLabel(doc.kind)) \(year(doc)) \(doc.name)"
+                .lowercased()
+            return tokens.allSatisfy { haystack.contains($0) }
+        }
+    }
+
     /// Newest-first, grouped by year (issued date, else upload time).
     private var groupedByYear: [(String, [DocumentResponse])] {
-        let sorted = documents.sorted { sortKey($0) > sortKey($1) }
+        let sorted = filteredDocuments.sorted { sortKey($0) > sortKey($1) }
         var groups: [(String, [DocumentResponse])] = []
         for doc in sorted {
             let y = year(doc)
