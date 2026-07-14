@@ -33,7 +33,8 @@
     "forgot": "Passwort vergessen?",
     "noAccount": "Kein Konto?",
     "redeemInvite": "Einladungscode einlösen",
-    "failed": "Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen."
+    "failed": "Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen.",
+    "invalidEmail": "Die E-Mail-Adresse ist ungültig formatiert (z. B. Tippfehler in der Domain). Bitte prüfen."
   },
   "properties": {
     "title": "Meine Objekte",
@@ -811,7 +812,29 @@
       "ampelFristEndet": "Kündigungsfrist endet am {{date}}",
       "ampelFristVerpasst": "Kündigungsfrist verpasst ({{date}}) — verlängert sich",
       "ampelEndetBald": "Endet in unter 6 Monaten",
-      "autoRenew": "Verlängert sich automatisch"
+      "autoRenew": "Verlängert sich automatisch",
+      "colStatus": "Status",
+      "addContract": "Vertrag anlegen",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "deleteConfirm": "Vertrag „{{provider}}“ ({{category}}) löschen?",
+      "deleteError": "Vertrag konnte nicht gelöscht werden.",
+      "saveError": "Vertrag konnte nicht gespeichert werden.",
+      "statusError": "Status konnte nicht gespeichert werden.",
+      "contactTooltip": "Kontaktdaten anzeigen",
+      "contactEmail": "E-Mail",
+      "contactPhone": "Telefon",
+      "contactNone": "Kein Dienstleister-Kontakt verknüpft.",
+      "contactSearchEmpty": "Kein passender Kontakt in den Stammdaten gefunden.",
+      "contactLinkHint": "Kontakt antippen, um ihn mit dem Vertrag zu verknüpfen.",
+      "contactLinkError": "Kontakt konnte nicht verknüpft werden.",
+      "docsTooltip": "Belege anzeigen",
+      "docsTitle": "Belege — {{provider}}",
+      "docsNone": "Keine passenden Belege im DMS gefunden.",
+      "docDownloadError": "Beleg konnte nicht geladen werden.",
+      "ampelGekuendigt": "Gekündigt — Ende {{date}}",
+      "ampelBeendetManuell": "Beendet",
+      "contactFilterPlaceholder": "Kontakt suchen …"
     }
   },
   "meters": {

@@ -1,6 +1,7 @@
 // Verträge tab on the admin property detail — the WEG's supply/service
 // contracts (Versicherung, Strom, Gas, Müll, …) with term + pricing metadata
-// and an optional link to the billing meter. Verwalter-only CRUD.
+// and an optional link to the billing meter. Verwalter-only CRUD; the
+// create/edit dialog is shared with the org-wide board.
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -9,22 +10,14 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
   IconButton,
-  MenuItem,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -34,71 +27,23 @@ import EditIcon from "@mui/icons-material/Edit";
 import { api } from "@/api/client";
 import {
   SUPPLIER_CATEGORY_LABELS,
-  type MeterResponse,
-  type SupplierContractBody,
-  type SupplierContractCategory,
+  SUPPLIER_STATUS_LABELS,
   type SupplierContractResponse,
 } from "@/api/types";
 import { fmtContractDate, fmtPrice } from "@/lib/supplierContracts";
-
-const CATEGORIES = Object.keys(SUPPLIER_CATEGORY_LABELS) as SupplierContractCategory[];
-
-interface DraftState {
-  id: string | null; // null = create
-  category: SupplierContractCategory;
-  provider_name: string;
-  contract_number: string;
-  customer_number: string;
-  meter_id: string;
-  start_date: string;
-  end_date: string;
-  cancellation_months: string;
-  auto_renew: boolean;
-  price: string;
-  price_period: "" | "MONATLICH" | "JAEHRLICH";
-  notes: string;
-}
-
-const EMPTY_DRAFT: DraftState = {
-  id: null,
-  category: "VERSICHERUNG",
-  provider_name: "",
-  contract_number: "",
-  customer_number: "",
-  meter_id: "",
-  start_date: "",
-  end_date: "",
-  cancellation_months: "",
-  auto_renew: true,
-  price: "",
-  price_period: "MONATLICH",
-  notes: "",
-};
-
-function draftFrom(c: SupplierContractResponse): DraftState {
-  return {
-    id: c.id,
-    category: c.category,
-    provider_name: c.provider_name,
-    contract_number: c.contract_number ?? "",
-    customer_number: c.customer_number ?? "",
-    meter_id: c.meter_id ?? "",
-    start_date: c.start_date ?? "",
-    end_date: c.end_date ?? "",
-    cancellation_months: c.cancellation_months != null ? String(c.cancellation_months) : "",
-    auto_renew: c.auto_renew ?? true,
-    price: c.price != null ? String(c.price) : "",
-    price_period: c.price_period ?? "",
-    notes: c.notes ?? "",
-  };
-}
+import { SupplierContractDialog } from "@/admin/components/SupplierContractDialog";
+import {
+  EMPTY_DRAFT,
+  bodyFromDraft,
+  draftFrom,
+  type ContractDraft,
+} from "@/lib/supplierContracts";
 
 export function PropertySupplierContractsTab({ propertyId }: { propertyId: string }) {
   const [rows, setRows] = useState<SupplierContractResponse[]>([]);
-  const [meters, setMeters] = useState<MeterResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [draft, setDraft] = useState<ContractDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -106,14 +51,10 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
     setLoading(true);
     setError(null);
     try {
-      const [contracts, meterList] = await Promise.all([
-        api.get<SupplierContractResponse[]>(
-          `/admin/properties/${propertyId}/supplier-contracts`,
-        ),
-        api.get<MeterResponse[]>(`/admin/properties/${propertyId}/meters`),
-      ]);
-      setRows(contracts.data);
-      setMeters(meterList.data);
+      const r = await api.get<SupplierContractResponse[]>(
+        `/admin/properties/${propertyId}/supplier-contracts`,
+      );
+      setRows(r.data);
     } catch {
       setError("Verträge konnten nicht geladen werden.");
     } finally {
@@ -126,23 +67,6 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
     void load();
   }, [load]);
 
-  function bodyFrom(d: DraftState): SupplierContractBody {
-    return {
-      category: d.category,
-      provider_name: d.provider_name.trim(),
-      contract_number: d.contract_number.trim() || null,
-      customer_number: d.customer_number.trim() || null,
-      meter_id: d.meter_id || null,
-      start_date: d.start_date || null,
-      end_date: d.end_date || null,
-      cancellation_months: d.cancellation_months ? Number(d.cancellation_months) : null,
-      auto_renew: d.auto_renew,
-      price: d.price ? Number(d.price.replace(",", ".")) : null,
-      price_period: d.price ? d.price_period || null : null,
-      notes: d.notes.trim() || null,
-    };
-  }
-
   async function save() {
     if (!draft) return;
     setBusy(true);
@@ -151,13 +75,13 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
       if (draft.id) {
         const r = await api.put<SupplierContractResponse>(
           `/admin/supplier-contracts/${draft.id}`,
-          bodyFrom(draft),
+          bodyFromDraft(draft),
         );
         setRows((rs) => rs.map((x) => (x.id === draft.id ? r.data : x)));
       } else {
         const r = await api.post<SupplierContractResponse>(
           `/admin/properties/${propertyId}/supplier-contracts`,
-          bodyFrom(draft),
+          bodyFromDraft(draft),
         );
         setRows((rs) => [...rs, r.data]);
       }
@@ -210,6 +134,7 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
               <TableRow>
                 <TableCell>Kategorie</TableCell>
                 <TableCell>Anbieter</TableCell>
+                <TableCell>Status</TableCell>
                 <TableCell>Vertrags-Nr.</TableCell>
                 <TableCell>Zähler</TableCell>
                 <TableCell>Beginn</TableCell>
@@ -226,6 +151,20 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
                     <Chip size="small" label={SUPPLIER_CATEGORY_LABELS[c.category]} />
                   </TableCell>
                   <TableCell>{c.provider_name}</TableCell>
+                  <TableCell>
+                    {c.status === "AKTIV" ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Aktiv
+                      </Typography>
+                    ) : (
+                      <Chip
+                        size="small"
+                        color={c.status === "GEKUENDIGT" ? "warning" : "default"}
+                        variant="outlined"
+                        label={SUPPLIER_STATUS_LABELS[c.status]}
+                      />
+                    )}
+                  </TableCell>
                   <TableCell>{c.contract_number ?? "—"}</TableCell>
                   <TableCell>{c.meter_number ?? "—"}</TableCell>
                   <TableCell>{fmtContractDate(c.start_date)}</TableCell>
@@ -262,149 +201,14 @@ export function PropertySupplierContractsTab({ propertyId }: { propertyId: strin
         </TableContainer>
       )}
 
-      <Dialog open={draft !== null} onClose={() => setDraft(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{draft?.id ? "Vertrag bearbeiten" : "Vertrag anlegen"}</DialogTitle>
-        {draft && (
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  select
-                  label="Kategorie"
-                  value={draft.category}
-                  onChange={(e) =>
-                    setDraft({ ...draft, category: e.target.value as SupplierContractCategory })
-                  }
-                  fullWidth
-                >
-                  {CATEGORIES.map((c) => (
-                    <MenuItem key={c} value={c}>
-                      {SUPPLIER_CATEGORY_LABELS[c]}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Anbieter"
-                  value={draft.provider_name}
-                  onChange={(e) => setDraft({ ...draft, provider_name: e.target.value })}
-                  fullWidth
-                />
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label="Vertragsnummer"
-                  value={draft.contract_number}
-                  onChange={(e) => setDraft({ ...draft, contract_number: e.target.value })}
-                  fullWidth
-                />
-                <TextField
-                  label="Kundennummer"
-                  value={draft.customer_number}
-                  onChange={(e) => setDraft({ ...draft, customer_number: e.target.value })}
-                  fullWidth
-                />
-              </Stack>
-              <TextField
-                select
-                label="Zähler (optional)"
-                value={draft.meter_id}
-                onChange={(e) => setDraft({ ...draft, meter_id: e.target.value })}
-                helperText="Für Strom/Gas/Wasser: der Zähler, über den abgerechnet wird"
-                fullWidth
-              >
-                <MenuItem value="">Kein Zähler</MenuItem>
-                {meters.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>
-                    {m.meter_number} ({m.meter_type})
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label="Beginn"
-                  type="date"
-                  value={draft.start_date}
-                  onChange={(e) => setDraft({ ...draft, start_date: e.target.value })}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
-                />
-                <TextField
-                  label="Ende"
-                  type="date"
-                  value={draft.end_date}
-                  onChange={(e) => setDraft({ ...draft, end_date: e.target.value })}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
-                />
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label="Kündigungsfrist (Monate)"
-                  type="number"
-                  value={draft.cancellation_months}
-                  onChange={(e) => setDraft({ ...draft, cancellation_months: e.target.value })}
-                  slotProps={{ htmlInput: { min: 0, max: 60 } }}
-                  fullWidth
-                />
-                <FormControlLabel
-                  sx={{ minWidth: 220 }}
-                  control={
-                    <Switch
-                      checked={draft.auto_renew}
-                      onChange={(e) => setDraft({ ...draft, auto_renew: e.target.checked })}
-                    />
-                  }
-                  label="Verlängert sich automatisch"
-                />
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label="Preis (€)"
-                  type="number"
-                  value={draft.price}
-                  onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                  fullWidth
-                />
-                <TextField
-                  select
-                  label="Turnus"
-                  value={draft.price_period}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      price_period: e.target.value as DraftState["price_period"],
-                    })
-                  }
-                  fullWidth
-                >
-                  <MenuItem value="MONATLICH">monatlich</MenuItem>
-                  <MenuItem value="JAEHRLICH">jährlich</MenuItem>
-                </TextField>
-              </Stack>
-              <TextField
-                label="Notiz"
-                value={draft.notes}
-                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                multiline
-                minRows={2}
-                fullWidth
-              />
-              {dialogError && <Alert severity="error">{dialogError}</Alert>}
-            </Stack>
-          </DialogContent>
-        )}
-        <DialogActions>
-          <Button onClick={() => setDraft(null)}>Abbrechen</Button>
-          <Button
-            variant="contained"
-            onClick={() => void save()}
-            disabled={busy || !draft?.provider_name.trim()}
-          >
-            Speichern
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <SupplierContractDialog
+        draft={draft}
+        setDraft={setDraft}
+        busy={busy}
+        error={dialogError}
+        onSave={() => void save()}
+        propertyId={propertyId}
+      />
     </Box>
   );
 }

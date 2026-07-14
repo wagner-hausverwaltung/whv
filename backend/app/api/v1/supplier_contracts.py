@@ -11,18 +11,32 @@ contracts (/admin/contracts).
   DELETE /admin/supplier-contracts/{contract_id}            soft delete
 """
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_role
 from app.db import get_session
-from app.models import AuditLog, Contact, Meter, Property, SupplierContract, User, UserRole
-from app.schemas.supplier_contract import SupplierContractBody, SupplierContractResponse
+from app.models import (
+    AuditLog,
+    Contact,
+    Document,
+    Meter,
+    Property,
+    SupplierContract,
+    User,
+    UserRole,
+)
+from app.schemas.supplier_contract import (
+    SupplierContractBody,
+    SupplierContractDocumentItem,
+    SupplierContractResponse,
+)
 
 admin_router = APIRouter(prefix="/admin", tags=["supplier-contracts"])
 
@@ -91,6 +105,7 @@ async def _validate_links(
 def _apply(contract: SupplierContract, body: SupplierContractBody) -> None:
     contract.category = body.category
     contract.provider_name = body.provider_name.strip()
+    contract.status = body.status
     contract.contact_id = body.contact_id
     contract.contract_number = (body.contract_number or "").strip() or None
     contract.customer_number = (body.customer_number or "").strip() or None
@@ -122,11 +137,14 @@ def _audit(user: User, action: str, contract: SupplierContract) -> AuditLog:
 async def _to_responses(
     session: AsyncSession, contracts: list[SupplierContract]
 ) -> list[SupplierContractResponse]:
-    """Attach the display conveniences (property name, meter number)."""
+    """Attach the display conveniences (property name, meter number, linked
+    Dienstleister contact)."""
     prop_ids = {c.property_id for c in contracts}
     meter_ids = {c.meter_id for c in contracts if c.meter_id is not None}
+    contact_ids = {c.contact_id for c in contracts if c.contact_id is not None}
     prop_names: dict[uuid.UUID, str] = {}
     meter_numbers: dict[uuid.UUID, str] = {}
+    contact_info: dict[uuid.UUID, tuple[str, str | None, str | None]] = {}
     if prop_ids:
         rows = await session.execute(
             select(Property.id, Property.name).where(Property.id.in_(prop_ids))
@@ -137,13 +155,70 @@ async def _to_responses(
             select(Meter.id, Meter.meter_number).where(Meter.id.in_(meter_ids))
         )
         meter_numbers = {mid: num for mid, num in rows.all()}
+    if contact_ids:
+        rows = await session.execute(
+            select(
+                Contact.id,
+                Contact.company_name,
+                Contact.first_name,
+                Contact.last_name,
+                Contact.email,
+                Contact.phone,
+            ).where(Contact.id.in_(contact_ids))
+        )
+        for cid, company, first, last, email, phone in rows.all():
+            name = company or " ".join(p for p in (first, last) if p) or "—"
+            contact_info[cid] = (name, email, phone)
     out: list[SupplierContractResponse] = []
     for c in contracts:
         resp = SupplierContractResponse.model_validate(c)
         resp.property_name = prop_names.get(c.property_id)
         resp.meter_number = meter_numbers.get(c.meter_id) if c.meter_id else None
+        if c.contact_id and c.contact_id in contact_info:
+            resp.contact_name, resp.contact_email, resp.contact_phone = contact_info[c.contact_id]
         out.append(resp)
     return out
+
+
+# Legal-form / filler tokens that don't identify a provider in doc names.
+_PROVIDER_STOPWORDS = {
+    "gmbh",
+    "ag",
+    "kg",
+    "co",
+    "gbr",
+    "ohg",
+    "holding",
+    "und",
+    "der",
+    "die",
+    "das",
+    "von",
+    "durch",
+    "im",
+    "auftrag",
+    "service",
+    "services",
+    "vertrieb",
+    "west",
+    "deutschland",
+    "energie",
+    "baden-württemberg",
+    "generalvertretung",
+    "generalagentur",
+    "versicherungsmakler",
+    "landeshauptstadt",
+}
+
+
+def _provider_tokens(provider: str) -> list[str]:
+    tokens = [
+        t
+        for t in re.split(r"[^\wäöüß+-]+", provider.lower())
+        if len(t) >= 4 and t not in _PROVIDER_STOPWORDS
+    ]
+    # Longest tokens are the most distinctive ("sparkassenversicherung").
+    return sorted(tokens, key=len, reverse=True)[:3]
 
 
 @admin_router.get("/supplier-contracts", response_model=list[SupplierContractResponse])
@@ -236,6 +311,62 @@ async def admin_update_supplier_contract(
     await session.commit()
     await session.refresh(contract)
     return (await _to_responses(session, [contract]))[0]
+
+
+@admin_router.get(
+    "/supplier-contracts/{contract_id}/documents",
+    response_model=list[SupplierContractDocumentItem],
+)
+async def admin_supplier_contract_documents(
+    contract_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[SupplierContractDocumentItem]:
+    """The contract's latest Belege (newest first, max 5): documents on the
+    same property from the linked contact, or — when no contact is linked —
+    whose vendor/name matches the provider. Download via the existing
+    GET /admin/documents/{id}/file."""
+    contract = await _contract_or_404(session, current_user, contract_id)
+    conds = []
+    if contract.contact_id is not None:
+        # A linked contact is authoritative — no fuzzy fallback, so a
+        # "Stadt Ditzingen" Bescheid never shows up under "Stadtwerke".
+        conds.append(Document.contact_id == contract.contact_id)
+    else:
+        haystack = func.lower(
+            func.coalesce(Contact.company_name, "")
+            + " "
+            + func.coalesce(Contact.first_name, "")
+            + " "
+            + func.coalesce(Contact.last_name, "")
+            + " "
+            + Document.name
+        )
+        tokens = _provider_tokens(contract.provider_name)
+        if tokens:
+            # EVERY token must appear as a whole word ("stadt" must not
+            # substring-match "Stadtwerke") — keeps city-name collisions out.
+            conds.append(and_(*[haystack.op("~")(rf"\m{re.escape(t)}\M") for t in tokens]))
+    if not conds:
+        return []
+    rows = await session.execute(
+        select(Document.id, Document.name, Document.issued_date, Document.amount)
+        .join(Contact, Contact.id == Document.contact_id, isouter=True)
+        .where(
+            Document.organization_id == current_user.organization_id,
+            Document.property_id == contract.property_id,
+            Document.deleted_at.is_(None),
+            or_(*conds),
+        )
+        .order_by(
+            Document.issued_date.desc().nulls_last(), Document.uploaded_at.desc().nulls_last()
+        )
+        .limit(5)
+    )
+    return [
+        SupplierContractDocumentItem(id=i, name=n, issued_date=d, amount=a)
+        for i, n, d, a in rows.all()
+    ]
 
 
 @admin_router.delete("/supplier-contracts/{contract_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -33,7 +33,8 @@
     "forgot": "Forgot password?",
     "noAccount": "No account?",
     "redeemInvite": "Redeem invite code",
-    "failed": "Sign-in failed. Check email or password."
+    "failed": "Sign-in failed. Check email or password.",
+    "invalidEmail": "The email address is not valid (e.g. a typo in the domain). Please check it."
   },
   "properties": {
     "title": "My properties",
@@ -811,7 +812,29 @@
       "ampelFristEndet": "Cancellation deadline is {{date}}",
       "ampelFristVerpasst": "Cancellation deadline missed ({{date}}) — renews",
       "ampelEndetBald": "Ends within 6 months",
-      "autoRenew": "Renews automatically"
+      "autoRenew": "Renews automatically",
+      "colStatus": "Status",
+      "addContract": "Add contract",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete contract „{{provider}}“ ({{category}})?",
+      "deleteError": "Could not delete the contract.",
+      "saveError": "Could not save the contract.",
+      "statusError": "Could not save the status.",
+      "contactTooltip": "Show contact details",
+      "contactEmail": "Email",
+      "contactPhone": "Phone",
+      "contactNone": "No Dienstleister contact linked.",
+      "contactSearchEmpty": "No matching contact in the master data.",
+      "contactLinkHint": "Tap a contact to link it to the contract.",
+      "contactLinkError": "Could not link the contact.",
+      "docsTooltip": "Show documents",
+      "docsTitle": "Documents — {{provider}}",
+      "docsNone": "No matching documents found in the DMS.",
+      "docDownloadError": "Could not load the document.",
+      "ampelGekuendigt": "Cancelled — ends {{date}}",
+      "ampelBeendetManuell": "Ended",
+      "contactFilterPlaceholder": "Search contacts …"
     }
   },
   "meters": {

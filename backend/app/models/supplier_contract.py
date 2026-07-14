@@ -50,6 +50,15 @@ class SupplierContractPricePeriod(enum.StrEnum):
     JAEHRLICH = "JAEHRLICH"
 
 
+class SupplierContractStatus(enum.StrEnum):
+    """Manual lifecycle status the Verwalter tracks — a cancelled contract
+    must stop screaming red for a 'missed' Kündigungsfrist."""
+
+    AKTIV = "AKTIV"
+    GEKUENDIGT = "GEKUENDIGT"
+    BEENDET = "BEENDET"
+
+
 class SupplierContract(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "supplier_contracts"
 
@@ -63,6 +72,12 @@ class SupplierContract(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin,
 
     category: Mapped[str] = mapped_column(Text, nullable=False)
     provider_name: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=SupplierContractStatus.AKTIV.value,
+        server_default=SupplierContractStatus.AKTIV.value,
+    )
     # Optional link to the Dienstleister contact behind the provider.
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True

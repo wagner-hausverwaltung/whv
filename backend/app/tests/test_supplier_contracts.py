@@ -202,3 +202,118 @@ async def test_supplier_contract_board_orders_by_end_date(test_engine: AsyncEngi
     providers = [x["provider_name"] for x in rb.json()]
     # Soonest-ending first, open-ended last.
     assert providers == ["Bald AG", "Später GmbH", "Unbefristet KG"]
+
+
+async def test_supplier_contract_status_roundtrip(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            f"/admin/properties/{prop.id}/supplier-contracts", headers=_auth(token), json=_BODY
+        )
+        assert r.status_code == 201, r.text
+        assert r.json()["status"] == "AKTIV"
+        cid = r.json()["id"]
+
+        ru = client.put(
+            f"/admin/supplier-contracts/{cid}",
+            headers=_auth(token),
+            json={**_BODY, "status": "GEKUENDIGT"},
+        )
+        assert ru.status_code == 200, ru.text
+        assert ru.json()["status"] == "GEKUENDIGT"
+
+        rbad = client.put(
+            f"/admin/supplier-contracts/{cid}",
+            headers=_auth(token),
+            json={**_BODY, "status": "PAUSIERT"},
+        )
+        assert rbad.status_code == 422
+
+
+async def test_supplier_contract_documents_matched_by_provider(test_engine: AsyncEngine) -> None:
+    from datetime import date as _date
+
+    from app.tests._factories import make_document
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    other_prop = await make_property(test_engine, org=org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+
+    d_new = await make_document(
+        test_engine, org=org, prop=prop, name="EnBW Jahresrechnung 2026.pdf"
+    )
+    d_old = await make_document(
+        test_engine, org=org, prop=prop, name="EnBW Jahresrechnung 2025.pdf"
+    )
+    await make_document(test_engine, org=org, prop=prop, name="Techem Abrechnung.pdf")
+    await make_document(test_engine, org=org, prop=other_prop, name="EnBW woanders.pdf")
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        from app.models import Document as _Document
+
+        for did, day in ((d_new.id, _date(2026, 1, 15)), (d_old.id, _date(2025, 1, 15))):
+            doc = await s.get(_Document, did)
+            assert doc is not None
+            doc.issued_date = day
+        await s.commit()
+
+    with TestClient(app) as client:
+        r = client.post(
+            f"/admin/properties/{prop.id}/supplier-contracts",
+            headers=_auth(token),
+            json={**_BODY, "provider_name": "EnBW Energie Baden-Württemberg AG"},
+        )
+        assert r.status_code == 201, r.text
+        cid = r.json()["id"]
+        rd = client.get(f"/admin/supplier-contracts/{cid}/documents", headers=_auth(token))
+    assert rd.status_code == 200, rd.text
+    names = [x["name"] for x in rd.json()]
+    # Same property + provider token match only, newest first.
+    assert names == ["EnBW Jahresrechnung 2026.pdf", "EnBW Jahresrechnung 2025.pdf"]
+
+
+async def test_supplier_contract_documents_contact_linked_is_exclusive(
+    test_engine: AsyncEngine,
+) -> None:
+    """A linked contact is authoritative: name-matched docs of OTHER vendors
+    must not leak into the Belege list."""
+    from app.models import Contact, ContactKind
+    from app.tests._factories import make_document
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        contact = Contact(
+            organization_id=org.id, kind=ContactKind.COMPANY, company_name="Stadtwerke Ditzingen"
+        )
+        s.add(contact)
+        await s.commit()
+        await s.refresh(contact)
+
+    linked_doc = await make_document(
+        test_engine, org=org, prop=prop, name="Abschlag 2026.pdf", contact=contact
+    )
+    # Same property, name contains the shared city token — must NOT match.
+    await make_document(test_engine, org=org, prop=prop, name="Grundsteuer Stadt Ditzingen.pdf")
+
+    with TestClient(app) as client:
+        r = client.post(
+            f"/admin/properties/{prop.id}/supplier-contracts",
+            headers=_auth(token),
+            json={**_BODY, "provider_name": "Stadtwerke Ditzingen", "contact_id": str(contact.id)},
+        )
+        assert r.status_code == 201, r.text
+        rd = client.get(
+            f"/admin/supplier-contracts/{r.json()['id']}/documents", headers=_auth(token)
+        )
+    assert rd.status_code == 200, rd.text
+    assert [x["id"] for x in rd.json()] == [str(linked_doc.id)]

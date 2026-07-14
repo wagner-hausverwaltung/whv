@@ -77,6 +77,7 @@ from app.models.supplier_contract import (
     SupplierContract,
     SupplierContractCategory,
     SupplierContractPricePeriod,
+    SupplierContractStatus,
 )
 from app.models.ticket import (
     Ticket,
@@ -161,6 +162,7 @@ __all__ = [
     "SupplierContract",
     "SupplierContractCategory",
     "SupplierContractPricePeriod",
+    "SupplierContractStatus",
     "Ticket",
     "TicketCategory",
     "TicketMessage",

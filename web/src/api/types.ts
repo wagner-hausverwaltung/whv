@@ -219,6 +219,8 @@ export interface DocumentResponse {
   contact_id?: string | null;
   uploaded_at?: string | null;
   visibility?: string;
+  // >1 when the /me listing folded identical Impower copies into this row.
+  duplicate_count?: number;
 }
 
 export interface DocumentFolderResponse {
@@ -1188,13 +1190,32 @@ export const SUPPLIER_CATEGORY_LABELS: Record<SupplierContractCategory, string> 
   SONSTIGES: "Sonstiges",
 };
 
+export type SupplierContractStatus = "AKTIV" | "GEKUENDIGT" | "BEENDET";
+
+export const SUPPLIER_STATUS_LABELS: Record<SupplierContractStatus, string> = {
+  AKTIV: "Aktiv",
+  GEKUENDIGT: "Gekündigt",
+  BEENDET: "Beendet",
+};
+
+export interface SupplierContractDocumentItem {
+  id: string;
+  name: string;
+  issued_date: string | null;
+  amount: string | null;
+}
+
 export interface SupplierContractResponse {
   id: string;
   property_id: string;
   property_name: string | null;
   meter_number: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
   category: SupplierContractCategory;
   provider_name: string;
+  status: SupplierContractStatus;
   contact_id: string | null;
   contract_number: string | null;
   customer_number: string | null;
@@ -1211,6 +1232,7 @@ export interface SupplierContractResponse {
 export interface SupplierContractBody {
   category: SupplierContractCategory;
   provider_name: string;
+  status?: SupplierContractStatus;
   contact_id?: string | null;
   contract_number?: string | null;
   customer_number?: string | null;
