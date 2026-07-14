@@ -336,7 +336,12 @@ export function DocumentFoldersPanel({
     for (const g of groups.values()) {
       const rep = g.find((d) => d.issued_date) ?? g[0]!;
       deduped.push(rep);
-      counts.set(rep.id, g.length);
+      // The /me endpoint may already have folded server-side copies into a
+      // row's duplicate_count — combine both so the ×N chip stays truthful.
+      counts.set(
+        rep.id,
+        g.reduce((sum, d) => sum + (d.duplicate_count ?? 1), 0),
+      );
     }
     deduped.sort((a, b) => compareDocs(a, b, sortKey, sortDir, t));
     return { visibleDocs: deduped, dupeCount: counts };

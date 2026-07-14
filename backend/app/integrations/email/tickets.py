@@ -108,3 +108,41 @@ font-size: 14px;">Im Portal öffnen</a>
 """
 
     return subject, html, text
+
+
+def render_ticket_shared_email(
+    *,
+    ticket_short_id: str,
+    ticket_subject: str,
+    property_name: str,
+) -> tuple[str, str, str]:
+    """(subject, html, text) for "ein Anliegen wurde für alle Eigentümer
+    des Objekts freigegeben".
+
+    Subject carries the same ``[#<short_id>]`` bracket as every other
+    ticket mail so a plain reply routes back into the thread via the
+    inbound webhook.
+    """
+    subject = f"[#{ticket_short_id}] Freigegebenes Anliegen: {ticket_subject}"
+    esc = ticket_subject.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    prop_esc = property_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = (
+        "Guten Tag,\n\n"
+        f"für die Liegenschaft {property_name} wurde ein Anliegen für alle "
+        "Eigentümer sichtbar geschaltet:\n\n"
+        f"  #{ticket_short_id} — {ticket_subject}\n\n"
+        "Sie können das Anliegen im Portal oder in der App einsehen und "
+        "darauf antworten — oder einfach auf diese E-Mail antworten.\n\n"
+        "Freundliche Grüße\n"
+        "Wagner Hausverwaltung"
+    )
+    html = (
+        "<p>Guten Tag,</p>"
+        f"<p>für die Liegenschaft <strong>{prop_esc}</strong> wurde ein Anliegen "
+        "für alle Eigentümer sichtbar geschaltet:</p>"
+        f"<p><strong>#{ticket_short_id} — {esc}</strong></p>"
+        "<p>Sie können das Anliegen im Portal oder in der App einsehen und "
+        "darauf antworten — oder einfach auf diese E-Mail antworten.</p>"
+        "<p>Freundliche Grüße<br>Wagner Hausverwaltung</p>"
+    )
+    return subject, html, text

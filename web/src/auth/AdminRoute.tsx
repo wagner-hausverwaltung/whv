@@ -28,6 +28,14 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
   if (user.role !== "verwalter") {
+    // On the admin host, "/" would still render the portal UI under the
+    // wrong domain (feedback: owners could log in on admin.* and got a
+    // confusing portal there). Send them to the real portal host instead.
+    const host = window.location.hostname;
+    if (host.includes("admin.")) {
+      window.location.replace(`https://${host.replace("admin.", "portal.")}/`);
+      return null;
+    }
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

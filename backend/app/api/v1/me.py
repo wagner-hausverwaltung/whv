@@ -556,33 +556,44 @@ async def get_my_contract_contact(
     contract_ctx = ContractContextResponse.model_validate(contract).model_copy(
         update={"role": role}
     )
+
+    # Privacy gate: the FULL card (Geburtsdatum, Anschrift, SEPA-Mandat,
+    # E-Mail, Telefon, USt-ID, …) is "see your own data" — it belongs to the
+    # contact themselves and the Verwalter. A co-owner/co-tenant reached via
+    # the same contract only gets the identity line: who is this person.
+    is_self = (
+        current_user.contact_id_impower is not None
+        and contact.impower_id == current_user.contact_id_impower
+    )
+    identity_fields = ("id", "kind", "salutation", "title", "first_name", "last_name")
+    sensitive_fields = (
+        "date_of_birth",
+        "company_name",
+        "vat_id",
+        "trade_register_number",
+        "recipient_name",
+        "mandate_number",
+        "email",
+        "phone",
+        "additional_contacts",
+        "city",
+        "street",
+        "number",
+        "postal_code",
+        "country",
+    )
+    if current_user.role == UserRole.VERWALTER or is_self:
+        exposed = dict.fromkeys(identity_fields + sensitive_fields)
+        for k in exposed:
+            exposed[k] = getattr(contact, k)
+    else:
+        exposed = {k: getattr(contact, k) for k in identity_fields}
+        exposed.update(dict.fromkeys(sensitive_fields))
+        # Companies keep their name — it's their identity, not private data.
+        exposed["company_name"] = contact.company_name
     return ContactDetailResponse(
-        **{
-            k: getattr(contact, k)
-            for k in (
-                "id",
-                "kind",
-                "salutation",
-                "title",
-                "first_name",
-                "last_name",
-                "date_of_birth",
-                "company_name",
-                "vat_id",
-                "trade_register_number",
-                "recipient_name",
-                "mandate_number",
-                "email",
-                "phone",
-                "preferred_channel",
-                "additional_contacts",
-                "city",
-                "street",
-                "number",
-                "postal_code",
-                "country",
-            )
-        },
+        **exposed,
+        preferred_channel=contact.preferred_channel,
         contract=contract_ctx,
     )
 
@@ -612,7 +623,33 @@ async def get_my_property_documents(
         doc_stmt = doc_stmt.where(_document_visibility_filter(current_user))
     doc_rows = (await session.scalars(doc_stmt)).all()
 
-    return [DocumentResponse.model_validate(d) for d in doc_rows]
+    # The Impower sync carries identical copies of many documents — one row
+    # WITH issued_date and one without — which made the portal show a large
+    # bogus "undated" section. Collapse copies (same name + size + kind +
+    # scope), preferring the dated row, and surface the fold as
+    # duplicate_count so the UI can hint "N identische Kopien".
+    best: dict[tuple[object, ...], DocumentResponse] = {}
+    order: list[tuple[object, ...]] = []
+    for d in doc_rows:
+        key = (d.name, d.size_bytes, d.kind, d.unit_id, d.contract_id, d.contact_id)
+        resp = DocumentResponse.model_validate(d)
+        cur = best.get(key)
+        if cur is None:
+            best[key] = resp
+            order.append(key)
+            continue
+        cur.duplicate_count += 1
+        # Prefer the dated copy; among dated ones keep the first (the query
+        # already sorts issued_date DESC NULLS LAST).
+        if cur.issued_date is None and resp.issued_date is not None:
+            resp.duplicate_count = cur.duplicate_count
+            best[key] = resp
+    deduped = [best[k] for k in order]
+    # Re-sort: winners that gained a date must leave the undated tail.
+    deduped.sort(
+        key=lambda r: ((r.issued_date is None), -(r.issued_date or date.min).toordinal(), r.name)
+    )
+    return deduped
 
 
 @router.get(

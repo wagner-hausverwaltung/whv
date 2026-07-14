@@ -789,3 +789,64 @@ async def test_ticket_default_status_is_neu(test_engine: AsyncEngine) -> None:
         assert t.status == TicketStatus.NEU
         assert t.closed_at is None
         assert t.last_message_at is not None
+
+
+async def test_share_scope_widen_to_property_notifies_members(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """Widening an existing ticket to "alle Eigentümer des Objekts" emails
+    the property's members ONCE (minus the actor) — repeat PATCHes with the
+    same scope stay silent."""
+    org = await make_org(test_engine)
+    await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    impower_a, impower_b = 94001, 94002
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_a
+    )
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_b
+    )
+    _, ea_email, ea_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_a
+    )
+    _, eb_email, _eb_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_b
+    )
+    ea_token = _login(ea_email, ea_pw)
+
+    with TestClient(app) as client:
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(ea_token),
+            json={
+                "subject": "Treppenhauslicht defekt",
+                "body": "Body text",
+                "category": "SCHADEN_ALLGEMEIN",
+                "property_id": str(prop.id),
+            },
+        )
+        tid = create.json()["id"]
+        sent_before = len(stub_email.sent)
+
+        r = client.patch(
+            f"/me/tickets/{tid}/share-scope",
+            headers=_auth(ea_token),
+            json={"share_scope": "PROPERTY"},
+        )
+        assert r.status_code == 200, r.text
+        share_mails = stub_email.sent[sent_before:]
+        recipients = [m["to"] for m in share_mails]
+        assert eb_email in recipients, recipients
+        # The actor doesn't get their own announcement.
+        assert ea_email not in recipients
+        assert any("Freigegebenes Anliegen" in m["subject"] for m in share_mails)
+
+        # Same scope again → no second announcement.
+        sent_mid = len(stub_email.sent)
+        client.patch(
+            f"/me/tickets/{tid}/share-scope",
+            headers=_auth(ea_token),
+            json={"share_scope": "PROPERTY"},
+        )
+        assert len(stub_email.sent) == sent_mid

@@ -20,7 +20,10 @@ from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.integrations.email.tickets import render_ticket_notification_email
+from app.integrations.email.tickets import (
+    render_ticket_notification_email,
+    render_ticket_shared_email,
+)
 from app.integrations.storage.ticket_attachments import (
     TicketAttachmentStorageError,
     attachment_path,
@@ -31,6 +34,8 @@ from app.models import (
     AuditLog,
     Contact,
     ContactKind,
+    Contract,
+    ContractContact,
     NotificationCategory,
     NotificationChannel,
     Property,
@@ -58,6 +63,7 @@ from app.schemas.ticket import (
     TicketStatusUpdateRequest,
 )
 from app.services import notification_prefs, push
+from app.services.access import active_contract_filter
 
 logger = logging.getLogger(__name__)
 
@@ -1199,6 +1205,85 @@ async def _remove_participant(
     await session.commit()
 
 
+async def _notify_property_share(
+    session: AsyncSession, email_client: EmailClient, ticket: Ticket, actor: User
+) -> None:
+    """Best-effort fan-out after a ticket was widened to share_scope=PROPERTY
+    ("alle Eigentümer des Objekts"): every member with an ACTIVE contract on
+    the property — minus whoever flipped the switch — gets an email + push,
+    honouring their TICKET preferences. Feedback: silently-shared tickets
+    were simply never noticed."""
+    if ticket.property_id is None:
+        return
+    try:
+        users = (
+            await session.scalars(
+                select(User)
+                .join(Contact, Contact.impower_id == User.contact_id_impower)
+                .join(ContractContact, ContractContact.contact_id == Contact.id)
+                .join(Contract, Contract.id == ContractContact.contract_id)
+                .where(
+                    User.organization_id == ticket.organization_id,
+                    User.deleted_at.is_(None),
+                    User.contact_id_impower.is_not(None),
+                    User.role != UserRole.VERWALTER,
+                    User.id != actor.id,
+                    Contact.organization_id == ticket.organization_id,
+                    Contract.property_id == ticket.property_id,
+                    active_contract_filter(),
+                )
+                .distinct()
+            )
+        ).all()
+        if not users:
+            return
+        user_ids = [u.id for u in users]
+        email_ok = set(
+            await notification_prefs.filter_user_ids(
+                session,
+                user_ids=user_ids,
+                category=NotificationCategory.TICKET,
+                channel=NotificationChannel.EMAIL,
+            )
+        )
+        push_ids = await notification_prefs.filter_user_ids(
+            session,
+            user_ids=user_ids,
+            category=NotificationCategory.TICKET,
+            channel=NotificationChannel.PUSH,
+        )
+        prop = await session.get(Property, ticket.property_id)
+        subject, html, text = render_ticket_shared_email(
+            ticket_short_id=ticket.id.hex[:16],
+            ticket_subject=ticket.subject,
+            property_name=prop.name if prop else "—",
+        )
+        settings = get_settings()
+        for u in users:
+            if not u.email or u.id not in email_ok:
+                continue
+            try:
+                await email_client.send(
+                    to=u.email,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                    reply_to=settings.email_inbound_address or None,
+                )
+            except EmailError:
+                logger.warning("share email failed for %s (ticket=%s)", u.email, ticket.id)
+        await push.notify_users(
+            session,
+            user_ids=push_ids,
+            title="Anliegen freigegeben",
+            body=ticket.subject,
+            deep_link=f"whv://tickets/{ticket.id}",
+            thread_id=f"ticket-{ticket.id}",
+        )
+    except Exception:
+        logger.exception("property-share fan-out failed for ticket=%s", ticket.id)
+
+
 # --- Owner-facing share-scope + participants ---------------------------------
 
 
@@ -1208,6 +1293,7 @@ async def update_my_share_scope(
     req: TicketShareScopeUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> TicketResponse:
     ticket = await session.scalar(
         select(Ticket).where(
@@ -1223,9 +1309,25 @@ async def update_my_share_scope(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="share_scope=PROPERTY benötigt eine property_id.",
         )
+    old_scope = ticket.share_scope
     ticket.share_scope = req.share_scope
+    if old_scope != ticket.share_scope:
+        session.add(
+            AuditLog(
+                organization_id=current_user.organization_id,
+                actor_user_id=current_user.id,
+                action="ticket_share_scope_changed",
+                target_type="tickets",
+                target_id=str(ticket.id),
+                payload_json={"from": old_scope.value, "to": ticket.share_scope.value},
+            )
+        )
     await session.commit()
     await session.refresh(ticket)
+    # Publish moment: widening to "alle Eigentümer des Objekts" notifies the
+    # property's members (email + push, TICKET preferences respected).
+    if ticket.share_scope == TicketShareScope.PROPERTY and old_scope != TicketShareScope.PROPERTY:
+        await _notify_property_share(session, email_client, ticket, current_user)
     return _to_summary(ticket)
 
 
@@ -1288,6 +1390,7 @@ async def update_admin_share_scope(
     req: TicketShareScopeUpdateRequest,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
 ) -> TicketResponse:
     ticket = await session.scalar(
         select(Ticket).where(
@@ -1302,9 +1405,25 @@ async def update_admin_share_scope(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="share_scope=PROPERTY benötigt eine property_id.",
         )
+    old_scope = ticket.share_scope
     ticket.share_scope = req.share_scope
+    if old_scope != ticket.share_scope:
+        session.add(
+            AuditLog(
+                organization_id=current_user.organization_id,
+                actor_user_id=current_user.id,
+                action="ticket_share_scope_changed",
+                target_type="tickets",
+                target_id=str(ticket.id),
+                payload_json={"from": old_scope.value, "to": ticket.share_scope.value},
+            )
+        )
     await session.commit()
     await session.refresh(ticket)
+    # Publish moment: widening to "alle Eigentümer des Objekts" notifies the
+    # property's members (email + push, TICKET preferences respected).
+    if ticket.share_scope == TicketShareScope.PROPERTY and old_scope != TicketShareScope.PROPERTY:
+        await _notify_property_share(session, email_client, ticket, current_user)
     return _to_summary(ticket)
 
 

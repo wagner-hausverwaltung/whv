@@ -30,6 +30,11 @@ class DocumentResponse(BaseModel):
     contract_id: uuid.UUID | None = None
     contact_id: uuid.UUID | None = None
     uploaded_at: datetime | None = None
+    # >1 when the Impower sync carries identical copies of this document
+    # (same name + size, typically one row with issued_date and one
+    # without). The portal list collapses them to this one row; the admin
+    # endpoints keep every raw row and leave this at 1.
+    duplicate_count: int = 1
 
 
 # ── Folder schemas ────────────────────────────────────────────────

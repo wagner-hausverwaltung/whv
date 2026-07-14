@@ -357,3 +357,51 @@ async def test_admin_download_404_when_no_source(
     with TestClient(app) as client:
         r = client.get(f"/admin/documents/{doc_id}/file", headers=_auth(token))
     assert r.status_code == 404, r.text
+
+
+async def test_portal_documents_collapse_impower_duplicates(
+    test_engine: AsyncEngine, tmp_doc_dir: str
+) -> None:
+    """The Impower sync carries identical copies (same name+size, one row
+    dated, one not). The /me listing folds them into the dated row with
+    duplicate_count — the undated ghost section was pure noise."""
+    from datetime import date as _date
+
+    from app.tests._factories import make_contact_with_contract_link, make_document
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org)
+    await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=96001)
+    _, email, pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=96001
+    )
+
+    dated = await make_document(test_engine, org=org, prop=prop, name="Abrechnung 2025.pdf")
+    undated = await make_document(test_engine, org=org, prop=prop, name="Abrechnung 2025.pdf")
+    other = await make_document(test_engine, org=org, prop=prop, name="Hausordnung.pdf")
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        for did, size, issued in (
+            (dated.id, 1000, _date(2025, 6, 1)),
+            (undated.id, 1000, None),
+            (other.id, 500, None),
+        ):
+            doc = await s.get(Document, did)
+            assert doc is not None
+            doc.size_bytes = size
+            doc.issued_date = issued
+        await s.commit()
+
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get(f"/me/properties/{prop.id}/documents", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    by_name: dict[str, list[dict[str, object]]] = {}
+    for x in rows:
+        by_name.setdefault(x["name"], []).append(x)
+    assert len(by_name["Abrechnung 2025.pdf"]) == 1
+    winner = by_name["Abrechnung 2025.pdf"][0]
+    assert winner["issued_date"] == "2025-06-01"
+    assert winner["duplicate_count"] == 2
+    assert by_name["Hausordnung.pdf"][0]["duplicate_count"] == 1
