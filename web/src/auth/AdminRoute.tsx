@@ -10,6 +10,19 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  // Domain <-> surface separation, the mirror of the owner redirect below:
+  // both hosts serve the same bundle, so portal.*/admin/* would happily
+  // render the admin UI (Safari's compact URL bar hides the /admin path --
+  // it looks like "the portal shows the admin"). Bounce to the admin host,
+  // keeping the path. Local dev has no "portal." prefix and is unaffected.
+  const host = window.location.hostname;
+  if (host.includes("portal.")) {
+    window.location.replace(
+      `https://${host.replace("portal.", "admin.")}${location.pathname}${location.search}`,
+    );
+    return null;
+  }
+
   if (loading) {
     return (
       <Box
@@ -31,7 +44,6 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     // On the admin host, "/" would still render the portal UI under the
     // wrong domain (feedback: owners could log in on admin.* and got a
     // confusing portal there). Send them to the real portal host instead.
-    const host = window.location.hostname;
     if (host.includes("admin.")) {
       window.location.replace(`https://${host.replace("admin.", "portal.")}/`);
       return null;
