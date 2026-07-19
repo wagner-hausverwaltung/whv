@@ -19,6 +19,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import LogoutIcon from "@mui/icons-material/Logout";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useTranslation } from "react-i18next";
@@ -63,26 +64,45 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const openMenu = (e: MouseEvent<HTMLElement>) => setMenuAnchor(e.currentTarget);
   const closeMenu = () => setMenuAnchor(null);
 
-  // Active nav entry by longest-prefix path match. /admin/tickets/{id} keeps
-  // the Tickets button visually selected via the `current-page` data attr —
-  // MUI doesn't have a built-in active state on Button, so we just bump
-  // fontWeight + add a subtle background.
-  const NAV: { to: string; label: string }[] = [
-    { to: "/admin", label: t("admin.dashboard") },
-    { to: "/admin/tickets", label: t("admin.tickets") },
-    { to: "/admin/resolutions", label: t("admin.resolutions") },
-    { to: "/admin/assemblies", label: t("admin.assemblies") },
-    { to: "/admin/signatures", label: t("admin.signatures") },
-    { to: "/admin/announcements", label: t("admin.announcements") },
-    { to: "/admin/anfragen", label: t("admin.anfragen") },
-    { to: "/admin/jahresabrechnung", label: t("admin.accounting") },
-    { to: "/admin/vertraege", label: t("admin.vertraege") },
-    { to: "/admin/offers", label: t("admin.offers") },
-    { to: "/admin/invites", label: t("admin.invites") },
-    { to: "/admin/assistant-log", label: t("admin.assistantLog") },
+  // Hierarchical nav: 12 flat entries collapsed into Dashboard + 3 dropdown
+  // groups ordered by usage frequency (daily Vorgänge → regular WEG-Leben →
+  // occasional Verwaltung). Active state bubbles from the matched leaf up to
+  // its group button.
+  const DASHBOARD = { to: "/admin", label: t("admin.dashboard") };
+  const NAV_GROUPS: { key: string; label: string; items: { to: string; label: string }[] }[] = [
+    {
+      key: "vorgaenge",
+      label: t("admin.navVorgaenge"),
+      items: [
+        { to: "/admin/tickets", label: t("admin.tickets") },
+        { to: "/admin/anfragen", label: t("admin.anfragen") },
+        { to: "/admin/offers", label: t("admin.offers") },
+        { to: "/admin/signatures", label: t("admin.signatures") },
+      ],
+    },
+    {
+      key: "weg",
+      label: t("admin.navWeg"),
+      items: [
+        { to: "/admin/assemblies", label: t("admin.assemblies") },
+        { to: "/admin/resolutions", label: t("admin.resolutions") },
+        { to: "/admin/announcements", label: t("admin.announcements") },
+        { to: "/admin/jahresabrechnung", label: t("admin.accounting") },
+      ],
+    },
+    {
+      key: "verwaltung",
+      label: t("admin.navVerwaltung"),
+      items: [
+        { to: "/admin/vertraege", label: t("admin.vertraege") },
+        { to: "/admin/invites", label: t("admin.invites") },
+        { to: "/admin/assistant-log", label: t("admin.assistantLog") },
+      ],
+    },
   ];
+  const allLeaves = [DASHBOARD, ...NAV_GROUPS.flatMap((g) => g.items)];
   const activePath = (() => {
-    const sorted = [...NAV].sort((a, b) => b.to.length - a.to.length);
+    const sorted = [...allLeaves].sort((a, b) => b.to.length - a.to.length);
     for (const item of sorted) {
       if (
         location.pathname === item.to ||
@@ -91,8 +111,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         return item.to;
       }
     }
-    return NAV[0]!.to;
+    return DASHBOARD.to;
   })();
+  const [navAnchor, setNavAnchor] = useState<{ el: HTMLElement; key: string } | null>(null);
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -154,23 +175,66 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               <>
                 {isWide && (
                   <Stack direction="row" spacing={0.5} sx={{ mr: 1 }}>
-                    {NAV.map((item) => (
-                      <Button
-                        key={item.to}
-                        component={RouterLink}
-                        to={item.to}
-                        color="inherit"
-                        size="small"
-                        sx={{
-                          fontWeight: activePath === item.to ? 700 : 500,
-                          bgcolor:
-                            activePath === item.to
+                    <Button
+                      component={RouterLink}
+                      to={DASHBOARD.to}
+                      color="inherit"
+                      size="small"
+                      sx={{
+                        fontWeight: activePath === DASHBOARD.to ? 700 : 500,
+                        bgcolor:
+                          activePath === DASHBOARD.to
+                            ? "action.selected"
+                            : "transparent",
+                      }}
+                    >
+                      {DASHBOARD.label}
+                    </Button>
+                    {NAV_GROUPS.map((group) => {
+                      const groupActive = group.items.some(
+                        (i) => i.to === activePath,
+                      );
+                      return (
+                        <Button
+                          key={group.key}
+                          color="inherit"
+                          size="small"
+                          endIcon={<KeyboardArrowDownIcon sx={{ ml: -0.5 }} />}
+                          onClick={(e) =>
+                            setNavAnchor({ el: e.currentTarget, key: group.key })
+                          }
+                          aria-haspopup="menu"
+                          aria-expanded={navAnchor?.key === group.key}
+                          sx={{
+                            fontWeight: groupActive ? 700 : 500,
+                            bgcolor: groupActive
                               ? "action.selected"
                               : "transparent",
-                        }}
+                          }}
+                        >
+                          {group.label}
+                        </Button>
+                      );
+                    })}
+                    {NAV_GROUPS.map((group) => (
+                      <Menu
+                        key={group.key}
+                        anchorEl={navAnchor?.key === group.key ? navAnchor.el : null}
+                        open={navAnchor?.key === group.key}
+                        onClose={() => setNavAnchor(null)}
                       >
-                        {item.label}
-                      </Button>
+                        {group.items.map((item) => (
+                          <MenuItem
+                            key={item.to}
+                            component={RouterLink}
+                            to={item.to}
+                            selected={item.to === activePath}
+                            onClick={() => setNavAnchor(null)}
+                          >
+                            {item.label}
+                          </MenuItem>
+                        ))}
+                      </Menu>
                     ))}
                   </Stack>
                 )}

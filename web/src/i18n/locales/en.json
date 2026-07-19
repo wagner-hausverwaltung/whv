@@ -835,7 +835,10 @@
       "ampelGekuendigt": "Cancelled — ends {{date}}",
       "ampelBeendetManuell": "Ended",
       "contactFilterPlaceholder": "Search contacts …"
-    }
+    },
+    "navVorgaenge": "Operations",
+    "navWeg": "WEG",
+    "navVerwaltung": "Administration"
   },
   "meters": {
     "loading": "Loading Zähler…",

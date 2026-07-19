@@ -835,7 +835,10 @@
       "ampelGekuendigt": "Gekündigt — Ende {{date}}",
       "ampelBeendetManuell": "Beendet",
       "contactFilterPlaceholder": "Kontakt suchen …"
-    }
+    },
+    "navVorgaenge": "Vorgänge",
+    "navWeg": "WEG",
+    "navVerwaltung": "Verwaltung"
   },
   "meters": {
     "loading": "Lade Zähler…",
