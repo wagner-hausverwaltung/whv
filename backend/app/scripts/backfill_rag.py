@@ -18,7 +18,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import get_settings
 from app.rag.db import provision_rag_store
-from app.rag.service import enqueue_document_indexing, enqueue_masterdata_indexing
+from app.rag.service import (
+    enqueue_document_indexing,
+    enqueue_masterdata_indexing,
+    index_law_corpus,
+)
 
 
 async def _run(
@@ -27,6 +31,7 @@ async def _run(
     property_id: uuid.UUID | None,
     limit: int | None,
     masterdata: bool,
+    law: bool,
 ) -> int:
     settings = get_settings()
     if not settings.rag_enabled:
@@ -39,6 +44,24 @@ async def _run(
         app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
         rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
         async with app_factory() as app_session, rag_factory() as rag_session:
+            if law:
+                # Law corpus is tiny (~100 §§) — index inline, no Celery hop.
+                from sqlalchemy import select
+
+                from app.integrations.llm import get_llm_provider
+                from app.models import Organization
+
+                provider = get_llm_provider()
+                orgs = (await app_session.scalars(select(Organization))).all()
+                total = 0
+                for org in orgs:
+                    indexed, skipped = await index_law_corpus(
+                        rag_session, provider, organization_id=org.id, force=not only_new
+                    )
+                    await rag_session.commit()
+                    print(f"org {org.id}: law indexed={indexed} skipped={skipped}")
+                    total += indexed
+                return total
             if masterdata:
                 # Master-data enqueue only reads the app DB (vendors) — the
                 # rag_session isn't needed, but we keep the store provisioned.
@@ -70,6 +93,11 @@ def main() -> None:
         help="index master-data cards (Dienstleister + owner/tenant contacts) "
         "instead of documents (ADR-0013 §4)",
     )
+    parser.add_argument(
+        "--law",
+        action="store_true",
+        help="index the Gesetzes-Korpus (WEG/HeizkostenV/BGB-Auszug) inline",
+    )
     parser.add_argument("--property", type=str, default=None, help="one property id (UUID)")
     parser.add_argument("--limit", type=int, default=None, help="cap how many items to enqueue")
     args = parser.parse_args()
@@ -81,9 +109,10 @@ def main() -> None:
             property_id=property_id,
             limit=args.limit,
             masterdata=args.masterdata,
+            law=args.law,
         )
     )
-    unit = "master-data card" if args.masterdata else "document"
+    unit = "law card" if args.law else ("master-data card" if args.masterdata else "document")
     print(f"enqueued {count} {unit}(s) for RAG indexing.")
 
 

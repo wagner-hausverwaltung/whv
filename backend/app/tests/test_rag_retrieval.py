@@ -498,3 +498,75 @@ async def test_fetch_property_cards_contacts_acl(
         rag_session, scope=owner, property_id=prop.id, source_type=SOURCE_TYPE_CONTACT
     )
     assert {c.document_id for c in own_got} == {d1}
+
+
+def _add_law_chunk(
+    rag_session: AsyncSession, *, organization_id: uuid.UUID, paragraph: str = "§ 28"
+) -> uuid.UUID:
+    from app.rag.masterdata import SOURCE_TYPE_LAW, law_doc_id
+
+    doc_id = law_doc_id(organization_id, "WEG", paragraph)
+    rag_session.add(
+        RagChunk(
+            document_id=doc_id,
+            organization_id=organization_id,
+            visibility="ALL",
+            source_type=SOURCE_TYPE_LAW,
+            source_kind="GESETZ",
+            chunk_text=f"{paragraph} WEG …",
+            embedding=_VEC,
+        )
+    )
+    return doc_id
+
+
+async def test_law_chunks_visible_to_every_caller_but_org_scoped(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    """The public Gesetzes-Korpus reaches even an owner with EMPTY document
+    scope — but never leaks non-law chunks, and never crosses orgs."""
+    org_a = await make_org(test_engine)
+    org_b = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org_a, name="LP1")
+    # Stranger: registered owner with NO contract anywhere → empty doc scope.
+    stranger, _, _ = await make_user(
+        test_engine, org=org_a, role=UserRole.EIGENTUEMER, contact_id_impower=6001
+    )
+
+    other_doc = await make_document(test_engine, org=org_a, prop=prop, kind=DocumentKind.RECHNUNG)
+    _add_chunk(rag_session, document_id=other_doc.id, organization_id=org_a.id)
+    law_a = _add_law_chunk(rag_session, organization_id=org_a.id)
+    law_b = _add_law_chunk(rag_session, organization_id=org_b.id, paragraph="§ 27")
+    await rag_session.flush()
+
+    scope = await resolve_caller_scope(session, stranger)
+    got = await retrieve(rag_session, scope=scope, query_embedding=_VEC, min_similarity=0.0)
+    got_ids = {c.document_id for c in got}
+    assert law_a in got_ids  # law is public — even with empty personal scope
+    assert other_doc.id not in got_ids  # the OR-branch must not widen documents
+    assert law_b not in got_ids  # org boundary still holds
+
+
+async def test_law_chunks_survive_property_filter(
+    test_engine: AsyncEngine, session: AsyncSession, rag_session: AsyncSession
+) -> None:
+    """A selected property narrows documents but must NOT evict the org-global
+    law corpus (law rows carry property_id NULL)."""
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="LP2")
+    await make_contact_with_contract_link(test_engine, org=org, prop=prop, contact_impower_id=6002)
+    owner, _, _ = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=6002
+    )
+    law = _add_law_chunk(rag_session, organization_id=org.id, paragraph="§ 16")
+    await rag_session.flush()
+
+    scope = await resolve_caller_scope(session, owner)
+    got = await retrieve(
+        rag_session,
+        scope=scope,
+        query_embedding=_VEC,
+        min_similarity=0.0,
+        property_id=prop.id,
+    )
+    assert law in {c.document_id for c in got}

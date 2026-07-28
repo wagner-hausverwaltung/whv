@@ -167,6 +167,50 @@ async def _notify_new_documents_async() -> dict[str, int]:
     return {"documents_notified": notified}
 
 
+async def _generate_ticket_ai_draft_async(ticket_id_str: str) -> str:
+    from app.integrations.llm import get_llm_provider
+    from app.rag.db import provision_rag_store
+    from app.services.ticket_ai import generate_ticket_draft
+
+    settings = get_settings()
+    if not settings.rag_enabled or not settings.ticket_ai_draft_enabled:
+        return "disabled"
+    app_engine = create_async_engine(settings.database_url)
+    rag_engine = create_async_engine(settings.rag_database_url)
+    try:
+        await provision_rag_store(rag_engine)
+        app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
+        rag_factory = async_sessionmaker(rag_engine, expire_on_commit=False)
+        async with app_factory() as app_session, rag_factory() as rag_session:
+            provider = get_llm_provider()
+            return await generate_ticket_draft(
+                app_session,
+                rag_session,
+                ticket_id=uuid.UUID(ticket_id_str),
+                settings=settings,
+                embedder=provider,
+                generator=provider,
+            )
+    finally:
+        await app_engine.dispose()
+        await rag_engine.dispose()
+
+
+@celery_app.task(
+    name="app.workers.tasks.generate_ticket_ai_draft",
+    autoretry_for=(Exception,),
+    max_retries=2,
+    retry_backoff=True,
+    retry_backoff_max=300,
+)
+def generate_ticket_ai_draft(ticket_id: str) -> str:
+    """Grounded KI-Antwortentwurf als interne Notiz an einem frischen
+    Eigentümer-Ticket (app/services/ticket_ai.py). Enqueued on ticket
+    creation (portal + inbound email); no-op unless rag_enabled AND
+    ticket_ai_draft_enabled."""
+    return asyncio.run(_generate_ticket_ai_draft_async(ticket_id))
+
+
 async def _notify_plan_adjustments_async() -> dict[str, int]:
     """Post-sync pass: poll each active owner contract for INFORMED
     plan-adjustment suggestions and notify the owner(s) that their

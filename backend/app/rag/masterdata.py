@@ -32,6 +32,7 @@ SOURCE_TYPE_DIENSTLEISTER = "dienstleister"
 SOURCE_TYPE_CONTACT = "contact"
 SOURCE_TYPE_ETV = "etv"
 SOURCE_TYPE_ANFRAGE = "anfrage"
+SOURCE_TYPE_LAW = "law"
 
 
 def dienstleister_doc_id(property_id: uuid.UUID, contact_id: uuid.UUID) -> uuid.UUID:
@@ -216,3 +217,21 @@ def build_etv_card(
         if shown:
             parts.append("Beschlüsse: " + "; ".join(shown))
     return " · ".join(parts)
+
+
+def law_doc_id(organization_id: uuid.UUID, law: str, paragraph: str) -> uuid.UUID:
+    """Deterministic synthetic document id for one Gesetzes-Paragraph.
+
+    Law cards are indexed per org (single-org today; a future org re-runs the
+    backfill). Unlike every other card kind they are PUBLIC: retrieval admits
+    ``source_type=law`` chunks for every caller — Gesetzestexte sind amtliche
+    Werke (§ 5 UrhG), there is nothing to protect."""
+    return uuid.uuid5(_MASTERDATA_NS, f"law:{organization_id}:{law}:{paragraph}")
+
+
+def build_law_card(*, law: str, law_name: str, paragraph: str, title: str, text: str) -> str:
+    """Render one Paragraph as a retrieval card: '§ 21 WEG — Titel' + text."""
+    head = f"{paragraph} {law}"
+    if title:
+        head += f" — {title}"
+    return f"{head} ({law_name})\n\n{text}"

@@ -642,6 +642,14 @@ async def email_inbound(
     await session.commit()
     await session.refresh(ticket)
 
+    # KI-Antwortentwurf für ein NEUES Support-Ticket aus einer E-Mail —
+    # der Worker prüft selbst, ob der Absender ein registrierter
+    # Eigentümer/Mieter ist (sonst kein Entwurf). Best-effort.
+    if created_new and settings.rag_enabled and settings.ticket_ai_draft_enabled:
+        from app.workers.tasks import generate_ticket_ai_draft
+
+        generate_ticket_ai_draft.delay(str(ticket.id))
+
     # Best-effort: delete the raw email from S3 now that it's been ingested.
     # Failure to delete is non-fatal — a bucket lifecycle rule should also
     # be configured to purge stragglers within the retention window.

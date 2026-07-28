@@ -254,6 +254,9 @@ class Settings(BaseSettings):
     # rag_enabled=true makes the backend init + bootstrap the pgvector
     # store on boot (lifespan) and (later) expose /assistant/*.
     rag_enabled: bool = False
+    # KI-Antwortentwurf für neue Eigentümer-Tickets (Verwalter-only interne
+    # Notiz). Braucht rag_enabled; eigener Kill-Switch für schnellen Stopp.
+    ticket_ai_draft_enabled: bool = True
     # Async DSN for the SEPARATE pgvector store (the `vectordb`
     # container) — NOT the app database. Empty in plain local runs;
     # docker-compose sets it. OCR text + chunk embeddings live here.

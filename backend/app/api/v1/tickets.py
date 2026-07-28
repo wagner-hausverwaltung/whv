@@ -702,6 +702,19 @@ async def create_my_ticket(
 
     await session.commit()
     await session.refresh(ticket)
+
+    # KI-Antwortentwurf (interne Notiz) für Eigentümer-/Mieter-Tickets —
+    # best-effort im Worker; ein Verwalter-eigenes Ticket braucht keinen.
+    settings = get_settings()
+    if (
+        settings.rag_enabled
+        and settings.ticket_ai_draft_enabled
+        and current_user.role != UserRole.VERWALTER
+    ):
+        from app.workers.tasks import generate_ticket_ai_draft
+
+        generate_ticket_ai_draft.delay(str(ticket.id))
+
     return await _to_detail(ticket, [first_message], session)
 
 

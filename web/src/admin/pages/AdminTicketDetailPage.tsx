@@ -724,6 +724,27 @@ export function AdminTicketDetailPage() {
               </Typography>
             </Stack>
             <MessageBody body={m.body} />
+            {m.is_internal_note && m.body.startsWith("\u{1F916} KI-Entwurf") && (
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ mt: 1 }}
+                onClick={() => {
+                  // Antwortteil = alles zwischen Marker-Zeile und dem
+                  // Quellen-/Hinweis-Block — der Verwalter editiert ohnehin.
+                  const lines = m.body.split("\n");
+                  const cut = lines.findIndex(
+                    (l) => l.startsWith("Quellen:") || l.startsWith("Hinweis für den Verwalter"),
+                  );
+                  const draft = (cut > 0 ? lines.slice(1, cut) : lines.slice(1))
+                    .join("\n")
+                    .trim();
+                  setReply(draft);
+                }}
+              >
+                {t("admin.ticketDetail.useAiDraft")}
+              </Button>
+            )}
             {id && (
               <MessageAttachments
                 ticketId={id}

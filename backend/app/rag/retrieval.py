@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # NOTE: these visibility helpers live in the me router today; promoting them
@@ -30,7 +30,7 @@ from app.models.contact import Contact
 from app.models.document import Document
 from app.models.etv import EtvAssembly
 from app.models.user import User, UserRole
-from app.rag.masterdata import contact_doc_id, etv_doc_id
+from app.rag.masterdata import SOURCE_TYPE_LAW, contact_doc_id, etv_doc_id
 from app.rag.models import RagChunk
 
 
@@ -137,10 +137,8 @@ async def retrieve(
     cosine similarity ≥ ``min_similarity``, highest first. An empty list is
     the caller's cue to abstain ("nothing found") rather than guess.
     """
-    # Hard ACL gate. A non-VERWALTER with no visible documents sees nothing —
-    # short-circuit so we never run an unfiltered vector search.
-    if not scope.is_verwalter and not scope.visible_document_ids:
-        return []
+    # ACL gate: a non-VERWALTER with no visible documents still gets the
+    # public law corpus (the OR-branch below) — no short-circuit anymore.
 
     # pgvector HNSW + a WHERE filter (property_id / the ACL document_id set)
     # POST-filters the ANN candidates, so with the default ef_search a query
@@ -161,7 +159,14 @@ async def retrieve(
         # Non-empty here (guarded above); the assert narrows it for the type
         # checker and documents the invariant.
         assert scope.visible_document_ids is not None
-        stmt = stmt.where(RagChunk.document_id.in_(scope.visible_document_ids))
+        # Law cards (WEG/BGB/HeizkostenV §§) are public by definition —
+        # admitted for every caller alongside their personal document set.
+        stmt = stmt.where(
+            or_(
+                RagChunk.document_id.in_(scope.visible_document_ids),
+                RagChunk.source_type == SOURCE_TYPE_LAW,
+            )
+        )
 
     # Property scope from the UI's property switcher: when the caller has a
     # property selected, look ONLY in that property's documents/cards. ANDed
@@ -169,7 +174,12 @@ async def retrieve(
     # never widen it. (Org-level chunks with no property_id are excluded while a
     # property is selected, which matches "only the selected property's docs".)
     if property_id is not None:
-        stmt = stmt.where(RagChunk.property_id == property_id)
+        # Law cards are org-global (property_id NULL) and public — a selected
+        # property narrows the caller's documents but must never evict the
+        # Gesetzes-Korpus (NULL == :uuid is never true in SQL).
+        stmt = stmt.where(
+            or_(RagChunk.property_id == property_id, RagChunk.source_type == SOURCE_TYPE_LAW)
+        )
 
     # Structured metadata pre-filter — the "hybrid" half (ADR-0013 §3),
     # applied BEFORE the ANN so vendor/date/kind narrow the candidate set.

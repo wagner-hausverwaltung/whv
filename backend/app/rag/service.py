@@ -552,3 +552,72 @@ async def enqueue_masterdata_indexing(
     for pid, cid, card_type in pairs:
         index_rag_masterdata.delay(str(pid), str(cid), card_type)
     return len(pairs)
+
+
+async def index_law_corpus(
+    rag_session: AsyncSession,
+    embedder: Embedder,
+    *,
+    organization_id: uuid.UUID,
+    force: bool = False,
+) -> tuple[int, int]:
+    """Index the committed Gesetzes-Korpus (WEG, HeizkostenV, BGB-Auszug —
+    one card per Paragraph, ~100 total) for one org. Public by design:
+    retrieval admits ``source_type=law`` for every caller. Content-hash
+    makes re-runs cheap; snapshots live in ``app/rag/assets/law/``
+    (amtliche Werke, § 5 UrhG). Returns (indexed, skipped). Flushes; the
+    caller commits."""
+    import json
+    from pathlib import Path
+
+    from app.rag.masterdata import SOURCE_TYPE_LAW, build_law_card, law_doc_id
+
+    assets = Path(__file__).parent / "assets" / "law"
+    indexed = skipped = 0
+    current_ids: set[uuid.UUID] = set()
+    for asset in sorted(assets.glob("*.json")):
+        for entry in json.loads(asset.read_text(encoding="utf-8")):
+            card = build_law_card(
+                law=entry["law"],
+                law_name=entry["law_name"],
+                paragraph=entry["paragraph"],
+                title=entry["title"],
+                text=entry["text"],
+            )
+            result = await index_masterdata_card(
+                rag_session,
+                embedder,
+                document_id=law_doc_id(organization_id, entry["law"], entry["paragraph"]),
+                organization_id=organization_id,
+                source_type=SOURCE_TYPE_LAW,
+                card_text=card,
+                source_kind="GESETZ",
+                force=force,
+            )
+            if result.skipped:
+                skipped += 1
+            else:
+                indexed += 1
+            current_ids.add(law_doc_id(organization_id, entry["law"], entry["paragraph"]))
+    # Sweep: a repealed/renumbered § must not linger as authoritative law.
+    # Chunks carry source_type, documents only source_kind ("GESETZ").
+    from sqlalchemy import delete as sa_delete
+
+    from app.rag.models import RagChunk
+
+    await rag_session.execute(
+        sa_delete(RagChunk).where(
+            RagChunk.organization_id == organization_id,
+            RagChunk.source_type == SOURCE_TYPE_LAW,
+            RagChunk.document_id.notin_(current_ids),
+        )
+    )
+    await rag_session.execute(
+        sa_delete(RagDocument).where(
+            RagDocument.organization_id == organization_id,
+            RagDocument.source_kind == "GESETZ",
+            RagDocument.document_id.notin_(current_ids),
+        )
+    )
+    await rag_session.flush()
+    return indexed, skipped
