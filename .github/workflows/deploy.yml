@@ -29,7 +29,11 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-24.04
+    # Native ARM runner (free for public repos): staging/prod are Hetzner
+    # arm64, and building arm64 on an x86 runner meant QEMU emulation — fine
+    # while the buildx cache was warm, but GitHub evicts caches after 7 days,
+    # so the first deploy after a quiet week took ~8 min instead of ~2.
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
@@ -42,7 +46,6 @@ jobs:
         id: tag
         run: echo "short_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
