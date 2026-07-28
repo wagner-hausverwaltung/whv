@@ -1074,6 +1074,15 @@ export interface MeterBulkCreateResponse {
 // --- Vollmacht (ETV proxy authorization) — ADR-0017 -------------------------
 export type VollmachtStatus = "SIGNED" | "REVOKED";
 
+export type VollmachtVoteInstruction = "JA" | "NEIN" | "ENTHALTUNG";
+
+export interface VollmachtVotingInstruction {
+  agenda_item_id: string;
+  position: number;
+  title: string;
+  instruction: VollmachtVoteInstruction;
+}
+
 export interface VollmachtResponse {
   id: string;
   assembly_id: string;
@@ -1082,6 +1091,7 @@ export interface VollmachtResponse {
   principal_name: string;
   proxy_name: string;
   scope_note: string | null;
+  voting_instructions: VollmachtVotingInstruction[];
   status: VollmachtStatus;
   signed_at: string;
   revoked_at: string | null;

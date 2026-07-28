@@ -4,6 +4,7 @@ cross-org isolation.
 """
 
 import base64
+import json
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -213,3 +214,93 @@ async def test_cross_org_isolation(test_engine: AsyncEngine, tmp_vollmacht_dir: 
             ).status_code
             == 404
         )
+
+
+async def _add_agenda_item(
+    engine: AsyncEngine, *, assembly: EtvAssembly, position: int, title: str
+) -> Any:
+    from app.models import AgendaItemType, EtvAgendaItem
+
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    async with sm() as s:
+        item = EtvAgendaItem(
+            assembly_id=assembly.id,
+            position=position,
+            type=AgendaItemType.BESCHLUSS,
+            title=title,
+            body="",
+        )
+        s.add(item)
+        await s.commit()
+        await s.refresh(item)
+    return item
+
+
+async def test_vollmacht_with_per_top_instructions(
+    test_engine: AsyncEngine, tmp_vollmacht_dir: str
+) -> None:
+    """Owner feedback: bind the proxy per Tagesordnungspunkt. Position + title
+    are snapshotted server-side from the agenda, not trusted from the client."""
+    ctx = await _setup(test_engine)
+    assembly = ctx["assembly"]
+    top1 = await _add_agenda_item(
+        test_engine, assembly=assembly, position=1, title="Jahresabrechnung 2025"
+    )
+    top2 = await _add_agenda_item(
+        test_engine, assembly=assembly, position=2, title="Wirtschaftsplan 2026"
+    )
+
+    payload = json.dumps(
+        [
+            # Client sends a bogus title/position — the server must ignore both.
+            {
+                "agenda_item_id": str(top2.id),
+                "position": 99,
+                "title": "GEFÄLSCHT",
+                "instruction": "ENTHALTUNG",
+            },
+            {"agenda_item_id": str(top1.id), "instruction": "JA"},
+        ]
+    )
+    with TestClient(app) as client:
+        r = client.post(
+            f"/me/assemblies/{assembly.id}/vollmacht",
+            headers=_auth(ctx["m_token"]),
+            data={"proxy_name": "Dirk Ullrich", "voting_instructions": payload},
+            files={"signature": ("sig.png", _PNG_1X1, "image/png")},
+        )
+        assert r.status_code == 201, r.text
+        got = r.json()["voting_instructions"]
+        # Sorted by agenda position, snapshotted from the DB.
+        assert [i["position"] for i in got] == [1, 2]
+        assert [i["title"] for i in got] == ["Jahresabrechnung 2025", "Wirtschaftsplan 2026"]
+        assert [i["instruction"] for i in got] == ["JA", "ENTHALTUNG"]
+
+        r_pdf = client.get(
+            f"/me/vollmachten/{r.json()['id']}/document.pdf", headers=_auth(ctx["m_token"])
+        )
+        assert r_pdf.status_code == 200
+        assert r_pdf.content[:5] == b"%PDF-"
+
+
+async def test_vollmacht_rejects_foreign_agenda_item(
+    test_engine: AsyncEngine, tmp_vollmacht_dir: str
+) -> None:
+    """A TOP from another assembly must not end up on this Vollmacht."""
+    ctx = await _setup(test_engine)
+    other = await _make_assembly(test_engine, org=ctx["org"], prop=ctx["prop"])
+    foreign = await _add_agenda_item(test_engine, assembly=other, position=1, title="Fremd-TOP")
+
+    with TestClient(app) as client:
+        r = client.post(
+            f"/me/assemblies/{ctx['assembly'].id}/vollmacht",
+            headers=_auth(ctx["m_token"]),
+            data={
+                "proxy_name": "Dirk Ullrich",
+                "voting_instructions": json.dumps(
+                    [{"agenda_item_id": str(foreign.id), "instruction": "JA"}]
+                ),
+            },
+        )
+    assert r.status_code == 400
+    assert "Tagesordnungspunkt" in r.json()["detail"]

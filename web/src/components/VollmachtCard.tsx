@@ -17,13 +17,19 @@ import {
   Paper,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import HowToVoteIcon from "@mui/icons-material/HowToVote";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import type { VollmachtResponse } from "@/api/types";
+import type {
+  AgendaItemResponse,
+  VollmachtResponse,
+  VollmachtVoteInstruction,
+} from "@/api/types";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 
 function fmtDate(d: string | null): string {
@@ -32,13 +38,26 @@ function fmtDate(d: string | null): string {
   return Number.isNaN(parsed.getTime()) ? d : parsed.toLocaleDateString("de-DE");
 }
 
-export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
+const INSTRUCTION_KEYS: VollmachtVoteInstruction[] = ["JA", "NEIN", "ENTHALTUNG"];
+
+export function VollmachtCard({
+  assemblyId,
+  agendaItems = [],
+}: {
+  assemblyId: string;
+  agendaItems?: AgendaItemResponse[];
+}) {
   const { t } = useTranslation();
   const [vollmacht, setVollmacht] = useState<VollmachtResponse | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [proxyName, setProxyName] = useState("");
   const [scopeNote, setScopeNote] = useState("");
+  // Per-TOP Weisungen — owner request: bind the proxy item by item instead of
+  // only via free text. Unset = proxy votes freely on that TOP.
+  const [instructions, setInstructions] = useState<
+    Record<string, VollmachtVoteInstruction | undefined>
+  >({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const padRef = useRef<SignaturePadHandle>(null);
@@ -60,6 +79,8 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
     void load();
   }, [load]);
 
+  const votableItems = agendaItems.filter((i) => i.type === "BESCHLUSS");
+
   const grant = async () => {
     if (!proxyName.trim()) {
       setError(t("vollmacht.proxyNameRequired"));
@@ -72,6 +93,10 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
       const fd = new FormData();
       fd.append("proxy_name", proxyName.trim());
       if (scopeNote.trim()) fd.append("scope_note", scopeNote.trim());
+      const chosen = votableItems
+        .filter((i) => instructions[i.id])
+        .map((i) => ({ agenda_item_id: i.id, instruction: instructions[i.id] }));
+      if (chosen.length > 0) fd.append("voting_instructions", JSON.stringify(chosen));
       if (blob) fd.append("signature", blob, "signature.png");
       const r = await api.post<VollmachtResponse>(
         `/me/assemblies/${assemblyId}/vollmacht`,
@@ -81,6 +106,7 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
       setDialogOpen(false);
       setProxyName("");
       setScopeNote("");
+      setInstructions({});
     } catch (e) {
       const detail =
         (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
@@ -109,8 +135,17 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
     const r = await api.get(`/me/vollmachten/${vollmacht.id}/document.pdf`, {
       responseType: "blob",
     });
+    // Anchor + download (the pattern every other download here uses) —
+    // window.open() AFTER an await is killed by iOS Safari's popup blocker,
+    // which is why "PDF herunterladen" silently did nothing on iPhone
+    // (owner feedback 07/2026; the request itself returned 200 each time).
     const url = URL.createObjectURL(r.data as Blob);
-    window.open(url, "_blank", "noopener");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Vollmacht-${vollmacht.proxy_name || "WHV"}.pdf`.replace(/[/\\?%*:|"<>]/g, "-");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
@@ -132,6 +167,21 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
                 {t("vollmacht.grantedToPrefix")} <strong>{vollmacht.proxy_name}</strong> · {fmtDate(vollmacht.signed_at)}
               </Typography>
             </Stack>
+            {vollmacht.voting_instructions?.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  {t("vollmacht.perTopTitle")}
+                </Typography>
+                <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+                  {vollmacht.voting_instructions.map((i) => (
+                    <Typography key={i.agenda_item_id} variant="caption">
+                      <strong>TOP {i.position}</strong> {i.title} —{" "}
+                      {t(`vollmacht.vote.${i.instruction}`)}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             {vollmacht.scope_note && (
               <Typography variant="caption" color="text.secondary">
                 {t("vollmacht.instructionLabel")}: {vollmacht.scope_note}
@@ -183,6 +233,41 @@ export function VollmachtCard({ assemblyId }: { assemblyId: string }) {
               required
               fullWidth
             />
+            {votableItems.length > 0 && (
+              <Box>
+                <Typography variant="subtitle2">{t("vollmacht.perTopTitle")}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {t("vollmacht.perTopHint")}
+                </Typography>
+                <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+                  {votableItems.map((item) => (
+                    <Box key={item.id}>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>TOP {item.position}</strong> {item.title}
+                      </Typography>
+                      <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={instructions[item.id] ?? null}
+                        onChange={(_, v) =>
+                          setInstructions((prev) => ({
+                            ...prev,
+                            [item.id]: (v as VollmachtVoteInstruction | null) ?? undefined,
+                          }))
+                        }
+                        sx={{ flexWrap: "wrap" }}
+                      >
+                        {INSTRUCTION_KEYS.map((key) => (
+                          <ToggleButton key={key} value={key}>
+                            {t(`vollmacht.vote.${key}`)}
+                          </ToggleButton>
+                        ))}
+                      </ToggleButtonGroup>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             <TextField
               label={t("vollmacht.scopeLabel")}
               placeholder={t("vollmacht.scopePlaceholder")}

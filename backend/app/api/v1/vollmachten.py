@@ -16,6 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +25,11 @@ from app.auth.dependencies import get_current_user, require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.models import EtvAssembly, EtvVollmacht, Property, User, UserRole
-from app.schemas.vollmacht import VollmachtResponse
+from app.schemas.vollmacht import (
+    VollmachtResponse,
+    VollmachtVotingInstruction,
+    VollmachtVotingInstructionsPayload,
+)
 from app.services import vollmachten as vollmachten_svc
 
 me_router = APIRouter(prefix="/me", tags=["vollmachten"])
@@ -100,6 +105,9 @@ async def create_my_vollmacht(
     settings: Annotated[Settings, Depends(get_settings)],
     proxy_name: Annotated[str, Form()],
     scope_note: Annotated[str | None, Form()] = None,
+    # JSON array of {agenda_item_id, instruction} — multipart carries no
+    # nested types, so the client sends it as a string form field.
+    voting_instructions: Annotated[str | None, Form()] = None,
     signature: UploadFile | None = None,
 ) -> VollmachtResponse:
     if current_user.role not in _OWNER_ROLES:
@@ -108,6 +116,18 @@ async def create_my_vollmacht(
             detail="Nur Eigentümer:innen können eine Vollmacht erteilen.",
         )
     assembly = await _member_assembly_or_404(session, current_user, assembly_id)
+
+    parsed_instructions: list[VollmachtVotingInstruction] = []
+    if voting_instructions and voting_instructions.strip():
+        try:
+            parsed_instructions = VollmachtVotingInstructionsPayload.model_validate_json(
+                f'{{"items": {voting_instructions}}}'
+            ).items
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Weisungen konnten nicht gelesen werden.",
+            ) from exc
 
     sig: bytes | None = None
     if signature is not None:
@@ -130,6 +150,7 @@ async def create_my_vollmacht(
             scope_note=scope_note,
             signature_png=sig,
             settings=settings,
+            voting_instructions=parsed_instructions,
         )
     except vollmachten_svc.VollmachtServiceError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

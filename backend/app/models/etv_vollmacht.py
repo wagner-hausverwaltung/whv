@@ -12,9 +12,10 @@ signers), this is portal-user self-service — no DocuSeal, no Pro gate.
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -24,6 +25,14 @@ from app.models._mixins import OrganizationScopedMixin, TimestampMixin, uuid7_pk
 class VollmachtStatus(enum.StrEnum):
     SIGNED = "SIGNED"  # active proxy
     REVOKED = "REVOKED"  # withdrawn by the owner before the meeting
+
+
+class VollmachtVoteInstruction(enum.StrEnum):
+    """Per-TOP voting instruction the owner binds their proxy to."""
+
+    JA = "JA"
+    NEIN = "NEIN"
+    ENTHALTUNG = "ENTHALTUNG"
 
 
 class EtvVollmacht(OrganizationScopedMixin, TimestampMixin, Base):
@@ -57,6 +66,12 @@ class EtvVollmacht(OrganizationScopedMixin, TimestampMixin, Base):
     proxy_name: Mapped[str] = mapped_column(Text, nullable=False)
     # Optional restriction / Weisung ("nur TOP 3", "gegen Beschluss X").
     scope_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Per-Tagesordnungspunkt Weisungen (Ja/Nein/Enthaltung). A SNAPSHOT list of
+    # {agenda_item_id, position, title, instruction}: the agenda can still be
+    # edited after signing, but the Vollmacht is a signed document — it must
+    # keep the wording the owner actually saw. NULL/[] = Vollmacht ohne Weisung
+    # (proxy votes freely).
+    voting_instructions: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[VollmachtStatus] = mapped_column(
         Enum(VollmachtStatus, name="vollmacht_status"),
         nullable=False,

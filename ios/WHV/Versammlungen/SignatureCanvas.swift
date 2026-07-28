@@ -24,9 +24,13 @@ struct SignatureCanvas: View {
             }
         }
         .frame(height: 160)
+        // Always paper-white — NOT a system background: in dark mode the pad
+        // rendered near-black and the near-black ink was invisible while
+        // signing (owner feedback 07/2026). The PDF is white too, so this
+        // also shows the signature exactly as it will be printed.
         .background(
             GeometryReader { geo in
-                Color(.secondarySystemBackground)
+                Color.white
                     .onAppear { canvasSize = geo.size }
                     .onChange(of: geo.size) { _, newValue in canvasSize = newValue }
             }

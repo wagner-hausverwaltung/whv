@@ -21,10 +21,25 @@ private func germanDate(_ iso: String) -> String {
 struct VollmachtSectionView: View {
     let assemblyId: String
 
+    /// ONE sheet driver for both destinations. Two `.sheet` modifiers on the
+    /// same view silently conflict in SwiftUI — the first one wins, so the PDF
+    /// preview never opened while "Vollmacht erteilen" worked (owner feedback
+    /// 07/2026: repeated taps, server returned the PDF every time).
+    private enum ActiveSheet: Identifiable {
+        case grant
+        case preview(URL)
+
+        var id: String {
+            switch self {
+            case .grant: "grant"
+            case .preview(let url): url.absoluteString
+            }
+        }
+    }
+
     @State private var vollmacht: VollmachtResponse?
     @State private var loaded = false
-    @State private var showGrant = false
-    @State private var previewURL: URL?
+    @State private var activeSheet: ActiveSheet?
     @State private var busy = false
     @State private var error: String?
 
@@ -44,18 +59,13 @@ struct VollmachtSectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task { await load() }
-        .sheet(isPresented: $showGrant) {
-            GrantVollmachtSheet(assemblyId: assemblyId) { granted in
-                vollmacht = granted
-            }
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { previewURL != nil },
-                set: { if !$0 { previewURL = nil } }
-            )
-        ) {
-            if let url = previewURL {
+        .sheet(item: $activeSheet) { which in
+            switch which {
+            case .grant:
+                GrantVollmachtSheet(assemblyId: assemblyId) { granted in
+                    vollmacht = granted
+                }
+            case .preview(let url):
                 FilePreview(url: url).ignoresSafeArea()
             }
         }
@@ -69,7 +79,7 @@ struct VollmachtSectionView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button {
-                showGrant = true
+                activeSheet = .grant
             } label: {
                 Label("Vollmacht erteilen", systemImage: "signature")
                     .frame(maxWidth: .infinity)
@@ -126,7 +136,7 @@ struct VollmachtSectionView: View {
 
     private func download(_ v: VollmachtResponse) async {
         do {
-            previewURL = try await api.downloadVollmacht(id: v.id)
+            activeSheet = .preview(try await api.downloadVollmacht(id: v.id))
         } catch {
             self.error = "PDF konnte nicht geladen werden."
         }

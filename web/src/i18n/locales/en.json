@@ -763,7 +763,8 @@
       "propertyLabel": "Property",
       "propertyNotAssigned": "Not assigned to a property yet",
       "propertyAssignPlaceholder": "Search property (name, street, HR-ID)…",
-      "propertyClear": "Clear assignment"
+      "propertyClear": "Clear assignment",
+      "useAiDraft": "Use as reply"
     },
     "inviteNew": {
       "title": "New invitation",
@@ -886,7 +887,14 @@
     "scopePlaceholder": "e.g. only TOP 3, against Beschluss X",
     "signatureLabel": "Your signature",
     "granting": "Granting…",
-    "signAndGrant": "Sign & grant"
+    "signAndGrant": "Sign & grant",
+    "perTopTitle": "Instructions per agenda item",
+    "perTopHint": "Optional: define how your proxy should vote on individual items. Without a choice they vote freely.",
+    "vote": {
+      "JA": "Yes",
+      "NEIN": "No",
+      "ENTHALTUNG": "Abstention"
+    }
   },
   "calendar": {
     "loadFailed": "Could not load the calendar.",

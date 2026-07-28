@@ -12,6 +12,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,13 +23,14 @@ from app.models import (
     AuditLog,
     Contact,
     ContactKind,
+    EtvAgendaItem,
     EtvAssembly,
     EtvVollmacht,
     Property,
     User,
     VollmachtStatus,
 )
-from app.schemas.vollmacht import VollmachtResponse
+from app.schemas.vollmacht import VollmachtResponse, VollmachtVotingInstruction
 
 
 class VollmachtServiceError(ValueError):
@@ -83,6 +85,9 @@ def to_response(v: EtvVollmacht, *, principal_email: str | None = None) -> Vollm
         principal_name=v.principal_name,
         proxy_name=v.proxy_name,
         scope_note=v.scope_note,
+        voting_instructions=[
+            VollmachtVotingInstruction.model_validate(i) for i in (v.voting_instructions or [])
+        ],
         status=v.status,
         signed_at=v.signed_at,
         revoked_at=v.revoked_at,
@@ -127,6 +132,7 @@ async def create_vollmacht(
     scope_note: str | None,
     signature_png: bytes | None,
     settings: Settings,
+    voting_instructions: list[VollmachtVotingInstruction] | None = None,
 ) -> EtvVollmacht:
     if not proxy_name.strip():
         raise VollmachtServiceError("Bitte geben Sie an, wen Sie bevollmächtigen.")
@@ -141,6 +147,36 @@ async def create_vollmacht(
     prop = await session.get(Property, assembly.property_id)
     now = datetime.now(UTC)
 
+    # Snapshot the Weisungen against the CURRENT agenda: an item from another
+    # assembly is rejected outright, and position/title are taken from the DB
+    # (not the client) so the signed PDF can't be forged via the payload.
+    instructions: list[dict[str, Any]] = []
+    if voting_instructions:
+        rows = (
+            await session.execute(
+                select(EtvAgendaItem.id, EtvAgendaItem.position, EtvAgendaItem.title).where(
+                    EtvAgendaItem.assembly_id == assembly.id
+                )
+            )
+        ).all()
+        agenda = {row_id: (pos, title) for row_id, pos, title in rows}
+        for item in voting_instructions:
+            found = agenda.get(item.agenda_item_id)
+            if found is None:
+                raise VollmachtServiceError(
+                    "Ein Tagesordnungspunkt gehört nicht zu dieser Versammlung."
+                )
+            position, title = found
+            instructions.append(
+                {
+                    "agenda_item_id": str(item.agenda_item_id),
+                    "position": position,
+                    "title": title,
+                    "instruction": item.instruction.value,
+                }
+            )
+        instructions.sort(key=lambda i: i["position"])
+
     vollmacht = EtvVollmacht(
         organization_id=actor.organization_id,
         assembly_id=assembly.id,
@@ -149,6 +185,7 @@ async def create_vollmacht(
         principal_name=principal_name,
         proxy_name=proxy_name.strip(),
         scope_note=(scope_note.strip() if scope_note and scope_note.strip() else None),
+        voting_instructions=instructions or None,
         status=VollmachtStatus.SIGNED,
         signed_at=now,
     )
@@ -160,6 +197,7 @@ async def create_vollmacht(
         principal_name=principal_name,
         proxy_name=vollmacht.proxy_name,
         scope_note=vollmacht.scope_note,
+        voting_instructions=instructions,
         assembly_title=assembly.title,
         property_name=(prop.name if prop is not None else "—"),
         property_address=_format_address(prop),

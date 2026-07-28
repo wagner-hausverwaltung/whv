@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 from xml.sax.saxutils import escape
 from zoneinfo import ZoneInfo
 
@@ -367,6 +368,7 @@ def render_vollmacht_pdf(
     assembly_start: datetime | None,
     signed_at: datetime,
     signature_png: bytes | None,
+    voting_instructions: list[dict[str, Any]] | None = None,
 ) -> bytes:
     """Render a WHV-branded Vollmacht (proxy authorization) for one ETV,
     with the owner's in-app signature composited into the signature block.
@@ -429,6 +431,49 @@ def render_vollmacht_pdf(
         f"Tagesordnungspunkten in meinem Namen auszuüben."
     )
     story.append(Paragraph(authorization, bodyst))
+
+    # Per-TOP Weisungen — the binding half of the document, so it gets a real
+    # table (TOP / Weisung) rather than a prose line.
+    if voting_instructions:
+        story.append(Spacer(1, 5 * mm))
+        story.append(
+            Paragraph(
+                "<b>Weisungen zu den Tagesordnungspunkten</b><br/>"
+                "Die bevollmächtigte Person ist bei den folgenden "
+                "Tagesordnungspunkten an diese Weisung gebunden:",
+                bodyst,
+            )
+        )
+        story.append(Spacer(1, 3 * mm))
+        rows: list[list[Any]] = [
+            [
+                Paragraph("<b>TOP</b>", small),
+                Paragraph("<b>Tagesordnungspunkt</b>", small),
+                Paragraph("<b>Weisung</b>", small),
+            ]
+        ]
+        for entry in voting_instructions:
+            rows.append(
+                [
+                    Paragraph(str(entry.get("position", "")), small),
+                    Paragraph(_rich(str(entry.get("title", ""))), small),
+                    Paragraph(f"<b>{_rich(str(entry.get('instruction', '')).title())}</b>", small),
+                ]
+            )
+        weisung_tbl = Table(rows, colWidths=[14 * mm, 122 * mm, 38 * mm], repeatRows=1)
+        weisung_tbl.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.7, _INK),
+                    ("LINEBELOW", (0, 1), (-1, -2), 0.25, _MUTED),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.append(weisung_tbl)
+
     if scope_note and scope_note.strip():
         story.append(Spacer(1, 3 * mm))
         story.append(Paragraph(f"<b>Einschränkung / Weisung:</b> {_rich(scope_note)}", bodyst))

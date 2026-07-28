@@ -324,7 +324,7 @@ export function MyAssemblyDetailPage() {
       )}
 
       {/* Owner proxy (Vollmacht) — delegate your vote before the meeting. */}
-      {isOwner && <VollmachtCard assemblyId={a.id} />}
+      {isOwner && <VollmachtCard assemblyId={a.id} agendaItems={sortedAgenda} />}
 
       {/* Agenda */}
       <Box>

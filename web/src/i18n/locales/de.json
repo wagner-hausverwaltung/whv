@@ -763,7 +763,8 @@
       "propertyLabel": "Objekt",
       "propertyNotAssigned": "Noch keinem Objekt zugeordnet",
       "propertyAssignPlaceholder": "Objekt suchen (Name, Straße, HR-ID)…",
-      "propertyClear": "Zuordnung entfernen"
+      "propertyClear": "Zuordnung entfernen",
+      "useAiDraft": "Als Antwort übernehmen"
     },
     "inviteNew": {
       "title": "Neue Einladung anlegen",
@@ -886,7 +887,14 @@
     "scopePlaceholder": "z. B. nur TOP 3, gegen Beschluss X",
     "signatureLabel": "Ihre Unterschrift",
     "granting": "Wird erteilt…",
-    "signAndGrant": "Unterschreiben & erteilen"
+    "signAndGrant": "Unterschreiben & erteilen",
+    "perTopTitle": "Weisungen je Tagesordnungspunkt",
+    "perTopHint": "Optional: Legen Sie fest, wie Ihre Vertretung bei einzelnen Punkten abstimmen soll. Ohne Auswahl entscheidet sie frei.",
+    "vote": {
+      "JA": "Ja",
+      "NEIN": "Nein",
+      "ENTHALTUNG": "Enthaltung"
+    }
   },
   "calendar": {
     "loadFailed": "Kalender konnte nicht geladen werden.",

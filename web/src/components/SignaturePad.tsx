@@ -122,7 +122,11 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
             border: 1,
             borderColor: "divider",
             borderRadius: 1,
-            bgcolor: "background.paper",
+            // Always paper-white, never the themed surface: in dark mode the
+            // pad rendered dark grey and the #111 ink was invisible while
+            // signing (owner feedback 07/2026). The PDF is white too, so the
+            // signature now looks exactly as it will be printed.
+            bgcolor: "#ffffff",
             touchAction: "none", // let the canvas own touch gestures
           }}
         >

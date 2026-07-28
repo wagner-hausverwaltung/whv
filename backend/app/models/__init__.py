@@ -56,7 +56,11 @@ from app.models.etv import (
     EtvAssemblyComment,
     EtvDiscussionEntry,
 )
-from app.models.etv_vollmacht import EtvVollmacht, VollmachtStatus
+from app.models.etv_vollmacht import (
+    EtvVollmacht,
+    VollmachtStatus,
+    VollmachtVoteInstruction,
+)
 from app.models.llm_audit import LLMAuditLog
 from app.models.meter import (
     Meter,
@@ -178,5 +182,6 @@ __all__ = [
     "UserNotificationPreference",
     "UserRole",
     "VollmachtStatus",
+    "VollmachtVoteInstruction",
     "VoteChoice",
 ]
