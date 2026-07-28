@@ -429,6 +429,27 @@ struct EmptyBody: Codable {}
 /// Digitale Vollmacht (ETV proxy, ADR-0017). `status` is "SIGNED" |
 /// "REVOKED"; `signed_at` is kept as a String (display-only) so it skips
 /// the strict ISO-datetime date decoder.
+/// One per-TOP Weisung on a Vollmacht. `position`/`title` are snapshotted by
+/// the backend from the agenda at signing time, so a later agenda edit can't
+/// rewrite a signed document.
+struct VollmachtVotingInstruction: Codable, Hashable, Identifiable {
+    let agenda_item_id: String
+    let position: Int
+    let title: String
+    let instruction: String
+
+    var id: String { agenda_item_id }
+
+    var germanLabel: String {
+        switch instruction {
+        case "JA": "Ja"
+        case "NEIN": "Nein"
+        case "ENTHALTUNG": "Enthaltung"
+        default: instruction
+        }
+    }
+}
+
 struct VollmachtResponse: Codable, Hashable, Identifiable {
     let id: String
     let assembly_id: String
@@ -437,6 +458,8 @@ struct VollmachtResponse: Codable, Hashable, Identifiable {
     let principal_name: String
     let proxy_name: String
     let scope_note: String?
+    // Older backends omit the field entirely — decode defensively.
+    let voting_instructions: [VollmachtVotingInstruction]?
     let status: String
     let signed_at: String
     let revoked_at: String?
@@ -1354,11 +1377,24 @@ struct APIClient {
         assemblyId: String,
         proxyName: String,
         scopeNote: String?,
-        signaturePNG: Data?
+        signaturePNG: Data?,
+        votingInstructions: [String: String] = [:]
     ) async throws -> VollmachtResponse {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         var fields = ["proxy_name": proxyName]
         if let scopeNote, !scopeNote.isEmpty { fields["scope_note"] = scopeNote }
+        // Multipart carries no nested types, so the per-TOP Weisungen ride
+        // along as a JSON array string (same contract as the web portal).
+        if !votingInstructions.isEmpty {
+            let payload = votingInstructions.map {
+                ["agenda_item_id": $0.key, "instruction": $0.value]
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: payload),
+                let json = String(data: data, encoding: .utf8)
+            {
+                fields["voting_instructions"] = json
+            }
+        }
         return try await authedMultipart(
             "/me/assemblies/\(assemblyId)/vollmacht",
             fields: fields,

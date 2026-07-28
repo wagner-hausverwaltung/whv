@@ -20,6 +20,8 @@ private func germanDate(_ iso: String) -> String {
 
 struct VollmachtSectionView: View {
     let assemblyId: String
+    /// Beschluss items the owner can bind their proxy to (per-TOP Weisungen).
+    var agendaItems: [AgendaItem] = []
 
     /// ONE sheet driver for both destinations. Two `.sheet` modifiers on the
     /// same view silently conflict in SwiftUI — the first one wins, so the PDF
@@ -62,7 +64,7 @@ struct VollmachtSectionView: View {
         .sheet(item: $activeSheet) { which in
             switch which {
             case .grant:
-                GrantVollmachtSheet(assemblyId: assemblyId) { granted in
+                GrantVollmachtSheet(assemblyId: assemblyId, agendaItems: agendaItems) { granted in
                     vollmacht = granted
                 }
             case .preview(let url):
@@ -101,6 +103,18 @@ struct VollmachtSectionView: View {
             Text("Unterschrieben am \(germanDate(v.signed_at))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let weisungen = v.voting_instructions, !weisungen.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Weisungen je Tagesordnungspunkt")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(weisungen.sorted(by: { $0.position < $1.position })) { w in
+                        Text("TOP \(w.position) \(w.title) — \(w.germanLabel)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
             if let scope = v.scope_note, !scope.isEmpty {
                 Text("Weisung: \(scope)").font(.caption).foregroundStyle(.secondary)
             }
@@ -156,11 +170,14 @@ struct VollmachtSectionView: View {
 
 private struct GrantVollmachtSheet: View {
     let assemblyId: String
+    var agendaItems: [AgendaItem] = []
     let onGranted: (VollmachtResponse) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var proxyName = ""
     @State private var scopeNote = ""
+    /// agenda item id → "JA" | "NEIN" | "ENTHALTUNG". Missing = proxy decides.
+    @State private var weisungen: [String: String] = [:]
     @State private var strokes: [[CGPoint]] = []
     @State private var canvasSize: CGSize = .zero
     @State private var busy = false
@@ -179,6 +196,44 @@ private struct GrantVollmachtSheet: View {
                     Text("Wen bevollmächtigen Sie?")
                 } footer: {
                     Text("z. B. Beirat, Herr Müller oder die Hausverwaltung.")
+                }
+
+                if !votableItems.isEmpty {
+                    Section {
+                        ForEach(votableItems) { item in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("TOP \(item.position) \(item.title)")
+                                    .font(.subheadline)
+                                Picker(
+                                    "Weisung",
+                                    selection: Binding(
+                                        get: { weisungen[item.id] ?? "" },
+                                        set: { newValue in
+                                            if newValue.isEmpty {
+                                                weisungen.removeValue(forKey: item.id)
+                                            } else {
+                                                weisungen[item.id] = newValue
+                                            }
+                                        }
+                                    )
+                                ) {
+                                    Text("Frei").tag("")
+                                    Text("Ja").tag("JA")
+                                    Text("Nein").tag("NEIN")
+                                    Text("Enthaltung").tag("ENTHALTUNG")
+                                }
+                                .pickerStyle(.segmented)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        Text("Weisungen je Tagesordnungspunkt")
+                    } footer: {
+                        Text(
+                            "Optional: Legen Sie fest, wie Ihre Vertretung bei einzelnen "
+                                + "Punkten abstimmen soll. Bei „Frei\u{201C} entscheidet sie selbst."
+                        )
+                    }
                 }
 
                 Section("Ihre Unterschrift") {
@@ -205,6 +260,10 @@ private struct GrantVollmachtSheet: View {
         }
     }
 
+    private var votableItems: [AgendaItem] {
+        agendaItems.filter { $0.type == .beschluss }.sorted { $0.position < $1.position }
+    }
+
     private func submit() async {
         guard !proxyName.trimmingCharacters(in: .whitespaces).isEmpty else {
             error = "Bitte geben Sie an, wen Sie bevollmächtigen."
@@ -218,7 +277,8 @@ private struct GrantVollmachtSheet: View {
                 assemblyId: assemblyId,
                 proxyName: proxyName.trimmingCharacters(in: .whitespaces),
                 scopeNote: scopeNote.trimmingCharacters(in: .whitespaces),
-                signaturePNG: png
+                signaturePNG: png,
+                votingInstructions: weisungen
             )
             onGranted(v)
             dismiss()

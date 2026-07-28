@@ -190,7 +190,10 @@ struct AssemblyDetailView: View {
                 }
                 agendaSection
                 if isOwner {
-                    VollmachtSectionView(assemblyId: assemblyId)
+                    VollmachtSectionView(
+                        assemblyId: assemblyId,
+                        agendaItems: store.detail?.agenda_items ?? []
+                    )
                 }
                 protocolSection
                 commentsSection
