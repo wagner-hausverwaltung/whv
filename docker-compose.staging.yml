@@ -58,10 +58,10 @@ services:
 
   # DocuSeal e-signature (ADR-0012). Self-hosted, SQLite-backed (the
   # docuseal-data volume holds the DB + signed PDFs). Outbound mail via
-  # AWS SES SMTP so signing invites come from the WHV sender. No public
+  # Resend SMTP so signing invites come from the WHV sender. No public
   # port — it shares the stack network, and Caddy reverse-proxies
   # sign.wagner-hausverwaltung.com → docuseal:3000. SECRET_KEY_BASE +
-  # SES creds come from the host .env; an empty SECRET_KEY_BASE stops it
+  # Resend key comes from the host .env; an empty SECRET_KEY_BASE stops it
   # booting, so set those before `up -d docuseal`. Not in the deploy
   # auto-up list — brought up once, then restart:unless-stopped keeps it.
   docuseal:
@@ -71,10 +71,18 @@ services:
       HOST: sign.wagner-hausverwaltung.com
       FORCE_SSL: "true"
       SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE}
-      SMTP_ADDRESS: ${SES_SMTP_HOST:-email-smtp.eu-central-1.amazonaws.com}
+      # Outbound mail via RESEND — the same provider + verified sender the
+      # backend already uses. AWS SES was never granted production access in
+      # eu-central-1, so every recipient that wasn't a verified identity got
+      # "554 Message rejected: Email address is not verified" and the signing
+      # invite silently never arrived (1357 rejections between 2026-05-28 and
+      # 2026-07-29 — gmail/web.de/t-online/company domains alike). DocuSeal's
+      # own `sent_at` only records the enqueue, so the admin UI showed these
+      # as sent.
+      SMTP_ADDRESS: smtp.resend.com
       SMTP_PORT: "587"
-      SMTP_USERNAME: ${SES_SMTP_USERNAME}
-      SMTP_PASSWORD: ${SES_SMTP_PASSWORD}
+      SMTP_USERNAME: resend
+      SMTP_PASSWORD: ${RESEND_API_KEY}
       SMTP_FROM: "Wagner Hausverwaltung <noreply@wagner-hausverwaltung.com>"
       SMTP_AUTHENTICATION: login
       SMTP_ENABLE_STARTTLS_AUTO: "true"
