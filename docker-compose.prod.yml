@@ -57,9 +57,43 @@ services:
 
   worker:
     restart: unless-stopped
-    # RAG ingestion (OCR + embed) runs in the worker — same flag.
+    # Blast-radius guard: prod is a 3.8 GB box with no swap, so an unbounded
+    # worker takes the whole host (and the API) down with it — that is how a
+    # runaway OCR raster caused nightly OOM kills and a failed health probe.
+    # Capped here the kernel reclaims inside this cgroup only; the API stays up.
+    # Sizing: measured over repeated runs, a child peaks at 490-585 MB on the
+    # corpus's largest scan (74 pages), so 2 children + MainProcess ≈ 1.3 GB
+    # worst case; the rest is headroom for the pdftoppm/tesseract subprocesses,
+    # which count against this cgroup even though celery cannot see them.
+    mem_limit: 1800m
+    # Without this Docker grants memory-swap = 2x mem_limit, so the cap would
+    # silently double the day a swapfile is added to the host.
+    memswap_limit: 1800m
     environment:
+      # RAG ingestion (OCR + embed) runs in the worker — same flag.
       RAG_ENABLED: "true"
+      # Tesseract 5 is OpenMP-built and defaults to one thread per core. With
+      # 2 vCPUs and --concurrency=2 that is 4 threads fighting over 2 cores,
+      # each with its own stack and scratch buffers. One thread per OCR process
+      # is both leaner and faster when several run side by side.
+      OMP_THREAD_LIMIT: "1"
+    # Memory hygiene, NOT a leak detector: billiard compares
+    # getrusage(RUSAGE_SELF).ru_maxrss between tasks, which is a monotonic
+    # high-water mark, so it cannot tell a leak from a heavy document handled
+    # an hour ago. What it actually buys: a child that has once ballooned gets
+    # retired, handing arenas back to the OS instead of sitting on them — worth
+    # having on a 3.8 GB box. RUSAGE_SELF also excludes the pdftoppm/tesseract
+    # subprocesses entirely. Bounded rasterisation, not this knob, is what keeps
+    # memory in check; 2x680 MB + MainProcess stays under mem_limit so this
+    # graceful retirement always wins the race against a hard cgroup kill.
+    command:
+      - celery
+      - -A
+      - app.workers.celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency=2
+      - --max-memory-per-child=700000
   beat:
     restart: unless-stopped
 

@@ -12,10 +12,13 @@ structured fields, never from OCR (ADR-0013 §3).
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from io import BytesIO
 
 from pypdf import PdfReader
+
+logger = logging.getLogger(__name__)
 
 # Below this many characters a page's text layer is treated as absent
 # (the page is a scan) and routed to OCR.
@@ -23,6 +26,15 @@ _MIN_TEXT_LAYER_CHARS = 20
 # Rasterisation DPI for OCR — 200 balances accuracy vs. speed/memory on
 # A4 Abrechnungen. Bump if Tesseract under-reads small print.
 _OCR_DPI = 200
+# Max pages poppler may rasterise per pass. At 200 dpi an A4 page is
+# ~1654x2339 px RGB ≈ 11.6 MB of uncompressed bitmap, and pdf2image +
+# pytesseract each keep their own temp copy on top of that. Rasterising a
+# whole document at once therefore scales peak memory with page count: the
+# largest scans in the corpus are 74 pages, and two of those in flight
+# (--concurrency=2) drove the worker to ~2.3-2.6 GB RSS and OOM-killed it 35x
+# a night on the 3.8 GB prod box (no swap), taking the API down with it.
+# Windowing caps the bitmaps at ~90 MB regardless of document length.
+_OCR_MAX_PAGES_PER_PASS = 8
 
 
 class ExtractionError(RuntimeError):
@@ -73,16 +85,64 @@ def _ocr_pages_in_place(
 ) -> None:
     """OCR the given page indices, writing results back into ``pages``.
 
-    Rasterises the whole PDF once (one poppler pass) and OCRs only the
-    flagged pages. Scanned WHV documents are typically scans cover-to-cover,
-    so rasterising every page is the common case anyway; the extra raster of
-    a stray digital page in a mixed doc is cheap (no OCR is run on it).
+    Rasterises in bounded windows of at most ``_OCR_MAX_PAGES_PER_PASS``
+    pages, OCRs each window, then drops the bitmaps before the next pass.
+    Peak memory is therefore a function of the window, not of the document —
+    a one-pass raster of the whole PDF is what OOM-killed the prod worker.
     Lazy-imports keep the binaries off the import path until a scan is hit.
     """
     from pdf2image import convert_from_bytes
     from pytesseract import image_to_string
 
-    images = convert_from_bytes(pdf_bytes, dpi=_OCR_DPI)
+    for window in _raster_windows(indices, _OCR_MAX_PAGES_PER_PASS):
+        # poppler page numbers are 1-based and the range is inclusive.
+        first = window[0]
+        images = convert_from_bytes(
+            pdf_bytes, dpi=_OCR_DPI, first_page=first + 1, last_page=window[-1] + 1
+        )
+        expected = window[-1] - first + 1
+        if len(images) < expected:
+            # Those pages keep their (empty) text layer and drop out of
+            # semantic search with no other trace — say so rather than
+            # returning a quietly incomplete document.
+            logger.warning(
+                "OCR raster short: pages %d-%d returned %d of %d images",
+                first + 1,
+                window[-1] + 1,
+                len(images),
+                expected,
+            )
+        try:
+            for index in window:
+                offset = index - first
+                # Lower bound matters: a negative offset would silently index
+                # from the END of the list and write OCR text onto the wrong
+                # page. Unreachable while indices arrive ascending, but the
+                # failure mode is silent corruption, so guard it.
+                if 0 <= offset < len(images):
+                    text = image_to_string(images[offset], lang=ocr_lang) or ""
+                    pages[index] = text.strip()
+        finally:
+            # Drop the bitmaps before rasterising the next window. Popping
+            # rather than iterating avoids leaving a loop variable bound to
+            # the window's last page while the next window rasterises.
+            while images:
+                images.pop().close()
+            del images
+
+
+def _raster_windows(indices: list[int], max_pages: int) -> list[list[int]]:
+    """Group page indices into windows that each span at most ``max_pages``
+    pages. Bounding the *span* (not just the count) matters for mixed
+    documents, where a few scattered scan pages could otherwise span — and
+    rasterise — the whole document in one pass."""
+    windows: list[list[int]] = []
+    current: list[int] = []
     for index in indices:
-        if index < len(images):
-            pages[index] = (image_to_string(images[index], lang=ocr_lang) or "").strip()
+        if current and index - current[0] + 1 > max_pages:
+            windows.append(current)
+            current = []
+        current.append(index)
+    if current:
+        windows.append(current)
+    return windows
