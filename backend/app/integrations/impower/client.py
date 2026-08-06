@@ -316,6 +316,43 @@ class ImpowerClient:
         response = await self._request("GET", "/documents", params=params)
         return PageOfDocumentDto.model_validate(response.json())
 
+    async def list_reversed_invoice_ids(self, property_id: int) -> set[int]:
+        """Ids of every REVERSED (stornierte) invoice on one property.
+
+        `GET /v2/invoices` filters server-side on `states`, so this pulls
+        only the cancelled ones — a handful per property rather than the
+        full invoice history. Used to keep storno bookings out of the
+        owner-facing Dienstleister view: a cancelled invoice is a
+        bookkeeping correction, not something an owner should reconcile
+        against (ADR-0003 lists /v2/invoices as in-scope).
+
+        Returns a set of Impower invoice ids, matching the `sourceId` we
+        mirror onto `documents.raw_jsonb`. Paged until Impower stops
+        returning content; the response is a Spring `Slice`, so there is
+        no total count to page against.
+        """
+        ids: set[int] = set()
+        page = 0
+        while True:
+            response = await self._request(
+                "GET",
+                "/invoices",
+                params={
+                    "propertyId": property_id,
+                    "states": "REVERSED",
+                    "page": page,
+                    "size": _DEFAULT_PAGE_SIZE,
+                },
+            )
+            content = response.json().get("content") or []
+            if not content:
+                return ids
+            for invoice in content:
+                invoice_id = invoice.get("id")
+                if isinstance(invoice_id, int):
+                    ids.add(invoice_id)
+            page += 1
+
     async def iter_properties(self) -> AsyncIterator[PropertyDto]:
         page = 0
         while True:

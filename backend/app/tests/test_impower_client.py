@@ -97,3 +97,49 @@ async def test_respects_retry_after_on_429(monkeypatch: pytest.MonkeyPatch) -> N
         await client.list_properties()
 
     assert sleeps == [2.0]
+
+
+async def test_reversed_invoice_ids_filter_server_side_and_paginate() -> None:
+    """The storno lookup must ask Impower to filter — pulling the whole
+    invoice history per property and filtering locally would be an order
+    of magnitude more traffic on a hot owner-facing path."""
+    pages = [
+        [{"id": 11, "state": "REVERSED"}, {"id": 12, "state": "REVERSED"}],
+        [{"id": 13, "state": "REVERSED"}],
+        [],
+    ]
+    seen: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.url.params))
+        page = int(request.url.params.get("page", "0"))
+        return httpx.Response(200, json=_slice_response(pages[page]))
+
+    transport = httpx.MockTransport(handler)
+    async with ImpowerClient("https://api.example/v2", "tok", transport=transport) as client:
+        ids = await client.list_reversed_invoice_ids(11227)
+
+    assert ids == {11, 12, 13}
+    assert str(seen[0]["propertyId"]) == "11227"
+    assert seen[0]["states"] == "REVERSED"
+    assert [int(p["page"]) for p in seen] == [0, 1, 2]
+
+
+async def test_reversed_invoice_ids_skips_unusable_ids() -> None:
+    """A malformed row must not become a str/None in the exclusion set —
+    that set is compared against sourceId, and junk in it would either
+    match nothing or, worse, mask a real id."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if int(request.url.params.get("page", "0")) > 0:
+            return httpx.Response(200, json=_slice_response([]))
+        return httpx.Response(
+            200,
+            json=_slice_response([{"id": 7}, {"id": None}, {"state": "REVERSED"}, {"id": "8"}]),
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with ImpowerClient("https://api.example/v2", "tok", transport=transport) as client:
+        ids = await client.list_reversed_invoice_ids(1)
+
+    assert ids == {7}

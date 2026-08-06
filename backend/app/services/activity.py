@@ -50,6 +50,7 @@ from app.models import (
 from app.services import announcements as announcements_svc
 from app.services.access import active_contract_filter
 from app.services.meters import quarter_start
+from app.services.vendors import not_reversed_filter
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -163,6 +164,7 @@ async def build_activity_feed(
     today: date,
     now: datetime,
     limit: int,
+    reversed_invoice_ids: set[int] | None = None,
 ) -> list[ActivityItem]:
     """Assemble + rank the caller's unified feed.
 
@@ -173,6 +175,12 @@ async def build_activity_feed(
     `property_ids` (∴ never crosses a property boundary) and, where the
     underlying data is per-owner/per-unit, ANDs in the supplied filter or
     the OWNER-eligibility subset.
+
+    `reversed_invoice_ids` keeps storno bookings out of the feed. Without
+    it the Dienstleister tab hides a cancelled invoice while the iOS
+    "Was gibt's Neues" widget still announces it — with a deep link whose
+    detail now 404s. Impower invoice ids are globally unique, so the
+    caller may union the sets of all visible properties.
     """
     now = _as_aware(now)
     property_ids = [p.id for p in property_rows]
@@ -314,6 +322,8 @@ async def build_activity_feed(
         # INVOICE filter is the superset (document filter OR WEG-RECHNUNG),
         # so a single pass with it covers both DOCUMENT and INVOICE rows.
         doc_stmt = doc_stmt.where(invoice_filter)  # type: ignore[arg-type]
+        if reversed_invoice_ids:
+            doc_stmt = doc_stmt.where(not_reversed_filter(reversed_invoice_ids))
     doc_rows = (await session.scalars(doc_stmt)).all()
     for d in doc_rows:
         recency = d.notified_at or d.last_synced_at

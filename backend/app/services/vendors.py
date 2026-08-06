@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Contact, Document
@@ -22,11 +22,28 @@ from app.schemas.vendor import VendorInvoiceSummary, VendorSummary
 from app.services.units import _contact_label
 
 
+def not_reversed_filter(reversed_invoice_ids: set[int]) -> ColumnElement[bool]:
+    """Exclude documents whose Impower invoice was storniert.
+
+    `sourceId` on the mirrored `raw_jsonb` IS the Impower invoice id (the
+    same join the invoice-detail endpoint makes). The explicit NULL arm
+    matters: `NULL NOT IN (...)` evaluates to NULL, so without it every
+    invoice document lacking a sourceId would silently vanish from the
+    vendor view.
+    """
+    source_id = Document.raw_jsonb["sourceId"].astext
+    return or_(
+        source_id.is_(None),
+        source_id.notin_([str(i) for i in reversed_invoice_ids]),
+    )
+
+
 async def load_vendors_for_property(
     session: AsyncSession,
     *,
     property_id: uuid.UUID,
     recent_limit: int | None = None,
+    reversed_invoice_ids: set[int] | None = None,
 ) -> list[VendorSummary]:
     """Aggregate invoice docs by vendor contact + return one row per
     vendor, ordered by most-recent service first.
@@ -51,6 +68,12 @@ async def load_vendors_for_property(
     show up as "unbekannt" on the admin side, but owners shouldn't
     see them in a "who do I call?" list because there's nothing to
     call.
+
+    `reversed_invoice_ids` drops storno bookings from the owner-facing
+    view. It is applied to BOTH queries on purpose: filtering only the
+    invoice list would leave invoice_count, the year total and the
+    first/last service dates counting invoices the caller cannot see.
+    Verwalter pass None and keep the full bookkeeping picture.
     """
     # Current-year window for the cost total. Invoices outside it still
     # count toward invoice_count + the list, but not the € total.
@@ -66,6 +89,10 @@ async def load_vendors_for_property(
         ),
         else_=0,
     )
+
+    storno_filters: list[ColumnElement[bool]] = []
+    if reversed_invoice_ids:
+        storno_filters.append(not_reversed_filter(reversed_invoice_ids))
 
     # ----- 1. Per-vendor aggregate -----
     agg_q = (
@@ -93,6 +120,7 @@ async def load_vendors_for_property(
             Document.kind == DocumentKind.RECHNUNG,
             Document.deleted_at.is_(None),
             Contact.deleted_at.is_(None),
+            *storno_filters,
         )
         .group_by(Contact.id)
         .order_by(func.max(Document.issued_date).desc().nulls_last())
@@ -120,6 +148,7 @@ async def load_vendors_for_property(
             Document.kind == DocumentKind.RECHNUNG,
             Document.deleted_at.is_(None),
             Document.contact_id.in_(vendor_ids),
+            *storno_filters,
         )
         .order_by(Document.issued_date.desc().nulls_last(), Document.created_at.desc())
     )
@@ -211,4 +240,4 @@ class _ContactRowShim:
 
 # Re-export so wildcard imports from `app.services.vendors` work the
 # same as `from app.services.vendors import load_vendors_for_property`.
-__all__ = ["load_vendors_for_property"]
+__all__ = ["load_vendors_for_property", "not_reversed_filter"]

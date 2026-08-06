@@ -361,3 +361,63 @@ async def test_activity_respects_limit(test_engine: AsyncEngine) -> None:
     token = _login(email, password)
     feed = _activity(token, limit=2)
     assert len(feed) == 2
+
+
+async def test_reversed_invoice_is_not_announced_in_the_feed(test_engine: AsyncEngine) -> None:
+    """Hiding a storno in the Dienstleister tab is not enough: the widget
+    pushed the same invoice at owners, with a deep link whose detail now
+    404s — a dead end pointing at a bill the WEG never owed."""
+    import time as _time
+
+    from app.models import Contact, ContactKind, Document, DocumentKind
+    from app.services.reversed_invoices import get_reversed_invoice_cache
+    from app.tests._factories import make_document
+
+    property_impower_id = 9_400_777
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, impower_id=property_impower_id)
+    impower_contact = 9_100_077
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_contact
+    )
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async with sm() as s:
+        vendor = Contact(
+            organization_id=org.id, kind=ContactKind.COMPANY, company_name="Keller GmbH"
+        )
+        s.add(vendor)
+        await s.commit()
+        await s.refresh(vendor)
+
+    booked = await make_document(
+        test_engine, org=org, prop=prop, kind=DocumentKind.RECHNUNG, contact=vendor
+    )
+    storno = await make_document(
+        test_engine, org=org, prop=prop, kind=DocumentKind.RECHNUNG, contact=vendor
+    )
+    now = datetime.now(UTC)
+    async with sm() as s:
+        for doc_id, source_id in ((booked.id, 5001), (storno.id, 5002)):
+            row = await s.get(Document, doc_id)
+            assert row is not None
+            row.raw_jsonb = {"sourceId": source_id}
+            row.last_synced_at = now
+        await s.commit()
+
+    _, email, password = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_contact
+    )
+
+    cache = get_reversed_invoice_cache()
+    async with cache._lock:
+        cache._store[property_impower_id] = (_time.monotonic() + 600, {5002})
+    try:
+        token = _login(email, password)
+        feed = _activity(token)
+    finally:
+        await cache.clear()
+
+    invoice_ids = {i["id"] for i in feed if i["type"] == "INVOICE"}
+    assert str(booked.id) in invoice_ids
+    assert str(storno.id) not in invoice_ids

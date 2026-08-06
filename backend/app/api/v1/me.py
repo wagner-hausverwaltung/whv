@@ -55,6 +55,7 @@ from app.services import units as units_svc
 from app.services import vendors as vendors_svc
 from app.services.access import active_contract_filter
 from app.services.activity import ActivityItem, build_activity_feed
+from app.services.reversed_invoices import get_reversed_invoice_cache
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -421,6 +422,7 @@ async def get_my_properties(
 async def get_my_activity(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> list[ActivityItem]:
     """Unified "Was gibt's Neues" feed for the iOS home-screen widget.
@@ -439,6 +441,19 @@ async def get_my_activity(
     if not property_rows:
         return []
 
+    # Storno bookings must not be announced in the widget either — the
+    # deep link would land on a detail that (correctly) 404s. Impower
+    # invoice ids are globally unique, so unioning across the caller's
+    # properties can't leak one property's storno into another's feed.
+    reversed_ids: set[int] | None = None
+    if current_user.role != UserRole.VERWALTER:
+        cache = get_reversed_invoice_cache()
+        collected: set[int] = set()
+        for prop_row in property_rows:
+            if prop_row.impower_id is not None:
+                collected |= await cache.get(prop_row.impower_id, settings)
+        reversed_ids = collected
+
     return await build_activity_feed(
         session,
         user=current_user,
@@ -448,6 +463,7 @@ async def get_my_activity(
         today=date.today(),
         now=datetime.now(UTC),
         limit=limit,
+        reversed_invoice_ids=reversed_ids,
     )
 
 
@@ -688,6 +704,7 @@ async def get_my_property_vendors(
     property_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> list[VendorSummary]:
     """Vendor / Dienstleister aggregate for a property.
 
@@ -702,6 +719,11 @@ async def get_my_property_vendors(
     visibility filter here — vendors are property-wide context, not
     per-unit personal data. (Invoices themselves remain gated; this
     endpoint only exposes the aggregate / contactability metadata.)
+
+    Storno bookings (Impower state REVERSED) are hidden from owners:
+    a cancelled invoice is a bookkeeping correction and reads to an
+    owner as a bill their WEG never received. The Verwalter keeps the
+    full picture — they are the ones who need to see the correction.
     """
     if current_user.role != UserRole.VERWALTER and current_user.contact_id_impower is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
@@ -711,7 +733,13 @@ async def get_my_property_vendors(
     if prop is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
 
-    return await vendors_svc.load_vendors_for_property(session, property_id=prop.id)
+    reversed_ids: set[int] | None = None
+    if current_user.role != UserRole.VERWALTER and prop.impower_id is not None:
+        reversed_ids = await get_reversed_invoice_cache().get(prop.impower_id, settings)
+
+    return await vendors_svc.load_vendors_for_property(
+        session, property_id=prop.id, reversed_invoice_ids=reversed_ids
+    )
 
 
 @router.get(
@@ -809,6 +837,13 @@ async def get_my_invoice_detail(
                 detail="Rechnungsdetails konnten nicht von Impower geladen werden.",
             ) from None
         await cache.set(invoice_id, data)
+
+    # Defence in depth behind the list filter: a storno is hidden from the
+    # vendor list, so an owner should not reach its detail either — via a
+    # stale client, a bookmarked id, or a cancellation that happened after
+    # the list was rendered. Verwalter still open it.
+    if current_user.role != UserRole.VERWALTER and data.get("state") == "REVERSED":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
     return _impower_invoice_to_response(data)
 
@@ -1106,6 +1141,21 @@ async def download_my_document(
         prop_stmt = _visible_properties_stmt(current_user).where(Property.id == doc.property_id)
         prop = await session.scalar(prop_stmt)
         if prop is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+        # Storno gate. The BYTES are the leak, not just the booking
+        # detail: `_invoice_visibility_filter` admits every WEG vendor
+        # RECHNUNG, so without this an owner downloads the PDF of a
+        # cancelled invoice even while the list hides it and the detail
+        # 404s. Same cached set the vendor list filters on, so the
+        # download agrees with what the list showed.
+        source_id = (doc.raw_jsonb or {}).get("sourceId")
+        if (
+            doc.kind == DocumentKind.RECHNUNG
+            and isinstance(source_id, int)
+            and prop.impower_id is not None
+            and source_id in await get_reversed_invoice_cache().get(prop.impower_id, settings)
+        ):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     download_name = _safe_download_filename(doc.name, doc.mime_type, doc.storage_url)
