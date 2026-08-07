@@ -15,6 +15,13 @@
 #   - Impower 5xx/timeout (their DEV replica down) → ::warning:: only,
 #     the probe still passes — it's their outage, not ours. A 401/403
 #     from Impower (our token broke) DOES fail.
+#   - Runner flake (GitHub kills/cancels the probe job before it can judge
+#     anything — seen 2026-08-06, run 31126368661: job "cancelled", zero
+#     log output, prod provably healthy) → must NOT email. Hence the
+#     two-job design: `probe` carries continue-on-error so its own result
+#     can't fail the run; `verdict` reads probe's REAL conclusion from the
+#     API and exits 1 only on an actual probe failure. A cancelled probe
+#     is a missing data point, not an outage — the next cron covers it.
 #   - For broader notification (Slack, PagerDuty), wire an
 #     `on: workflow_run` follow-up later.
 #
@@ -36,6 +43,11 @@ jobs:
   probe:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # The probe's own result must not decide the run: when GitHub reclaims
+    # the runner mid-job the conclusion is "cancelled" with nothing probed,
+    # and that used to email a failure. `verdict` below re-raises REAL
+    # failures, so genuine outages still fail the run (and still email).
+    continue-on-error: true
     steps:
       - name: API health (staging + prod)
         # Checks /healthz + /readyz (+ both deps) for each environment.
@@ -143,3 +155,41 @@ jobs:
           # actionable for US → hard fail.
           echo "::error title=Impower check failed::Unexpected HTTP ${status} from Impower (token or contract change)."
           exit 1
+
+  # Decides whether the RUN fails. Reads probe's conclusion from the API
+  # rather than the needs-context, because a continue-on-error job's
+  # needs.result is not a reliable mirror of its real conclusion.
+  verdict:
+    runs-on: ubuntu-24.04
+    needs: probe
+    if: always()
+    timeout-minutes: 2
+    permissions:
+      actions: read
+    steps:
+      - name: Fail only on a real probe failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '.jobs[] | select(.name == "probe") | .conclusion // "unknown"')
+          echo "probe conclusion: ${conclusion:-unknown}"
+          case "${conclusion:-unknown}" in
+            success)
+              echo "::notice ::probe green — nothing to report"
+              ;;
+            cancelled|skipped|unknown)
+              # The probe never got to judge anything (runner reclaimed,
+              # timeout-cancelled, GitHub incident). No verdict about prod
+              # can be derived from that — the next 30-min cron covers the
+              # gap. Warn so the run shows yellow context, don't fail.
+              echo "::warning title=Probe cancelled, not failed::runner flake — no health verdict this window, next cron covers it"
+              ;;
+            *)
+              # failure / timed_out with actual probe output: a check REALLY
+              # went red. Re-raise so the run fails and the email goes out.
+              echo "::error title=Health probe failed::probe concluded '${conclusion}' — see the probe job log"
+              exit 1
+              ;;
+          esac
