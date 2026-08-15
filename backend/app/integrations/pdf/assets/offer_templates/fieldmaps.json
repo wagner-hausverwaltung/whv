@@ -1,0 +1,370 @@
+{
+  "mv_unternehmer": {
+    "eigentuemer_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.6,
+      "y_top": 134.3
+    },
+    "eigentuemer_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.4,
+      "y_top": 155.2
+    },
+    "faelligkeit_entnahme_check": {
+      "page": 3,
+      "size": 8.288000000000011,
+      "x": 94.3,
+      "y_top": 81.5
+    },
+    "gv_gesamt": {
+      "page": 2,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 731.8
+    },
+    "gv_inline": {
+      "page": 2,
+      "size": 8.6,
+      "x": 104.6,
+      "y_top": 689.7
+    },
+    "gv_netto": {
+      "page": 2,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 707.7
+    },
+    "gv_ust": {
+      "page": 2,
+      "size": 8.6,
+      "x": 174.3,
+      "y_top": 719.7
+    },
+    "konto_fremdkonto_check": {
+      "page": 3,
+      "size": 8.288000000000011,
+      "x": 94.5,
+      "y_top": 621.0
+    },
+    "objekt_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 77.9,
+      "y_top": 387.9
+    },
+    "objekt_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 77.6,
+      "y_top": 413.8
+    },
+    "rechnungslegung_monate": {
+      "page": 3,
+      "size": 8.6,
+      "x": 198.6,
+      "y_top": 714.6
+    },
+    "sonstige_1": {
+      "page": 5,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 642.4
+    },
+    "sonstige_2": {
+      "page": 5,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 667.6
+    },
+    "unbefristet_ab": {
+      "page": 2,
+      "size": 8.6,
+      "x": 252.2,
+      "y_top": 473.7
+    },
+    "unbefristet_check": {
+      "page": 2,
+      "size": 8.288000000000011,
+      "x": 95.9,
+      "y_top": 476.4
+    }
+  },
+  "mv_verbraucher": {
+    "eigentuemer_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.6,
+      "y_top": 135.1
+    },
+    "eigentuemer_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.5,
+      "y_top": 156.7
+    },
+    "faelligkeit_entnahme_check": {
+      "page": 3,
+      "size": 8.288000000000011,
+      "x": 95.3,
+      "y_top": 81.0
+    },
+    "gv_gesamt": {
+      "page": 2,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 731.8
+    },
+    "gv_inline": {
+      "page": 2,
+      "size": 8.6,
+      "x": 104.6,
+      "y_top": 689.7
+    },
+    "gv_netto": {
+      "page": 2,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 707.7
+    },
+    "gv_ust": {
+      "page": 2,
+      "size": 8.6,
+      "x": 174.3,
+      "y_top": 719.7
+    },
+    "konto_fremdkonto_check": {
+      "page": 3,
+      "size": 8.288000000000011,
+      "x": 94.9,
+      "y_top": 622.1
+    },
+    "objekt_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 78.2,
+      "y_top": 391.5
+    },
+    "objekt_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 78.6,
+      "y_top": 417.5
+    },
+    "rechnungslegung_monate": {
+      "page": 3,
+      "size": 8.6,
+      "x": 198.6,
+      "y_top": 714.6
+    },
+    "sonstige_1": {
+      "page": 5,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 630.7
+    },
+    "sonstige_2": {
+      "page": 5,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 654.7
+    },
+    "unbefristet_ab": {
+      "page": 2,
+      "size": 8.6,
+      "x": 252.4,
+      "y_top": 473.7
+    },
+    "unbefristet_check": {
+      "page": 2,
+      "size": 8.288000000000011,
+      "x": 94.3,
+      "y_top": 476.1
+    }
+  },
+  "sev_unternehmer": {
+    "eigentuemer_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.6,
+      "y_top": 136.2
+    },
+    "eigentuemer_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.9,
+      "y_top": 156.6
+    },
+    "faelligkeit_entnahme_check": {
+      "page": 3,
+      "size": 8.288000000000011,
+      "x": 96.0,
+      "y_top": 208.4
+    },
+    "gv_gesamt": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 145.8
+    },
+    "gv_inline": {
+      "page": 3,
+      "size": 8.6,
+      "x": 104.6,
+      "y_top": 103.6
+    },
+    "gv_netto": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 121.6
+    },
+    "gv_ust": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 133.6
+    },
+    "konto_fremdkonto_check": {
+      "page": 3,
+      "size": 8.2881,
+      "x": 95.8,
+      "y_top": 748.2
+    },
+    "objekt_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 78.3,
+      "y_top": 391.3
+    },
+    "objekt_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 78.6,
+      "y_top": 417.5
+    },
+    "rechnungslegung_monate": {
+      "page": 4,
+      "size": 8.6,
+      "x": 198.6,
+      "y_top": 127.6
+    },
+    "sonstige_1": {
+      "page": 6,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 329.0
+    },
+    "sonstige_2": {
+      "page": 6,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 352.8
+    },
+    "unbefristet_ab": {
+      "page": 2,
+      "size": 8.6,
+      "x": 252.2,
+      "y_top": 594.7
+    },
+    "unbefristet_check": {
+      "page": 2,
+      "size": 8.288000000000011,
+      "x": 95.7,
+      "y_top": 596.0
+    }
+  },
+  "sev_verbraucher": {
+    "eigentuemer_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.6,
+      "y_top": 136.2
+    },
+    "eigentuemer_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 58.5,
+      "y_top": 156.4
+    },
+    "faelligkeit_entnahme_check": {
+      "page": 3,
+      "size": 8.288999999999987,
+      "x": 95.9,
+      "y_top": 196.2
+    },
+    "gv_gesamt": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 145.8
+    },
+    "gv_inline": {
+      "page": 3,
+      "size": 8.6,
+      "x": 104.6,
+      "y_top": 103.6
+    },
+    "gv_netto": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 121.6
+    },
+    "gv_ust": {
+      "page": 3,
+      "size": 8.6,
+      "x": 188.5,
+      "y_top": 133.6
+    },
+    "konto_fremdkonto_check": {
+      "page": 3,
+      "size": 8.288499999999999,
+      "x": 95.4,
+      "y_top": 736.5
+    },
+    "objekt_1": {
+      "page": 1,
+      "size": 9.0,
+      "x": 77.3,
+      "y_top": 390.6
+    },
+    "objekt_2": {
+      "page": 1,
+      "size": 9.0,
+      "x": 78.0,
+      "y_top": 416.2
+    },
+    "rechnungslegung_monate": {
+      "page": 4,
+      "size": 8.6,
+      "x": 198.6,
+      "y_top": 115.6
+    },
+    "sonstige_1": {
+      "page": 6,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 255.9
+    },
+    "sonstige_2": {
+      "page": 6,
+      "size": 8.5,
+      "x": 58.6,
+      "y_top": 280.5
+    },
+    "unbefristet_ab": {
+      "page": 2,
+      "size": 8.6,
+      "x": 252.4,
+      "y_top": 594.7
+    },
+    "unbefristet_check": {
+      "page": 2,
+      "size": 8.287999999999982,
+      "x": 95.6,
+      "y_top": 596.0
+    }
+  }
+}

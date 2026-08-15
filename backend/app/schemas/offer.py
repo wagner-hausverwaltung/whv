@@ -18,7 +18,11 @@ class OfferGenerateRequest(BaseModel):
     ``offer_date`` to today (resolved server-side so tests can pin them).
     """
 
-    art: Literal["WEG", "MV"]
+    art: Literal["WEG", "MV", "SEV"]
+    # MV/SEV only: which VDIV-2026 contract variant to render. Verbraucher
+    # (private landlords, with Widerrufsbelehrung) is the default; WEG has
+    # no variants and ignores this.
+    variant: Literal["verbraucher", "unternehmer"] = "verbraucher"
     units: int = Field(ge=1, le=1000)
     start_date: date | None = None
     # Optional explicit contract end date (else start + term - 1 day). When set,
@@ -61,18 +65,21 @@ class OfferGenerateRequest(BaseModel):
         # WEG needs only the unit count — the object address is optional. Not
         # every inquiry includes one, and a blank address line simply renders
         # empty on the contract.
-        if self.art == "MV":
+        if self.art in ("MV", "SEV"):
+            # The 2026 contract carries the Eigentümer block on page 1; a
+            # salutation is no longer needed (the VDIV contract has no cover
+            # letter — the offer email is the cover).
             missing = [
                 n
-                for n in ("recipient_name", "recipient_street", "recipient_plz_city", "salutation")
+                for n in ("recipient_name", "recipient_street", "recipient_plz_city")
                 if not getattr(self, n)
             ]
             if missing:
-                raise ValueError(f"MV offer requires: {', '.join(missing)}")
+                raise ValueError(f"{self.art} offer requires: {', '.join(missing)}")
             if not self.objects:
-                raise ValueError("MV offer requires at least one object")
+                raise ValueError(f"{self.art} offer requires at least one object")
             if len(self.objects) > 3:
-                raise ValueError("MV offer supports at most 3 objects")
+                raise ValueError(f"{self.art} offer supports at most 3 objects")
         return self
 
 
@@ -146,7 +153,7 @@ class OfferInquiryFieldsUpdate(BaseModel):
     count / type the LLM got wrong. Overwrites the stored values (null clears a
     field), so the list, the send dialog, and a re-extract all see the correction."""
 
-    art: Literal["WEG", "MV"] | None = None
+    art: Literal["WEG", "MV", "SEV"] | None = None
     object_address: str | None = Field(default=None, max_length=400)
     units: int | None = Field(default=None, ge=1, le=1000)
     desired_start: date | None = None

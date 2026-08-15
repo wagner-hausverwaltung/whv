@@ -45,7 +45,7 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "@/api/client";
 
-type Art = "WEG" | "MV";
+type Art = "WEG" | "MV" | "SEV";
 
 interface OfferInquiry {
   id: string;
@@ -800,6 +800,7 @@ export function AdminAnfragenPage() {
                                       <MenuItem value="">{tp("artUnknown")}</MenuItem>
                                       <MenuItem value="WEG">WEG</MenuItem>
                                       <MenuItem value="MV">Mietverwaltung</MenuItem>
+                                      <MenuItem value="SEV">SEV</MenuItem>
                                     </TextField>
                                     <TextField
                                       size="small"
@@ -930,6 +931,7 @@ export function AdminAnfragenPage() {
             >
               <ToggleButton value="WEG">WEG</ToggleButton>
               <ToggleButton value="MV">Mietverwaltung</ToggleButton>
+              <ToggleButton value="SEV">SEV</ToggleButton>
             </ToggleButtonGroup>
             <Stack direction="row" spacing={2}>
               <TextField

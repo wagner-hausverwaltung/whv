@@ -316,7 +316,11 @@
       "representative": "Represented by (optional)",
       "generate": "Create offer",
       "generating": "Creating…",
-      "error": "Could not create the offer."
+      "error": "Could not create the offer.",
+      "sev": "SEV",
+      "variant": "Contract variant",
+      "variantVerbraucher": "Verbraucher",
+      "variantUnternehmer": "Unternehmer"
     },
     "anfragen": "Anfragen",
     "accounting": "Jahresabrechnung",

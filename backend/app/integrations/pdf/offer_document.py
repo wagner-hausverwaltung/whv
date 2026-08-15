@@ -11,9 +11,11 @@ change here, not a logic change.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path
 
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -23,14 +25,34 @@ from app.services.offer_pricing import OfferPricing
 
 _TEMPLATE_DIR = Path(__file__).parent / "assets" / "offer_templates"
 
+_VARIANTS = ("verbraucher", "unternehmer")
 
-def load_base_template(art: str) -> bytes:
-    """Read the committed blanked base PDF for a product line ("WEG"|"MV")."""
+
+def load_base_template(art: str, variant: str = "verbraucher") -> bytes:
+    """Read the committed base PDF for a product line.
+
+    WEG uses the Feb-2025 Mustervertrag (no variants). MV and SEV use the
+    VDIV-2026 generation, which ships a Verbraucher (8-page, with
+    Widerrufsbelehrung) and an Unternehmer (6-page) contract each — built
+    plus flattened by ``scripts/build_offer_templates.py``.
+    """
     key = art.strip().upper()
-    name = {"WEG": "weg_template.pdf", "MV": "mv_template.pdf"}.get(key)
-    if name is None:
-        raise ValueError(f"unknown offer art {art!r}")
-    return (_TEMPLATE_DIR / name).read_bytes()
+    if key == "WEG":
+        return (_TEMPLATE_DIR / "weg_template.pdf").read_bytes()
+    if key in ("MV", "SEV"):
+        if variant not in _VARIANTS:
+            raise ValueError(f"unknown offer variant {variant!r}")
+        return (_TEMPLATE_DIR / f"{key.lower()}_{variant}_template.pdf").read_bytes()
+    raise ValueError(f"unknown offer art {art!r}")
+
+
+@lru_cache(maxsize=1)
+def _fieldmaps() -> dict[str, dict[str, dict[str, float | int]]]:
+    """Per-template stamp coordinates, generated from the VDIV originals'
+    own AcroForm widget geometry by the build script."""
+    with (_TEMPLATE_DIR / "fieldmaps.json").open() as fh:
+        result: dict[str, dict[str, dict[str, float | int]]] = json.load(fh)
+    return result
 
 
 # --- German formatting helpers ------------------------------------------------
@@ -425,3 +447,84 @@ def mv_blanking_fields() -> list[StampField]:
 
 
 _DUMMY_MV = _price_mv(units=10, start_date=date(2027, 1, 1))
+
+
+# --- VDIV 2026 (MV + SEV, Verbraucher/Unternehmer) ---------------------------
+
+
+@dataclass(frozen=True)
+class Vdiv2026OfferInput:
+    """Per-customer inputs for a 2026-generation MV/SEV Verwaltervertrag.
+
+    Unlike the retired WHV-branded MV offer there is no cover letter — the
+    template IS the VDIV contract (plus Anlage 1 + DKB form), mirroring how
+    the WEG offer works. WHV terms that are constant across offers
+    (unbefristete Laufzeit, Entnahme-Fälligkeit, Treuhandkonto, 3,3 %
+    Staffel, 6 Monate Rechnungslegung) are stamped here; slots that are the
+    customer's call at signing (Wertgrenzen §3.4, Bewirtschaftungseinbehalt,
+    Rücklage, Versicherungssumme) stay blank on purpose.
+    """
+
+    eigentuemer_name: str
+    eigentuemer_address: str  # "Straße 1, 12345 Ort"
+    objekt_zeile_1: str
+    objekt_zeile_2: str  # "" when the object fits one line
+    pricing: OfferPricing
+    rechnungslegung_monate: str = "6"
+
+
+def render_vdiv2026_offer(
+    base_pdf: bytes, art: str, variant: str, inp: Vdiv2026OfferInput
+) -> bytes:
+    """Stamp a per-customer MV/SEV offer onto the flattened 2026 template."""
+    fm = _fieldmaps()[f"{art.strip().lower()}_{variant}"]
+    p = inp.pricing
+    ust = p.year1_monthly_gross - p.year1_monthly_net
+
+    def f(sem: str, text: str) -> StampField:
+        spec = fm[sem]
+        return StampField(
+            page=int(spec["page"]),
+            x=float(spec["x"]),
+            y_top=float(spec["y_top"]),
+            size=float(spec["size"]),
+            text=text,
+        )
+
+    fields = [
+        f("eigentuemer_1", inp.eigentuemer_name),
+        f("eigentuemer_2", inp.eigentuemer_address),
+        f("objekt_1", inp.objekt_zeile_1),
+        f("objekt_2", inp.objekt_zeile_2),
+        # §4.1: unbefristet ab Startdatum. The Verbraucher contract caps
+        # fixed terms at two years, so the open-ended option is the one that
+        # matches WHV's multi-year pricing.
+        f("unbefristet_check", "X"),
+        f("unbefristet_ab", de_date(p.start_date)),
+        # §5.1a Grundvergütung block.
+        f("gv_inline", de_money(p.year1_monthly_net)),
+        f("gv_netto", de_money(p.year1_monthly_net)),
+        f("gv_ust", de_money(ust)),
+        f("gv_gesamt", de_money(p.year1_monthly_gross)),
+        # §5.1b: WHV withdraws from the Verwaltungskonto on the 15th.
+        f("faelligkeit_entnahme_check", "X"),
+        # §5.5's percent slot stays empty: WHV keeps the legacy +1 EUR per
+        # Einheit escalator, written out under §13 Sonstige Vereinbarungen
+        # (mirrors the WEG offer's §8.1b rewrite).
+        f(
+            "sonstige_1",
+            "Abweichend von Ziffer 5.5 erhöht sich die Grundvergütung jährlich um "
+            "1,00 EUR netto je Einheit und Monat",
+        ),
+        f(
+            "sonstige_2",
+            f"(derzeit {de_money(p.monthly_escalator_net)} EUR netto monatlich), "
+            "erstmals 12 Monate nach Vertragsbeginn.",
+        ),
+        # §6.1: Verwalter richtet ein offenes Fremdkonto ein (the 2026
+        # generation has no Treuhandkonto option).
+        f("konto_fremdkonto_check", "X"),
+        # §6.2 Rechnungslegung.
+        f("rechnungslegung_monate", inp.rechnungslegung_monate),
+    ]
+    return stamp_pdf(base_pdf, [fld for fld in fields if fld.text])

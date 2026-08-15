@@ -64,6 +64,8 @@ struct OfferFieldsBody: Encodable {
 
 struct OfferGenerateBody: Encodable {
     let art: String
+    // MV/SEV only: VDIV-2026 contract variant ("verbraucher" | "unternehmer").
+    let variant: String?
     let units: Int
     let start_date: String?
     let end_date: String?
@@ -171,7 +173,7 @@ func offerComputedEndISO(start: String) -> String {
 /// Live price preview mirroring the backend pricing engine.
 func offerComputedMonthlyNet(art: String, units: Int) -> Double? {
     guard units >= 1 else { return nil }
-    if art == "MV" { return Double(units) * 30 }
+    if art == "MV" || art == "SEV" { return Double(units) * 30 }
     let rate = units > 15 ? 35.0 : 45.0
     return max(Double(units) * rate, 270)
 }
@@ -479,6 +481,7 @@ struct AnfrageDetailView: View {
                 Text("Unbekannt").tag("")
                 Text("WEG").tag("WEG")
                 Text("Mietverwaltung").tag("MV")
+                Text("SEV").tag("SEV")
             }
             TextField("Objekt (Straße + Nr., PLZ + Ort)", text: $editAddress, axis: .vertical)
             TextField("Einheiten", text: $editUnits)
@@ -642,6 +645,7 @@ struct AnfrageSendSheet: View {
     private let api = APIClient()
 
     @State private var art = "WEG"
+    @State private var variant = "verbraucher"
     @State private var units = ""
     @State private var startDate = Date()
     @State private var endDate = Date()
@@ -653,7 +657,6 @@ struct AnfrageSendSheet: View {
     @State private var recipientName = ""
     @State private var recipientStreet = ""
     @State private var recipientPlzCity = ""
-    @State private var salutation = ""
     @State private var object1 = ""
     @State private var busy = false
     @State private var error: String?
@@ -665,8 +668,17 @@ struct AnfrageSendSheet: View {
                     Picker("Art", selection: $art) {
                         Text("WEG").tag("WEG")
                         Text("Mietverwaltung").tag("MV")
+                        Text("SEV").tag("SEV")
                     }
                     .pickerStyle(.segmented)
+                    if art != "WEG" {
+                        // VDIV-2026: Verbraucher (mit Widerrufsbelehrung) vs. Unternehmer.
+                        Picker("Vertragsvariante", selection: $variant) {
+                            Text("Verbraucher").tag("verbraucher")
+                            Text("Unternehmer").tag("unternehmer")
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     TextField("Einheiten", text: $units).keyboardType(.numberPad)
                     DatePicker("Vertragsbeginn", selection: $startDate, displayedComponents: .date)
                     DatePicker("Vertragsende", selection: $endDate, displayedComponents: .date)
@@ -690,7 +702,6 @@ struct AnfrageSendSheet: View {
                         TextField("Auftraggeber", text: $recipientName)
                         TextField("Straße + Nr.", text: $recipientStreet)
                         TextField("PLZ + Ort", text: $recipientPlzCity)
-                        TextField("Anrede", text: $salutation)
                         TextField("Objekt", text: $object1)
                     }
                 }
@@ -718,14 +729,13 @@ struct AnfrageSendSheet: View {
     }
 
     private func seed() {
-        art = detail.art == "MV" ? "MV" : "WEG"
+        art = ["MV", "SEV"].contains(detail.art ?? "") ? detail.art! : "WEG"
         units = detail.units != nil ? String(detail.units!) : ""
         startDate = offerDate(from: detail.desired_start) ?? offerDate(from: offerDefaultStartISO()) ?? Date()
         let (street, plz) = offerSplitAddress(detail.object_address)
         objectStreet = street
         objectPlzCity = plz
         recipientName = detail.sender_name ?? ""
-        salutation = detail.sender_name.map { "Sehr geehrte/r \($0)," } ?? ""
         object1 = detail.object_address ?? ""
         recomputeEnd()
         recomputePrice()
@@ -757,6 +767,7 @@ struct AnfrageSendSheet: View {
         let isWeg = art == "WEG"
         let body = OfferGenerateBody(
             art: art,
+            variant: isWeg ? nil : variant,
             units: u,
             start_date: offerISO(from: startDate),
             end_date: offerISO(from: endDate),
@@ -766,7 +777,7 @@ struct AnfrageSendSheet: View {
             recipient_name: isWeg ? nil : recipientName,
             recipient_street: isWeg ? nil : recipientStreet,
             recipient_plz_city: isWeg ? nil : recipientPlzCity,
-            salutation: isWeg ? nil : salutation,
+            salutation: nil,
             objects: isWeg ? nil : [object1].filter { !$0.isEmpty }
         )
         do {

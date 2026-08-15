@@ -277,11 +277,14 @@ def _redownload_request(inquiry: OfferInquiry) -> OfferGenerateRequest:
     before that was persisted (WEG only — MV recipient fields weren't stored)."""
     if inquiry.sent_request_json:
         return OfferGenerateRequest.model_validate_json(inquiry.sent_request_json)
-    if inquiry.art not in ("WEG", "MV") or not inquiry.units:
+    if inquiry.art not in ("WEG", "MV", "SEV") or not inquiry.units:
         raise ValueError("Keine gespeicherten Angebotsdaten zum Neu-Erzeugen")
-    if inquiry.art == "MV":
-        # Legacy MV offers didn't persist recipient/salutation → can't rebuild.
-        raise ValueError("MV-Angebot kann ohne gespeicherte Daten nicht neu erzeugt werden")
+    if inquiry.art in ("MV", "SEV"):
+        # Legacy MV/SEV offers didn't persist the recipient → can't rebuild.
+        # (Post-2026 sends always carry sent_request_json, handled above.)
+        raise ValueError(
+            f"{inquiry.art}-Angebot kann ohne gespeicherte Daten nicht neu erzeugt werden"
+        )
     return OfferGenerateRequest(
         art="WEG",
         units=inquiry.units,

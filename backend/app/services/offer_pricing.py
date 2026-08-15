@@ -323,7 +323,9 @@ def price_offer(
             end_date_override=end_date_override,
             monthly_fee_net_override=monthly_fee_net_override,
         )
-    if key == "MV":
+    if key in ("MV", "SEV"):
+        # SEV is priced like MV (confirmed 2026-08-15): the work profile of
+        # managing Sondereigentum matches per-unit Mietverwaltung.
         return price_mv(
             units=units,
             start_date=start_date,
@@ -334,4 +336,4 @@ def price_offer(
             end_date_override=end_date_override,
             monthly_fee_net_override=monthly_fee_net_override,
         )
-    raise ValueError(f"unknown offer art {art!r} (expected WEG or MV)")
+    raise ValueError(f"unknown offer art {art!r} (expected WEG, MV or SEV)")

@@ -18,11 +18,13 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "@/api/client";
 
-type Art = "WEG" | "MV";
+type Art = "WEG" | "MV" | "SEV";
+type Variant = "verbraucher" | "unternehmer";
 
 export function AdminOffersPage() {
   const { t } = useTranslation();
   const [art, setArt] = useState<Art>("WEG");
+  const [variant, setVariant] = useState<Variant>("verbraucher");
   const [units, setUnits] = useState("6");
   const [termYears, setTermYears] = useState("4");
   const [startDate, setStartDate] = useState("");
@@ -58,6 +60,7 @@ export function AdminOffersPage() {
       const rateNum = Number(rate);
       const payload: Record<string, unknown> = {
         art,
+        variant: art === "WEG" ? undefined : variant,
         units: Number(units),
         term_years: Number(termYears),
         start_date: startDate || undefined,
@@ -120,7 +123,22 @@ export function AdminOffersPage() {
           >
             <ToggleButton value="WEG">{tp("weg")}</ToggleButton>
             <ToggleButton value="MV">{tp("mv")}</ToggleButton>
+            <ToggleButton value="SEV">{tp("sev")}</ToggleButton>
           </ToggleButtonGroup>
+
+          {art !== "WEG" && (
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              color="primary"
+              value={variant}
+              onChange={(_, v) => v && setVariant(v as Variant)}
+              aria-label={tp("variant")}
+            >
+              <ToggleButton value="verbraucher">{tp("variantVerbraucher")}</ToggleButton>
+              <ToggleButton value="unternehmer">{tp("variantUnternehmer")}</ToggleButton>
+            </ToggleButtonGroup>
+          )}
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <TextField

@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -526,3 +527,73 @@ async def test_delete_inquiry_eigentuemer_forbidden(test_engine: AsyncEngine) ->
     with TestClient(app) as client:
         r = client.delete(f"/admin/offer-inquiries/{inq.id}", headers=_auth(token))
     assert r.status_code == 403
+
+
+# --- VDIV 2026 (MV/SEV x Verbraucher/Unternehmer) ----------------------------
+
+
+def _pdf_text(pdf: bytes) -> str:
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    return " ".join(
+        " ".join((p.extract_text() or "").split()) for p in PdfReader(BytesIO(pdf)).pages
+    )
+
+
+@pytest.mark.parametrize("art", ["MV", "SEV"])
+@pytest.mark.parametrize("variant", ["verbraucher", "unternehmer"])
+def test_vdiv2026_offer_stamps_all_customer_values(art: str, variant: str) -> None:
+    """Every per-customer slot must land in the rendered text layer — for
+    all four line/variant combinations, whose field maps are distinct."""
+    req = OfferGenerateRequest(
+        art=art,
+        variant=variant,
+        units=8,
+        recipient_name="Heinz-Dieter Müller",
+        recipient_street="Beispielweg 3",
+        recipient_plz_city="70469 Stuttgart",
+        objects=["Wildensteinstraße 60, 70469 Stuttgart"],
+        start_date=date(2026, 10, 1),
+    )
+    pdf, filename = generate_offer(req, today=date(2026, 8, 15))
+    text = _pdf_text(pdf)
+
+    assert f"Angebot-{art}-Heinz-Dieter-Mueller.pdf" == filename
+    assert "Heinz-Dieter Müller" in text
+    assert "Beispielweg 3, 70469 Stuttgart" in text
+    assert "Wildensteinstraße 60" in text
+    # 8 Einheiten x 30 EUR: Grundvergütung 240,00 + USt 45,60 = 285,60.
+    assert "240,00" in text
+    assert "45,60" in text
+    assert "285,60" in text
+    # Unbefristeter Beginn + §13-Klausel (+1 EUR/Einheit, 8 Einheiten = 8,00).
+    assert "01.10.2026" in text
+    assert "1,00 EUR netto je Einheit" in text
+    assert "8,00 EUR netto monatlich" in text
+    # Anlage 1 + DKB ride along.
+    assert "Anlage 1 zum Verwaltervertrag" in text
+    assert "Stundensätze" in text
+    # The DKB Verifizierung page is rasterised (no text layer — that is the
+    # point, its blanked PII must not survive as text), so it is asserted by
+    # page count: contract (8 Verbraucher / 6 Unternehmer) + 3 Anlage + 1 DKB.
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    expected_pages = 12 if variant == "verbraucher" else 10
+    assert len(PdfReader(BytesIO(pdf)).pages) == expected_pages
+
+
+def test_sev_priced_like_mv() -> None:
+    from app.services.offer_pricing import price_offer
+
+    mv = price_offer("MV", units=8, start_date=date(2026, 10, 1))
+    sev = price_offer("SEV", units=8, start_date=date(2026, 10, 1))
+    assert sev == mv
+
+
+def test_vdiv2026_requires_recipient() -> None:
+    with pytest.raises(ValidationError, match="SEV offer requires"):
+        OfferGenerateRequest(art="SEV", units=4, objects=["Beispielweg 1, 70469 Stuttgart"])

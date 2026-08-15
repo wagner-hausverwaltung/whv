@@ -11,10 +11,10 @@ from __future__ import annotations
 from datetime import date
 
 from app.integrations.pdf.offer_document import (
-    MvOfferInput,
+    Vdiv2026OfferInput,
     WegOfferInput,
     load_base_template,
-    render_mv_offer,
+    render_vdiv2026_offer,
     render_weg_offer,
 )
 from app.schemas.offer import OfferGenerateRequest
@@ -53,7 +53,7 @@ def generate_offer(req: OfferGenerateRequest, *, today: date | None = None) -> t
         end_date_override=req.end_date,
         monthly_fee_net_override=req.monthly_fee_net_override,
     )
-    base = load_base_template(req.art)
+    base = load_base_template(req.art, req.variant)
 
     if req.art == "WEG":
         pdf = render_weg_offer(
@@ -66,23 +66,24 @@ def generate_offer(req: OfferGenerateRequest, *, today: date | None = None) -> t
         )
         label = req.object_street or "WEG"
     else:
-        offer_date = req.offer_date or today or date.today()
-        pdf = render_mv_offer(
+        # MV + SEV render onto the VDIV-2026 contract (no cover letter —
+        # the offer email is the cover, matching how WEG offers work).
+        objects = req.objects or []
+        pdf = render_vdiv2026_offer(
             base,
-            MvOfferInput(
-                recipient_name=req.recipient_name or "",
-                recipient_street=req.recipient_street or "",
-                recipient_plz_city=req.recipient_plz_city or "",
-                salutation=req.salutation or "",
-                objects=req.objects or [],
+            req.art,
+            req.variant,
+            Vdiv2026OfferInput(
+                eigentuemer_name=req.recipient_name or "",
+                eigentuemer_address=", ".join(
+                    part for part in (req.recipient_street, req.recipient_plz_city) if part
+                ),
+                objekt_zeile_1=objects[0] if objects else "",
+                objekt_zeile_2="; ".join(objects[1:]),
                 pricing=pricing,
-                offer_date=offer_date,
-                representative_name=req.representative_name,
-                representative_street=req.representative_street,
-                representative_plz_city=req.representative_plz_city,
             ),
         )
-        label = req.recipient_name or "MV"
+        label = req.recipient_name or req.art
 
     filename = f"Angebot-{req.art}-{_safe_slug(label)}.pdf"
     return pdf, filename
