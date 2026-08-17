@@ -20,7 +20,7 @@ const ORDER: NotificationCategory[] = [
 
 const LABELS: Record<NotificationCategory, string> = {
   ANNOUNCEMENT: "Mitteilungen / News",
-  TICKET: "Anliegen / Tickets",
+  TICKET: "Tickets",
   ETV_COMMENT: "ETV-Kommentare",
   ETV_INVITATION: "ETV-Einladungen",
   DOCUMENT: "Neue Dokumente",

@@ -448,7 +448,7 @@ final class NotificationPrefsStore: ObservableObject {
     static func label(for category: String) -> LocalizedStringResource {
         switch category {
         case "ANNOUNCEMENT": return "Mitteilungen / News"
-        case "TICKET": return "Anliegen / Tickets"
+        case "TICKET": return "Tickets"
         case "ETV_COMMENT": return "ETV-Kommentare"
         case "ETV_INVITATION": return "ETV-Einladungen"
         case "DOCUMENT": return "Neue Dokumente"

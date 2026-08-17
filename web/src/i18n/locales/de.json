@@ -238,15 +238,15 @@
   },
   "home": {
     "title": "Übersicht",
-    "subtitle": "Aktuelle Mitteilungen, Versammlungen, Anliegen und Dokumente auf einen Blick.",
+    "subtitle": "Aktuelle Mitteilungen, Versammlungen, Tickets und Dokumente auf einen Blick.",
     "announcements": "Mitteilungen",
     "etv": "Versammlungen",
-    "tickets": "Anliegen",
+    "tickets": "Tickets",
     "documents": "Dokumente",
     "seeAll": "Alle anzeigen",
     "noAnnouncements": "Keine aktuellen Mitteilungen.",
     "noEtv": "Keine Versammlungen.",
-    "noTickets": "Keine offenen Anliegen.",
+    "noTickets": "Keine offenen Tickets.",
     "noDocuments": "Keine Dokumente."
   },
   "assistant": {

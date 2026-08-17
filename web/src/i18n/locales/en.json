@@ -238,10 +238,10 @@
   },
   "home": {
     "title": "Overview",
-    "subtitle": "Recent announcements, meetings, requests, and documents at a glance.",
+    "subtitle": "Recent announcements, meetings, tickets, and documents at a glance.",
     "announcements": "Announcements",
     "etv": "Meetings",
-    "tickets": "Requests",
+    "tickets": "Tickets",
     "documents": "Documents",
     "seeAll": "See all",
     "noAnnouncements": "No recent announcements.",

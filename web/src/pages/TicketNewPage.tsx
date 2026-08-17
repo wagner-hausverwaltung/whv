@@ -53,7 +53,7 @@ export function TicketNewPage() {
           Neues Ticket
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Schildern Sie Ihr Anliegen — wir melden uns über das Portal und per
+          Beschreiben Sie Ihr Ticket — wir melden uns über das Portal und per
           E-Mail.
         </Typography>
       </Box>

@@ -33,7 +33,7 @@ final class NewTicketStore: ObservableObject {
             return nil
         }
         guard b.count >= 3 else {
-            lastError = "Bitte das Anliegen kurz beschreiben (mind. 3 Zeichen)."
+            lastError = "Bitte das Ticket kurz beschreiben (mind. 3 Zeichen)."
             return nil
         }
         isSubmitting = true
@@ -97,7 +97,7 @@ struct NewTicketSheet: View {
                     }
                     .pickerStyle(.navigationLink)
                 }
-                Section("Anliegen") {
+                Section("Beschreibung") {
                     TextField(
                         "Bitte beschreiben …",
                         text: $ticketBody,

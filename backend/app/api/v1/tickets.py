@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.me import _visible_properties_stmt
@@ -284,6 +284,29 @@ async def _load_messages(
     return list((await session.scalars(stmt)).all())
 
 
+def _owner_access_filter(user: User):  # type: ignore[no-untyped-def]
+    """SQL form of :func:`_owner_can_access` — the ONE ticket-visibility rule
+    for non-Verwalter callers. The list endpoint must use this and the
+    detail endpoint the Python twin, otherwise they disagree: a ticket the
+    Verwalter opened FOR an owner (created_by = Verwalter, owner named as
+    participant) or shared to the whole property was reachable by id but
+    invisible in the owner's list — the exact "it's in the admin, not in
+    the app" report this fixes.
+    """
+    named_participant = exists().where(
+        TicketParticipant.ticket_id == Ticket.id,
+        TicketParticipant.user_id == user.id,
+    )
+    conds = [Ticket.created_by_user_id == user.id, named_participant]
+    if user.contact_id_impower is not None:
+        visible_props = _visible_properties_stmt(user).with_only_columns(Property.id)
+        conds.append(
+            (Ticket.share_scope == TicketShareScope.PROPERTY)
+            & Ticket.property_id.in_(visible_props)
+        )
+    return or_(*conds)
+
+
 async def _owner_can_access(session: AsyncSession, user: User, ticket: Ticket) -> bool:
     """True if the (non-Verwalter) user is allowed to see this ticket.
 
@@ -291,6 +314,8 @@ async def _owner_can_access(session: AsyncSession, user: User, ticket: Ticket) -
     - they created it
     - they are an explicit named participant (ticket_participants row)
     - share_scope=PROPERTY AND they have a contract on ticket.property_id
+
+    Keep in lockstep with :func:`_owner_access_filter` (the list uses that).
     """
     if ticket.created_by_user_id == user.id:
         return True
@@ -469,7 +494,7 @@ async def _push_ticket_notification(
         await push.notify_users(
             session,
             user_ids=push_ids,
-            title="Neues Anliegen" if is_new_ticket else "Neue Antwort zu Ihrem Anliegen",
+            title="Neues Ticket" if is_new_ticket else "Neue Antwort zu Ihrem Ticket",
             body=ticket.subject,
             deep_link=f"whv://tickets/{ticket.id}",
             thread_id=f"ticket-{ticket.id}",
@@ -599,10 +624,15 @@ async def list_my_tickets(
     session: Annotated[AsyncSession, Depends(get_session)],
     status_filter: Annotated[TicketStatus | None, Query(alias="status")] = None,
 ) -> list[TicketResponse]:
-    stmt = select(Ticket).where(
-        Ticket.organization_id == current_user.organization_id,
-        Ticket.created_by_user_id == current_user.id,
-    )
+    stmt = select(Ticket).where(Ticket.organization_id == current_user.organization_id)
+    if current_user.role != UserRole.VERWALTER:
+        # Same rule as the detail endpoint — creator OR named participant OR
+        # property-wide share on a property the caller can see.
+        stmt = stmt.where(_owner_access_filter(current_user))
+    else:
+        # A Verwalter on /me/tickets still gets "my own" — the org-wide view
+        # is the admin endpoint.
+        stmt = stmt.where(Ticket.created_by_user_id == current_user.id)
     if status_filter is not None:
         stmt = stmt.where(Ticket.status == status_filter)
     stmt = stmt.order_by(Ticket.last_message_at.desc())
@@ -1288,7 +1318,7 @@ async def _notify_property_share(
         await push.notify_users(
             session,
             user_ids=push_ids,
-            title="Anliegen freigegeben",
+            title="Ticket freigegeben",
             body=ticket.subject,
             deep_link=f"whv://tickets/{ticket.id}",
             thread_id=f"ticket-{ticket.id}",

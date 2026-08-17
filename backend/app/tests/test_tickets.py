@@ -680,6 +680,10 @@ async def test_share_scope_property_lets_co_owner_see_without_explicit_add(
         assert patch.status_code == 200
         assert patch.json()["share_scope"] == "PROPERTY"
         assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 200
+        # The LIST must agree with the detail — this is where the bug lived:
+        # detail 200, list empty, owner reports "it's not in my portal".
+        listed = client.get("/me/tickets", headers=_auth(eb_token)).json()
+        assert tid in {t["id"] for t in listed}
 
         # Switching back to PRIVATE removes B's implicit access again.
         client.patch(
@@ -688,7 +692,55 @@ async def test_share_scope_property_lets_co_owner_see_without_explicit_add(
             json={"share_scope": "PRIVATE"},
         )
         assert client.get(f"/me/tickets/{tid}", headers=_auth(eb_token)).status_code == 404
+        listed = client.get("/me/tickets", headers=_auth(eb_token)).json()
+        assert tid not in {t["id"] for t in listed}
         _ = eb_pw  # quiet linter
+
+
+async def test_verwalter_created_ticket_appears_in_owner_list(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """A ticket the Verwalter opens FOR an owner (owner = participant, not
+    creator) must show up in that owner's list, not only be reachable by id."""
+    org = await make_org(test_engine)
+    _v, v_email, v_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    prop = await make_property(test_engine, org=org)
+    impower_owner = 92010
+    await make_contact_with_contract_link(
+        test_engine, org=org, prop=prop, contact_impower_id=impower_owner
+    )
+    owner, o_email, o_pw = await make_user(
+        test_engine, org=org, role=UserRole.EIGENTUEMER, contact_id_impower=impower_owner
+    )
+    v_token = _login(v_email, v_pw)
+    o_token = _login(o_email, o_pw)
+
+    with TestClient(app) as client:
+        # Verwalter opens the ticket (creator = Verwalter) ...
+        create = client.post(
+            "/me/tickets",
+            headers=_auth(v_token),
+            json={
+                "subject": "Telefonnotiz Heizung",
+                "body": "Rückruf erbeten",
+                "category": "ALLGEMEIN_TELEFONNOTIZ",
+                "property_id": str(prop.id),
+            },
+        )
+        assert create.status_code == 201, create.text
+        tid = create.json()["id"]
+        # ... and names the owner as participant via the admin endpoint.
+        add = client.post(
+            f"/admin/tickets/{tid}/participants",
+            headers=_auth(v_token),
+            json={"email": o_email},
+        )
+        assert add.status_code in (200, 201), add.text
+
+        assert client.get(f"/me/tickets/{tid}", headers=_auth(o_token)).status_code == 200
+        listed = client.get("/me/tickets", headers=_auth(o_token)).json()
+        assert tid in {t["id"] for t in listed}, "owner-as-participant missing from list"
+        _ = owner  # quiet linter
 
 
 async def test_property_scope_does_not_auto_email_co_owners(
@@ -840,7 +892,7 @@ async def test_share_scope_widen_to_property_notifies_members(
         assert eb_email in recipients, recipients
         # The actor doesn't get their own announcement.
         assert ea_email not in recipients
-        assert any("Freigegebenes Anliegen" in m["subject"] for m in share_mails)
+        assert any("Freigegebenes Ticket" in m["subject"] for m in share_mails)
 
         # Same scope again → no second announcement.
         sent_mid = len(stub_email.sent)

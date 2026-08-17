@@ -123,25 +123,29 @@ def render_ticket_shared_email(
     ticket mail so a plain reply routes back into the thread via the
     inbound webhook.
     """
-    subject = f"[#{ticket_short_id}] Freigegebenes Anliegen: {ticket_subject}"
+    # Human-readable part first, thread tag last: an inbox preview then shows
+    # "Freigegebenes Ticket: Problemprotokoll", not 16 hex chars. Safe because
+    # inbound.extract_ticket_ref SEARCHES the subject rather than anchoring
+    # at the start, so replies still route back into the thread.
+    subject = f"Freigegebenes Ticket: {ticket_subject} [#{ticket_short_id}]"
     esc = ticket_subject.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     prop_esc = property_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     text = (
         "Guten Tag,\n\n"
-        f"für die Liegenschaft {property_name} wurde ein Anliegen für alle "
+        f"für die Liegenschaft {property_name} wurde ein Ticket für alle "
         "Eigentümer sichtbar geschaltet:\n\n"
         f"  #{ticket_short_id} — {ticket_subject}\n\n"
-        "Sie können das Anliegen im Portal oder in der App einsehen und "
+        "Sie können das Ticket im Portal oder in der App einsehen und "
         "darauf antworten — oder einfach auf diese E-Mail antworten.\n\n"
         "Freundliche Grüße\n"
         "Wagner Hausverwaltung"
     )
     html = (
         "<p>Guten Tag,</p>"
-        f"<p>für die Liegenschaft <strong>{prop_esc}</strong> wurde ein Anliegen "
+        f"<p>für die Liegenschaft <strong>{prop_esc}</strong> wurde ein Ticket "
         "für alle Eigentümer sichtbar geschaltet:</p>"
         f"<p><strong>#{ticket_short_id} — {esc}</strong></p>"
-        "<p>Sie können das Anliegen im Portal oder in der App einsehen und "
+        "<p>Sie können das Ticket im Portal oder in der App einsehen und "
         "darauf antworten — oder einfach auf diese E-Mail antworten.</p>"
         "<p>Freundliche Grüße<br>Wagner Hausverwaltung</p>"
     )

@@ -458,7 +458,7 @@ struct PropertyDetailView: View {
                     deepLinkRouter.pendingTarget = .tab(.tickets)
                 } label: {
                     quickRow(
-                        title: "Anliegen",
+                        title: "Tickets",
                         systemImage: "tray.full.fill",
                         color: .orange,
                         showNeu: store.hasNewTicket

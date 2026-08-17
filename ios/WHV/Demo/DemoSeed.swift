@@ -609,7 +609,7 @@ struct DemoSeed {
         case "demo-tic-4":
             body = "Schlüssel zur Haustür verloren. Ersatz wurde übergeben."
         default:
-            body = "Demo-Anliegen."
+            body = "Demo-Ticket."
         }
         let firstMessage = TicketMessage(
             id: "\(t.id)-msg-1",
