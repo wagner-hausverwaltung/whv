@@ -492,7 +492,7 @@ export function TicketDetailPage() {
                   {new Date(m.created_at).toLocaleString("de-DE")}
                 </Typography>
               </Stack>
-              <MessageBody body={m.body} />
+              <MessageBody body={m.body} visibleBody={m.visible_body} quotedBody={m.quoted_body} />
               {id && (
                 <MessageAttachments
                   ticketId={id}

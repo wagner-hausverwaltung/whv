@@ -226,10 +226,15 @@ struct TicketDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            Text(m.body)
+            Text(m.displayBody)
                 .font(.callout)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if let quoted = m.quoted_body, !quoted.isEmpty {
+                // The quoted thread of an e-mail reply — collapsed by default so
+                // a two-line answer isn't buried under screens of "> …".
+                QuotedReplyDisclosure(text: quoted)
+            }
             if !m.attachments.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(m.attachments) { att in
@@ -340,6 +345,38 @@ struct TicketDetailView: View {
         case .offen: return .orange
         case .wartetAufKunde: return .purple
         case .geschlossen: return .secondary
+        }
+    }
+}
+
+
+/// "Zitat anzeigen" expander for the quoted tail of an e-mail reply.
+private struct QuotedReplyDisclosure: View {
+    let text: String
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+            } label: {
+                Label(expanded ? "Zitat ausblenden" : "Zitat anzeigen",
+                      systemImage: expanded ? "chevron.up" : "ellipsis")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 8)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(.quaternary).frame(width: 2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
         }
     }
 }

@@ -3115,6 +3115,26 @@
           }
         }
       }
+    },
+    "Zitat anzeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show quoted text"
+          }
+        }
+      }
+    },
+    "Zitat ausblenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide quoted text"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

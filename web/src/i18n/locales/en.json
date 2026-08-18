@@ -191,7 +191,9 @@
     },
     "messageBody": {
       "showMore": "Show {{count}} more lines",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "showQuote": "Show quoted text",
+      "hideQuote": "Hide quoted text"
     },
     "attachments": {
       "addLabel": "Attach",

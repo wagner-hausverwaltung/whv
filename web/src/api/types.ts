@@ -298,6 +298,11 @@ export interface TicketMessageResponse {
   // identifies them.
   author_user_id: string | null;
   body: string;
+  // Server-side split of an e-mail reply: the fresh text and the quoted
+  // thread below it (null when nothing was quoted). Optional so older
+  // payloads still type-check; fall back to `body`.
+  visible_body?: string;
+  quoted_body?: string | null;
   is_internal_note: boolean;
   created_at: string;
   // Item 7 — per-message file attachments. Always an array; empty when

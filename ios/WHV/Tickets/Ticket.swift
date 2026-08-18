@@ -208,9 +208,17 @@ struct TicketMessage: Codable, Identifiable, Hashable {
     let author_user_id: String?
     let author_email: String?
     let body: String
+    // Server-side split of an e-mail reply: fresh text vs. the quoted thread
+    // below it. Optional so older cached payloads still decode; fall back to
+    // `body` when absent.
+    let visible_body: String?
+    let quoted_body: String?
     let is_internal_note: Bool
     let created_at: Date
     let attachments: [TicketMessageAttachment]
+
+    /// Text to render by default — the reply without its quoted history.
+    var displayBody: String { visible_body ?? body }
 }
 
 struct TicketParticipant: Codable, Identifiable, Hashable {

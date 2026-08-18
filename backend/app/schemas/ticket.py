@@ -91,6 +91,12 @@ class TicketMessageResponse(BaseModel):
     # a second batch lookup. None if the user has been hard-deleted.
     author_email: str | None = None
     body: str
+    # Derived at read time from `body` (see integrations.email.quoting): the
+    # fresh text of an e-mail reply without the quoted thread below it, and
+    # that quoted tail for an "Zitat anzeigen" expander. Both None-safe:
+    # visible_body == body and quoted_body is None when nothing was cut.
+    visible_body: str
+    quoted_body: str | None = None
     is_internal_note: bool
     created_at: datetime
     # Eagerly-loaded per-message attachments. Empty list when the message

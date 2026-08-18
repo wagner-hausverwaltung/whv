@@ -227,22 +227,25 @@ async def _to_detail(
         author_emails = {u.id: u.email for u in author_rows}
     # Eager-load attachments for every message in one round-trip.
     attachments_by_msg = await _load_attachments_for_messages(session, [m.id for m in messages])
-    message_resps = [
-        TicketMessageResponse(
-            id=m.id,
-            ticket_id=m.ticket_id,
-            author_user_id=m.author_user_id,
-            author_email=(author_emails.get(m.author_user_id) if m.author_user_id else None),
-            body=m.body,
-            is_internal_note=m.is_internal_note,
-            created_at=m.created_at,
-            attachments=[
-                TicketMessageAttachmentResponse.model_validate(a)
-                for a in attachments_by_msg.get(m.id, [])
-            ],
+    message_resps: list[TicketMessageResponse] = []
+    for m in messages:
+        message_resps.append(
+            TicketMessageResponse(
+                id=m.id,
+                ticket_id=m.ticket_id,
+                author_user_id=m.author_user_id,
+                author_email=(author_emails.get(m.author_user_id) if m.author_user_id else None),
+                body=m.body,
+                visible_body=m.visible_body,
+                quoted_body=m.quoted_body,
+                is_internal_note=m.is_internal_note,
+                created_at=m.created_at,
+                attachments=[
+                    TicketMessageAttachmentResponse.model_validate(a)
+                    for a in attachments_by_msg.get(m.id, [])
+                ],
+            )
         )
-        for m in messages
-    ]
     # Reuse the same enrichment the queue uses so the detail response
     # carries property_name + address + creator_email — otherwise the
     # admin page falls back to a UUID prefix after assigning a property

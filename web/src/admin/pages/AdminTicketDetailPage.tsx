@@ -723,7 +723,7 @@ export function AdminTicketDetailPage() {
                 {new Date(m.created_at).toLocaleString("de-DE")}
               </Typography>
             </Stack>
-            <MessageBody body={m.body} />
+            <MessageBody body={m.body} visibleBody={m.visible_body} quotedBody={m.quoted_body} />
             {m.is_internal_note && m.body.startsWith("\u{1F916} KI-Entwurf") && (
               <Button
                 size="small"

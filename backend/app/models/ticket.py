@@ -192,6 +192,22 @@ class TicketMessage(Base):
     )
     external_sender_email: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Read-time split of an e-mail reply into fresh text + quoted thread, so
+    # every response path (explicit constructor or from_attributes) exposes
+    # the same visible_body / quoted_body without a schema migration.
+    @property
+    def visible_body(self) -> str:
+        from app.integrations.email.quoting import split_quoted_reply
+
+        return split_quoted_reply(self.body)[0]
+
+    @property
+    def quoted_body(self) -> str | None:
+        from app.integrations.email.quoting import split_quoted_reply
+
+        return split_quoted_reply(self.body)[1]
+
     is_internal_note: Mapped[bool] = mapped_column(
         nullable=False,
         default=False,

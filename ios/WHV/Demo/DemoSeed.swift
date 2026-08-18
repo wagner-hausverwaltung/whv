@@ -617,6 +617,8 @@ struct DemoSeed {
             author_user_id: "demo-user",
             author_email: "demo@example.com",
             body: body,
+            visible_body: body,
+            quoted_body: nil,
             is_internal_note: false,
             created_at: t.created_at,
             attachments: []
