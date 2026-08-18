@@ -8,10 +8,13 @@ import {
   MenuItem,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
+import { PropertyInvitesTab } from "@/admin/components/PropertyInvitesTab";
 import type {
   AdminContactSearchResult,
   AdminInviteResponse,
@@ -55,6 +58,10 @@ export function AdminInviteNewPage() {
   const [propertyOptions, setPropertyOptions] = useState<
     AdminPropertySearchResult[]
   >([]);
+  // "single" = one contact via the picker (original flow); "property" =
+  // the whole Objekt via the bulk tab (same component as Stammdaten →
+  // Objekt → Einladungen, so there is exactly one bulk implementation).
+  const [mode, setMode] = useState<"single" | "property">("single");
   const [property, setProperty] = useState<AdminPropertySearchResult | null>(
     null,
   );
@@ -217,6 +224,39 @@ export function AdminInviteNewPage() {
                 )}
               />
 
+              {property && (
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value={mode}
+                  onChange={(_, v: "single" | "property" | null) => {
+                    if (v) setMode(v);
+                  }}
+                  aria-label={t("admin.inviteNew.modeLabel")}
+                >
+                  <ToggleButton value="single">
+                    {t("admin.inviteNew.modeSingle")}
+                  </ToggleButton>
+                  <ToggleButton value="property">
+                    {t("admin.inviteNew.modeProperty")}
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              )}
+
+              {property && mode === "property" && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 1 }}
+                  >
+                    {t("admin.inviteNew.modePropertyHint")}
+                  </Typography>
+                  <PropertyInvitesTab propertyId={property.id} />
+                </Box>
+              )}
+
+              {mode === "single" && (
               <Autocomplete<AdminContactSearchResult>
                 value={contact}
                 onChange={(_, v) => setContact(v)}
@@ -261,9 +301,12 @@ export function AdminInviteNewPage() {
                   );
                 }}
               />
+              )}
             </Stack>
           </Box>
 
+          {mode === "single" && (
+          <>
           <TextField
             label={t("admin.inviteNew.email")}
             type="email"
@@ -321,6 +364,8 @@ export function AdminInviteNewPage() {
               {t("common.cancel")}
             </Button>
           </Stack>
+          </>
+          )}
         </Stack>
       </Box>
     </Stack>

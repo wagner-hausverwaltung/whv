@@ -790,7 +790,11 @@
       "ttlDays": "Validity (days)",
       "submit": "Create invitation + send email",
       "createFailed": "Could not create invitation.",
-      "success": "Invitation created — code {{code}}, email sent."
+      "success": "Invitation created — code {{code}}, email sent.",
+      "modeLabel": "Invite mode",
+      "modeSingle": "Single contact",
+      "modeProperty": "Whole property",
+      "modePropertyHint": "All contacts of this property with their status. Select and “Invite all” — contacts without e-mail or with an existing account are skipped; pending codes are reissued."
     },
     "vertraege": "Verträge",
     "vertraegePage": {

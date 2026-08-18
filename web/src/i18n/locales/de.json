@@ -790,7 +790,11 @@
       "ttlDays": "Gültigkeit (Tage)",
       "submit": "Einladung erstellen + E-Mail senden",
       "createFailed": "Einladung konnte nicht angelegt werden.",
-      "success": "Einladung erstellt — Code {{code}}, E-Mail versandt."
+      "success": "Einladung erstellt — Code {{code}}, E-Mail versandt.",
+      "modeLabel": "Einladungsmodus",
+      "modeSingle": "Einzelner Kontakt",
+      "modeProperty": "Ganzes Objekt",
+      "modePropertyHint": "Alle Kontakte dieses Objekts mit Kontaktstatus. Auswählen und „Alle einladen“ — Kontakte ohne E-Mail oder mit bestehendem Konto werden automatisch übersprungen; offene Codes werden erneuert."
     },
     "vertraege": "Verträge",
     "vertraegePage": {
