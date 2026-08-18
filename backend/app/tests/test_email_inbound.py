@@ -480,7 +480,14 @@ async def test_email_appends_to_existing_ticket_via_ref(
         _ses_payload(
             sender=creator_email,
             subject=f"Re: [#{short_id}] Original subject",
-            body="Eine weitere Frage dazu.",
+            # A real mail-client reply: fresh text, then the quoted
+            # notification thread the client appended below it.
+            body=(
+                "Eine weitere Frage dazu.\n\n"
+                "Wagner Hausverwaltung Support <support@whv.de> schrieb am Di., "
+                "18. Aug. 2026, 10:10:\n\n"
+                "> Neue Nachricht zu Ticket\n> *Original subject*\n> alter Text"
+            ),
             message_id=f"<reply-{uuid.uuid4()}@gmail.com>",
         )
     )
@@ -503,6 +510,10 @@ async def test_email_appends_to_existing_ticket_via_ref(
         assert len(msgs) == 1  # just the new reply (the original ticket had no messages)
         assert msgs[0].author_user_id is not None  # matched to creator
         assert msgs[0].source == TicketMessageSource.EMAIL
+        # Only the fresh reply is stored — the quoted thread the mail client
+        # appended is dropped at ingest (it is already in the ticket).
+        assert msgs[0].body == "Eine weitere Frage dazu."
+        assert "schrieb am" not in msgs[0].body
 
         # WARTET_AUF_KUNDE → OFFEN because owner replied
         refreshed = await s.scalar(select(Ticket).where(Ticket.id == uuid.UUID(ticket_id_str)))

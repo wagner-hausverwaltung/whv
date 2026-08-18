@@ -21,6 +21,7 @@ from app.integrations.email.inbound import (
     extract_s3_ref,
     parse_ses_sns_payload,
 )
+from app.integrations.email.quoting import split_quoted_reply
 from app.integrations.email.tickets import render_ticket_notification_email
 from app.integrations.impower.client import ImpowerClient, get_impower_client
 from app.integrations.impower.sync import (
@@ -521,11 +522,18 @@ async def email_inbound(
         ticket.status = TicketStatus.OFFEN
         ticket.closed_at = None
 
+    # Store only the fresh reply text. A mail-client reply drags the whole
+    # notification thread below it — text that is already in the ticket as
+    # its own messages, so keeping it just bloats every reader's view.
+    # Owner feedback 2026-08-18: "überträgt auch den ursprünglichen Mailtext".
+    # The splitter keeps the body whole when it is unsure, so nothing real
+    # is lost; the untouched original stays in the mailbox / SES.
+    fresh_text, _quoted = split_quoted_reply(parsed.body or "")
     message_row = TicketMessage(
         ticket_id=ticket.id,
         author_user_id=author.id if author else None,
         external_sender_email=None if author else parsed.sender_email,
-        body=parsed.body or "(leerer Text)",
+        body=fresh_text or "(leerer Text)",
         is_internal_note=False,
         source=TicketMessageSource.EMAIL,
         email_message_id=parsed.message_id,
