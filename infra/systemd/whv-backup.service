@@ -1,5 +1,5 @@
 [Unit]
-Description=WHV staging Postgres backup
+Description=WHV Postgres backup (staging by default; prod via drop-in)
 Requires=docker.service
 After=docker.service
 

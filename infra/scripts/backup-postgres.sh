@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Daily Postgres backup for the WHV staging stack.
+# Daily Postgres backup for a WHV stack (staging by default; prod via the
+# systemd drop-in infra/systemd/whv-backup-prod.conf).
 #
 # 1. pg_dump inside the running postgres container → gzip → atomic write
 #    to /var/backups/postgres/whv-YYYY-MM-DD.sql.gz
@@ -21,7 +22,11 @@ RETENTION_DAYS=${RETENTION_DAYS:-30}
 REPO_ROOT=${REPO_ROOT:-/home/whv/whv}
 RCLONE_CONFIG_PATH=${RCLONE_CONFIG_PATH:-/etc/rclone.conf}
 RCLONE_REMOTE=${RCLONE_REMOTE:-b2:whv-staging-postgres-backups}
-COMPOSE="docker compose -f $REPO_ROOT/docker-compose.yml -f $REPO_ROOT/docker-compose.staging.yml"
+# The override file that describes this box's stack: docker-compose.staging.yml
+# on staging, docker-compose.prod.yml on prod. Only used to find the running
+# postgres service for `exec`; nothing is (re)created.
+COMPOSE_OVERRIDE=${COMPOSE_OVERRIDE:-docker-compose.staging.yml}
+COMPOSE="docker compose -f $REPO_ROOT/docker-compose.yml -f $REPO_ROOT/$COMPOSE_OVERRIDE"
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
