@@ -15,9 +15,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - /srv/slr-pipeline/compose/caddy:/etc/caddy/slr:ro
     depends_on:
       backend:
         condition: service_started
+    networks:
+      - default
+      - slr_proxy
 
   # Compose v2 merges sequences by concat — a plain `ports: []` override would
   # be appended to the base, leaving the host port mappings in place. The
@@ -93,3 +97,7 @@ volumes:
   caddy-data:
   caddy-config:
   docuseal-data:
+
+networks:
+  slr_proxy:
+    external: true
