@@ -1126,6 +1126,15 @@ async def _extract_offer_inquiry_async(inquiry_id_str: str) -> str:
             allowed = org is not None and offer_extraction.auto_send_allowed(inquiry, org=org)
             if req is None or not allowed:
                 inquiry.status = OfferInquiryStatus.NEEDS_REVIEW.value
+                # Don't stop silently: ask the sender for the missing contract
+                # type and tell the Verwalter the inquiry is waiting.
+                await offers_svc.handle_unsendable_inquiry(
+                    session,
+                    inquiry,
+                    email_client=EmailClient(settings),
+                    settings=settings,
+                    can_build=req is not None,
+                )
                 await session.commit()
                 _enqueue_anfrage_reindex(inquiry, settings)
                 return "needs_review"

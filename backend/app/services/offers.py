@@ -8,6 +8,7 @@ Side-effect-free + Celery-free so it's reusable from the manual admin endpoint
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 
 from app.integrations.pdf.offer_document import (
@@ -19,6 +20,8 @@ from app.integrations.pdf.offer_document import (
 )
 from app.schemas.offer import OfferGenerateRequest
 from app.services.offer_pricing import price_offer
+
+logger = logging.getLogger(__name__)
 
 _TRANSLIT = {
     "ä": "ae",
@@ -257,3 +260,100 @@ async def send_reminder_for_inquiry(
     inquiry.last_reminder_at = datetime.now(UTC)  # type: ignore[attr-defined]
     inquiry.reminder_count = (inquiry.reminder_count or 0) + 1  # type: ignore[attr-defined]
     return msg_id
+
+
+async def handle_unsendable_inquiry(
+    session: object,
+    inquiry: object,
+    *,
+    email_client: object,
+    settings: object,
+    can_build: bool,
+) -> str:
+    """Called when an inquiry cannot be auto-answered with an offer.
+
+    Two things must not happen silently: the prospect hearing nothing, and the
+    inquiry sitting unnoticed in the admin queue (both were the case until
+    2026-08-21). So we ask the sender the one question extraction could not
+    resolve — the contract type — and tell the Verwalter either way.
+
+    ``can_build`` is False when the extracted fields don't yield a valid offer
+    request (typically art=UNKNOWN); that is the case worth asking about. When
+    it is True the blocker is org policy (Auto-Modus off), so we only notify
+    internally — pestering the sender would be wrong.
+
+    Best-effort: a failing send never breaks the pipeline, it just leaves the
+    inquiry for manual handling. Returns a short outcome for the caller's log.
+    """
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.integrations.email.offer_clarification import (
+        render_clarification_email,
+        render_review_notice,
+    )
+    from app.models import User, UserRole
+
+    asked_back = False
+
+    # 1. Ask the sender — once per inquiry, and only when the missing piece is
+    #    something they can answer.
+    if not can_build and inquiry.clarification_sent_at is None:  # type: ignore[attr-defined]
+        subject, html, text = render_clarification_email(
+            subject=inquiry.subject  # type: ignore[attr-defined]
+        )
+        try:
+            msg_id: str = await email_client.send(  # type: ignore[attr-defined]
+                to=inquiry.sender_email,  # type: ignore[attr-defined]
+                subject=subject,
+                html=html,
+                text=text,
+                from_address=settings.offer_from_address,  # type: ignore[attr-defined]
+                from_name=settings.offer_from_name,  # type: ignore[attr-defined]
+                reply_to=settings.anfragen_inbound_address,  # type: ignore[attr-defined]
+            )
+            inquiry.clarification_sent_at = datetime.now(UTC)  # type: ignore[attr-defined]
+            inquiry.clarification_message_id = msg_id  # type: ignore[attr-defined]
+            asked_back = True
+        except Exception:
+            logger.warning(
+                "clarification email failed for inquiry %s",
+                inquiry.id,  # type: ignore[attr-defined]
+                exc_info=True,
+            )
+
+    # 2. Tell the Verwalter. Without this the inquiry is invisible until
+    #    someone happens to open the admin queue.
+    subject, html, text = render_review_notice(
+        sender_email=inquiry.sender_email,  # type: ignore[attr-defined]
+        subject=inquiry.subject,  # type: ignore[attr-defined]
+        units=inquiry.units,  # type: ignore[attr-defined]
+        object_address=inquiry.object_address,  # type: ignore[attr-defined]
+        asked_back=asked_back,
+    )
+    recipients = (
+        await session.scalars(  # type: ignore[attr-defined]
+            select(User).where(
+                User.organization_id == inquiry.organization_id,  # type: ignore[attr-defined]
+                User.role == UserRole.VERWALTER,
+                User.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    for user in recipients:
+        if not user.email:
+            continue
+        try:
+            await email_client.send(  # type: ignore[attr-defined]
+                to=user.email,
+                subject=subject,
+                html=html,
+                text=text,
+                from_address=settings.offer_from_address,  # type: ignore[attr-defined]
+                from_name=settings.offer_from_name,  # type: ignore[attr-defined]
+            )
+        except Exception:
+            logger.warning("review notice failed for %s", user.email, exc_info=True)
+
+    return "asked_back" if asked_back else "notified_only"

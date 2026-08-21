@@ -8,7 +8,7 @@ from typing import Annotated, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from redis.asyncio import Redis
-from sqlalchemy import String, cast, func, select, update
+from sqlalchemy import String, cast, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
@@ -326,6 +326,52 @@ async def _resolve_author_user(
     return result
 
 
+async def _match_clarification_reply(session: AsyncSession, parsed: object):  # type: ignore[no-untyped-def]
+    """The inquiry this mail is answering, or None.
+
+    Matched on the threading headers first, then on "this sender has an
+    inquiry we asked a question about and haven't heard back on". The header
+    fallback matters: Resend returns its OWN message id from send(), which is
+    not necessarily the RFC Message-ID the recipient's client quotes back, so
+    header matching alone would silently miss most replies.
+
+    Bounded to 30 days so a genuinely new inquiry months later opens its own
+    row rather than being appended to a stale one.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import OfferInquiry, OfferInquiryStatus
+
+    refs = " ".join(
+        filter(None, (getattr(parsed, "in_reply_to", None), getattr(parsed, "references", None)))
+    )
+    base = select(OfferInquiry).where(
+        OfferInquiry.clarification_sent_at.is_not(None),
+        OfferInquiry.status == OfferInquiryStatus.NEEDS_REVIEW.value,
+        OfferInquiry.sent_at.is_(None),
+    )
+    if refs:
+        hit = await session.scalar(
+            base.where(
+                OfferInquiry.clarification_message_id.is_not(None),
+                func.strpos(literal(refs), OfferInquiry.clarification_message_id) > 0,
+            )
+        )
+        if hit is not None:
+            return hit
+
+    sender = (getattr(parsed, "sender_email", "") or "").lower()
+    if not sender:
+        return None
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+    return await session.scalar(
+        base.where(
+            func.lower(OfferInquiry.sender_email) == sender,
+            OfferInquiry.clarification_sent_at >= cutoff,
+        ).order_by(OfferInquiry.clarification_sent_at.desc())
+    )
+
+
 @router.post("/email/inbound", status_code=200)
 async def email_inbound(
     request: Request,
@@ -454,6 +500,19 @@ async def email_inbound(
             )
             if dup is not None:
                 return {"status": "duplicate_inquiry", "inquiry_id": str(dup.id)}
+
+        # Answer to our "WEG oder Mietverwaltung?" question → merge into the
+        # ORIGINAL inquiry and re-extract, instead of opening a second one.
+        pending = await _match_clarification_reply(session, parsed)
+        if pending is not None:
+            pending.body = f"{pending.body}\n\n--- Antwort des Anfragenden ---\n{parsed.body or ''}"
+            pending.status = OfferInquiryStatus.NEW.value
+            pending.error = None
+            await session.commit()
+            extract_offer_inquiry.delay(str(pending.id))
+            logger.info("email_inbound: clarification reply merged into %s", pending.id)
+            return {"status": "clarification_reply", "inquiry_id": str(pending.id)}
+
         inquiry = OfferInquiry(
             organization_id=WHV_ORGANIZATION_ID,
             sender_email=parsed.sender_email,

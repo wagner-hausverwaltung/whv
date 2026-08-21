@@ -93,5 +93,12 @@ class OfferInquiry(OrganizationScopedMixin, TimestampMixin, Base):
     reminder_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    # Set when we asked the sender back for the missing contract type. Their
+    # reply is merged into this inquiry and re-extracted instead of opening a
+    # second one — see webhooks._match_clarification_reply.
+    clarification_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    clarification_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
