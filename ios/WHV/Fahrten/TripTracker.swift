@@ -108,6 +108,20 @@ final class TripTracker: NSObject, ObservableObject {
         Task { await finish() }
     }
 
+    // MARK: CarPlay hooks
+
+    /// Connecting the car = the drive begins. Source CARPLAY so the log shows
+    /// how the trip was captured.
+    func startFromCarPlay() {
+        guard !isRunning else { return }
+        begin(source: "CARPLAY")
+    }
+
+    func stopFromCarPlay() {
+        guard isRunning else { return }
+        Task { await finish() }
+    }
+
     // MARK: Permissions
 
     func requestAuthorization() {

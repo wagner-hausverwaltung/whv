@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.wagner-hausverwaltung.portal</string>
+	</array>
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Debug-only: lets the CarPlay scene run in the iOS Simulator
+	     (I/O → External Displays → CarPlay) while Apple reviews the
+	     entitlement request (Case-ID 21774792). Release keeps
+	     WHV.entitlements WITHOUT this key — a device/TestFlight build
+	     would fail to sign until the key is in the provisioning profile.
+	     Once granted: add the key to WHV.entitlements and drop this file. -->
+	<key>com.apple.developer.carplay-driving-task</key>
+	<true/>
+</dict>
+</plist>
