@@ -873,7 +873,10 @@
       "byProperty": "Auslagen je Objekt",
       "colDate": "Datum",
       "empty": "Keine Fahrten in diesem Monat.",
-      "editTitle": "Fahrt bearbeiten"
+      "editTitle": "Fahrt bearbeiten",
+      "exportPdf": "Abrechnung (PDF)",
+      "map": "Karte",
+      "mapMonth": "Routen des Monats"
     }
   },
   "meters": {

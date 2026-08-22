@@ -30,6 +30,8 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
+import MapIcon from "@mui/icons-material/Map";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type {
@@ -37,6 +39,7 @@ import type {
   TripResponse,
 } from "@/api/types";
 import { TripEditDialog } from "@/admin/components/TripEditDialog";
+import { TripMapDialog } from "@/admin/components/TripMapDialog";
 import { purposeLabel } from "@/lib/trips";
 
 function monthKey(d: Date): string {
@@ -63,6 +66,7 @@ export function AdminFahrtenPage() {
   const [driver, setDriver] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string>("");
   const [editing, setEditing] = useState<TripResponse | null>(null);
+  const [mapTrips, setMapTrips] = useState<{ title: string; trips: TripResponse[] } | null>(null);
 
   const key = monthKey(month);
 
@@ -117,6 +121,23 @@ export function AdminFahrtenPage() {
     setMonth(d);
   };
   const isCurrent = monthKey(new Date()) === key;
+
+  const exportPdf = async () => {
+    const q = new URLSearchParams({ month: key });
+    // The statement is per driver; with the driver filter set, export that
+    // driver, otherwise the calling Verwalter's own.
+    const drv = driver ? rows.find((r) => r.user_email === driver) : undefined;
+    if (drv) q.set("user_id", drv.user_id);
+    const r = await api.get<Blob>(`/admin/trips/statement.pdf?${q.toString()}`, { responseType: "blob" });
+    const url = URL.createObjectURL(r.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Fahrtenbuch-${key}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const exportCsv = async () => {
     const q = new URLSearchParams({ month: key });
@@ -178,6 +199,17 @@ export function AdminFahrtenPage() {
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => void exportCsv()} disabled={!data}>
           {t("admin.fahrten.exportCsv")}
+        </Button>
+        <Button variant="outlined" startIcon={<PictureAsPdfIcon />} onClick={() => void exportPdf()} disabled={!data}>
+          {t("admin.fahrten.exportPdf")}
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<MapIcon />}
+          onClick={() => setMapTrips({ title: t("admin.fahrten.mapMonth"), trips: rows })}
+          disabled={rows.length === 0}
+        >
+          {t("admin.fahrten.map")}
         </Button>
       </Stack>
 
@@ -257,6 +289,14 @@ export function AdminFahrtenPage() {
                     <Typography variant="caption" color="text.secondary">{r.source}</Typography>
                   </TableCell>
                   <TableCell align="right">
+                    <IconButton
+                      size="small"
+                      onClick={() => setMapTrips({ title: `${r.property_name ?? purposeLabel(r.purpose)} · ${start.toLocaleDateString("de-DE")}`, trips: [r] })}
+                      aria-label={t("admin.fahrten.map")}
+                      disabled={!r.route_polyline && !(r.start_lat && r.start_lng)}
+                    >
+                      <MapIcon fontSize="small" />
+                    </IconButton>
                     <IconButton size="small" onClick={() => setEditing(r)} aria-label={t("common.edit")}>
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -268,6 +308,9 @@ export function AdminFahrtenPage() {
         </Table>
       </Paper>
 
+      {mapTrips && (
+        <TripMapDialog title={mapTrips.title} trips={mapTrips.trips} onClose={() => setMapTrips(null)} />
+      )}
       {editing && (
         <TripEditDialog
           trip={editing}

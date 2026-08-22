@@ -873,7 +873,10 @@
       "byProperty": "Expenses per property",
       "colDate": "Date",
       "empty": "No trips this month.",
-      "editTitle": "Edit trip"
+      "editTitle": "Edit trip",
+      "exportPdf": "Statement (PDF)",
+      "map": "Map",
+      "mapMonth": "Routes of the month"
     }
   },
   "meters": {

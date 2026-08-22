@@ -446,5 +446,56 @@ async def admin_export_trips_csv(
     )
 
 
+@admin_router.get("/statement.pdf")
+async def admin_statement_pdf(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    month: Annotated[str, Query(description="YYYY-MM")],
+    user_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> Response:
+    """Kilometergeld-Abrechnung for one month as PDF — one driver (user_id)
+    or, when omitted, the calling Verwalter. Lists every trip, the month
+    total and the Auslagen regrouped per property."""
+    from app.services.trip_statement import StatementRow, render_statement, statement_filename
+
+    if _month_bounds(month) is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month fehlt")
+    driver_id = user_id or current_user.id
+    driver = await session.get(User, driver_id)
+    if driver is None or driver.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fahrer nicht gefunden")
+
+    stmt = _admin_filters(
+        select(Trip),
+        org_id=current_user.organization_id,
+        month=month,
+        user_id=driver_id,
+        property_id=None,
+    ).order_by(Trip.started_at.asc())
+    trips = list((await session.scalars(stmt)).all())
+    prop_ids = {t.property_id for t in trips if t.property_id}
+    names: dict[uuid.UUID, str] = {}
+    if prop_ids:
+        props = (await session.scalars(select(Property).where(Property.id.in_(prop_ids)))).all()
+        names = {p.id: p.name for p in props}
+    rows = [
+        StatementRow(trip=t, property_name=names.get(t.property_id) if t.property_id else None)
+        for t in trips
+    ]
+    pdf = render_statement(
+        rows=rows,
+        month=month,
+        driver_label=driver.email,
+        rate_cents_per_km=settings.trip_rate_cents_per_km,
+    )
+    name = statement_filename(month, driver.email)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
 # Re-exported for main.py; TripPurpose kept importable for future validators.
 __all__ = ["TripPurpose", "admin_router", "me_router"]

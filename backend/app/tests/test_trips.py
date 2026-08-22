@@ -279,3 +279,38 @@ async def test_admin_edit_is_audited(test_engine: AsyncEngine) -> None:
         assert len(rows) == 1
         assert rows[0].payload_json is not None
         assert rows[0].payload_json["before"]["purpose"] is None
+
+
+async def test_statement_pdf_lists_trips_and_auslagen(test_engine: AsyncEngine) -> None:
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="WEG Statement")
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        for payload in (
+            _complete_payload(purpose="BESICHTIGUNG", property_id=str(prop.id), distance_m=10_000),
+            _complete_payload(purpose="PRIVAT", distance_m=4_000),
+        ):
+            assert (
+                client.post("/me/trips/complete", headers=_auth(token), json=payload).status_code
+                == 201
+            )
+        r = client.get(
+            "/admin/trips/statement.pdf", headers=_auth(token), params={"month": "2026-08"}
+        )
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"].startswith("application/pdf")
+        assert "Fahrtenbuch-2026-08-" in r.headers["content-disposition"]
+        text = " ".join((p.extract_text() or "") for p in PdfReader(BytesIO(r.content)).pages)
+        assert "August 2026" in text
+        assert "WEG Statement" in text
+        assert "Privat" in text
+        # 10 km billable at 30 ct = 3,00 € total; private 4 km logged but 0 €.
+        assert "3,00 €" in text
+        assert "Auslagen je Objekt" in text
+        # missing month → 422 (required query param)
+        assert client.get("/admin/trips/statement.pdf", headers=_auth(token)).status_code == 422
