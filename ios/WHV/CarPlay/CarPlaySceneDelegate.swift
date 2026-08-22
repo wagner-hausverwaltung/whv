@@ -23,6 +23,7 @@
 
 import CarPlay
 import MapKit
+import OSLog
 import UIKit
 
 @MainActor
@@ -66,6 +67,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func present() async {
         guard let interface else { return }
+        Logger(subsystem: "com.wagner-hausverwaltung.portal", category: "carplay").info(
+            "limits: items=\(CPListTemplate.maximumItemCount) sections=\(CPListTemplate.maximumSectionCount) alertActions=\(CPAlertTemplate.maximumActionCount)"
+        )
         let me: UserResponse
         do {
             me = try await api.getMe()
@@ -389,7 +393,23 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func showKontakteRoot() async {
         let ranked = await rankedProperties()
-        let rows: [CPListItem] = ranked.props.prefix(maxItems).map { p in
+        // In the car you want the contacts of where you ARE or are heading:
+        // the running trip's property first, then by distance when the phone
+        // has a fix, then by visit frequency. The list cap makes this
+        // selection matter — alphabetical would just show the first twelve.
+        let tracker = TripTracker.shared
+        var props = ranked.props
+        if let here = tracker.currentCoordinate {
+            props.sort { a, b in
+                let da = a.lat.flatMap { la in a.lng.map { haversineMeters(here, .init(latitude: la, longitude: $0)) } } ?? .infinity
+                let db = b.lat.flatMap { lb in b.lng.map { haversineMeters(here, .init(latitude: lb, longitude: $0)) } } ?? .infinity
+                return da < db
+            }
+        }
+        if let target = tracker.presetPropertyId, let i = props.firstIndex(where: { $0.id == target }) {
+            props.insert(props.remove(at: i), at: 0)
+        }
+        let rows: [CPListItem] = props.prefix(maxItems).map { p in
             let item = CPListItem(text: p.name, detailText: Self.address(p))
             item.accessoryType = .disclosureIndicator
             item.handler = { [weak self] _, completion in
@@ -397,7 +417,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             }
             return item
         }
-        push(CPListTemplate(title: "Kontakte", sections: [CPListSection(items: rows.isEmpty ? [CPListItem(text: "Keine Objekte geladen", detailText: nil)] : rows)]))
+        let title = tracker.currentCoordinate != nil ? "Kontakte · in der Nähe" : "Kontakte"
+        push(CPListTemplate(title: title, sections: [CPListSection(items: rows.isEmpty ? [CPListItem(text: "Keine Objekte geladen", detailText: nil)] : rows)]))
     }
 
     private func showContacts(for p: PropertyResponse) async {
