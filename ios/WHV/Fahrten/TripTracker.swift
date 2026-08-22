@@ -101,9 +101,23 @@ final class TripTracker: NSObject, ObservableObject {
 
     var isAvailable: Bool { !DemoFlag.isActive }
 
-    /// Last known position while tracking — used for the "Ich verspäte mich"
-    /// notice's Maps link. Nil when idle or before the first fix.
+    /// Last known position — while tracking it updates continuously; when
+    /// idle `refreshLocation()` asks for a single fix. Used for the "Ich
+    /// verspäte mich" Maps link and for ranking CarPlay lists by proximity.
     var currentCoordinate: CLLocationCoordinate2D? { lastLocation?.coordinate }
+
+    /// One-shot fix when no trip is running (CarPlay connect, contact list).
+    func refreshLocation() {
+        guard isAvailable, !isRunning else { return }
+        switch location.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            location.requestLocation()
+        case .notDetermined:
+            location.requestWhenInUseAuthorization()
+        default:
+            break
+        }
+    }
 
     // MARK: Manual control
 
@@ -383,8 +397,10 @@ extension TripTracker: CLLocationManagerDelegate {
         Task { @MainActor in
             for loc in locations where loc.horizontalAccuracy >= 0 && loc.horizontalAccuracy <= 65 {
                 guard self.isRunning else {
-                    // A significant-change wake-up while idle: nothing to do
-                    // unless motion says we're driving (handled via activity).
+                    // Idle: keep the latest fix (proximity ranking, delay
+                    // notice) but accumulate nothing — motion decides if a
+                    // drive starts.
+                    self.lastLocation = loc
                     continue
                 }
                 if let prev = self.lastLocation {

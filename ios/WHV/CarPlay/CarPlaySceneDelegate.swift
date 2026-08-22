@@ -45,6 +45,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         scene = templateApplicationScene
         Task { await present() }
         let tracker = TripTracker.shared
+        tracker.refreshLocation()
         if tracker.autoDetectEnabled, !tracker.isRunning {
             tracker.startFromCarPlay()
             startedTripOnConnect = true
@@ -392,6 +393,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 
     private func showKontakteRoot() async {
+        TripTracker.shared.refreshLocation()
         let ranked = await rankedProperties()
         // In the car you want the contacts of where you ARE or are heading:
         // the running trip's property first, then by distance when the phone
