@@ -2,7 +2,7 @@
 //  NoteWHVIntent.swift
 //  WHV
 //
-//  "Hey Siri, WHV Notiz" — dictate what you see at the object and it becomes
+//  "Hey Siri, WHV Ticket" — dictate what you see at the object and it becomes
 //  a ticket on that property: the running trip's destination if there is
 //  one, else the nearest managed property (≤ 300 m), else a ticket without
 //  property. Created as the Verwalter's own (private) ticket, so it shows in
@@ -16,27 +16,27 @@ import CoreLocation
 import Foundation
 
 struct NoteWHVIntent: AppIntent {
-    static var title: LocalizedStringResource = "WHV Notiz"
+    static var title: LocalizedStringResource = "WHV Ticket"
     static var description = IntentDescription(
-        "Diktiert eine Notiz, die als Ticket am aktuellen Objekt angelegt wird."
+        "Legt per Diktat ein Ticket am aktuellen Objekt an."
     )
     static var openAppWhenRun = false
 
     @Parameter(
-        title: "Notiz",
-        requestValueDialog: IntentDialog("Was soll ich notieren?")
+        title: "Ticket",
+        requestValueDialog: IntentDialog("Was soll ins Ticket?")
     )
     var text: String
 
     static var parameterSummary: some ParameterSummary {
-        Summary("WHV Notiz: \(\.$text)")
+        Summary("WHV Ticket: \(\.$text)")
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else {
-            throw $text.needsValueError(IntentDialog("Was soll ich notieren?"))
+            throw $text.needsValueError(IntentDialog("Was soll ins Ticket?"))
         }
         let api = APIClient()
         let tracker = TripTracker.shared
@@ -59,8 +59,8 @@ struct NoteWHVIntent: AppIntent {
             }
         }
 
-        let subject = "Notiz: " + String(body.prefix(60)) + (body.count > 60 ? "…" : "")
-        let category = TicketCategory(rawValue: "ALLGEMEIN_TELEFONNOTIZ")
+        let subject = String(body.prefix(60)) + (body.count > 60 ? "…" : "")
+        let category = TicketCategory(rawValue: "SONSTIGES_OTHER")
             ?? TicketCategory.allCases.first!
         do {
             _ = try await api.createMyTicket(
@@ -69,9 +69,9 @@ struct NoteWHVIntent: AppIntent {
         } catch APIError.unauthorized {
             return .result(dialog: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch {
-            return .result(dialog: "Die Notiz konnte gerade nicht gespeichert werden.")
+            return .result(dialog: "Das Ticket konnte gerade nicht angelegt werden.")
         }
         let where_ = propertyName.map { " für \($0)" } ?? " ohne Objekt"
-        return .result(dialog: IntentDialog(stringLiteral: "Notiert\(where_)."))
+        return .result(dialog: IntentDialog(stringLiteral: "Ticket angelegt\(where_)."))
     }
 }

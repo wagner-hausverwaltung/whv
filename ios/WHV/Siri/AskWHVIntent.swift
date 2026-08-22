@@ -90,12 +90,13 @@ struct WHVShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: NoteWHVIntent(),
             phrases: [
+                "\(.applicationName) Ticket",
+                "Ticket an \(.applicationName)",
+                "Neues Ticket für \(.applicationName)",
                 "\(.applicationName) Notiz",
-                "Notiz an \(.applicationName)",
-                "Notiz für \(.applicationName)",
             ],
-            shortTitle: "WHV Notiz",
-            systemImageName: "square.and.pencil"
+            shortTitle: "WHV Ticket",
+            systemImageName: "tray.and.arrow.down.fill"
         )
     }
 }
