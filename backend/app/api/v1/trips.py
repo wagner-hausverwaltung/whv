@@ -25,9 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import AuditLog, Property, Trip, TripPurpose, TripStatus, User, UserRole
+from app.integrations.email.client import EmailClient, EmailError, get_email_client
+from app.models import AuditLog, Contact, Property, Trip, TripPurpose, TripStatus, User, UserRole
 from app.schemas.trip import (
     AdminTripListResponse,
+    DelayNoticeRequest,
+    DelayNoticeResponse,
     TripCompleteRequest,
     TripPropertyTotal,
     TripResponse,
@@ -35,6 +38,7 @@ from app.schemas.trip import (
     TripSummary,
     TripUpdateRequest,
 )
+from app.services.units import _contact_label
 
 me_router = APIRouter(prefix="/me/trips", tags=["trips"])
 admin_router = APIRouter(prefix="/admin/trips", tags=["admin-trips"])
@@ -270,6 +274,85 @@ async def delete_my_trip(
     await session.delete(trip)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.post("/delay-notice", response_model=DelayNoticeResponse)
+async def send_delay_notice(
+    req: DelayNoticeRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DelayNoticeResponse:
+    """One-tap "Ich verspäte mich" from CarPlay: e-mails the contact on the
+    Verwalter's behalf. Messaging from a Driving-Task app isn't allowed, so
+    the mail goes out server-side; reply-to is the Verwalter."""
+    contact = await session.scalar(
+        select(Contact).where(
+            Contact.id == req.contact_id,
+            Contact.organization_id == current_user.organization_id,
+            Contact.deleted_at.is_(None),
+        )
+    )
+    if contact is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kontakt nicht gefunden")
+    if not contact.email:
+        return DelayNoticeResponse(sent=False, to=None, detail="Kontakt hat keine E-Mail-Adresse.")
+
+    prop_name = None
+    if req.property_id is not None:
+        prop = await session.get(Property, req.property_id)
+        prop_name = (
+            prop.name if prop and prop.organization_id == current_user.organization_id else None
+        )
+
+    sender = current_user.email.split("@", 1)[0].replace(".", " ").title()
+    where = f" ({prop_name})" if prop_name else ""
+    maps = (
+        f"https://maps.apple.com/?ll={req.lat},{req.lng}&q=Standort"
+        if req.lat is not None and req.lng is not None
+        else None
+    )
+    subject = f"Wagner Hausverwaltung: {sender} verspätet sich um ca. {req.minutes} Minuten"
+    text = (
+        f"Guten Tag {_contact_label(contact)},\n\n"
+        f"{sender} von der Wagner Hausverwaltung verspätet sich zum Termin{where} um "
+        f"etwa {req.minutes} Minuten. Wir bitten um Entschuldigung.\n"
+        + (f"\nAktueller Standort: {maps}\n" if maps else "")
+        + "\nBei Rückfragen antworten Sie einfach auf diese E-Mail.\n\nWagner Hausverwaltung GmbH"
+    )
+    html = text.replace("\n", "<br>")
+    if maps:
+        html = html.replace(maps, f'<a href="{maps}">{maps}</a>')
+    try:
+        await email_client.send(
+            to=contact.email,
+            subject=subject,
+            html=f"<p>{html}</p>",
+            text=text,
+            reply_to=current_user.email,
+        )
+    except EmailError as exc:
+        return DelayNoticeResponse(
+            sent=False, to=contact.email, detail=f"Versand fehlgeschlagen: {exc}"
+        )
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="delay_notice_sent",
+            target_type="contacts",
+            target_id=str(contact.id),
+            payload_json={
+                "minutes": req.minutes,
+                "property_id": str(req.property_id) if req.property_id else None,
+            },
+        )
+    )
+    await session.commit()
+    return DelayNoticeResponse(
+        sent=True, to=contact.email, detail=f"Mitteilung an {contact.email} gesendet."
+    )
 
 
 # --- /admin/trips -------------------------------------------------------------

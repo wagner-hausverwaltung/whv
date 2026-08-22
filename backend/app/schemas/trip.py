@@ -127,3 +127,21 @@ class AdminTripListResponse(BaseModel):
     items: list[TripResponse]
     summary: TripSummary
     by_property: list[TripPropertyTotal]
+
+
+class DelayNoticeRequest(BaseModel):
+    """ "Ich verspäte mich" from the car: one tap, we e-mail the contact."""
+
+    contact_id: uuid.UUID
+    minutes: int = Field(ge=5, le=180)
+    # Current position, if the phone has one — becomes a Maps link so the
+    # recipient can see where the Verwalter is.
+    lat: Decimal | None = _LAT
+    lng: Decimal | None = _LNG
+    property_id: uuid.UUID | None = None
+
+
+class DelayNoticeResponse(BaseModel):
+    sent: bool
+    to: str | None
+    detail: str

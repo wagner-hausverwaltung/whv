@@ -2,14 +2,54 @@
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
+import pytest_asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.integrations.email.client import get_email_client
 from app.main import app
 from app.models import UserRole
 from app.tests._factories import make_org, make_property, make_user
+
+
+class _StubEmailClient:
+    def __init__(self) -> None:
+        self.sent: list[dict[str, Any]] = []
+
+    async def send(
+        self,
+        *,
+        to: str | list[str],
+        subject: str,
+        html: str,
+        text: str,
+        headers: dict[str, str] | None = None,
+        reply_to: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
+        from_address: str | None = None,
+        from_name: str | None = None,
+    ) -> str:
+        self.sent.append(
+            {"to": to, "subject": subject, "html": html, "text": text, "reply_to": reply_to}
+        )
+        return f"sim-{uuid.uuid4()}"
+
+
+@pytest_asyncio.fixture
+async def stub_email() -> AsyncIterator[_StubEmailClient]:
+    stub = _StubEmailClient()
+
+    async def _override() -> AsyncIterator[_StubEmailClient]:
+        yield stub
+
+    app.dependency_overrides[get_email_client] = _override
+    yield stub
+    app.dependency_overrides.pop(get_email_client, None)
 
 
 def _login(email: str, password: str) -> str:
@@ -359,3 +399,50 @@ async def test_property_coordinates_are_json_numbers(test_engine: AsyncEngine) -
         assert r.status_code == 200
         mine = next(p for p in json.loads(r.text) if p["id"] == str(prop.id))
         assert isinstance(mine["lat"], float) and isinstance(mine["lng"], float), mine
+
+
+async def test_delay_notice_mails_the_contact(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.models import Contact, ContactKind
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="WEG Verspätung")
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        c = Contact(
+            organization_id=org.id,
+            kind=ContactKind.PERSON,
+            first_name="Erika",
+            last_name="Muster",
+            email="erika@example.de",
+        )
+        s.add(c)
+        await s.commit()
+        await s.refresh(c)
+        cid = c.id
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            "/me/trips/delay-notice",
+            headers=_auth(token),
+            json={
+                "contact_id": str(cid),
+                "minutes": 20,
+                "lat": "48.59",
+                "lng": "8.85",
+                "property_id": str(prop.id),
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["sent"] is True
+        assert r.json()["to"] == "erika@example.de"
+    sent = [m for m in stub_email.sent if m["to"] == "erika@example.de"]
+    assert sent, "no mail recorded"
+    assert "20 Minuten" in sent[-1]["subject"]
+    assert "WEG Verspätung" in sent[-1]["text"]
+    assert "maps.apple.com" in sent[-1]["text"]
+    assert sent[-1].get("reply_to") == email

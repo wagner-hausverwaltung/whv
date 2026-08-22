@@ -1951,6 +1951,7 @@ async def list_property_contacts(
                 impower_id=contact.impower_id,
                 name=_contact_display_name(contact) or "(unbenannt)",
                 email=contact.email,
+                phone=contact.phone,
                 contract_type=ctype.value,
                 suggested_role=suggested,
                 has_user_account=(
