@@ -59,6 +59,7 @@ struct TripCompleteBody: Codable {
     let source: String
     let purpose: String?
     let property_id: String?
+    var note: String? = nil
 }
 
 /// Partial update — only non-nil fields are sent (see APIClient encoder:

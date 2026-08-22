@@ -40,6 +40,7 @@ final class TripTracker: NSObject, ObservableObject {
     /// no confirmation is needed afterwards. Cleared when the trip ends.
     @Published private(set) var presetPurpose: String?
     @Published private(set) var presetPropertyId: String?
+    @Published private(set) var presetNote: String?
 
     /// Opt-in for automatic drive detection (Core Motion + significant
     /// location changes). Off by default — this is the consent switch.
@@ -121,10 +122,11 @@ final class TripTracker: NSObject, ObservableObject {
 
     /// Start a trip that is already known to be, e.g., a Besichtigung at a
     /// given property. The trip uploads CONFIRMED with these values.
-    func startWithPreset(purpose: String, propertyId: String?, source: String) {
+    func startWithPreset(purpose: String, propertyId: String?, source: String, note: String? = nil) {
         guard !isRunning else { return }
         presetPurpose = purpose
         presetPropertyId = propertyId
+        presetNote = note
         requestAuthorization()
         begin(source: source)
     }
@@ -222,8 +224,10 @@ final class TripTracker: NSObject, ObservableObject {
         let src = source
         let purpose = presetPurpose
         let propertyId = presetPropertyId
+        let note = presetNote
         presetPurpose = nil
         presetPropertyId = nil
+        presetNote = nil
         isRunning = false
         startedAt = nil
         liveDistanceM = 0
@@ -244,7 +248,8 @@ final class TripTracker: NSObject, ObservableObject {
             route_polyline: route.isEmpty ? nil : Polyline.encode(route),
             source: src,
             purpose: purpose,
-            property_id: propertyId
+            property_id: propertyId,
+            note: note
         )
         await upload(body)
         await refreshOpen()
