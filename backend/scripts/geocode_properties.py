@@ -34,8 +34,19 @@ _NOMINATIM = "https://nominatim.openstreetmap.org/search"
 _UA = "WHV-Fahrtenbuch/1.0 (info@wagner-hausverwaltung.com)"
 
 
+def _first_number(number: str | None) -> str | None:
+    """'6/8', '6, 8', '63, 64' → '6' / '63': Nominatim cannot resolve a range,
+    and the first house of a Doppelhaus is close enough for a 300 m radius."""
+    if not number:
+        return None
+    import re
+
+    m = re.match(r"\s*(\d+\s*[a-zA-Z]?)", number)
+    return m.group(1).strip() if m else number
+
+
 def _address(p: Property) -> str | None:
-    street = " ".join(x for x in (p.street, p.number) if x)
+    street = " ".join(x for x in (p.street, _first_number(p.number)) if x)
     city = " ".join(x for x in (p.postal_code, p.city) if x)
     if not street or not city:
         return None

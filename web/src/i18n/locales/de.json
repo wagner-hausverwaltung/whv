@@ -15,7 +15,8 @@
     "appearanceLight": "Hell",
     "appearanceDark": "Dunkel",
     "appearanceSystem": "System",
-    "error": "Ein Fehler ist aufgetreten."
+    "error": "Ein Fehler ist aufgetreten.",
+    "edit": "Bearbeiten"
   },
   "nav": {
     "home": "Start",
@@ -849,7 +850,31 @@
     },
     "navVorgaenge": "Vorgänge",
     "navWeg": "WEG",
-    "navVerwaltung": "Verwaltung"
+    "navVerwaltung": "Verwaltung",
+    "fahrten": {
+      "nav": "Fahrtenbuch",
+      "title": "Fahrtenbuch",
+      "subtitle": "Dienstfahrten der Verwalter: Kilometergeld 0,30 €/km und Auslagen je Objekt.",
+      "loadFailed": "Fahrten konnten nicht geladen werden.",
+      "saveFailed": "Konnte nicht gespeichert werden.",
+      "driver": "Fahrer",
+      "property": "Objekt",
+      "purpose": "Zweck",
+      "source": "Quelle",
+      "note": "Notiz",
+      "all": "Alle",
+      "exportCsv": "CSV exportieren",
+      "trips": "Fahrten",
+      "openHint": "noch zu bestätigen",
+      "distance": "Strecke",
+      "billable": "abrechenbar",
+      "kilometergeld": "Kilometergeld",
+      "rateHint": "0,30 € je km, private Fahrten ausgenommen",
+      "byProperty": "Auslagen je Objekt",
+      "colDate": "Datum",
+      "empty": "Keine Fahrten in diesem Monat.",
+      "editTitle": "Fahrt bearbeiten"
+    }
   },
   "meters": {
     "loading": "Lade Zähler…",

@@ -95,6 +95,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       label: t("admin.navVerwaltung"),
       items: [
         { to: "/admin/vertraege", label: t("admin.vertraege") },
+        { to: "/admin/fahrten", label: t("admin.fahrten.nav") },
         { to: "/admin/invites", label: t("admin.invites") },
         { to: "/admin/assistant-log", label: t("admin.assistantLog") },
       ],

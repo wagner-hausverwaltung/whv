@@ -15,7 +15,8 @@
     "appearanceLight": "Light",
     "appearanceDark": "Dark",
     "appearanceSystem": "System",
-    "error": "Something went wrong."
+    "error": "Something went wrong.",
+    "edit": "Edit"
   },
   "nav": {
     "home": "Home",
@@ -849,7 +850,31 @@
     },
     "navVorgaenge": "Operations",
     "navWeg": "WEG",
-    "navVerwaltung": "Administration"
+    "navVerwaltung": "Administration",
+    "fahrten": {
+      "nav": "Mileage log",
+      "title": "Mileage log",
+      "subtitle": "Property managers' business trips: €0.30/km reimbursement and expenses per property.",
+      "loadFailed": "Trips could not be loaded.",
+      "saveFailed": "Could not save.",
+      "driver": "Driver",
+      "property": "Property",
+      "purpose": "Purpose",
+      "source": "Source",
+      "note": "Note",
+      "all": "All",
+      "exportCsv": "Export CSV",
+      "trips": "Trips",
+      "openHint": "to confirm",
+      "distance": "Distance",
+      "billable": "billable",
+      "kilometergeld": "Mileage allowance",
+      "rateHint": "€0.30 per km, private trips excluded",
+      "byProperty": "Expenses per property",
+      "colDate": "Date",
+      "empty": "No trips this month.",
+      "editTitle": "Edit trip"
+    }
   },
   "meters": {
     "loading": "Loading Zähler…",

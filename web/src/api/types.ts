@@ -1260,3 +1260,51 @@ export interface SupplierContractBody {
   price_period?: "MONATLICH" | "JAEHRLICH" | null;
   notes?: string | null;
 }
+
+// --- Fahrtenbuch (ADR-0020) ---------------------------------------------------
+
+export interface TripResponse {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  property_id?: string | null;
+  property_name?: string | null;
+  status: "RUNNING" | "OPEN" | "CONFIRMED" | string;
+  source: "AUTO" | "MANUAL" | "CARPLAY" | string;
+  purpose?: string | null;
+  started_at: string;
+  ended_at?: string | null;
+  start_lat?: string | number | null;
+  start_lng?: string | number | null;
+  end_lat?: string | number | null;
+  end_lng?: string | number | null;
+  distance_m?: number | null;
+  /** Decimal serialised as string by the backend ("12.3"). */
+  distance_km: string;
+  route_polyline?: string | null;
+  rate_cents_per_km: number;
+  amount_cents: number;
+  note?: string | null;
+}
+
+export interface TripSummary {
+  trips: number;
+  distance_m: number;
+  amount_cents: number;
+  billable_trips: number;
+  billable_distance_m: number;
+}
+
+export interface TripPropertyTotal {
+  property_id: string | null;
+  property_name: string;
+  trips: number;
+  distance_m: number;
+  amount_cents: number;
+}
+
+export interface AdminTripListResponse {
+  items: TripResponse[];
+  summary: TripSummary;
+  by_property: TripPropertyTotal[];
+}
