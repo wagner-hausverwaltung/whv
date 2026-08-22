@@ -9,6 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.types import DecimalAsFloat
+
 Purpose = Literal[
     "BESICHTIGUNG",
     "ETV",
@@ -87,10 +89,11 @@ class TripResponse(BaseModel):
     purpose: str | None = None
     started_at: datetime
     ended_at: datetime | None = None
-    start_lat: Decimal | None = None
-    start_lng: Decimal | None = None
-    end_lat: Decimal | None = None
-    end_lng: Decimal | None = None
+    # JSON numbers, not Decimal→string — the iOS client decodes Double.
+    start_lat: DecimalAsFloat | None = None
+    start_lng: DecimalAsFloat | None = None
+    end_lat: DecimalAsFloat | None = None
+    end_lng: DecimalAsFloat | None = None
     distance_m: int | None = None
     distance_km: Decimal
     route_polyline: str | None = None

@@ -314,3 +314,48 @@ async def test_statement_pdf_lists_trips_and_auslagen(test_engine: AsyncEngine) 
         assert "Auslagen je Objekt" in text
         # missing month → 422 (required query param)
         assert client.get("/admin/trips/statement.pdf", headers=_auth(token)).status_code == 422
+
+
+async def test_coordinates_are_json_numbers_not_strings(test_engine: AsyncEngine) -> None:
+    """Regression: Decimal fields serialise as strings by default, which made
+    the iOS client fail to decode every property once geocoding filled
+    lat/lng — the CarPlay destination list and the app's Objekt picker came
+    back empty. Coordinates must be JSON numbers."""
+    import json
+
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            "/me/trips/complete", headers=_auth(token), json=_complete_payload(purpose="ETV")
+        )
+        raw = json.loads(r.text)
+        assert isinstance(raw["start_lat"], float), raw["start_lat"]
+        assert isinstance(raw["end_lng"], float), raw["end_lng"]
+
+
+async def test_property_coordinates_are_json_numbers(test_engine: AsyncEngine) -> None:
+    """Same regression on /me/properties — the list the app and CarPlay use."""
+    import json
+    from decimal import Decimal
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.models import Property
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="WEG Geo")
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        row = await s.get(Property, prop.id)
+        assert row is not None
+        row.lat, row.lng = Decimal("48.596947"), Decimal("8.851618")
+        await s.commit()
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.get("/me/properties", headers=_auth(token))
+        assert r.status_code == 200
+        mine = next(p for p in json.loads(r.text) if p["id"] == str(prop.id))
+        assert isinstance(mine["lat"], float) and isinstance(mine["lng"], float), mine
