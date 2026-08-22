@@ -8,12 +8,14 @@
 	</array>
 	<key>aps-environment</key>
 	<string>development</string>
-	<!-- Debug-only: lets the CarPlay scene run in the iOS Simulator
-	     (I/O → External Displays → CarPlay) while Apple reviews the
-	     entitlement request (Case-ID 21774792). Release keeps
-	     WHV.entitlements WITHOUT this key — a device/TestFlight build
-	     would fail to sign until the key is in the provisioning profile.
-	     Once granted: add the key to WHV.entitlements and drop this file. -->
+	<!-- SIMULATOR-ONLY (Debug, sdk=iphonesimulator*): lets the CarPlay
+	     scene run in the iOS Simulator (I/O → External Displays → CarPlay)
+	     while Apple reviews the entitlement request (Case-ID 21774792).
+	     Every build that needs a provisioning profile — device, "My Mac
+	     (Designed for iPad)", TestFlight, App Store — uses WHV.entitlements
+	     WITHOUT this key, otherwise automatic signing fails ("Xcode failed
+	     to provision this target"). Once granted: add the key to
+	     WHV.entitlements and drop this file + the conditional setting. -->
 	<key>com.apple.developer.carplay-driving-task</key>
 	<true/>
 </dict>
