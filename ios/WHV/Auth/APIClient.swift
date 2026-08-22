@@ -702,9 +702,17 @@ struct APIClient {
     static let stagingBaseURL = URL(string: "https://staging.api.wagner-hausverwaltung.com")!
     static let prodBaseURL = URL(string: "https://api.wagner-hausverwaltung.com")!
 
+    /// Debug builds talk to staging by default. For CarPlay/Simulator checks
+    /// against real data, opt into prod per device:
+    ///   xcrun simctl spawn booted defaults write com.wagner-hausverwaltung.portal WHV_API_BASE prod
+    /// (or `defaults delete …` to go back). Never consulted in Release.
+    static func debugBaseURL() -> URL {
+        UserDefaults.standard.string(forKey: "WHV_API_BASE") == "prod" ? prodBaseURL : stagingBaseURL
+    }
+
     /// Debug → staging, Release → prod.
     #if DEBUG
-    static let defaultBaseURL = stagingBaseURL
+    static let defaultBaseURL = debugBaseURL()
     static let portalForgotPasswordURL = URL(
         string: "https://staging.portal.wagner-hausverwaltung.com/forgot-password")!
     #else
