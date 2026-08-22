@@ -21,6 +21,7 @@ from app.api.v1 import meters as meters_router
 from app.api.v1 import offers as offers_router
 from app.api.v1 import supplier_contracts as supplier_contracts_router
 from app.api.v1 import tickets as tickets_router
+from app.api.v1 import trips as trips_router
 from app.api.v1 import vollmachten as vollmachten_router
 from app.api.v1 import webhooks as webhooks_router
 from app.config import get_settings
@@ -95,6 +96,8 @@ app.include_router(meters_router.me_router)
 app.include_router(meters_router.admin_router)
 app.include_router(offers_router.admin_router)
 app.include_router(supplier_contracts_router.admin_router)
+app.include_router(trips_router.me_router)
+app.include_router(trips_router.admin_router)
 app.include_router(vollmachten_router.me_router)
 app.include_router(vollmachten_router.admin_router)
 app.include_router(calendar_router.me_router)

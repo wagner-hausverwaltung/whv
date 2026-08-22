@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,6 +20,8 @@ class PropertyResponse(BaseModel):
     number: str | None = None
     postal_code: str | None = None
     country: str | None = None
+    lat: Decimal | None = None
+    lng: Decimal | None = None
     # Verwalter-uploaded hero photo URL (relative — caller prepends API
     # base). None until the admin uploads one; the portal property list
     # falls back to a neutral placeholder card.

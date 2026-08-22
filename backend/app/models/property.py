@@ -1,9 +1,10 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,6 +57,10 @@ class Property(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     # Pillow normalises every upload to a PNG under settings.property_image_dir,
     # keyed by property id. Same pattern as user avatars.
     image_url: Mapped[str | None] = mapped_column(nullable=True)
+    # Geocoded once from the postal address (scripts/geocode_properties.py);
+    # the phone uses these to suggest the destination property of a trip.
+    lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
 
     __table_args__ = (Index("ix_properties_org_state", "organization_id", "state"),)
 
