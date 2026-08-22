@@ -35,6 +35,11 @@ final class TripTracker: NSObject, ObservableObject {
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var lastError: String?
     @Published private(set) var pendingUploads: Int = 0
+    /// Preset for the running trip when it was started FOR a destination
+    /// ("Besichtigung hier starten" from CarPlay): uploaded with the trip so
+    /// no confirmation is needed afterwards. Cleared when the trip ends.
+    @Published private(set) var presetPurpose: String?
+    @Published private(set) var presetPropertyId: String?
 
     /// Opt-in for automatic drive detection (Core Motion + significant
     /// location changes). Off by default — this is the consent switch.
@@ -95,6 +100,10 @@ final class TripTracker: NSObject, ObservableObject {
 
     var isAvailable: Bool { !DemoFlag.isActive }
 
+    /// Last known position while tracking — used for the "Ich verspäte mich"
+    /// notice's Maps link. Nil when idle or before the first fix.
+    var currentCoordinate: CLLocationCoordinate2D? { lastLocation?.coordinate }
+
     // MARK: Manual control
 
     func startManually() {
@@ -109,6 +118,17 @@ final class TripTracker: NSObject, ObservableObject {
     }
 
     // MARK: CarPlay hooks
+
+    /// Start a trip that is already known to be, e.g., a Besichtigung at a
+    /// given property. The trip uploads CONFIRMED with these values.
+    func startWithPreset(purpose: String, propertyId: String?, source: String) {
+        guard !isRunning else { return }
+        presetPurpose = purpose
+        presetPropertyId = propertyId
+        requestAuthorization()
+        begin(source: source)
+    }
+
 
     /// Connecting the car = the drive begins. Source CARPLAY so the log shows
     /// how the trip was captured.
@@ -200,6 +220,10 @@ final class TripTracker: NSObject, ObservableObject {
         let distance = liveDistanceM
         let route = storeRoute ? coords : []
         let src = source
+        let purpose = presetPurpose
+        let propertyId = presetPropertyId
+        presetPurpose = nil
+        presetPropertyId = nil
         isRunning = false
         startedAt = nil
         liveDistanceM = 0
@@ -219,8 +243,8 @@ final class TripTracker: NSObject, ObservableObject {
             distance_m: distance,
             route_polyline: route.isEmpty ? nil : Polyline.encode(route),
             source: src,
-            purpose: nil,
-            property_id: nil
+            purpose: purpose,
+            property_id: propertyId
         )
         await upload(body)
         await refreshOpen()

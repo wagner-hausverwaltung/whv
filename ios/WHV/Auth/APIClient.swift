@@ -494,6 +494,32 @@ struct CalendarEntry: Codable, Hashable, Identifiable {
 /// values. Unknown status decodes to .neu defensively; unknown
 /// category to .sonstigesOther (forward-compat with future server
 /// additions). Both decoders surface on this list endpoint.
+
+/// One contact of a property (admin view) — owners + tenants via contracts.
+struct AdminPropertyContact: Codable, Hashable, Identifiable {
+    let contact_id: String
+    let impower_id: Int?
+    let name: String
+    let email: String?
+    let phone: String?
+    let contract_type: String
+    var id: String { contact_id }
+}
+
+struct DelayNoticeBody: Encodable {
+    let contact_id: String
+    let minutes: Int
+    let lat: Double?
+    let lng: Double?
+    let property_id: String?
+}
+
+struct DelayNoticeResponse: Codable {
+    let sent: Bool
+    let to: String?
+    let detail: String
+}
+
 struct TicketSummary: Codable, Hashable, Identifiable {
     let id: String
     let property_id: String?
@@ -886,6 +912,29 @@ struct APIClient {
         return try await authedGET("/me/activity?limit=\(limit)")
     }
 
+
+
+    // MARK: CarPlay helpers (Verwalter-only)
+
+    /// Owners/tenants of a property with phone + e-mail (admin endpoint).
+    func getAdminPropertyContacts(propertyId: String) async throws -> [AdminPropertyContact] {
+        if DemoFlag.isActive { return [] }
+        return try await authedGET("/admin/properties/\(propertyId)/contacts")
+    }
+
+    /// Open tickets of one property (admin list, filtered server-side).
+    func getAdminTickets(propertyId: String, status: String? = nil) async throws -> [TicketSummary] {
+        if DemoFlag.isActive { return [] }
+        var path = "/admin/tickets?property_id=\(propertyId)"
+        if let status { path += "&status=\(status)" }
+        return try await authedGET(path)
+    }
+
+    /// "Ich verspäte mich" — the backend e-mails the contact for us.
+    func sendDelayNotice(_ body: DelayNoticeBody) async throws -> DelayNoticeResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips/delay-notice", method: "POST", body: body)
+    }
 
     // MARK: Fahrtenbuch (Verwalter-only, ADR-0020)
 

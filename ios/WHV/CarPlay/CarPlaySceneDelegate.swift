@@ -4,13 +4,15 @@
 //
 //  Driving-Task CarPlay scene (ADR-0020). Templates only — Grid, List,
 //  Information, Alert — and the Fahrt is the centre of it: connecting the
-//  car starts a trip (if the driver opted in), disconnecting ends it, and the
-//  other three tiles are framed as parts of the drive (pick a destination,
-//  call someone at the destination, see what's next today). That framing is
-//  what the CarPlay Addendum §3.10 demands of Driving-Task apps.
+//  car starts a trip (if the driver opted in), disconnecting ends it, and
+//  everything else is framed as part of the drive: pick a destination, start
+//  a Besichtigung there, call someone at the destination, tell them you're
+//  late, see what's open there. That framing is what the CarPlay Addendum
+//  §3.10 demands of Driving-Task apps.
 //
 //  Until Apple grants the entitlement this runs only in the Simulator (the
-//  Debug entitlements carry the key); see infra/docs/carplay-entitlement-request.md.
+//  Simulator-SDK entitlements carry the key); see
+//  infra/docs/carplay-entitlement-request.md.
 //
 
 import CarPlay
@@ -56,8 +58,23 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func present() async {
         guard let interface else { return }
-        // Verwalter only — owners never see a CarPlay UI.
-        if let me = try? await api.getMe(), me.role.lowercased() != "verwalter" {
+        // Gate explicitly on the THREE outcomes. Swallowing a failed /me and
+        // showing the grid anyway produced an empty-looking app for a driver
+        // who simply wasn't signed in.
+        let me: UserResponse
+        do {
+            me = try await api.getMe()
+        } catch {
+            let info = CPInformationTemplate(
+                title: "WHV",
+                layout: .leading,
+                items: [CPInformationItem(title: "Bitte in der WHV-App anmelden", detail: "Die CarPlay-Ansicht braucht eine aktive Anmeldung auf dem iPhone.")],
+                actions: []
+            )
+            interface.setRootTemplate(info, animated: false, completion: nil)
+            return
+        }
+        if me.role.lowercased() != "verwalter" {
             let info = CPInformationTemplate(
                 title: "WHV",
                 layout: .leading,
@@ -79,10 +96,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             Task { @MainActor in await self?.toggleTrip() }
         }
         let ziel = CPGridButton(
-            titleVariants: ["Ziel wählen"],
-            image: UIImage(systemName: "map.fill") ?? UIImage()
+            titleVariants: ["Objekte"],
+            image: UIImage(systemName: "building.2.fill") ?? UIImage()
         ) { [weak self] _ in
-            Task { @MainActor in await self?.showDestinations() }
+            Task { @MainActor in await self?.showProperties() }
         }
         let heute = CPGridButton(
             titleVariants: ["Heute"],
@@ -91,19 +108,16 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             Task { @MainActor in await self?.showToday() }
         }
         let kontakte = CPGridButton(
-            titleVariants: ["Am Ziel anrufen"],
+            titleVariants: ["Kontakte"],
             image: UIImage(systemName: "phone.fill") ?? UIImage()
         ) { [weak self] _ in
-            Task { @MainActor in await self?.showContactProperties() }
+            Task { @MainActor in await self?.showProperties(forContacts: true) }
         }
-        let grid = CPGridTemplate(title: "WHV", gridButtons: [fahrt, ziel, heute, kontakte])
-        return grid
+        return CPGridTemplate(title: "WHV", gridButtons: [fahrt, ziel, heute, kontakte])
     }
 
     private func refreshRoot() {
-        guard let interface else { return }
-        // Rebuild the grid so the Fahrt button reflects the tracker state.
-        interface.setRootTemplate(rootGrid(), animated: false, completion: nil)
+        interface?.setRootTemplate(rootGrid(), animated: false, completion: nil)
     }
 
     // MARK: Fahrt
@@ -125,32 +139,87 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let ok = CPAlertAction(title: "OK", style: .default) { [weak self] _ in
             self?.interface?.dismissTemplate(animated: true, completion: nil)
         }
-        let a = CPAlertTemplate(titleVariants: [title, detail], actions: [ok])
-        interface.presentTemplate(a, animated: true, completion: nil)
+        interface.presentTemplate(CPAlertTemplate(titleVariants: [title, detail], actions: [ok]), animated: true, completion: nil)
     }
 
-    // MARK: Ziel wählen — properties by visit frequency → Apple Maps
+    // MARK: Objekte — by visit frequency; tap → object page
 
-    private func showDestinations() async {
+    private func showProperties(forContacts: Bool = false) async {
         guard let interface else { return }
         let props = (try? await api.getMyProperties()) ?? []
         let trips = (try? await api.getMyTrips()) ?? []
         var freq: [String: Int] = [:]
         for t in trips { if let p = t.property_id { freq[p, default: 0] += 1 } }
-        let sorted = props.sorted { (freq[$0.id] ?? 0, $1.name) > (freq[$1.id] ?? 0, $0.name) }
-
+        let sorted = props.sorted { a, b in
+            let fa = freq[a.id] ?? 0, fb = freq[b.id] ?? 0
+            return fa != fb ? fa > fb : a.name < b.name
+        }
         let items: [CPListItem] = sorted.map { p in
             let item = CPListItem(text: p.name, detailText: Self.address(p))
             item.accessoryType = .disclosureIndicator
             item.handler = { [weak self] _, completion in
-                self?.navigate(to: p)
-                completion()
+                Task { @MainActor in
+                    if forContacts { await self?.showContacts(for: p) } else { await self?.showObject(p) }
+                    completion()
+                }
             }
             return item
         }
-        let section = CPListSection(items: items)
-        let list = CPListTemplate(title: "Ziel wählen", sections: [section])
+        let list = CPListTemplate(
+            title: forContacts ? "Kontakte" : "Objekte",
+            sections: [CPListSection(items: items.isEmpty ? [CPListItem(text: "Keine Objekte geladen", detailText: nil)] : items)]
+        )
         interface.pushTemplate(list, animated: true, completion: nil)
+    }
+
+    /// The object page: the drive-related actions for one property, then its
+    /// open tickets (read-only). "Besichtigung hier starten" opens a trip
+    /// that already knows purpose + property, so no confirmation follows.
+    private func showObject(_ p: PropertyResponse) async {
+        guard let interface else { return }
+        let tracker = TripTracker.shared
+
+        let navi = CPListItem(text: "Navigation starten", detailText: Self.address(p))
+        navi.setImage(UIImage(systemName: "location.fill"))
+        navi.handler = { [weak self] _, completion in self?.navigate(to: p); completion() }
+
+        let besichtigung = CPListItem(
+            text: tracker.isRunning ? "Fahrt läuft bereits" : "Besichtigung hier starten",
+            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Fahrt mit Zweck Besichtigung für dieses Objekt"
+        )
+        besichtigung.setImage(UIImage(systemName: "binoculars.fill"))
+        besichtigung.handler = { [weak self] _, completion in
+            guard let self else { completion(); return }
+            if !tracker.isRunning {
+                tracker.startWithPreset(purpose: "BESICHTIGUNG", propertyId: p.id, source: "CARPLAY")
+                self.alert("Besichtigung läuft", "\(p.name) — die Fahrt wird aufgezeichnet.")
+                self.refreshRoot()
+            }
+            completion()
+        }
+
+        let kontakte = CPListItem(text: "Kontakte", detailText: "Eigentümer und Dienstleister anrufen")
+        kontakte.setImage(UIImage(systemName: "phone.fill"))
+        kontakte.accessoryType = .disclosureIndicator
+        kontakte.handler = { [weak self] _, completion in
+            Task { @MainActor in await self?.showContacts(for: p); completion() }
+        }
+
+        var sections = [CPListSection(items: [navi, besichtigung, kontakte], header: "Fahrt", sectionIndexTitle: nil)]
+
+        // Open tickets of this property — read-only rows, details stay on the phone.
+        let tickets = (try? await api.getAdminTickets(propertyId: p.id)) ?? []
+        let open = tickets.filter { $0.closed_at == nil }.prefix(8)
+        if !open.isEmpty {
+            let rows: [CPListItem] = open.map { t in
+                let item = CPListItem(text: t.subject, detailText: t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                item.setImage(UIImage(systemName: "tray.full.fill"))
+                return item
+            }
+            sections.append(CPListSection(items: rows, header: "Offene Tickets", sectionIndexTitle: nil))
+        }
+
+        interface.pushTemplate(CPListTemplate(title: p.name, sections: sections), animated: true, completion: nil)
     }
 
     private func navigate(to p: PropertyResponse) {
@@ -158,10 +227,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             alert("Keine Koordinaten", "Für dieses Objekt fehlt die Geoposition.")
             return
         }
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng))
-        let item = MKMapItem(placemark: placemark)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng)))
         item.name = p.name
-        // Hands off to Apple Maps, which takes over the CarPlay display.
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }
 
@@ -176,11 +243,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func showToday() async {
         guard let interface else { return }
         let feed = (try? await api.getMyActivity(limit: 12)) ?? []
-        let items: [CPListItem] = feed.map { a in
-            let item = CPListItem(text: a.title, detailText: a.subtitle)
-            // Deliberately no handler: details stay on the phone (Addendum §3.10).
-            return item
-        }
+        let items: [CPListItem] = feed.map { a in CPListItem(text: a.title, detailText: a.subtitle) }
         let list = CPListTemplate(
             title: "Heute",
             sections: [CPListSection(items: items.isEmpty ? [CPListItem(text: "Nichts Offenes", detailText: nil)] : items)]
@@ -188,45 +251,92 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         interface.pushTemplate(list, animated: true, completion: nil)
     }
 
-    // MARK: Am Ziel anrufen — property → Dienstleister with phone
+    // MARK: Kontakte — owners + Dienstleister; tap → call / "verspäte mich"
 
-    private func showContactProperties() async {
-        guard let interface else { return }
-        let props = (try? await api.getMyProperties()) ?? []
-        let items: [CPListItem] = props.sorted { $0.name < $1.name }.map { p in
-            let item = CPListItem(text: p.name, detailText: nil)
-            item.accessoryType = .disclosureIndicator
-            item.handler = { [weak self] _, completion in
-                Task { @MainActor in
-                    await self?.showContacts(for: p)
-                    completion()
-                }
-            }
-            return item
-        }
-        let list = CPListTemplate(title: "Am Ziel anrufen", sections: [CPListSection(items: items)])
-        interface.pushTemplate(list, animated: true, completion: nil)
+    private struct Person {
+        let id: String?  // contact id (owners) — needed for the delay notice
+        let name: String
+        let phone: String?
+        let email: String?
+        let kind: String
     }
 
     private func showContacts(for p: PropertyResponse) async {
         guard let interface else { return }
-        let vendors = (try? await api.getMyPropertyVendors(propertyId: p.id)) ?? []
-        var items: [CPListItem] = []
-        for v in vendors {
-            guard let phone = v.phone, !phone.isEmpty else { continue }
-            let item = CPListItem(text: v.name, detailText: phone)
-            item.accessoryType = .disclosureIndicator
-            item.handler = { [weak self] _, completion in
-                self?.call(phone)
-                completion()
+        async let ownersTask = api.getAdminPropertyContacts(propertyId: p.id)
+        async let vendorsTask = api.getMyPropertyVendors(propertyId: p.id)
+        let owners = (try? await ownersTask) ?? []
+        let vendors = (try? await vendorsTask) ?? []
+
+        var people: [Person] = owners.map {
+            Person(id: $0.contact_id, name: $0.name, phone: $0.phone, email: $0.email,
+                   kind: $0.contract_type.lowercased().contains("tenant") ? "Mieter" : "Eigentümer")
+        }
+        people += vendors.map { Person(id: nil, name: $0.name, phone: $0.phone, email: $0.email, kind: "Dienstleister") }
+
+        func section(_ title: String, _ list: [Person]) -> CPListSection? {
+            guard !list.isEmpty else { return nil }
+            let items: [CPListItem] = list.map { person in
+                let detail = [person.phone, person.email].compactMap { $0 }.joined(separator: " · ")
+                let item = CPListItem(text: person.name, detailText: detail.isEmpty ? "keine Kontaktdaten" : detail)
+                item.accessoryType = .disclosureIndicator
+                item.handler = { [weak self] _, completion in
+                    self?.showPersonActions(person, property: p)
+                    completion()
+                }
+                return item
             }
-            items.append(item)
+            return CPListSection(items: items, header: title, sectionIndexTitle: nil)
         }
-        if items.isEmpty {
-            items = [CPListItem(text: "Keine Telefonnummern hinterlegt", detailText: nil)]
-        }
-        let list = CPListTemplate(title: p.name, sections: [CPListSection(items: items)])
+        let sections = [
+            section("Eigentümer / Mieter", people.filter { $0.kind != "Dienstleister" }),
+            section("Dienstleister", people.filter { $0.kind == "Dienstleister" }),
+        ].compactMap { $0 }
+
+        let list = CPListTemplate(
+            title: p.name,
+            sections: sections.isEmpty ? [CPListSection(items: [CPListItem(text: "Keine Kontakte hinterlegt", detailText: nil)])] : sections
+        )
         interface.pushTemplate(list, animated: true, completion: nil)
+    }
+
+    /// Call, or send the one-tap "Ich verspäte mich" (our backend e-mails the
+    /// contact with an ETA and, when the phone has a fix, a Maps link).
+    private func showPersonActions(_ person: Person, property: PropertyResponse) {
+        guard let interface else { return }
+        var actions: [CPAlertAction] = []
+        if let phone = person.phone, !phone.isEmpty {
+            actions.append(CPAlertAction(title: "Anrufen", style: .default) { [weak self] _ in
+                self?.interface?.dismissTemplate(animated: true, completion: nil)
+                self?.call(phone)
+            })
+        }
+        if person.id != nil, person.email != nil {
+            for minutes in [10, 20, 30] {
+                actions.append(CPAlertAction(title: "Verspäte mich \(minutes) Min", style: .default) { [weak self] _ in
+                    self?.interface?.dismissTemplate(animated: true, completion: nil)
+                    Task { @MainActor in await self?.sendDelay(person, minutes: minutes, property: property) }
+                })
+            }
+        }
+        actions.append(CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in
+            self?.interface?.dismissTemplate(animated: true, completion: nil)
+        })
+        let subtitle = [person.kind, person.phone ?? person.email ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        interface.presentTemplate(CPAlertTemplate(titleVariants: [person.name, subtitle], actions: actions), animated: true, completion: nil)
+    }
+
+    private func sendDelay(_ person: Person, minutes: Int, property: PropertyResponse) async {
+        guard let cid = person.id else { return }
+        let loc = TripTracker.shared.currentCoordinate
+        do {
+            let r = try await api.sendDelayNotice(
+                DelayNoticeBody(contact_id: cid, minutes: minutes, lat: loc?.latitude, lng: loc?.longitude, property_id: property.id)
+            )
+            alert(r.sent ? "Mitteilung gesendet" : "Nicht gesendet", r.detail)
+        } catch {
+            alert("Nicht gesendet", "Die Mitteilung konnte nicht verschickt werden.")
+        }
     }
 
     private func call(_ phone: String) {

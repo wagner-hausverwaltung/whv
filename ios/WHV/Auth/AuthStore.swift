@@ -65,7 +65,14 @@ final class AuthStore: ObservableObject {
             let tokens = try await api.login(email: email, password: password)
             await persist(tokens)
         } catch let error as APIError {
-            self.lastError = error.errorDescription
+            // 422 on /auth/login = the address didn't validate (classic: "~"
+            // instead of "-" from an autocorrecting keyboard). A status code
+            // alone has cost support round-trips; say what to check.
+            if case .http(let status, _) = error, status == 422 {
+                self.lastError = "E-Mail-Adresse ungültig – bitte Schreibweise prüfen (z. B. Bindestrich statt „~“)."
+            } else {
+                self.lastError = error.errorDescription
+            }
         } catch {
             self.lastError = error.localizedDescription
         }
