@@ -87,5 +87,15 @@ struct WHVShortcuts: AppShortcutsProvider {
             shortTitle: "Frag WHV",
             systemImageName: "bubble.left.and.text.bubble"
         )
+        AppShortcut(
+            intent: NoteWHVIntent(),
+            phrases: [
+                "\(.applicationName) Notiz",
+                "Notiz an \(.applicationName)",
+                "Notiz für \(.applicationName)",
+            ],
+            shortTitle: "WHV Notiz",
+            systemImageName: "square.and.pencil"
+        )
     }
 }
