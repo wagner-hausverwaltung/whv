@@ -65,6 +65,9 @@ struct PropertyResponse: Codable, Hashable {
     let number: String?
     let postal_code: String?
     let image_url: String?
+    // Geocoded server-side; used to suggest the destination of a trip.
+    let lat: Double?
+    let lng: Double?
 }
 
 /// One contract currently active on a unit. Backend bundles them
@@ -881,6 +884,53 @@ struct APIClient {
             return await DemoStore.shared.activity(limit: limit)
         }
         return try await authedGET("/me/activity?limit=\(limit)")
+    }
+
+
+    // MARK: Fahrtenbuch (Verwalter-only, ADR-0020)
+
+    func getMyTrips(month: String? = nil, status: String? = nil) async throws -> [TripResponse] {
+        if DemoFlag.isActive { return [] }
+        var q: [String] = []
+        if let month { q.append("month=\(month)") }
+        if let status { q.append("status=\(status)") }
+        let qs = q.isEmpty ? "" : "?" + q.joined(separator: "&")
+        return try await authedGET("/me/trips\(qs)")
+    }
+
+    func getRunningTrip() async throws -> TripResponse? {
+        if DemoFlag.isActive { return nil }
+        return try await authedGET("/me/trips/running")
+    }
+
+    func startTrip(_ body: TripStartBody) async throws -> TripResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips", method: "POST", body: body)
+    }
+
+    func completeTrip(_ body: TripCompleteBody) async throws -> TripResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips/complete", method: "POST", body: body)
+    }
+
+    func updateTrip(id: String, body: TripUpdateBody) async throws -> TripResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips/\(id)", method: "PATCH", body: body)
+    }
+
+    func deleteTrip(id: String) async throws {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        // Percent-encode the token for the path segment (it's hex so
+        // usually safe, but defensive).
+        let encoded =
+            id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        var request = URLRequest(url: baseURL.appending(path: "/me/trips/\(encoded)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
     }
 
     // MARK: Anfragen / Angebote (Verwalter-only, ADR-0019)

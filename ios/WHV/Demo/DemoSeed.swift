@@ -41,7 +41,7 @@ struct DemoSeed {
             street: "Königstraße",
             number: "42",
             postal_code: "70173",
-            image_url: nil
+            image_url: nil, lat: nil, lng: nil
         )
         let mv = PropertyResponse(
             id: "demo-mv-hohewart",
@@ -52,7 +52,7 @@ struct DemoSeed {
             street: "Hohewartstraße",
             number: "13",
             postal_code: "70469",
-            image_url: nil
+            image_url: nil, lat: nil, lng: nil
         )
 
         // ETV per property: 1 past + 1 planned each.

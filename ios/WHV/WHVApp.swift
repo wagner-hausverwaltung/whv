@@ -31,6 +31,9 @@ struct WHVApp: App {
     @AppStorage("hasAcceptedLegalConsent") private var hasAcceptedLegal = false
 
     init() {
+        // Fahrtenbuch: restore a running trip / re-arm detection even on a
+        // background relaunch (significant location change), before any view.
+        Task { @MainActor in TripTracker.shared.bootstrap() }
         // Single launch-arg gate. UI test runs (see WHVUITests)
         // inject -UITestScreenshots to neutralise environment state
         // that would otherwise interfere with screenshot capture:

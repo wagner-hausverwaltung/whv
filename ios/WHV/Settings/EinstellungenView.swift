@@ -315,7 +315,11 @@ struct EinstellungenView: View {
         }
     }
 
+    @ViewBuilder
     private var infoSection: some View {
+        if authStore.user?.role.lowercased() == "verwalter" {
+            fahrtenbuchSection
+        }
         Section("App") {
             HStack {
                 Text("Version")
@@ -323,6 +327,27 @@ struct EinstellungenView: View {
                 Text(appVersionString)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// Fahrtenbuch (ADR-0020) — the consent switch lives here. Nothing is
+    /// recorded until the Verwalter turns automatic detection on or taps
+    /// "Fahrt starten" on the Start tab.
+    private var fahrtenbuchSection: some View {
+        Section {
+            Toggle("Fahrten automatisch erkennen", isOn: Binding(
+                get: { TripTracker.shared.autoDetectEnabled },
+                set: { TripTracker.shared.autoDetectEnabled = $0 }
+            ))
+            Toggle("Route speichern", isOn: Binding(
+                get: { TripTracker.shared.storeRoute },
+                set: { TripTracker.shared.storeRoute = $0 }
+            ))
+            NavigationLink("Meine Fahrten") { FahrtenListView() }
+        } header: {
+            Text("Fahrtenbuch")
+        } footer: {
+            Text("Erkennung nutzt Bewegungssensor und Standort (auch im Hintergrund) und legt nur Dienstfahrten an: Kilometergeld 0,30 €/km, Auslagen je Objekt. Die Route ist optional.")
         }
     }
 
