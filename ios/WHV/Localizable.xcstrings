@@ -1,3141 +1,3764 @@
 {
-  "sourceLanguage": "de",
-  "strings": {
-    "": {
-      "shouldTranslate": false
+  "sourceLanguage" : "de",
+  "strings" : {
+    "" : {
+      "shouldTranslate" : false
     },
-    "%lld": {
-      "shouldTranslate": false
+    "—" : {
+
     },
-    "%lld. %@": {
-      "shouldTranslate": false
+    "— kein Objekt —" : {
+
     },
-    "Abbrechen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
+    "· %lld Rechnung" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %lld invoice"
           }
         }
       }
     },
-    "Abbuchungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Direct debits"
+    "· %lld Rechnungen" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %lld invoices"
           }
         }
       }
     },
-    "Abgegeben": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cast"
+    "· automatisch" : {
+
+    },
+    "· in der Nähe" : {
+
+    },
+    "„%@“" : {
+
+    },
+    "%@" : {
+
+    },
+    "%@ – %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ – %2$@"
           }
         }
       }
     },
-    "Abgehalten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Held"
+    "%@ · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
           }
         }
       }
     },
-    "Abgelehnt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rejected"
+    "%@ · seit %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · seit %2$@"
           }
         }
       }
     },
-    "Abgesagt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancelled"
+    "%@ %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
           }
         }
       }
+    },
+    "%@ €" : {
+
+    },
+    "%lld" : {
+      "shouldTranslate" : false
     },
-    "Ablesedatum": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading date"
+    "%lld / %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld"
           }
         }
       }
     },
-    "Abmelden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign out"
+    "%lld Anfragen" : {
+
+    },
+    "%lld Fahrt(en) warten auf Upload." : {
+
+    },
+    "%lld Fahrten bestätigen" : {
+
+    },
+    "%lld fällig" : {
+
+    },
+    "%lld von %lld Schritten erledigt" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld von %2$lld Schritten erledigt"
           }
         }
       }
+    },
+    "%lld. %@" : {
+      "shouldTranslate" : false
     },
-    "Abstimmung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vote"
+    "%lld/%lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
           }
         }
       }
+    },
+    "+ %lld weitere Buchungen" : {
+
+    },
+    "+%lld weitere" : {
+
     },
-    "Abstimmungsergebnis": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vote result"
+    "≈ %@ € brutto inkl. 19%% USt" : {
+
+    },
+    "1 Fahrt bestätigen" : {
+
+    },
+    "Abbrechen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
           }
         }
       }
     },
-    "Abwasser": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wastewater"
+    "Abbuchungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Direct debits"
           }
         }
       }
-    },
-    "Activity ID": {
-      "shouldTranslate": false
     },
-    "Aktive Liegenschaft": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Active property"
+    "Abgegeben" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cast"
           }
         }
       }
     },
-    "Aktuell": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Current"
+    "Abgehalten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Held"
           }
         }
       }
     },
-    "Alle Liegenschaften": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All properties"
+    "Abgelehnt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rejected"
           }
         }
       }
     },
-    "Allgemeine Frage": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "General question"
+    "Abgesagt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled"
           }
         }
       }
     },
-    "Allgemeiner Schaden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "General damage"
+    "Ablesedatum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading date"
           }
         }
       }
     },
-    "Allgemeines": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "General"
+    "Abmelden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out"
           }
         }
       }
     },
-    "Allstimmigkeit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allstimmigkeit"
+    "Absender" : {
+
+    },
+    "Absender, Betreff, Objekt …" : {
+
+    },
+    "Abstimmung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vote"
           }
         }
       }
     },
-    "An Bank übermittelt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sent to bank"
+    "Abstimmungsergebnis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vote result"
           }
         }
       }
     },
-    "Andere E-Mail?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Different email?"
+    "Abwasser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wastewater"
           }
         }
       }
+    },
+    "Activity ID" : {
+      "shouldTranslate" : false
     },
-    "Angenommen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepted"
+    "Aktionen" : {
+
+    },
+    "Aktive Liegenschaft" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active property"
           }
         }
       }
     },
-    "Anhänge": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Attachments"
+    "Aktuell" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
           }
         }
       }
     },
-    "Anmelden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in"
+    "Alle Liegenschaften" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All properties"
           }
         }
       }
     },
-    "Anmelden…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signing in…"
+    "Allgemeine Frage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General question"
           }
         }
       }
     },
-    "Antworten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reply"
+    "Allgemeiner Schaden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General damage"
           }
         }
       }
     },
-    "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Answers can contain errors — the linked documents are authoritative."
+    "Allgemeines" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
           }
         }
       }
     },
-    "App": {
-      "shouldTranslate": false
+    "Allstimmigkeit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allstimmigkeit"
+          }
+        }
+      }
     },
-    "App-Sperre": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App lock"
+    "An Bank übermittelt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to bank"
           }
         }
       }
     },
-    "App-Sperre mit %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App lock with %@"
+    "Andere E-Mail?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different email?"
           }
         }
       }
+    },
+    "Anfrage" : {
+
+    },
+    "Anfrage löschen" : {
+
+    },
+    "Anfragen" : {
+
     },
-    "Assistent öffnen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open assistant"
+    "Angaben bearbeiten" : {
+
+    },
+    "Angaben speichern" : {
+
+    },
+    "Angebot herunterladen" : {
+
+    },
+    "Angebot senden" : {
+
+    },
+    "Angenommen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accepted"
           }
         }
       }
     },
-    "Aufgabe aus der Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Task from the Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“."
+    "Anhänge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachments"
           }
         }
       }
     },
-    "Aufgabe erstellen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create task"
+    "Anmelden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in"
           }
         }
       }
     },
-    "Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Task created and the Verwalter team notified."
+    "Anmelden…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing in…"
           }
         }
       }
+    },
+    "Anrede" : {
+
+    },
+    "Anschrift" : {
+
     },
-    "Aus Mediathek": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "From library"
+    "Antworten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reply"
           }
         }
       }
     },
-    "Aus der Einladung übernommen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Taken from the invitation."
+    "Antworten können Fehler enthalten — maßgeblich sind die verlinkten Dokumente." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answers can contain errors — the linked documents are authoritative."
           }
         }
       }
     },
-    "Auszahlung = Betrag an Sie als Eigentümer. Ohne Gewähr.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Payout = amount paid to you as the Eigentümer. Without guarantee."
+    "App" : {
+      "shouldTranslate" : false
+    },
+    "App-Sperre" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App lock"
           }
         }
       }
     },
-    "Automatische Erkennung nicht verfügbar — bitte Wert eintragen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatic recognition unavailable — please enter the value."
+    "App-Sperre mit %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App lock with %@"
           }
         }
       }
+    },
+    "Art" : {
+
+    },
+    "Assistent" : {
+
     },
-    "Bankverbindung / SEPA": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bank details / SEPA"
+    "Assistent öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open assistant"
           }
         }
       }
     },
-    "Baumangel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Construction defect"
+    "Aufgabe aus der Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task from the Eigentümerversammlung „%@“, Tagesordnungspunkt „%@“."
           }
         }
       }
     },
-    "Beenden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exit"
+    "Aufgabe erstellen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create task"
           }
         }
       }
     },
-    "Beirat": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beirat"
+    "Aufgabe wurde erstellt und das Verwalter-Team benachrichtigt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task created and the Verwalter team notified."
           }
         }
       }
     },
-    "Belege": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Receipts"
+    "Auftraggeber" : {
+
+    },
+    "Aus der Einladung übernommen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taken from the invitation."
           }
         }
       }
     },
-    "Benachrichtigungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Notifications"
+    "Aus Mediathek" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From library"
           }
         }
       }
+    },
+    "Ausführung" : {
+
     },
-    "Beschluss": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beschluss"
+    "Auszahlung = Betrag an Sie als Eigentümer. Ohne Gewähr." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payout = amount paid to you as the Eigentümer. Without guarantee."
           }
         }
       }
     },
-    "Beschlussantrag": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beschlussantrag"
+    "Automatisch erkannt" : {
+
+    },
+    "Automatische Erkennung nicht verfügbar — bitte Wert eintragen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic recognition unavailable — please enter the value."
           }
         }
       }
+    },
+    "Bankverbindung" : {
+
     },
-    "Beschlusstext": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beschlusstext"
+    "Bankverbindung / SEPA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bank details / SEPA"
           }
         }
       }
     },
-    "Beschlussumsetzung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beschlussumsetzung"
+    "Baumangel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Construction defect"
           }
         }
       }
     },
-    "Beschlüsse": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beschlüsse"
+    "bearbeitet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "edited"
           }
         }
       }
     },
-    "Beschlüsse konnten nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load Beschlüsse."
+    "Bearbeitung" : {
+
+    },
+    "Beenden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit"
           }
         }
       }
     },
-    "Beschlüsse werden geladen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading Beschlüsse …"
+    "Beginn" : {
+
+    },
+    "Beirat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beirat"
           }
         }
       }
     },
-    "Beschreibung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Description"
+    "Belege" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Receipts"
           }
         }
       }
     },
-    "Bestätigen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirm"
+    "Benachrichtigungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
           }
         }
       }
     },
-    "Betreff": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subject"
+    "Beschluss" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschluss"
           }
         }
       }
     },
-    "Betriebskosten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Operating costs"
+    "Beschlussantrag" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlussantrag"
           }
         }
       }
     },
-    "Bevollmächtigen Sie eine Vertretung für Ihre Stimme — digital unterschrieben.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Authorize a proxy to cast your vote — digitally signed."
+    "Beschlüsse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlüsse"
           }
         }
       }
     },
-    "Bevollmächtigte Person": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Authorized person"
+    "Beschlüsse konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load Beschlüsse."
           }
         }
       }
     },
-    "Bitte beschreiben …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please describe …"
+    "Beschlüsse werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading Beschlüsse …"
           }
         }
       }
     },
-    "Bitte einen gültigen Zählerstand eintragen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please enter a valid Zählerstand."
+    "Beschlusstext" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlusstext"
           }
         }
       }
     },
-    "Bitte geben Sie an, wen Sie bevollmächtigen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please specify whom you are authorizing."
+    "Beschlussumsetzung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlussumsetzung"
           }
         }
       }
     },
-    "Bitte mit Ihrem Portal-Konto anmelden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please sign in with your portal account."
+    "Beschreibung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
           }
         }
       }
     },
-    "Buchhaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accounting"
+    "Bestätigen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm"
           }
         }
       }
+    },
+    "Betrag" : {
+
     },
-    "Das Protokoll wird in der Regel innerhalb von vier Wochen nach der Versammlung hochgeladen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The protocol is usually uploaded within four weeks of the Versammlung."
+    "Betreff" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subject"
           }
         }
       }
     },
-    "Datenschutz": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Privacy"
+    "Betriebskosten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Operating costs"
           }
         }
       }
     },
-    "Datenänderung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Data change"
+    "Bevollmächtigen Sie eine Vertretung für Ihre Stimme — digital unterschrieben." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorize a proxy to cast your vote — digitally signed."
           }
         }
       }
     },
-    "Demo ansehen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View demo"
+    "Bevollmächtigte Person" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorized person"
           }
         }
       }
     },
-    "Demo-Modus — keine echten Daten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Demo mode — no real data"
+    "Bevorzugt" : {
+
+    },
+    "Bezeichnung" : {
+
+    },
+    "Bitte beschreiben …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please describe …"
           }
         }
       }
     },
-    "Die Abstimmung erfolgt per E-Mail über den Link in Ihrer Einladung.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voting is done by e-mail via the link in your invitation."
+    "Bitte das Ticket kurz beschreiben (mind. 3 Zeichen)." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please describe the ticket briefly (min. 3 characters)."
           }
         }
       }
     },
-    "Die App wird gesperrt, wenn sie länger als eine Minute im Hintergrund war. Kurze Tab-Wechsel lösen keine Abfrage aus.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The app locks when it has been in the background for more than a minute. Quick tab switches don’t trigger a prompt."
+    "Bitte einen gültigen Zählerstand eintragen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please enter a valid Zählerstand."
           }
         }
       }
     },
-    "Die Sprachänderung wird erst nach einem vollständigen Neustart der App wirksam (App über den App-Switcher schließen und neu öffnen).": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The language change only takes effect after a full restart of the app (close it via the App Switcher and reopen)."
+    "Bitte geben Sie an, wen Sie bevollmächtigen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please specify whom you are authorizing."
           }
         }
       }
     },
-    "Dienstleister": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Service provider"
+    "Bitte mit Ihrem Portal-Konto anmelden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please sign in with your portal account."
           }
         }
       }
     },
-    "Dieses Ticket ist geschlossen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This ticket is closed."
+    "Buchhaltung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounting"
           }
         }
       }
+    },
+    "Buchungsdetails" : {
+
     },
-    "Dirk Ullrich anrufen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Call Dirk Ullrich"
+    "Buchungsdetails werden geladen …" : {
+
+    },
+    "Das Dokument konnte nicht geöffnet werden." : {
+
+    },
+    "Das Protokoll wird in der Regel innerhalb von vier Wochen nach der Versammlung hochgeladen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The protocol is usually uploaded within four weeks of the Versammlung."
           }
         }
       }
     },
-    "Diskussion": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Discussion"
+    "Datenänderung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data change"
           }
         }
       }
     },
-    "Dokumente": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Documents"
+    "Datenschutz" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
           }
         }
       }
+    },
+    "Datum" : {
+
     },
-    "Dokumentenanfrage": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Document request"
+    "Demo ansehen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View demo"
           }
         }
       }
     },
-    "Dunkel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dark"
+    "Demo-Modus — keine echten Daten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo mode — no real data"
           }
         }
       }
     },
-    "E-Mail": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Email"
+    "Der Assistent ist derzeit nicht verfügbar." : {
+
+    },
+    "Die Abstimmung erfolgt per E-Mail über den Link in Ihrer Einladung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voting is done by e-mail via the link in your invitation."
           }
         }
       }
+    },
+    "Die Anfrage ist fehlgeschlagen. Bitte erneut versuchen." : {
+
     },
-    "E-Mail-Adresse": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Email address"
+    "Die App wird gesperrt, wenn sie länger als eine Minute im Hintergrund war. Kurze Tab-Wechsel lösen keine Abfrage aus." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app locks when it has been in the background for more than a minute. Quick tab switches don’t trigger a prompt."
           }
         }
       }
     },
-    "ETV": {
-      "shouldTranslate": false
+    "Die Sprachänderung wird erst nach einem vollständigen Neustart der App wirksam (App über den App-Switcher schließen und neu öffnen)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The language change only takes effect after a full restart of the app (close it via the App Switcher and reopen)."
+          }
+        }
+      }
     },
-    "ETV ansehen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View ETV"
+    "Dienstleister" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service provider"
           }
         }
       }
+    },
+    "Dienstleister suchen" : {
+
+    },
+    "Diese Anfrage endgültig löschen? Das kann nicht rückgängig gemacht werden." : {
+
     },
-    "ETV läuft: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ETV in progress: %@"
+    "Dieses Ticket ist geschlossen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ticket is closed."
           }
         }
       }
     },
-    "ETV-Einladungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ETV invitations"
+    "Dirk Ullrich anrufen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call Dirk Ullrich"
           }
         }
       }
     },
-    "ETV-Kommentare": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ETV comments"
+    "Diskussion" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discussion"
           }
         }
       }
     },
-    "ETV: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ETV: %@"
+    "Dokumente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documents"
           }
         }
       }
     },
-    "Eigentümer": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eigentümer"
+    "Dokumentenanfrage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Document request"
           }
         }
       }
     },
-    "Eigentümerversammlung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eigentümerversammlung"
+    "Dunkel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark"
           }
         }
       }
     },
-    "Eingeladen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invited"
+    "E-Mail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email"
           }
         }
       }
     },
-    "Einheiten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Units"
+    "E-Mail-Adresse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email address"
           }
         }
       }
     },
-    "Einladung einlösen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redeem invitation"
+    "E-Mail-Text" : {
+
+    },
+    "Eigentümer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigentümer"
           }
         }
       }
     },
-    "Einladung einlösen + anmelden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redeem invitation + sign in"
+    "Eigentümerversammlung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigentümerversammlung"
           }
         }
       }
     },
-    "Einladungscode": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invitation code"
+    "Eine freundliche Erinnerung per E-Mail an den Absender senden?" : {
+
+    },
+    "Eingeladen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invited"
           }
         }
       }
+    },
+    "Einheit oder Name suchen" : {
+
     },
-    "Einladungscode einlösen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redeem invitation code"
+    "Einheiten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Units"
           }
         }
       }
     },
-    "Einstellungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
+    "Einladung einlösen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeem invitation"
           }
         }
       }
     },
-    "Elementarschaden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elemental damage"
+    "Einladung einlösen + anmelden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeem invitation + sign in"
           }
         }
       }
     },
-    "Enthaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abstention"
+    "Einladungscode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invitation code"
           }
         }
       }
     },
-    "Entschieden: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decided: %@"
+    "Einladungscode einlösen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeem invitation code"
           }
         }
       }
     },
-    "Entsperren": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unlock"
+    "Einstellungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
           }
         }
       }
     },
-    "Entwurf": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Draft"
+    "Elementarschaden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elemental damage"
           }
         }
       }
     },
-    "Ergebnis": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Result"
+    "Empfänger" : {
+
+    },
+    "Ende" : {
+
+    },
+    "Enthaltung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abstention"
           }
         }
       }
+    },
+    "Entschieden" : {
+
     },
-    "Ergebnis als PDF öffnen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open result PDF"
+    "Entschieden: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decided: %@"
           }
         }
       }
     },
-    "Erkennung fehlgeschlagen — bitte Wert eintragen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recognition failed — please enter the value."
+    "Entsperren" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock"
           }
         }
       }
     },
-    "Erneut versuchen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try again"
+    "Entwurf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
           }
         }
       }
     },
-    "Erscheinungsbild": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appearance"
+    "erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "met"
           }
         }
       }
     },
-    "Erstellen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create"
+    "Ergebnis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result"
           }
         }
       }
     },
-    "Erteilen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grant"
+    "Ergebnis als PDF öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open result PDF"
           }
         }
       }
     },
-    "Export erfolgt nach DSGVO Art. 20 als JSON-Datei. Konto löschen deaktiviert Ihr Konto sofort; die endgültige Löschung erfolgt nach 30 Tagen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Export follows GDPR Art. 20 as a JSON file. Deleting the account deactivates it immediately; the final deletion happens after 30 days."
+    "Erinnerung %lld× gesendet, zuletzt am %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Erinnerung %1$lld× gesendet, zuletzt am %2$@"
           }
         }
       }
     },
-    "Fachinfo": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Industry news"
+    "Erinnerung senden" : {
+
+    },
+    "Erkennung fehlgeschlagen — bitte Wert eintragen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognition failed — please enter the value."
           }
         }
       }
+    },
+    "Erkennung nutzt Bewegungssensor und Standort (auch im Hintergrund) und legt nur Dienstfahrten an: Kilometergeld 0,30 €/km, Auslagen je Objekt. Die Route ist optional." : {
+
     },
-    "Feuerschaden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fire damage"
+    "erledigt am %@" : {
+
+    },
+    "Erneut versuchen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
           }
         }
       }
     },
-    "Fläche": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Area"
+    "Erscheinungsbild" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
           }
         }
       }
     },
-    "Folgt in Phase 2.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Coming in phase 2."
+    "Erstellen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
           }
         }
       }
     },
-    "Foto": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photo"
+    "Erteilen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grant"
           }
         }
       }
+    },
+    "ETV" : {
+      "shouldTranslate" : false
     },
-    "Foto aufnehmen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Take photo"
+    "ETV ansehen" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View ETV"
           }
         }
       }
     },
-    "Foto ausgewählt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photo selected"
+    "ETV läuft: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV in progress: %@"
           }
         }
       }
     },
-    "Frage oder Antwort verfassen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Write a question or reply …"
+    "ETV-Einladungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV invitations"
           }
         }
       }
     },
-    "Fragen & Antworten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questions & Answers"
+    "ETV-Kommentare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV comments"
           }
         }
       }
     },
-    "Fragen Sie zu Ihren Dokumenten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ask about your documents"
+    "ETV: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV: %@"
           }
         }
       }
     },
-    "Frist: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deadline: %@"
+    "Export erfolgt nach DSGVO Art. 20 als JSON-Datei. Konto löschen deaktiviert Ihr Konto sofort; die endgültige Löschung erfolgt nach 30 Tagen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export follows GDPR Art. 20 as a JSON file. Deleting the account deactivates it immediately; the final deletion happens after 30 days."
           }
         }
       }
     },
-    "Für diese Liegenschaft sind keine Dokumente hinterlegt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No documents are on file for this property."
+    "Fachinfo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Industry news"
           }
         }
       }
     },
-    "Für diese Liegenschaft sind noch keine Zähler hinterlegt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Zähler have been set up for this property yet."
+    "Fahrt" : {
+
+    },
+    "Fahrt bestätigen" : {
+
+    },
+    "Fahrt läuft" : {
+
+    },
+    "Fahrt starten" : {
+
+    },
+    "Fahrten automatisch erkennen" : {
+
+    },
+    "Fahrten werden automatisch erkannt" : {
+
+    },
+    "Fahrtenbuch" : {
+
+    },
+    "Fällig bis %@" : {
+
+    },
+    "Fertig" : {
+
+    },
+    "Feuerschaden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fire damage"
           }
         }
       }
     },
-    "Für weitere Informationen oder Fragen zögern Sie bitte nicht, uns zu kontaktieren.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "For further information or questions, please do not hesitate to contact us."
+    "Firma" : {
+
+    },
+    "Fläche" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Area"
           }
         }
       }
     },
-    "Geplant": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scheduled"
+    "Folgt in Phase 2." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coming in phase 2."
           }
         }
       }
     },
-    "Geschlossen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Closed"
+    "Foto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
           }
         }
       }
     },
-    "Geschlossen (%lld)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Closed (%lld)"
+    "Foto aufnehmen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take photo"
           }
         }
       }
     },
-    "Hausgeld-Anpassung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hausgeld adjustment"
+    "Foto ausgewählt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo selected"
           }
         }
       }
+    },
+    "Frag WHV" : {
+
+    },
+    "Frag WHV: ${question}" : {
+
+    },
+    "Frage" : {
+
     },
-    "Heizfl.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Heat. area"
+    "Frage oder Antwort verfassen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a question or reply …"
           }
         }
       }
     },
-    "Hell": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Light"
+    "Fragen & Antworten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions & Answers"
           }
         }
       }
     },
-    "Hier erscheinen Ihre Anfragen + Schadensmeldungen an die Verwaltung.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your requests and damage reports to the management will appear here."
+    "Fragen Sie zu Ihren Dokumenten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask about your documents"
           }
         }
       }
     },
-    "Hier können Sie Rückfragen zu dieser Mitteilung stellen. Antworten erscheinen direkt unter der Frage.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can ask follow-up questions about this announcement here. Replies appear directly below the question."
+    "Fragen zu Ihren Dokumenten — oder die Verwaltung anrufen" : {
+
+    },
+    "Frei" : {
+
+    },
+    "Frist: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deadline: %@"
           }
         }
       }
+    },
+    "Für die Erkennung im Hintergrund Standort auf „Immer“ stellen." : {
+
     },
-    "Hier können Sie Rückfragen zu dieser Versammlung stellen. Antworten erscheinen direkt unter der Frage.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can ask follow-up questions about this Versammlung here. Replies appear directly below the question."
+    "Für diese Liegenschaft sind keine Dokumente hinterlegt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No documents are on file for this property."
           }
         }
       }
     },
-    "Hochgeladen am %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uploaded on %@"
+    "Für diese Liegenschaft sind noch keine Zähler hinterlegt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Zähler have been set up for this property yet."
           }
         }
       }
     },
-    "Ich komme später": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Running late"
+    "Für weitere Informationen oder Fragen zögern Sie bitte nicht, uns zu kontaktieren." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For further information or questions, please do not hesitate to contact us."
           }
         }
       }
     },
-    "Ihr Konto ist noch nicht mit einer Liegenschaft verknüpft. Bitte wenden Sie sich an die Verwaltung.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your account isn’t linked to a property yet. Please contact the management."
+    "Geburtsdatum" : {
+
+    },
+    "Geplant" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scheduled"
           }
         }
       }
     },
-    "Ihr Konto wird sofort deaktiviert und alle aktiven Sitzungen beendet. Die DSGVO-konforme endgültige Löschung erfolgt nach 30 Tagen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your account will be deactivated immediately and all active sessions ended. The GDPR-compliant final deletion happens after 30 days."
+    "Geschlossen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed"
           }
         }
       }
     },
-    "Ihre Antwort …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your reply …"
+    "Geschlossen (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed (%lld)"
           }
         }
       }
     },
-    "Ihre Aufgabe": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your task"
+    "Handelsregister-Nr." : {
+
+    },
+    "Hausgeld-Anpassung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hausgeld adjustment"
           }
         }
       }
+    },
+    "Hausgeldkonto" : {
+
     },
-    "Ihre Liegenschaften": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your properties"
+    "Heizfl." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heat. area"
           }
         }
       }
     },
-    "Ihre Stimme": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your vote"
+    "Hell" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
           }
         }
       }
     },
-    "Ihre Unterschrift": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your signature"
+    "Hier erscheinen Ihre Anfragen + Schadensmeldungen an die Verwaltung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your requests and damage reports to the management will appear here."
           }
         }
       }
     },
-    "Im Demo-Modus nicht verfügbar.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not available in demo mode."
+    "Hier können Sie Rückfragen zu dieser Mitteilung stellen. Antworten erscheinen direkt unter der Frage." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can ask follow-up questions about this announcement here. Replies appear directly below the question."
           }
         }
       }
     },
-    "Immobilienbewertung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Property valuation"
+    "Hier können Sie Rückfragen zu dieser Versammlung stellen. Antworten erscheinen direkt unter der Frage." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can ask follow-up questions about this Versammlung here. Replies appear directly below the question."
           }
         }
       }
     },
-    "Immobilienvertrieb": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Property sales"
+    "Hochgeladen am %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uploaded on %@"
           }
         }
       }
     },
-    "In Safari öffnen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open in Safari"
+    "Ich komme später" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running late"
           }
         }
       }
     },
-    "Information": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Information"
+    "Ihr Konto ist noch nicht mit einer Liegenschaft verknüpft. Bitte wenden Sie sich an die Verwaltung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account isn’t linked to a property yet. Please contact the management."
           }
         }
       }
     },
-    "Ja": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yes"
+    "Ihr Konto wird sofort deaktiviert und alle aktiven Sitzungen beendet. Die DSGVO-konforme endgültige Löschung erfolgt nach 30 Tagen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account will be deactivated immediately and all active sessions ended. The GDPR-compliant final deletion happens after 30 days."
           }
         }
       }
     },
-    "Jahresabrechnung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jahresabrechnung"
+    "Ihre Antwort …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your reply …"
           }
         }
       }
     },
-    "Kalender": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Calendar"
+    "Ihre Aufgabe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your task"
           }
         }
       }
     },
-    "Kalender konnte nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not load the calendar."
+    "Ihre Frage…" : {
+
+    },
+    "Ihre Liegenschaften" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your properties"
           }
         }
       }
     },
-    "Kategorie": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Category"
+    "Ihre Stimme" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your vote"
           }
         }
       }
     },
-    "Kaufinteresse": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Purchase interest"
+    "Ihre Unterschrift" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your signature"
           }
         }
       }
     },
-    "Keine Beschlüsse": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Beschlüsse"
+    "Im Demo-Modus nicht verfügbar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available in demo mode."
           }
         }
       }
     },
-    "Keine Liegenschaft gewählt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No property selected"
+    "Immobilienbewertung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Property valuation"
           }
         }
       }
     },
-    "Keine Liegenschaften": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No properties"
+    "Immobilienvertrieb" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Property sales"
           }
         }
       }
     },
-    "Keine Mitteilungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No announcements"
+    "In diesem Monat wurde nichts aufgezeichnet." : {
+
+    },
+    "In Safari öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Safari"
           }
         }
       }
     },
-    "Keine News verfügbar.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No news available."
+    "Information" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Information"
           }
         }
       }
+    },
+    "Interne Notiz …" : {
+
     },
-    "Keine Termine in diesem Monat.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No events this month."
+    "Ja" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
           }
         }
       }
     },
-    "Keine Tickets": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No tickets"
+    "Jahr" : {
+
+    },
+    "Jahresabrechnung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jahresabrechnung"
           }
         }
       }
+    },
+    "Jahresabrechnung %@" : {
+
     },
-    "Keine Versammlungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Versammlungen"
+    "Kalender" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar"
           }
         }
       }
     },
-    "Keine Zuordnung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not assigned"
+    "Kalender exportieren" : {
+
+    },
+    "Kalender konnte nicht geladen werden." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the calendar."
           }
         }
       }
     },
-    "Keine Zähler": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Zähler"
+    "Kategorie" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category"
           }
         }
       }
     },
-    "Klingelschild": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Doorbell sign"
+    "Kaufinteresse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purchase interest"
           }
         }
       }
+    },
+    "Keine Anfragen vorhanden." : {
+
     },
-    "Kommentare dienen Rückfragen — formale Anfechtungen erfolgen außerhalb des Portals.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comments are for follow-up questions — formal challenges happen outside the portal."
+    "Keine Beschlüsse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Beschlüsse"
           }
         }
       }
     },
-    "Kontaktieren Sie uns": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contact us"
+    "Keine Dokumente" : {
+
+    },
+    "Keine Fahrt aktiv" : {
+
+    },
+    "Keine Fahrten" : {
+
+    },
+    "Keine Liegenschaft" : {
+
+    },
+    "Keine Liegenschaft gewählt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No property selected"
           }
         }
       }
     },
-    "Konto": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account"
+    "Keine Liegenschaften" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No properties"
           }
         }
       }
     },
-    "Konto löschen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete account"
+    "Keine Mitteilungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No announcements"
           }
         }
       }
     },
-    "Konto löschen?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete account?"
+    "Keine neuen Hinweise" : {
+
+    },
+    "Keine News verfügbar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No news available."
           }
         }
       }
     },
-    "Kopfprinzip": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Per-head vote"
+    "Keine Termine in diesem Monat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No events this month."
           }
         }
       }
     },
-    "Können Sie nicht teilnehmen?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Can't attend?"
+    "Keine Tickets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tickets"
           }
         }
       }
+    },
+    "Keine Treffer für die Suche." : {
+
     },
-    "Lade…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading…"
+    "Keine Versammlungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Versammlungen"
           }
         }
       }
     },
-    "Legionellenprüfung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legionella check"
+    "Keine Zähler" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Zähler"
           }
         }
       }
     },
-    "Letzter Stand: %@ %@ · %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Latest reading: %@ %@ · %@"
+    "Keine Zuordnung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not assigned"
           }
         }
       }
     },
-    "Liegenschaft": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Property"
+    "Klingelschild" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doorbell sign"
           }
         }
       }
     },
-    "Liegenschaft wechseln": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Switch property"
+    "Kommentare dienen Rückfragen — formale Anfechtungen erfolgen außerhalb des Portals." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comments are for follow-up questions — formal challenges happen outside the portal."
           }
         }
       }
     },
-    "Liegenschaft wählen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose property"
+    "Können Sie nicht teilnehmen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't attend?"
           }
         }
       }
     },
-    "Liegenschaften konnten nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load properties."
+    "Konnte nicht geladen werden" : {
+
+    },
+    "Konnte nicht geladen werden." : {
+
+    },
+    "Kontakt" : {
+
+    },
+    "Kontaktieren Sie uns" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact us"
           }
         }
       }
     },
-    "Liegenschaften werden geladen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading properties …"
+    "Konto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
           }
         }
       }
     },
-    "Live aus Impower, ohne Gewähr.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Live from Impower, without guarantee."
+    "Konto %@" : {
+
+    },
+    "Konto löschen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete account"
           }
         }
       }
     },
-    "Lob": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Praise"
+    "Konto löschen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete account?"
           }
         }
       }
     },
-    "Löschen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete"
+    "Kopfprinzip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per-head vote"
           }
         }
       }
     },
-    "MEA": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MEA"
+    "Lade…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading…"
           }
         }
       }
     },
-    "Manuell": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manual"
+    "läuft gerade" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "live now"
           }
         }
       }
     },
-    "Markiert die anstehende Eigentümerversammlung als verspätet.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Marks the upcoming Eigentümerversammlung as running late."
+    "läuft gerade · %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "live now · %lld min"
           }
         }
       }
     },
-    "Mehrheitsbeschluss": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mehrheitsbeschluss"
+    "Legionellenprüfung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legionella check"
           }
         }
       }
     },
-    "Meine Daten exportieren": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Export my data"
+    "Letzter Stand: %@ %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest reading: %@ %@ · %@"
           }
         }
       }
     },
-    "Melden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Submit"
+    "Liegenschaft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Property"
           }
         }
       }
     },
-    "Mieter": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tenant"
+    "Liegenschaft wählen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose property"
           }
         }
       }
     },
-    "Mieterwechsel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tenant change"
+    "Liegenschaft wechseln" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch property"
           }
         }
       }
     },
-    "Mietverwaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rental management"
+    "Liegenschaften konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load properties."
           }
         }
       }
     },
-    "Mit der Nutzung unserer App erklären Sie sich ausschließlich mit unseren Nutzungsbedingungen und Datenschutzvereinbarungen einverstanden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "By using our app you agree exclusively to our terms of use and privacy agreements."
+    "Liegenschaften werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading properties …"
           }
         }
       }
     },
-    "Mitteilung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announcement"
+    "Live aus Impower, ohne Gewähr." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live from Impower, without guarantee."
           }
         }
       }
     },
-    "Mitteilung: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announcement: %@"
+    "Lob" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Praise"
           }
         }
       }
     },
-    "Mitteilungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announcements"
+    "Löschen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
           }
         }
       }
+    },
+    "Mandat" : {
+
     },
-    "Mitteilungen / News": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announcements / News"
+    "Mandat-Nr." : {
+
+    },
+    "Manuell" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual"
           }
         }
       }
     },
-    "Mitteilungen konnten nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load announcements."
+    "Markiert die anstehende Eigentümerversammlung als verspätet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marks the upcoming Eigentümerversammlung as running late."
           }
         }
       }
     },
-    "Mitteilungen werden geladen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading announcements …"
+    "MEA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MEA"
           }
         }
       }
     },
-    "Mitteilungen werden pro Liegenschaft angezeigt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announcements are shown per property."
+    "Mehrheitsbeschluss" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrheitsbeschluss"
           }
         }
       }
     },
-    "Modus": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mode"
+    "Meine Daten exportieren" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export my data"
           }
         }
       }
+    },
+    "Meine Fahrten" : {
+
     },
-    "Nein": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No"
+    "Melden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Submit"
           }
         }
       }
     },
-    "Neu": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New"
+    "Mietabrechnung" : {
+
+    },
+    "Mieteinnahmen %@" : {
+
+    },
+    "Mieter" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenant"
           }
         }
       }
     },
-    "Neue Aufgabe": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New task"
+    "Mieterwechsel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenant change"
           }
         }
       }
     },
-    "Neue Dokumente": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New documents"
+    "Mietverwaltung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rental management"
           }
         }
       }
     },
-    "Neue Frage: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New question: %@"
+    "min. 10 Zeichen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min. 10 characters"
           }
         }
       }
     },
-    "Neues Foto aufnehmen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Take new photo"
+    "Mit der Nutzung unserer App erklären Sie sich ausschließlich mit unseren Nutzungsbedingungen und Datenschutzvereinbarungen einverstanden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By using our app you agree exclusively to our terms of use and privacy agreements."
           }
         }
       }
     },
-    "Neues Konto?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New account?"
+    "Mitteilung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Announcement"
           }
         }
       }
     },
-    "Neues Passwort": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New password"
+    "Mitteilung: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Announcement: %@"
           }
         }
       }
     },
-    "Neues Ticket": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New ticket"
+    "Mitteilungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Announcements"
           }
         }
       }
     },
-    "News": {
-      "shouldTranslate": false
+    "Mitteilungen / News" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Announcements / News"
+          }
+        }
+      }
     },
-    "News konnten nicht geladen werden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load news"
+    "Mitteilungen konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load announcements."
           }
         }
       }
     },
-    "Noch keine Ablesungen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No readings yet."
+    "Mitteilungen werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading announcements …"
           }
         }
       }
     },
-    "Notiz (optional)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Note (optional)"
+    "Mitteilungen werden pro Liegenschaft angezeigt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Announcements are shown per property."
           }
         }
       }
     },
-    "Nutzungsbedingungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terms of Use"
+    "Modus" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
           }
         }
       }
     },
-    "Objekteigentümer": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Building owner"
+    "MwSt. %@ %%%@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "MwSt. %1$@ %%%2$@"
           }
         }
       }
+    },
+    "Nachname" : {
+
     },
-    "Objektprinzip": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Per-unit vote"
+    "Name, Art, Jahr …" : {
+
+    },
+    "name@example.com" : {
+      "shouldTranslate" : false
+    },
+    "Nein" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
           }
         }
       }
     },
-    "Offen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open"
+    "Neu" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
           }
         }
       }
+    },
+    "NEU" : {
+
     },
-    "Onboarding": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Onboarding"
+    "Neue Aufgabe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New task"
           }
         }
       }
     },
-    "PDF ansehen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View PDF"
+    "Neue Dokumente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New documents"
           }
         }
       }
     },
-    "PDF konnte nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not load the PDF."
+    "Neue Frage: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New question: %@"
           }
         }
       }
     },
-    "Passwort": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Password"
+    "Neues Foto aufnehmen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take new photo"
           }
         }
       }
     },
-    "Passwort bestätigen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirm password"
+    "Neues Konto?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New account?"
           }
         }
       }
     },
-    "Passwort vergessen?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forgot password?"
+    "Neues Passwort" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New password"
           }
         }
       }
     },
-    "Passwort wiederholen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Repeat password"
+    "Neues Ticket" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New ticket"
           }
         }
       }
     },
-    "Personen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persons"
+    "News" : {
+      "shouldTranslate" : false
+    },
+    "News konnten nicht geladen werden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load news"
           }
         }
       }
     },
-    "Protokoll als PDF öffnen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open protocol as PDF"
+    "nicht erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not met"
           }
         }
       }
     },
-    "Protokoll verfügbar": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Protocol available"
+    "Noch keine Ablesungen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readings yet."
           }
         }
       }
+    },
+    "Noch keine Verbrauchsdaten" : {
+
     },
-    "Protokoll vorhanden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Protocol uploaded"
+    "Notiz" : {
+
+    },
+    "Notiz (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note (optional)"
           }
         }
       }
+    },
+    "Notiz speichern" : {
+
     },
-    "Quorum": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quorum"
+    "Notizen (für alle sichtbar)" : {
+
+    },
+    "Nur-Lese-Ansicht. Die Verwaltung pflegt den Fortschritt." : {
+
+    },
+    "Nutzungsbedingungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms of Use"
           }
         }
       }
+    },
+    "Objekt" : {
+
     },
-    "Quorum: %lld": {
-      "shouldTranslate": false
+    "Objekt (Straße + Nr., PLZ + Ort)" : {
+
+    },
+    "Objekteigentümer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building owner"
+          }
+        }
+      }
     },
-    "Rechnung als PDF öffnen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open invoice PDF"
+    "Objektprinzip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per-unit vote"
           }
         }
       }
     },
-    "Rechnungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invoices"
+    "Offen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
           }
         }
       }
     },
-    "Rechtliche Informationen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legal information"
+    "Öffnet die Adresse in Google Maps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens the address in Google Maps"
           }
         }
       }
     },
-    "Rechtliches": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legal"
+    "Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens the Phone app with Wagner Hausverwaltung’s number"
           }
         }
       }
     },
-    "Registrierung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Registration"
+    "Onboarding" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onboarding"
           }
         }
       }
     },
-    "Rückrufbitte": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Callback request"
+    "optional" : {
+
+    },
+    "Passwort" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password"
           }
         }
       }
     },
-    "Schadensmeldung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Damage report"
+    "Passwort bestätigen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm password"
           }
         }
       }
     },
-    "Schließen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close"
+    "Passwort vergessen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forgot password?"
           }
         }
       }
     },
-    "Schlüssel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keys"
+    "Passwort wiederholen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat password"
           }
         }
       }
     },
-    "Schnellzugriff": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick access"
+    "PDF ansehen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View PDF"
           }
         }
       }
     },
-    "Schädlinge": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pests"
+    "PDF konnte nicht geladen werden." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the PDF."
           }
         }
       }
+    },
+    "Person" : {
+
     },
-    "Seite konnte nicht geladen werden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load page"
+    "Personen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persons"
           }
         }
       }
     },
-    "Senden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send"
+    "PLZ + Ort" : {
+
+    },
+    "Preis / Monat (netto)" : {
+
+    },
+    "Protokoll als PDF öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open protocol as PDF"
           }
         }
       }
     },
-    "Sicherheit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Security"
+    "Protokoll verfügbar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol available"
           }
         }
       }
     },
-    "Signiertes Protokoll": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signed protocol"
+    "Protokoll vorhanden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol uploaded"
           }
         }
       }
     },
-    "Sobald die Verwaltung eine Mitteilung veröffentlicht, erscheint sie hier.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As soon as the management publishes an announcement, it appears here."
+    "Push" : {
+
+    },
+    "Quorum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quorum"
           }
         }
       }
+    },
+    "Quorum: %lld" : {
+      "shouldTranslate" : false
     },
-    "Sobald die Verwaltung eine Versammlung anlegt, erscheint sie hier.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As soon as the management schedules a Versammlung, it appears here."
+    "Rechnung" : {
+
+    },
+    "Rechnung als PDF öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open invoice PDF"
           }
         }
       }
     },
-    "Sonstiges": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Other"
+    "Rechnungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invoices"
           }
         }
       }
     },
-    "Sprache": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language"
+    "Rechnungs-Nr." : {
+
+    },
+    "Rechtliche Informationen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal information"
           }
         }
       }
     },
-    "Stand melden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Report reading"
+    "Rechtliches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal"
           }
         }
       }
     },
-    "Stromausfall": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Power outage"
+    "Registrierung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registration"
           }
         }
       }
+    },
+    "Rolle" : {
+
     },
-    "Störung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disturbance"
+    "Route speichern" : {
+
+    },
+    "Rückrufbitte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Callback request"
           }
         }
       }
     },
-    "TOP 1: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TOP 1: %@"
+    "Saldo" : {
+
+    },
+    "Schadensmeldung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Damage report"
           }
         }
       }
     },
-    "Tagesordnung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agenda"
+    "Schädlinge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pests"
           }
         }
       }
     },
-    "Tagesordnung wird vom Verwalter ergänzt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your manager will add the agenda."
+    "Schließen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
           }
         }
       }
     },
-    "Teams": {
-      "shouldTranslate": false
+    "Schlüssel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys"
+          }
+        }
+      }
     },
-    "Teams beitreten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join Teams"
+    "Schnellzugriff" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick access"
           }
         }
       }
+    },
+    "Schritt antippen, um ihn als erledigt zu markieren." : {
+
     },
-    "Teams-Meeting beitreten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join Teams meeting"
+    "Schritte" : {
+
+    },
+    "Seite konnte nicht geladen werden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load page"
           }
         }
       }
     },
-    "Telefonnotiz": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phone note"
+    "Senden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send"
           }
         }
       }
+    },
+    "SEV" : {
+
     },
-    "Ticket": {
-      "shouldTranslate": false
+    "Sicherheit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Security"
+          }
+        }
+      }
     },
-    "Tickets": {
-      "shouldTranslate": false
+    "Signiertes Protokoll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed protocol"
+          }
+        }
+      }
     },
-    "Tickets konnten nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load tickets."
+    "Sobald die Verwaltung eine Mitteilung veröffentlicht, erscheint sie hier." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As soon as the management publishes an announcement, it appears here."
           }
         }
       }
     },
-    "Tickets offen: %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open tickets: %lld"
+    "Sobald die Verwaltung eine Versammlung anlegt, erscheint sie hier." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As soon as the management schedules a Versammlung, it appears here."
           }
         }
       }
     },
-    "Tickets werden geladen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading tickets …"
+    "Sonstiges" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
           }
         }
       }
+    },
+    "Später" : {
+
+    },
+    "Speichern" : {
+
     },
-    "Umlaufbeschlüsse erscheinen hier, sobald die Verwaltung sie startet.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Umlaufbeschlüsse appear here once the management starts them."
+    "Sprache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
           }
         }
       }
     },
-    "Unterschrieben am %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signed on %@"
+    "Stand melden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report reading"
           }
         }
       }
     },
-    "Vergangen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Past"
+    "Start" : {
+
+    },
+    "Status" : {
+
+    },
+    "Stellt dem WHV-Assistenten eine Frage zu Ihren Objekten, Dokumenten und Terminen." : {
+
+    },
+    "Störung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disturbance"
           }
         }
       }
     },
-    "Verkaufsberatung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sales advice"
+    "Straße + Nr." : {
+
+    },
+    "Stromausfall" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Power outage"
           }
         }
       }
+    },
+    "Suche in Ihren Dokumenten…" : {
+
     },
-    "Verlauf": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "History"
+    "System" : {
+
+    },
+    "Tagesordnung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agenda"
           }
         }
       }
     },
-    "Versammlung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versammlung"
+    "Tagesordnung wird vom Verwalter ergänzt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your manager will add the agenda."
           }
         }
       }
+    },
+    "Teams" : {
+      "shouldTranslate" : false
     },
-    "Versammlungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versammlungen"
+    "Teams beitreten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join Teams"
           }
         }
       }
     },
-    "Versammlungen konnten nicht geladen werden.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t load Versammlungen."
+    "Teams-Meeting beitreten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join Teams meeting"
           }
         }
       }
     },
-    "Versammlungen werden geladen …": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading Versammlungen …"
+    "Telefon" : {
+
+    },
+    "Telefonnotiz" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone note"
           }
         }
       }
+    },
+    "Ticket" : {
+      "shouldTranslate" : false
+    },
+    "Tickets" : {
+      "shouldTranslate" : false
     },
-    "Versammlungen werden pro Liegenschaft angezeigt.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versammlungen are shown per property."
+    "Tickets konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load tickets."
           }
         }
       }
     },
-    "Version": {
-      "shouldTranslate": false
+    "Tickets offen: %lld" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open tickets: %lld"
+          }
+        }
+      }
     },
-    "Verspätet": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Running late"
+    "Tickets werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading tickets …"
           }
         }
       }
     },
-    "Verwalter": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Administrator"
+    "Titel" : {
+
+    },
+    "TOP %lld %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "TOP %1$lld %2$@"
           }
         }
       }
     },
-    "Verwaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Management"
+    "TOP %lld %@ — %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "TOP %1$lld %2$@ — %3$@"
           }
         }
       }
     },
-    "Vollmacht erteilen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grant Vollmacht"
+    "TOP 1: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TOP 1: %@"
           }
         }
       }
     },
-    "Vollmacht erteilt an %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vollmacht granted to %@"
+    "Trotzdem speichern" : {
+
+    },
+    "Umlaufbeschlüsse erscheinen hier, sobald die Verwaltung sie startet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umlaufbeschlüsse appear here once the management starts them."
           }
         }
       }
+    },
+    "Unbekannt" : {
+
     },
-    "WEG-Anfrage": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WEG inquiry"
+    "Ungewöhnlicher Wert" : {
+
+    },
+    "Unternehmen" : {
+
+    },
+    "Unternehmer" : {
+
+    },
+    "Unterschrieben am %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed on %@"
           }
         }
       }
+    },
+    "USt-IdNr." : {
+
     },
-    "WEG-Verwaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WEG management"
+    "Verbrauch" : {
+
+    },
+    "Verbraucher" : {
+
+    },
+    "Vergangen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past"
           }
         }
       }
     },
-    "WHV gesperrt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHV locked"
+    "Verkaufsberatung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sales advice"
           }
         }
       }
     },
-    "WHV — Übersicht": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHV — Overview"
+    "Verlauf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
           }
         }
       }
     },
-    "Wagner Hausverwaltung": {
-      "shouldTranslate": false
+    "Versammlung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versammlung"
+          }
+        }
+      }
     },
-    "Wartet auf Kunde": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for customer"
+    "Versammlungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versammlungen"
           }
         }
       }
     },
-    "Wasserschaden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Water damage"
+    "Versammlungen konnten nicht geladen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load Versammlungen."
           }
         }
       }
     },
-    "Weisung / Einschränkung (optional)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instruction / restriction (optional)"
+    "Versammlungen werden geladen …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading Versammlungen …"
           }
         }
       }
     },
-    "Weisung: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instruction: %@"
+    "Versammlungen werden pro Liegenschaft angezeigt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versammlungen are shown per property."
           }
         }
       }
+    },
+    "Version" : {
+      "shouldTranslate" : false
     },
-    "Weiterleitung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forwarding"
+    "verspätet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "running late"
           }
         }
       }
     },
-    "Wen bevollmächtigen Sie?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Whom are you authorizing?"
+    "Verspätet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running late"
           }
         }
       }
     },
-    "Wert": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Value"
+    "Vertrag" : {
+
+    },
+    "Vertragsbeginn" : {
+
+    },
+    "Vertragsbeginn festlegen" : {
+
+    },
+    "Vertragsende" : {
+
+    },
+    "Vertragsvariante" : {
+
+    },
+    "Verwalter" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Administrator"
           }
         }
       }
     },
-    "Wert aus Foto erkannt — bitte prüfen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Value read from the photo — please check."
+    "Verwaltung" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Management"
           }
         }
       }
+    },
+    "Verwendungszweck" : {
+
+    },
+    "Vollmacht" : {
+
     },
-    "Wert nicht sicher lesbar — bitte manuell eintragen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Value not read reliably — please enter it manually."
+    "Vollmacht erteilen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grant Vollmacht"
           }
         }
       }
     },
-    "Wert wird erkannt…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading value…"
+    "Vollmacht erteilt an %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollmacht granted to %@"
           }
         }
       }
     },
-    "Widerruf fehlgeschlagen.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocation failed."
+    "Vom Konto (BIC)" : {
+
+    },
+    "Vom Konto (IBAN)" : {
+
+    },
+    "Vorname" : {
+
+    },
+    "Vorschlag aus der Endposition der Fahrt." : {
+
+    },
+    "Wagner Hausverwaltung" : {
+      "shouldTranslate" : false
+    },
+    "Wähle eine Liegenschaft aus." : {
+
+    },
+    "Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose for each event whether to be notified via push (app) and/or email."
           }
         }
       }
     },
-    "Widerrufen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke"
+    "Wartet auf Kunde" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for customer"
           }
         }
       }
     },
-    "Wird als internes Ticket (Kategorie „Eigentümerversammlung“) angelegt und an das Verwalter-Team gemeldet.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Created as an internal ticket (category „Eigentümerversammlung“) and reported to the Verwalter team."
+    "Was möchten Sie wissen?" : {
+
+    },
+    "Wasserschaden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Water damage"
           }
         }
       }
     },
-    "Wird eingelöst…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redeeming…"
+    "WEG" : {
+
+    },
+    "WEG-Anfrage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WEG inquiry"
           }
         }
       }
     },
-    "Worum geht es?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What’s it about?"
+    "WEG-Verwaltung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WEG management"
           }
         }
       }
+    },
+    "Weisung" : {
+
     },
-    "Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose for each event whether to be notified via push (app) and/or email."
+    "Weisung / Einschränkung (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction / restriction (optional)"
           }
         }
       }
     },
-    "Zeigt die wichtigsten WHV-Themen: kommende ETV, neue Mitteilungen, offene Tickets.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows the most important WHV items: upcoming ETV, new announcements, open tickets."
+    "Weisung: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction: %@"
           }
         }
       }
     },
-    "Zimmer": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rooms"
+    "Weisungen je Tagesordnungspunkt" : {
+
+    },
+    "Weiterleitung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forwarding"
           }
         }
       }
     },
-    "Zuletzt %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last %@"
+    "Wen bevollmächtigen Sie?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whom are you authorizing?"
           }
         }
       }
     },
-    "Zähler nicht geladen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't load Zähler"
+    "Wert" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
           }
         }
       }
     },
-    "bearbeitet": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "edited"
+    "Wert aus Foto erkannt — bitte prüfen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value read from the photo — please check."
           }
         }
       }
     },
-    "erfüllt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "met"
+    "Wert nicht sicher lesbar — bitte manuell eintragen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value not read reliably — please enter it manually."
           }
         }
       }
     },
-    "läuft gerade": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "live now"
+    "Wert wird erkannt…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading value…"
           }
         }
       }
+    },
+    "WHV — Aktuelles" : {
+
     },
-    "läuft gerade · %lld min": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "live now · %lld min"
+    "WHV — Übersicht" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV — Overview"
           }
         }
       }
     },
-    "min. 10 Zeichen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "min. 10 characters"
+    "WHV gesperrt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV locked"
           }
         }
       }
     },
-    "name@example.com": {
-      "shouldTranslate": false
+    "WHV: Keine neuen Hinweise" : {
+
+    },
+    "Widerruf fehlgeschlagen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revocation failed."
+          }
+        }
+      }
     },
-    "nicht erfüllt": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "not met"
+    "Widerrufen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revoke"
           }
         }
       }
     },
-    "verspätet": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "running late"
+    "Wird als internes Ticket (Kategorie „Eigentümerversammlung“) angelegt und an das Verwalter-Team gemeldet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created as an internal ticket (category „Eigentümerversammlung“) and reported to the Verwalter team."
           }
         }
       }
     },
-    "z. B. ABC123-XYZ": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "e.g. ABC123-XYZ"
+    "Wird eingelöst…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeeming…"
           }
         }
       }
+    },
+    "Wird geladen…" : {
+
     },
-    "z. B. Beirat, Herr Müller oder die Hausverwaltung.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "e.g. Beirat, Mr Müller or the Hausverwaltung."
+    "Worum geht es?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What’s it about?"
           }
         }
       }
     },
-    "z. B. „Wie hoch war die Heizungsrechnung 2025?“ — mit Quellenangaben.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "e.g. \"How much was the 2025 heating invoice?\" — with sources."
+    "z. B. „Wie hoch war die Heizungsrechnung 2025?“ — mit Quellenangaben." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. \"How much was the 2025 heating invoice?\" — with sources."
           }
         }
       }
     },
-    "·": {
-      "shouldTranslate": false
+    "z. B. ABC123-XYZ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. ABC123-XYZ"
+          }
+        }
+      }
     },
-    "· %lld Rechnung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· %lld invoice"
+    "z. B. Beirat, Herr Müller oder die Hausverwaltung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Beirat, Mr Müller or the Hausverwaltung."
           }
         }
       }
     },
-    "· %lld Rechnungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· %lld invoices"
+    "Zähler" : {
+
+    },
+    "Zähler nicht geladen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load Zähler"
           }
         }
       }
+    },
+    "Zählerstand" : {
+
+    },
+    "Zeigt die neuesten WHV-Hinweise: Versammlungen, Beschlüsse, Mitteilungen, Dokumente, Rechnungen, Termine und fällige Zählerstände." : {
+
     },
-    "Öffnet die Adresse in Google Maps": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens the address in Google Maps"
+    "Zeigt die wichtigsten WHV-Themen: kommende ETV, neue Mitteilungen, offene Tickets." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the most important WHV items: upcoming ETV, new announcements, open tickets."
           }
         }
       }
     },
-    "Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens the Phone app with Wagner Hausverwaltung’s number"
+    "Zeitraum" : {
+
+    },
+    "Zimmer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rooms"
           }
         }
       }
     },
-    "Bitte das Ticket kurz beschreiben (mind. 3 Zeichen).": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please describe the ticket briefly (min. 3 characters)."
+    "Zitat anzeigen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show quoted text"
           }
         }
       }
     },
-    "Zitat anzeigen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show quoted text"
+    "Zitat ausblenden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide quoted text"
           }
         }
       }
     },
-    "Zitat ausblenden": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide quoted text"
+    "Zuletzt %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last %@"
           }
         }
       }
+    },
+    "Zum Konto (BIC)" : {
+
+    },
+    "Zum Konto (IBAN)" : {
+
+    },
+    "Zweck" : {
+
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

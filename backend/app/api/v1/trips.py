@@ -26,7 +26,17 @@ from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.models import AuditLog, Contact, Property, Trip, TripPurpose, TripStatus, User, UserRole
+from app.models import (
+    AuditLog,
+    Contact,
+    OfferInquiry,
+    Property,
+    Trip,
+    TripPurpose,
+    TripStatus,
+    User,
+    UserRole,
+)
 from app.schemas.trip import (
     AdminTripListResponse,
     DelayNoticeRequest,
@@ -50,24 +60,43 @@ _verwalter_only = require_role(UserRole.VERWALTER)
 
 
 async def _to_response(session: AsyncSession, trips: list[Trip]) -> list[TripResponse]:
-    """Resolve user e-mails + property names in two round-trips, not 2N."""
+    """Resolve user e-mails, property names and inquiry addresses in three
+    round-trips, not 3N."""
     user_ids = {t.user_id for t in trips}
     prop_ids = {t.property_id for t in trips if t.property_id is not None}
+    inquiry_ids = {t.inquiry_id for t in trips if t.inquiry_id is not None}
     emails: dict[uuid.UUID, str] = {}
     names: dict[uuid.UUID, str] = {}
+    addresses: dict[uuid.UUID, str | None] = {}
     if user_ids:
         user_rows = (await session.scalars(select(User).where(User.id.in_(user_ids)))).all()
         emails = {u.id: u.email for u in user_rows}
     if prop_ids:
         prop_rows = (await session.scalars(select(Property).where(Property.id.in_(prop_ids)))).all()
         names = {p.id: p.name for p in prop_rows}
+    if inquiry_ids:
+        inq_rows = (
+            await session.scalars(select(OfferInquiry).where(OfferInquiry.id.in_(inquiry_ids)))
+        ).all()
+        addresses = {i.id: i.object_address for i in inq_rows}
     out: list[TripResponse] = []
     for t in trips:
         resp = TripResponse.model_validate(t)
         resp.user_email = emails.get(t.user_id)
         resp.property_name = names.get(t.property_id) if t.property_id else None
+        resp.inquiry_address = addresses.get(t.inquiry_id) if t.inquiry_id else None
         out.append(resp)
     return out
+
+
+def _object_label(t: TripResponse) -> str | None:
+    """What the "Objekt" column shows: the property, else the prospect's
+    address from the linked inquiry (a Besichtigung before the WEG exists)."""
+    if t.property_name:
+        return t.property_name
+    if t.inquiry_id is not None:
+        return f"Anfrage: {t.inquiry_address or '(ohne Adresse)'}"
+    return None
 
 
 async def _own_trip(session: AsyncSession, user: User, trip_id: uuid.UUID) -> Trip:
@@ -96,6 +125,35 @@ async def _org_property(session: AsyncSession, user: User, property_id: uuid.UUI
     return prop
 
 
+async def _org_inquiry(session: AsyncSession, user: User, inquiry_id: uuid.UUID) -> OfferInquiry:
+    inquiry = await session.scalar(
+        select(OfferInquiry).where(
+            OfferInquiry.id == inquiry_id,
+            OfferInquiry.organization_id == user.organization_id,
+        )
+    )
+    if inquiry is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Anfrage nicht gefunden"
+        )
+    return inquiry
+
+
+def _reindex_inquiry_card(
+    settings: Settings, org_id: uuid.UUID, *inquiry_ids: uuid.UUID | None
+) -> None:
+    """The inquiry's RAG card carries "Besichtigt: …" — refresh it whenever a
+    linked trip appears, moves or goes. No-op where RAG is off (everything
+    but prod) and for trips without an inquiry."""
+    ids = {i for i in inquiry_ids if i is not None}
+    if not ids or not settings.rag_enabled:
+        return
+    from app.workers.tasks import index_rag_masterdata
+
+    for inquiry_id in ids:
+        index_rag_masterdata.delay(str(org_id), str(inquiry_id), "anfrage")
+
+
 def _apply_update(trip: Trip, req: TripUpdateRequest) -> None:
     fields = req.model_fields_set
     if "ended_at" in fields and req.ended_at is not None:
@@ -109,6 +167,8 @@ def _apply_update(trip: Trip, req: TripUpdateRequest) -> None:
             setattr(trip, name, getattr(req, name))
     if "property_id" in fields:
         trip.property_id = req.property_id
+    if "inquiry_id" in fields:
+        trip.inquiry_id = req.inquiry_id
     if "purpose" in fields and req.purpose is not None:
         trip.purpose = req.purpose
     # Status follows the data: ended → OPEN, ended + purpose → CONFIRMED.
@@ -182,6 +242,8 @@ async def start_trip(
     )
     if running is not None:
         return (await _to_response(session, [running]))[0]
+    if req.inquiry_id is not None:
+        await _org_inquiry(session, current_user, req.inquiry_id)
     trip = Trip(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
@@ -190,11 +252,13 @@ async def start_trip(
         started_at=req.started_at or datetime.now(UTC),
         start_lat=req.start_lat,
         start_lng=req.start_lng,
+        inquiry_id=req.inquiry_id,
         rate_cents_per_km=settings.trip_rate_cents_per_km,
     )
     session.add(trip)
     await session.commit()
     await session.refresh(trip)
+    _reindex_inquiry_card(settings, current_user.organization_id, trip.inquiry_id)
     return (await _to_response(session, [trip]))[0]
 
 
@@ -208,6 +272,8 @@ async def upload_complete_trip(
     """Store a finished trip in one go (automatic detection uploads here)."""
     if req.property_id is not None:
         await _org_property(session, current_user, req.property_id)
+    if req.inquiry_id is not None:
+        await _org_inquiry(session, current_user, req.inquiry_id)
     trip = Trip(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
@@ -215,6 +281,7 @@ async def upload_complete_trip(
         source=req.source,
         purpose=req.purpose,
         property_id=req.property_id,
+        inquiry_id=req.inquiry_id,
         started_at=req.started_at,
         ended_at=req.ended_at,
         start_lat=req.start_lat,
@@ -229,6 +296,7 @@ async def upload_complete_trip(
     session.add(trip)
     await session.commit()
     await session.refresh(trip)
+    _reindex_inquiry_card(settings, current_user.organization_id, trip.inquiry_id)
     return (await _to_response(session, [trip]))[0]
 
 
@@ -238,13 +306,18 @@ async def update_my_trip(
     req: TripUpdateRequest,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> TripResponse:
     trip = await _own_trip(session, current_user, trip_id)
     if req.property_id is not None:
         await _org_property(session, current_user, req.property_id)
+    if req.inquiry_id is not None:
+        await _org_inquiry(session, current_user, req.inquiry_id)
+    inquiry_before = trip.inquiry_id
     _apply_update(trip, req)
     await session.commit()
     await session.refresh(trip)
+    _reindex_inquiry_card(settings, current_user.organization_id, inquiry_before, trip.inquiry_id)
     return (await _to_response(session, [trip]))[0]
 
 
@@ -253,10 +326,12 @@ async def delete_my_trip(
     trip_id: uuid.UUID,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Drop a mis-detected trip (passenger ride, test drive). Audited, because
     the log is the basis of a reimbursement."""
     trip = await _own_trip(session, current_user, trip_id)
+    inquiry_id = trip.inquiry_id
     session.add(
         AuditLog(
             organization_id=current_user.organization_id,
@@ -273,6 +348,7 @@ async def delete_my_trip(
     )
     await session.delete(trip)
     await session.commit()
+    _reindex_inquiry_card(settings, current_user.organization_id, inquiry_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -430,6 +506,7 @@ async def admin_update_trip(
     req: TripUpdateRequest,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> TripResponse:
     """Correct any driver's trip (wrong property, forgotten purpose)."""
     trip = await session.scalar(
@@ -439,9 +516,12 @@ async def admin_update_trip(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fahrt nicht gefunden")
     if req.property_id is not None:
         await _org_property(session, current_user, req.property_id)
+    if req.inquiry_id is not None:
+        await _org_inquiry(session, current_user, req.inquiry_id)
     before = {
         "purpose": trip.purpose,
         "property_id": str(trip.property_id) if trip.property_id else None,
+        "inquiry_id": str(trip.inquiry_id) if trip.inquiry_id else None,
     }
     _apply_update(trip, req)
     session.add(
@@ -456,6 +536,12 @@ async def admin_update_trip(
     )
     await session.commit()
     await session.refresh(trip)
+    _reindex_inquiry_card(
+        settings,
+        current_user.organization_id,
+        uuid.UUID(before["inquiry_id"]) if before["inquiry_id"] else None,
+        trip.inquiry_id,
+    )
     return (await _to_response(session, [trip]))[0]
 
 
@@ -506,7 +592,7 @@ async def admin_export_trips_csv(
                 i.started_at.strftime("%H:%M"),
                 i.ended_at.strftime("%H:%M") if i.ended_at else "",
                 i.user_email or "",
-                i.property_name or "",
+                _object_label(i) or "",
                 i.purpose or "",
                 de(i.distance_km, 1),
                 str(i.rate_cents_per_km),
@@ -557,14 +643,16 @@ async def admin_statement_pdf(
         property_id=None,
     ).order_by(Trip.started_at.asc())
     trips = list((await session.scalars(stmt)).all())
-    prop_ids = {t.property_id for t in trips if t.property_id}
-    names: dict[uuid.UUID, str] = {}
-    if prop_ids:
-        props = (await session.scalars(select(Property).where(Property.id.in_(prop_ids)))).all()
-        names = {p.id: p.name for p in props}
+    resolved = await _to_response(session, trips)
     rows = [
-        StatementRow(trip=t, property_name=names.get(t.property_id) if t.property_id else None)
-        for t in trips
+        StatementRow(
+            trip=t,
+            property_name=r.property_name,
+            inquiry_address=(
+                (r.inquiry_address or "(ohne Adresse)") if r.inquiry_id is not None else None
+            ),
+        )
+        for t, r in zip(trips, resolved, strict=True)
     ]
     pdf = render_statement(
         rows=rows,

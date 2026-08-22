@@ -14,6 +14,10 @@ struct TripResponse: Codable, Identifiable, Hashable {
     let user_email: String?
     let property_id: String?
     let property_name: String?
+    /// Besichtigung of a prospect: the linked anfragen@ inquiry + its address
+    /// (no property exists yet for such a trip).
+    let inquiry_id: String?
+    let inquiry_address: String?
     let status: String  // RUNNING | OPEN | CONFIRMED
     let source: String  // AUTO | MANUAL | CARPLAY
     let purpose: String?
@@ -34,6 +38,12 @@ struct TripResponse: Codable, Identifiable, Hashable {
     var distanceKm: Double { Double(distance_km.replacingOccurrences(of: ",", with: ".")) ?? 0 }
     var amountEUR: Double { Double(amount_cents) / 100 }
     var isOpen: Bool { status == "OPEN" }
+    /// Where the trip went: the property, else the prospect's address.
+    var objectLabel: String? {
+        if let name = property_name { return name }
+        if inquiry_id != nil { return "Anfrage: \(inquiry_address ?? "ohne Adresse")" }
+        return nil
+    }
     var endCoordinate: CLLocationCoordinate2D? {
         guard let lat = end_lat, let lng = end_lng else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lng)
@@ -45,6 +55,7 @@ struct TripStartBody: Encodable {
     let start_lat: Double?
     let start_lng: Double?
     let source: String
+    var inquiry_id: String? = nil
 }
 
 struct TripCompleteBody: Codable {
@@ -60,6 +71,9 @@ struct TripCompleteBody: Codable {
     let purpose: String?
     let property_id: String?
     var note: String? = nil
+    /// Besichtigung of a prospect (anfragen@ inquiry) — optional so queued
+    /// uploads from before this field decode unchanged.
+    var inquiry_id: String? = nil
 }
 
 /// Partial update — only non-nil fields are sent (see APIClient encoder:

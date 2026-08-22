@@ -79,7 +79,7 @@ struct FahrtenListView: View {
                 .foregroundStyle(t.isOpen ? .orange : .secondary)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(t.property_name ?? TripPurpose.label(for: t.purpose))
+                Text(t.objectLabel ?? TripPurpose.label(for: t.purpose))
                     .font(.body)
                 Text("\(t.started_at.formatted(date: .abbreviated, time: .shortened)) · \(TripPurpose.label(for: t.purpose))")
                     .font(.caption).foregroundStyle(.secondary)

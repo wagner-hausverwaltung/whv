@@ -33,6 +33,8 @@ class TripStartRequest(BaseModel):
     start_lat: Decimal | None = _LAT
     start_lng: Decimal | None = _LNG
     source: Source = "MANUAL"
+    # Besichtigung of a prospect (anfragen@ inquiry) — see Trip.inquiry_id.
+    inquiry_id: uuid.UUID | None = None
 
 
 class TripCompleteRequest(BaseModel):
@@ -51,6 +53,7 @@ class TripCompleteRequest(BaseModel):
     # Optional: the driver may already have confirmed on the phone.
     purpose: Purpose | None = None
     property_id: uuid.UUID | None = None
+    inquiry_id: uuid.UUID | None = None
     note: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
@@ -73,6 +76,8 @@ class TripUpdateRequest(BaseModel):
     purpose: Purpose | None = None
     # Explicit None clears the property (e.g. Büro) — tracked via `model_fields_set`.
     property_id: uuid.UUID | None = None
+    # Same semantics: explicit None unlinks the inquiry.
+    inquiry_id: uuid.UUID | None = None
     note: str | None = Field(default=None, max_length=2000)
 
 
@@ -84,6 +89,10 @@ class TripResponse(BaseModel):
     user_email: str | None = None
     property_id: uuid.UUID | None = None
     property_name: str | None = None
+    # Linked anfragen@ inquiry (Besichtigung of a prospect) + its object
+    # address for display — the trip has no property in that case.
+    inquiry_id: uuid.UUID | None = None
+    inquiry_address: str | None = None
     status: str
     source: str
     purpose: str | None = None

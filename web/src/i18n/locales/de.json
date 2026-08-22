@@ -378,6 +378,8 @@
       "fieldsError": "Angaben konnten nicht gespeichert werden.",
       "emailBody": "E-Mail-Text",
       "noEmailBody": "Kein Text vorhanden.",
+      "visited": "Besichtigt am {{date}}",
+      "visitedTimes": "{{count}}× besichtigt, zuletzt {{date}} (aus dem Fahrtenbuch)",
       "notes": "Notizen (für alle sichtbar)",
       "notesPlaceholder": "Interne Notiz zu dieser Anfrage …",
       "notesSave": "Notiz speichern",
@@ -876,7 +878,8 @@
       "editTitle": "Fahrt bearbeiten",
       "exportPdf": "Abrechnung (PDF)",
       "map": "Karte",
-      "mapMonth": "Routen des Monats"
+      "mapMonth": "Routen des Monats",
+      "inquiry": "Anfrage"
     }
   },
   "meters": {

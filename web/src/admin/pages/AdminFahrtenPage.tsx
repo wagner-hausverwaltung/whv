@@ -274,7 +274,19 @@ export function AdminFahrtenPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>{r.user_email ?? "—"}</TableCell>
-                  <TableCell>{r.property_name ?? <Typography component="span" variant="caption" color="text.secondary">—</Typography>}</TableCell>
+                  <TableCell>
+                    {r.property_name ??
+                      (r.inquiry_id ? (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color="info"
+                          label={`${t("admin.fahrten.inquiry")}: ${r.inquiry_address ?? "—"}`}
+                        />
+                      ) : (
+                        <Typography component="span" variant="caption" color="text.secondary">—</Typography>
+                      ))}
+                  </TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -291,7 +303,7 @@ export function AdminFahrtenPage() {
                   <TableCell align="right">
                     <IconButton
                       size="small"
-                      onClick={() => setMapTrips({ title: `${r.property_name ?? purposeLabel(r.purpose)} · ${start.toLocaleDateString("de-DE")}`, trips: [r] })}
+                      onClick={() => setMapTrips({ title: `${r.property_name ?? r.inquiry_address ?? purposeLabel(r.purpose)} · ${start.toLocaleDateString("de-DE")}`, trips: [r] })}
                       aria-label={t("admin.fahrten.map")}
                       disabled={!r.route_polyline && !(r.start_lat && r.start_lng)}
                     >

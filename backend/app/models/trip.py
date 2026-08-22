@@ -65,6 +65,16 @@ class Trip(OrganizationScopedMixin, TimestampMixin, Base):
     property_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("properties.id", ondelete="SET NULL"), nullable=True
     )
+    # Besichtigung of a PROSPECTIVE object: an anfragen@ inquiry in the offer
+    # phase has no property in the master data yet, so the trip points at the
+    # inquiry instead. The Anfrage derives "besichtigt am …" from these rows;
+    # the Kilometergeld is WHV's own acquisition cost (no WEG to bill).
+    inquiry_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("offer_inquiries.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     status: Mapped[str] = mapped_column(Text, nullable=False, default=TripStatus.RUNNING.value)
     source: Mapped[str] = mapped_column(Text, nullable=False, default=TripSource.MANUAL.value)

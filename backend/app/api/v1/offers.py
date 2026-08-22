@@ -9,17 +9,26 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_role
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.integrations.email.client import EmailClient, EmailError, get_email_client
-from app.models import AuditLog, OfferInquiry, OfferInquiryStatus, Organization, User, UserRole
+from app.models import (
+    AuditLog,
+    OfferInquiry,
+    OfferInquiryStatus,
+    Organization,
+    Trip,
+    User,
+    UserRole,
+)
 from app.schemas.offer import (
     OfferGenerateRequest,
     OfferInquiryDetailResponse,
@@ -36,6 +45,40 @@ from app.services.offers import generate_offer
 admin_router = APIRouter(prefix="/admin", tags=["offers"])
 
 _verwalter_only = require_role(UserRole.VERWALTER)
+
+
+async def _visits(
+    session: AsyncSession, inquiry_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[datetime, int]]:
+    """Besichtigungen per inquiry from the Fahrtenbuch: (end of the most
+    recent linked trip, number of linked trips). Derived, never stored — a
+    deleted mis-detected trip un-visits the inquiry again."""
+    if not inquiry_ids:
+        return {}
+    last_visit = func.max(func.coalesce(Trip.ended_at, Trip.started_at))
+    rows = await session.execute(
+        select(Trip.inquiry_id, last_visit, func.count(Trip.id))
+        .where(Trip.inquiry_id.in_(inquiry_ids))
+        .group_by(Trip.inquiry_id)
+    )
+    return {iid: (when, int(n)) for iid, when, n in rows.all()}
+
+
+async def _with_visits[InquiryOut: OfferInquiryResponse](
+    session: AsyncSession, inquiries: list[OfferInquiry], model: type[InquiryOut]
+) -> list[InquiryOut]:
+    visits = await _visits(session, {i.id for i in inquiries})
+    out: list[InquiryOut] = []
+    for inq in inquiries:
+        resp = model.model_validate(inq)
+        if (v := visits.get(inq.id)) is not None:
+            resp.visited_at, resp.visit_count = v
+        out.append(resp)
+    return out
+
+
+async def _detail(session: AsyncSession, inquiry: OfferInquiry) -> OfferInquiryDetailResponse:
+    return (await _with_visits(session, [inquiry], OfferInquiryDetailResponse))[0]
 
 
 @admin_router.post("/offers/generate")
@@ -89,7 +132,7 @@ async def admin_list_offer_inquiries(
     session: Annotated[AsyncSession, Depends(get_session)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
-) -> list[OfferInquiry]:
+) -> list[OfferInquiryResponse]:
     """List inbound anfragen@ inquiries (newest first), optionally by status."""
     stmt = select(OfferInquiry).where(OfferInquiry.organization_id == current_user.organization_id)
     if status_filter:
@@ -97,7 +140,8 @@ async def admin_list_offer_inquiries(
     # id (uuid7) is time-ordered, so it doubles as a deterministic tiebreak
     # when several inquiries share the same created_at (e.g. a seeded batch).
     stmt = stmt.order_by(OfferInquiry.created_at.desc(), OfferInquiry.id.desc()).limit(limit)
-    return list((await session.scalars(stmt)).all())
+    inquiries = list((await session.scalars(stmt)).all())
+    return await _with_visits(session, inquiries, OfferInquiryResponse)
 
 
 @admin_router.post("/offer-inquiries/{inquiry_id}/send", response_model=OfferInquiryResponse)
@@ -108,7 +152,7 @@ async def admin_send_offer_inquiry(
     session: Annotated[AsyncSession, Depends(get_session)],
     email_client: Annotated[EmailClient, Depends(get_email_client)],
     settings: Annotated[Settings, Depends(get_settings)],
-) -> OfferInquiry:
+) -> OfferInquiryResponse:
     """Verwalter approves an inquiry: generate the offer from the reviewed
     fields and email it to the sender. Manual path — independent of the
     auto-send kill switch."""
@@ -126,7 +170,7 @@ async def admin_send_offer_inquiry(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Send failed: {exc}") from exc
     await session.commit()
     await session.refresh(inquiry)
-    return inquiry
+    return (await _with_visits(session, [inquiry], OfferInquiryResponse))[0]
 
 
 @admin_router.put("/offer-inquiries/{inquiry_id}/lead-status", response_model=OfferInquiryResponse)
@@ -135,7 +179,7 @@ async def admin_set_offer_lead_status(
     payload: OfferLeadStatusUpdate,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> OfferInquiry:
+) -> OfferInquiryResponse:
     """Set an inquiry's manual sales status (OPEN/ON_HOLD/ACCEPTED/DECLINED)."""
     inquiry = await session.get(OfferInquiry, inquiry_id)
     if inquiry is None or inquiry.organization_id != current_user.organization_id:
@@ -143,7 +187,7 @@ async def admin_set_offer_lead_status(
     inquiry.lead_status = payload.lead_status
     await session.commit()
     await session.refresh(inquiry)
-    return inquiry
+    return (await _with_visits(session, [inquiry], OfferInquiryResponse))[0]
 
 
 async def _get_owned_inquiry(
@@ -198,10 +242,10 @@ async def admin_get_offer_inquiry(
     inquiry_id: uuid.UUID,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> OfferInquiry:
+) -> OfferInquiryDetailResponse:
     """Full detail for one inquiry — adds the raw email body, the shared note,
     and the error reason on top of the lean list fields."""
-    return await _get_owned_inquiry(session, inquiry_id, current_user)
+    return await _detail(session, await _get_owned_inquiry(session, inquiry_id, current_user))
 
 
 @admin_router.put("/offer-inquiries/{inquiry_id}/fields", response_model=OfferInquiryDetailResponse)
@@ -210,7 +254,7 @@ async def admin_update_offer_fields(
     payload: OfferInquiryFieldsUpdate,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> OfferInquiry:
+) -> OfferInquiryDetailResponse:
     """Correct the extracted inquiry fields (e.g. fill in a street + number the
     prospect didn't disclose initially). Overwrites the stored values so the
     list, the send dialog, and re-download all pick up the correction."""
@@ -221,7 +265,7 @@ async def admin_update_offer_fields(
     inquiry.desired_start = payload.desired_start
     await session.commit()
     await session.refresh(inquiry)
-    return inquiry
+    return await _detail(session, inquiry)
 
 
 @admin_router.put("/offer-inquiries/{inquiry_id}/note", response_model=OfferInquiryDetailResponse)
@@ -230,7 +274,7 @@ async def admin_set_offer_note(
     payload: OfferInquiryNoteUpdate,
     current_user: Annotated[User, Depends(_verwalter_only)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> OfferInquiry:
+) -> OfferInquiryDetailResponse:
     """Set the shared free-text note on an inquiry (visible to every Verwalter
     in the org)."""
     inquiry = await _get_owned_inquiry(session, inquiry_id, current_user)
@@ -238,7 +282,7 @@ async def admin_set_offer_note(
     inquiry.review_note = note or None
     await session.commit()
     await session.refresh(inquiry)
-    return inquiry
+    return await _detail(session, inquiry)
 
 
 @admin_router.post(
@@ -250,7 +294,7 @@ async def admin_send_offer_reminder(
     session: Annotated[AsyncSession, Depends(get_session)],
     email_client: Annotated[EmailClient, Depends(get_email_client)],
     settings: Annotated[Settings, Depends(get_settings)],
-) -> OfferInquiry:
+) -> OfferInquiryDetailResponse:
     """Email a friendly follow-up reminder to the prospect. Only valid once the
     offer has actually been sent — and a failed reminder must NOT corrupt the
     original SENT state, so we never flip the inquiry to FAILED here."""
@@ -268,7 +312,7 @@ async def admin_send_offer_reminder(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Reminder failed: {exc}") from exc
     await session.commit()
     await session.refresh(inquiry)
-    return inquiry
+    return await _detail(session, inquiry)
 
 
 def _redownload_request(inquiry: OfferInquiry) -> OfferGenerateRequest:

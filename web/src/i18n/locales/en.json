@@ -378,6 +378,8 @@
       "fieldsError": "Could not save the details.",
       "emailBody": "Email body",
       "noEmailBody": "No body available.",
+      "visited": "Visited on {{date}}",
+      "visitedTimes": "Visited {{count}}×, last on {{date}} (from the Fahrtenbuch)",
       "notes": "Notes (visible to everyone)",
       "notesPlaceholder": "Internal note for this inquiry …",
       "notesSave": "Save note",
@@ -876,7 +878,8 @@
       "editTitle": "Edit trip",
       "exportPdf": "Statement (PDF)",
       "map": "Map",
-      "mapMonth": "Routes of the month"
+      "mapMonth": "Routes of the month",
+      "inquiry": "Inquiry"
     }
   },
   "meters": {

@@ -41,6 +41,19 @@ _PURPOSE_LABEL = {
 class StatementRow:
     trip: Trip
     property_name: str | None
+    # Besichtigung of a prospect: the object is not a property yet, so the
+    # statement prints the inquiry's address instead ("Anfrage: …"). Such
+    # trips are WHV's own acquisition cost — they stay out of the per-WEG
+    # Auslagen block and fall under "(ohne Objekt)".
+    inquiry_address: str | None = None
+
+    @property
+    def object_label(self) -> str:
+        if self.property_name:
+            return self.property_name
+        if self.inquiry_address:
+            return f"Anfrage: {self.inquiry_address}"
+        return "—"
 
 
 def de_money(cents: int) -> str:
@@ -179,7 +192,7 @@ def render_statement(
         cells = [
             start_local.strftime("%d.%m.%Y"),
             time_txt,
-            _fit(r.property_name or "—", cols[2][1] - 4, size),
+            _fit(r.object_label, cols[2][1] - 4, size),
             _fit(purpose_txt, cols[3][1] - 4, size),
             de_km(t.distance_m),
             de_money(t.amount_cents),

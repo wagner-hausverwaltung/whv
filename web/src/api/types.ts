@@ -1269,6 +1269,9 @@ export interface TripResponse {
   user_email?: string | null;
   property_id?: string | null;
   property_name?: string | null;
+  /** Besichtigung of a prospect: linked anfragen@ inquiry + its address. */
+  inquiry_id?: string | null;
+  inquiry_address?: string | null;
   status: "RUNNING" | "OPEN" | "CONFIRMED" | string;
   source: "AUTO" | "MANUAL" | "CARPLAY" | string;
   purpose?: string | null;

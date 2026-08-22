@@ -26,6 +26,11 @@ struct OfferInquirySummary: Codable, Identifiable, Hashable {
     let generated_offer_filename: String?
     let last_reminder_at: String?
     let reminder_count: Int
+    /// Besichtigungen from the Fahrtenbuch (trips linked to this inquiry).
+    let visited_at: String?
+    let visit_count: Int?
+
+    var isVisited: Bool { (visit_count ?? 0) > 0 }
 }
 
 struct OfferInquiryDetail: Codable, Identifiable, Hashable {
@@ -45,6 +50,8 @@ struct OfferInquiryDetail: Codable, Identifiable, Hashable {
     let generated_offer_filename: String?
     let last_reminder_at: String?
     let reminder_count: Int
+    let visited_at: String?
+    let visit_count: Int?
     let body: String
     let review_note: String?
     let error: String?
@@ -369,12 +376,13 @@ private struct AnfrageRow: View {
         }
     }
 
-    /// One tidy secondary line: "WEG · 71254 Ditzingen · 3 WE".
+    /// One tidy secondary line: "WEG · 71254 Ditzingen · 3 WE · besichtigt 22.08.2026".
     private var metaLine: String {
         var parts: [String] = []
         if let art = item.art, !art.isEmpty { parts.append(art) }
         if let obj = item.object_address, !obj.isEmpty { parts.append(obj) }
         if let u = item.units { parts.append("\(u) WE") }
+        if item.isVisited { parts.append("besichtigt \(offerDateDE(item.visited_at))") }
         return parts.joined(separator: " · ")
     }
 }
@@ -463,6 +471,14 @@ struct AnfrageDetailView: View {
             .onChange(of: leadStatus) { _, new in Task { await saveLeadStatus(new) } }
             if let conf = d.confidence {
                 LabeledContent("Sicherheit", value: "\(Int((conf * 100).rounded()))%")
+            }
+            if let n = d.visit_count, n > 0 {
+                LabeledContent(
+                    "Besichtigt",
+                    value: n > 1
+                        ? "\(n)× · zuletzt \(offerDateDE(d.visited_at))"
+                        : offerDateDE(d.visited_at)
+                )
             }
             if let err = d.error, d.status == "FAILED" {
                 Text(err).font(.caption).foregroundStyle(.red)

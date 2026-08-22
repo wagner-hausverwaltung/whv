@@ -41,6 +41,8 @@ final class TripTracker: NSObject, ObservableObject {
     @Published private(set) var presetPurpose: String?
     @Published private(set) var presetPropertyId: String?
     @Published private(set) var presetNote: String?
+    /// Besichtigung of a prospect: the anfragen@ inquiry this drive is for.
+    @Published private(set) var presetInquiryId: String?
 
     /// Opt-in for automatic drive detection (Core Motion + significant
     /// location changes). Off by default — this is the consent switch.
@@ -135,12 +137,17 @@ final class TripTracker: NSObject, ObservableObject {
     // MARK: CarPlay hooks
 
     /// Start a trip that is already known to be, e.g., a Besichtigung at a
-    /// given property. The trip uploads CONFIRMED with these values.
-    func startWithPreset(purpose: String, propertyId: String?, source: String, note: String? = nil) {
+    /// given property — or at a prospect (`inquiryId`) that has no property
+    /// yet. The trip uploads CONFIRMED with these values.
+    func startWithPreset(
+        purpose: String, propertyId: String?, source: String, note: String? = nil,
+        inquiryId: String? = nil
+    ) {
         guard !isRunning else { return }
         presetPurpose = purpose
         presetPropertyId = propertyId
         presetNote = note
+        presetInquiryId = inquiryId
         requestAuthorization()
         begin(source: source)
     }
@@ -239,9 +246,11 @@ final class TripTracker: NSObject, ObservableObject {
         let purpose = presetPurpose
         let propertyId = presetPropertyId
         let note = presetNote
+        let inquiryId = presetInquiryId
         presetPurpose = nil
         presetPropertyId = nil
         presetNote = nil
+        presetInquiryId = nil
         isRunning = false
         startedAt = nil
         liveDistanceM = 0
@@ -263,7 +272,8 @@ final class TripTracker: NSObject, ObservableObject {
             source: src,
             purpose: purpose,
             property_id: propertyId,
-            note: note
+            note: note,
+            inquiry_id: inquiryId
         )
         await upload(body)
         await refreshOpen()
@@ -339,6 +349,11 @@ final class TripTracker: NSObject, ObservableObject {
         var source: String
         var distanceM: Int
         var coords: [[Double]]
+        // Presets survive an app kill too (optional: older snapshots lack them).
+        var presetPurpose: String? = nil
+        var presetPropertyId: String? = nil
+        var presetNote: String? = nil
+        var presetInquiryId: String? = nil
     }
 
     private func persistRunning() {
@@ -347,7 +362,11 @@ final class TripTracker: NSObject, ObservableObject {
             startedAt: started,
             source: source,
             distanceM: liveDistanceM,
-            coords: coords.map { [$0.latitude, $0.longitude] }
+            coords: coords.map { [$0.latitude, $0.longitude] },
+            presetPurpose: presetPurpose,
+            presetPropertyId: presetPropertyId,
+            presetNote: presetNote,
+            presetInquiryId: presetInquiryId
         )
         defaults.set(try? JSONEncoder.iso.encode(snap), forKey: Keys.running)
     }
@@ -369,6 +388,10 @@ final class TripTracker: NSObject, ObservableObject {
         startedAt = snap.startedAt
         source = snap.source
         liveDistanceM = snap.distanceM
+        presetPurpose = snap.presetPurpose
+        presetPropertyId = snap.presetPropertyId
+        presetNote = snap.presetNote
+        presetInquiryId = snap.presetInquiryId
         coords = snap.coords.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil }
         lastMovementAt = Date()
         location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters

@@ -301,14 +301,20 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func showBesichtigungen() async {
         let all = (try? await api.listOfferInquiries()) ?? []
+        // Not-yet-visited prospects first (that's the to-do), then newest.
         let open = all
             .filter { ($0.object_address ?? "").isEmpty == false && ["OPEN", "ON_HOLD"].contains($0.lead_status.uppercased()) }
-            .sorted { $0.created_at > $1.created_at }
+            .sorted { a, b in
+                if a.isVisited != b.isVisited { return !a.isVisited }
+                return a.created_at > b.created_at
+            }
             .prefix(maxItems)
         let rows: [CPListItem] = open.map { inq in
             let who = inq.sender_name ?? inq.sender_email
-            let meta = [inq.art, inq.units.map { "\($0) Einheiten" }].compactMap { $0 }.joined(separator: " · ")
+            var meta = [inq.art, inq.units.map { "\($0) Einheiten" }].compactMap { $0 }.joined(separator: " · ")
+            if inq.isVisited { meta += (meta.isEmpty ? "" : " · ") + "besichtigt \(offerDateDE(inq.visited_at))" }
             let item = CPListItem(text: inq.object_address ?? "—", detailText: [who, meta].filter { !$0.isEmpty }.joined(separator: " · "))
+            if inq.isVisited { item.setImage(UIImage(systemName: "checkmark.circle")) }
             item.accessoryType = .disclosureIndicator
             item.handler = { [weak self] _, completion in
                 self?.showBesichtigungActions(inq)
@@ -337,16 +343,27 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         fahrt.setImage(UIImage(systemName: "binoculars.fill"))
         fahrt.handler = { [weak self] _, completion in
             if !tracker.isRunning {
+                // Linked to the inquiry: the Anfrage shows "besichtigt am …"
+                // in the app and the admin portal once the trip is uploaded.
                 tracker.startWithPreset(
                     purpose: "BESICHTIGUNG", propertyId: nil, source: "CARPLAY",
-                    note: "Besichtigung (Anfrage): \(address)"
+                    note: "Besichtigung (Anfrage): \(address)", inquiryId: inq.id
                 )
                 self?.alert("Besichtigung läuft", "\(address) — die Fahrt wird aufgezeichnet.")
                 self?.refreshRoot()
             }
             completion()
         }
-        let rows = [navi, fahrt]
+        var rows = [navi, fahrt]
+        if let n = inq.visit_count, n > 0 {
+            let seen = CPListItem(
+                text: n > 1 ? "Bereits \(n)× besichtigt" : "Bereits besichtigt",
+                detailText: "zuletzt am \(offerDateDE(inq.visited_at)) — laut Fahrtenbuch"
+            )
+            seen.setImage(UIImage(systemName: "checkmark.circle"))
+            seen.handler = { _, completion in completion() }
+            rows.append(seen)
+        }
         push(CPListTemplate(title: address, sections: [CPListSection(items: rows)]))
     }
 

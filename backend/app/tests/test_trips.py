@@ -446,3 +446,135 @@ async def test_delay_notice_mails_the_contact(
     assert "WEG Verspätung" in sent[-1]["text"]
     assert "maps.apple.com" in sent[-1]["text"]
     assert sent[-1].get("reply_to") == email
+
+
+# --- Besichtigung ↔ Anfrage -------------------------------------------------------
+
+
+async def _make_inquiry(test_engine: AsyncEngine, org: Any, address: str | None) -> str:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.models import OfferInquiry
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        inq = OfferInquiry(
+            organization_id=org.id,
+            sender_email="prospect@example.com",
+            sender_name="Roman Klassen",
+            subject="Anfrage",
+            body="x",
+            art="WEG",
+            object_address=address,
+            units=6,
+        )
+        s.add(inq)
+        await s.commit()
+        await s.refresh(inq)
+        return str(inq.id)
+
+
+async def test_trip_linked_to_inquiry_marks_it_visited(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inquiry_id = await _make_inquiry(
+        test_engine, org, "Hermann-Essig-Str. 5, 71701 Schwieberdingen"
+    )
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        # Before anyone drove there: not visited.
+        before = client.get("/admin/offer-inquiries", headers=_auth(token)).json()
+        row = next(i for i in before if i["id"] == inquiry_id)
+        assert row["visited_at"] is None
+        assert row["visit_count"] == 0
+
+        r = client.post(
+            "/me/trips/complete",
+            headers=_auth(token),
+            json=_complete_payload(purpose="BESICHTIGUNG", inquiry_id=inquiry_id, source="CARPLAY"),
+        )
+        assert r.status_code == 201, r.text
+        trip = r.json()
+        assert trip["inquiry_id"] == inquiry_id
+        assert trip["inquiry_address"] == "Hermann-Essig-Str. 5, 71701 Schwieberdingen"
+        assert trip["property_id"] is None
+        assert trip["amount_cents"] == 370  # acquisition km are still Kilometergeld
+
+        after = client.get("/admin/offer-inquiries", headers=_auth(token)).json()
+        row = next(i for i in after if i["id"] == inquiry_id)
+        assert row["visit_count"] == 1
+        assert datetime.fromisoformat(row["visited_at"]) == datetime.fromisoformat(trip["ended_at"])
+        detail = client.get(f"/admin/offer-inquiries/{inquiry_id}", headers=_auth(token)).json()
+        assert detail["visit_count"] == 1
+        assert detail["visited_at"] is not None
+        # The mutation responses carry the visit too (iOS replaces rows with them).
+        lead = client.put(
+            f"/admin/offer-inquiries/{inquiry_id}/lead-status",
+            headers=_auth(token),
+            json={"lead_status": "ON_HOLD"},
+        ).json()
+        assert lead["visit_count"] == 1
+
+        # Statement + CSV print the prospect's address in the Objekt column.
+        csv_text = client.get(
+            "/admin/trips/export.csv", headers=_auth(token), params={"month": "2026-08"}
+        ).text
+        assert "Anfrage: Hermann-Essig-Str. 5, 71701 Schwieberdingen" in csv_text
+
+        # A mis-detected trip deleted again → no longer visited.
+        assert client.delete(f"/me/trips/{trip['id']}", headers=_auth(token)).status_code == 204
+        gone = client.get(f"/admin/offer-inquiries/{inquiry_id}", headers=_auth(token)).json()
+        assert gone["visited_at"] is None
+        assert gone["visit_count"] == 0
+
+
+async def test_running_trip_with_inquiry_can_be_unlinked(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    inquiry_id = await _make_inquiry(test_engine, org, None)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        a = client.post(
+            "/me/trips", headers=_auth(token), json={"source": "CARPLAY", "inquiry_id": inquiry_id}
+        )
+        assert a.status_code == 201, a.text
+        assert a.json()["inquiry_id"] == inquiry_id
+        assert a.json()["inquiry_address"] is None  # address not yet known on the inquiry
+        tid = a.json()["id"]
+        # Explicit null unlinks (like property_id); omitting it keeps the link.
+        kept = client.patch(f"/me/trips/{tid}", headers=_auth(token), json={"note": "x"}).json()
+        assert kept["inquiry_id"] == inquiry_id
+        cleared = client.patch(
+            f"/me/trips/{tid}", headers=_auth(token), json={"inquiry_id": None}
+        ).json()
+        assert cleared["inquiry_id"] is None
+        assert cleared["inquiry_address"] is None
+
+
+async def test_foreign_inquiry_is_rejected(test_engine: AsyncEngine) -> None:
+    org_a = await make_org(test_engine)
+    org_b = await make_org(test_engine)
+    foreign = await _make_inquiry(test_engine, org_b, "Fremdweg 1")
+    _, email, pw = await make_user(test_engine, org=org_a, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        assert (
+            client.post(
+                "/me/trips/complete",
+                headers=_auth(token),
+                json=_complete_payload(purpose="BESICHTIGUNG", inquiry_id=foreign),
+            ).status_code
+            == 400
+        )
+        assert (
+            client.post("/me/trips", headers=_auth(token), json={"inquiry_id": foreign}).status_code
+            == 400
+        )
+        # ...and the foreign org never learns the inquiry exists via a patch either.
+        own = client.post("/me/trips/complete", headers=_auth(token), json=_complete_payload())
+        assert (
+            client.patch(
+                f"/me/trips/{own.json()['id']}", headers=_auth(token), json={"inquiry_id": foreign}
+            ).status_code
+            == 400
+        )

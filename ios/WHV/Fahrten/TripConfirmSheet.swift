@@ -39,6 +39,10 @@ struct TripConfirmSheet: View {
                     if trip.source == "AUTO" {
                         Text("Automatisch erkannt").font(.caption).foregroundStyle(.secondary)
                     }
+                    if trip.inquiry_id != nil {
+                        Label("Anfrage: \(trip.inquiry_address ?? "ohne Adresse")", systemImage: "binoculars")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 } header: { Text("Fahrt") }
 
                 Section("Zweck") {
