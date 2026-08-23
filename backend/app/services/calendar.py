@@ -8,7 +8,7 @@ live from etv_assemblies (so they never drift). PDF rendering uses
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
@@ -21,8 +21,14 @@ from app.models import (
     CalendarEvent,
     CalendarEventType,
     EtvAssembly,
+    Property,
 )
-from app.schemas.calendar import CalendarEntry, CalendarEventCreate, CalendarEventUpdate
+from app.schemas.calendar import (
+    AgendaItem,
+    CalendarEntry,
+    CalendarEventCreate,
+    CalendarEventUpdate,
+)
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -250,6 +256,107 @@ async def merged_entries(
             )
 
     out.sort(key=lambda x: (x.starts_on, x.kind))
+    return out
+
+
+def _property_address(p: Property) -> str | None:
+    street = " ".join(part for part in (p.street, p.number) if part).strip()
+    zip_city = " ".join(part for part in (p.postal_code, p.city) if part).strip()
+    combined = ", ".join(part for part in (street, zip_city) if part)
+    return combined or None
+
+
+async def agenda(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    from_day: date,
+    to_day: date,
+    property_id: uuid.UUID | None = None,
+) -> list[AgendaItem]:
+    """The Verwalter's appointments in [from_day, to_day] (Europe/Berlin days)
+    across the org — or one property: ETV assemblies (timed, not ABGESAGT)
+    and TERMIN events (all-day). Kehrwoche/Winterdienst are owner duties and
+    stay out. Sorted by start; an all-day Termin sorts at 00:00 of its day."""
+    props_stmt = select(Property).where(
+        Property.organization_id == organization_id, Property.deleted_at.is_(None)
+    )
+    if property_id is not None:
+        props_stmt = props_stmt.where(Property.id == property_id)
+    props = {p.id: p for p in (await session.scalars(props_stmt)).all()}
+    if not props:
+        return []
+
+    out: list[AgendaItem] = []
+
+    ev_stmt = select(CalendarEvent).where(
+        CalendarEvent.organization_id == organization_id,
+        CalendarEvent.event_type == CalendarEventType.TERMIN,
+        CalendarEvent.starts_on <= to_day,
+        func.coalesce(CalendarEvent.ends_on, CalendarEvent.starts_on) >= from_day,
+    )
+    if property_id is not None:
+        ev_stmt = ev_stmt.where(CalendarEvent.property_id == property_id)
+    for e in (await session.scalars(ev_stmt)).all():
+        p = props.get(e.property_id)
+        if p is None:
+            continue
+        out.append(
+            AgendaItem(
+                kind="TERMIN",
+                source="event",
+                id=e.id,
+                title=_title(e),
+                starts_at=datetime.combine(e.starts_on, time.min, tzinfo=_BERLIN),
+                ends_at=(
+                    datetime.combine(e.ends_on, time(23, 59), tzinfo=_BERLIN) if e.ends_on else None
+                ),
+                all_day=True,
+                property_id=p.id,
+                property_name=p.name,
+                property_address=_property_address(p),
+                lat=p.lat,
+                lng=p.lng,
+                note=e.note,
+                assigned_label=e.assigned_label,
+            )
+        )
+
+    window_start = datetime.combine(from_day, time.min, tzinfo=_BERLIN)
+    window_end = datetime.combine(to_day + timedelta(days=1), time.min, tzinfo=_BERLIN)
+    as_stmt = select(EtvAssembly).where(
+        EtvAssembly.organization_id == organization_id,
+        EtvAssembly.deleted_at.is_(None),
+        EtvAssembly.status != AssemblyStatus.ABGESAGT,
+        EtvAssembly.scheduled_start >= window_start,
+        EtvAssembly.scheduled_start < window_end,
+    )
+    if property_id is not None:
+        as_stmt = as_stmt.where(EtvAssembly.property_id == property_id)
+    for a in (await session.scalars(as_stmt)).all():
+        p = props.get(a.property_id)
+        if p is None:
+            continue
+        out.append(
+            AgendaItem(
+                kind="ETV",
+                source="etv",
+                id=a.id,
+                title=a.title,
+                starts_at=a.scheduled_start,
+                ends_at=a.scheduled_end,
+                all_day=False,
+                property_id=p.id,
+                property_name=p.name,
+                property_address=_property_address(p),
+                lat=p.lat,
+                lng=p.lng,
+                location=a.location or None,
+                assembly_id=a.id,
+            )
+        )
+
+    out.sort(key=lambda x: (x.starts_at, x.kind, x.title))
     return out
 
 

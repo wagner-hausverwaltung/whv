@@ -486,6 +486,42 @@ struct CalendarEntry: Codable, Hashable, Identifiable {
     let assembly_id: String?
 }
 
+/// One row of GET /me/agenda (Verwalter): an ETV (timed) or a Termin
+/// (all-day) somewhere in the org, with the property to drive to.
+struct AgendaEntry: Codable, Hashable, Identifiable {
+    let kind: String  // ETV | TERMIN
+    let source: String
+    let id: String
+    let title: String
+    let starts_at: Date
+    let ends_at: Date?
+    let all_day: Bool
+    let property_id: String
+    let property_name: String
+    let property_address: String?
+    let lat: Double?
+    let lng: Double?
+    let location: String?
+    let note: String?
+    let assigned_label: String?
+    let assembly_id: String?
+
+    var isToday: Bool { Calendar.current.isDateInToday(starts_at) }
+
+    /// "Do 28.08. 18:00" / "Do 28.08. · ganztägig" — short enough for a
+    /// CarPlay row; today's entries drop the date.
+    var whenLabel: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = isToday ? "HH:mm" : "EE dd.MM. HH:mm"
+        if all_day {
+            f.dateFormat = isToday ? "'heute'" : "EE dd.MM."
+            return f.string(from: starts_at) + " · ganztägig"
+        }
+        return f.string(from: starts_at)
+    }
+}
+
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
@@ -923,6 +959,16 @@ struct APIClient {
 
 
     // MARK: CarPlay helpers (Verwalter-only)
+
+    /// GET /me/agenda?days=&property_id= — the Verwalter's upcoming ETV +
+    /// Termine across the org (or one property) with property address and
+    /// coordinates. CarPlay "Heute" and the object page's "Termine".
+    func getMyAgenda(days: Int = 7, propertyId: String? = nil) async throws -> [AgendaEntry] {
+        if DemoFlag.isActive { return [] }
+        var path = "/me/agenda?days=\(days)"
+        if let propertyId { path += "&property_id=\(propertyId)" }
+        return try await authedGET(path)
+    }
 
     /// Owners/tenants of a property with phone + e-mail (admin endpoint).
     func getAdminPropertyContacts(propertyId: String) async throws -> [AdminPropertyContact] {

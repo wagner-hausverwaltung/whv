@@ -3,8 +3,9 @@ member read-only + scope, month PDF, and the end-before-start guard.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -55,16 +56,22 @@ async def _setup(engine: AsyncEngine) -> dict[str, Any]:
 
 
 async def _make_assembly(
-    engine: AsyncEngine, *, org: Any, prop: Any, when: datetime
+    engine: AsyncEngine,
+    *,
+    org: Any,
+    prop: Any,
+    when: datetime,
+    status: AssemblyStatus = AssemblyStatus.GEPLANT,
+    title: str = "ETV 2026",
 ) -> EtvAssembly:
     sm = async_sessionmaker(engine, expire_on_commit=False)
     async with sm() as s:
         a = EtvAssembly(
             organization_id=org.id,
             property_id=prop.id,
-            title="ETV 2026",
+            title=title,
             description="",
-            status=AssemblyStatus.GEPLANT,
+            status=status,
             scheduled_start=when,
             scheduled_end=when,
             location="Vor Ort",
@@ -218,3 +225,88 @@ async def test_member_cannot_create_and_cross_org_isolation(test_engine: AsyncEn
             ).status_code
             == 404
         )
+
+
+# --- /me/agenda (Verwalter: ETV + Termine org-weit, für CarPlay "Heute") -----
+
+_BERLIN = ZoneInfo("Europe/Berlin")
+
+
+async def test_agenda_lists_etv_and_termine_across_properties(test_engine: AsyncEngine) -> None:
+    ctx = await _setup(test_engine)
+    org, prop = ctx["org"], ctx["prop"]
+    other = await make_property(test_engine, org=org, name="WEG Agenda B")
+    today = datetime.now(_BERLIN).date()
+    tomorrow_18 = datetime.combine(today + timedelta(days=1), time(18, 0), tzinfo=_BERLIN)
+    etv = await _make_assembly(test_engine, org=org, prop=prop, when=tomorrow_18)
+    # Excluded: cancelled, and beyond the 7-day window.
+    await _make_assembly(
+        test_engine,
+        org=org,
+        prop=prop,
+        when=tomorrow_18,
+        status=AssemblyStatus.ABGESAGT,
+        title="Abgesagt",
+    )
+    await _make_assembly(
+        test_engine, org=org, prop=other, when=tomorrow_18 + timedelta(days=20), title="Spaeter"
+    )
+    with TestClient(app) as client:
+        assert (
+            _create_event(
+                client,
+                ctx["v_token"],
+                other.id,
+                event_type="TERMIN",
+                title="Handwerker Dach",
+                starts_on=today.isoformat(),
+                assigned_label=None,
+            ).status_code
+            == 201
+        )
+        # Kehrwoche is an owner duty, not a Verwalter appointment.
+        assert (
+            _create_event(
+                client,
+                ctx["v_token"],
+                prop.id,
+                event_type="KEHRWOCHE",
+                starts_on=today.isoformat(),
+            ).status_code
+            == 201
+        )
+
+        r = client.get("/me/agenda", headers=_auth(ctx["v_token"]), params={"days": 7})
+        assert r.status_code == 200, r.text
+        items = r.json()
+        assert [(i["kind"], i["title"]) for i in items] == [
+            ("TERMIN", "Handwerker Dach"),
+            ("ETV", "ETV 2026"),
+        ]
+        termin, etv_item = items
+        assert termin["all_day"] is True
+        assert termin["property_name"] == "WEG Agenda B"
+        assert termin["property_id"] == str(other.id)
+        assert etv_item["all_day"] is False
+        assert etv_item["location"] == "Vor Ort"
+        assert etv_item["assembly_id"] == str(etv.id)
+        assert datetime.fromisoformat(etv_item["starts_at"]).astimezone(_BERLIN).hour == 18
+        assert etv_item["property_address"]  # street/city from the factory
+
+        # One property only.
+        only = client.get(
+            "/me/agenda",
+            headers=_auth(ctx["v_token"]),
+            params={"days": 7, "property_id": str(prop.id)},
+        ).json()
+        assert [i["kind"] for i in only] == ["ETV"]
+        # Wider window picks up the later ETV; days=0 is just today.
+        wide = client.get("/me/agenda", headers=_auth(ctx["v_token"]), params={"days": 30}).json()
+        assert "Spaeter" in {i["title"] for i in wide}
+        today_only = client.get(
+            "/me/agenda", headers=_auth(ctx["v_token"]), params={"days": 0}
+        ).json()
+        assert [i["kind"] for i in today_only] == ["TERMIN"]
+
+        # Owners don't get the Verwalter agenda.
+        assert client.get("/me/agenda", headers=_auth(ctx["m_token"])).status_code == 403

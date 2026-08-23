@@ -237,20 +237,25 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 
     /// Object page (level 2): drive actions, contacts (→ alert), open tickets.
-    private func showObjectPage(_ p: PropertyResponse) async {
+    /// `purpose` presets the trip purpose for "Fahrt hierhin starten" — ETV
+    /// when the page was opened from an ETV appointment, else Eigentümertermin.
+    /// Item budget (list cap, 12 in the Simulator car): 2 drive actions +
+    /// 3 Termine + 4 contacts + 3 tickets.
+    private func showObjectPage(_ p: PropertyResponse, purpose: String = "EIGENTUEMERTERMIN") async {
         let tracker = TripTracker.shared
+        let purposeLabel = TripPurpose(rawValue: purpose)?.label ?? purpose
         let navi = CPListItem(text: "Navigation starten", detailText: Self.address(p))
         navi.setImage(UIImage(systemName: "location.fill"))
         navi.handler = { [weak self] _, completion in self?.navigate(to: p); completion() }
 
         let fahrt = CPListItem(
             text: tracker.isRunning ? "Fahrt läuft bereits" : "Fahrt hierhin starten",
-            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Zweck: Eigentümertermin, Objekt vorbelegt"
+            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Zweck: \(purposeLabel), Objekt vorbelegt"
         )
         fahrt.setImage(UIImage(systemName: "car.fill"))
         fahrt.handler = { [weak self] _, completion in
             if !tracker.isRunning {
-                tracker.startWithPreset(purpose: "EIGENTUEMERTERMIN", propertyId: p.id, source: "CARPLAY")
+                tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY")
                 self?.alert("Fahrt läuft", "\(p.name) — die Fahrt wird aufgezeichnet.")
                 self?.refreshRoot()
             }
@@ -260,10 +265,27 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
         async let contactsTask = loadPeople(for: p)
         async let ticketsTask = api.getAdminTickets(propertyId: p.id)
+        async let agendaTask = api.getMyAgenda(days: 30, propertyId: p.id)
         let people = await contactsTask
         let tickets = (try? await ticketsTask) ?? []
+        let agenda = (try? await agendaTask) ?? []
 
-        let contactRows: [CPListItem] = people.prefix(6).map { person in
+        // Upcoming appointments at this object (30 days) — tap = details.
+        let agendaRows: [CPListItem] = agenda.prefix(3).map { a in
+            let item = CPListItem(text: "\(a.whenLabel) · \(a.title)", detailText: a.location ?? a.assigned_label ?? (a.kind == "ETV" ? "Eigentümerversammlung" : "Termin"))
+            item.setImage(UIImage(systemName: a.kind == "ETV" ? "person.3.fill" : "calendar"))
+            item.handler = { [weak self] _, completion in
+                let detail = [a.whenLabel, a.location, a.assigned_label, a.note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                self?.alert(a.title, detail.isEmpty ? p.name : detail)
+                completion()
+            }
+            return item
+        }
+        if !agendaRows.isEmpty {
+            sections.append(CPListSection(items: agendaRows, header: "Termine", sectionIndexTitle: nil))
+        }
+
+        let contactRows: [CPListItem] = people.prefix(4).map { person in
             let item = CPListItem(text: person.name, detailText: [person.kind, person.phone ?? person.email ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
             item.setImage(UIImage(systemName: person.kind == "Dienstleister" ? "wrench.and.screwdriver.fill" : "person.fill"))
             item.handler = { [weak self] _, completion in self?.personAlert(person, property: p); completion() }
@@ -272,7 +294,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if !contactRows.isEmpty {
             sections.append(CPListSection(items: contactRows, header: "Kontakte", sectionIndexTitle: nil))
         }
-        let open = tickets.filter { $0.closed_at == nil }.prefix(4)
+        let open = tickets.filter { $0.closed_at == nil }.prefix(3)
         if !open.isEmpty {
             let rows: [CPListItem] = open.map { t in
                 let item = CPListItem(text: t.subject, detailText: t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
@@ -381,10 +403,66 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     // MARK: Heute — read-only list of what's next
 
+    /// "Heute" = the next destination: today's appointments (ETV/Termine
+    /// across the org) first, then what's open from the activity feed. A
+    /// tap opens the object page (navigation, trip, contacts) — the list is
+    /// level 1, so the object page is the allowed level 2.
     private func showToday() async {
-        let feed = (try? await api.getMyActivity(limit: maxItems)) ?? []
-        let items: [CPListItem] = feed.map { a in CPListItem(text: a.title, detailText: a.subtitle) }
-        push(CPListTemplate(title: "Heute", sections: [CPListSection(items: items.isEmpty ? [CPListItem(text: "Nichts Offenes", detailText: nil)] : items)]))
+        async let agendaTask = api.getMyAgenda(days: 7)
+        async let feedTask = api.getMyActivity(limit: maxItems)
+        async let propsTask = api.getMyProperties()
+        let agenda = (try? await agendaTask) ?? []
+        let feed = (try? await feedTask) ?? []
+        let props = Dictionary(uniqueKeysWithValues: ((try? await propsTask) ?? []).map { ($0.id, $0) })
+
+        var sections: [CPListSection] = []
+        let todays = agenda.filter(\.isToday)
+        // Today's appointments; when the day is empty, the next ones instead
+        // so the driver still sees what's coming.
+        let shown = Array((todays.isEmpty ? agenda : todays).prefix(6))
+        if !shown.isEmpty {
+            let rows: [CPListItem] = shown.map { a in
+                let detail = [a.property_name, a.location ?? a.property_address ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+                let item = CPListItem(text: "\(a.whenLabel) · \(a.title)", detailText: detail)
+                item.setImage(UIImage(systemName: a.kind == "ETV" ? "person.3.fill" : "calendar"))
+                if let p = props[a.property_id] {
+                    item.accessoryType = .disclosureIndicator
+                    item.handler = { [weak self] _, completion in
+                        Task { @MainActor in
+                            await self?.showObjectPage(p, purpose: a.kind == "ETV" ? "ETV" : "EIGENTUEMERTERMIN")
+                            completion()
+                        }
+                    }
+                } else {
+                    item.handler = { [weak self] _, completion in
+                        self?.alert(a.title, [a.whenLabel, a.property_name, a.location ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                        completion()
+                    }
+                }
+                return item
+            }
+            sections.append(CPListSection(items: rows, header: todays.isEmpty ? "Nächste Termine" : "Termine heute", sectionIndexTitle: nil))
+        }
+
+        // What's open — tap jumps to the object it belongs to.
+        let room = max(0, maxItems - shown.count)
+        let openRows: [CPListItem] = feed.prefix(room).map { a in
+            let item = CPListItem(text: a.title, detailText: a.subtitle)
+            if let pid = a.propertyId, let p = props[pid] {
+                item.accessoryType = .disclosureIndicator
+                item.handler = { [weak self] _, completion in
+                    Task { @MainActor in await self?.showObjectPage(p); completion() }
+                }
+            }
+            return item
+        }
+        if !openRows.isEmpty {
+            sections.append(CPListSection(items: openRows, header: "Offen", sectionIndexTitle: nil))
+        }
+        if sections.isEmpty {
+            sections = [CPListSection(items: [CPListItem(text: "Nichts Offenes", detailText: "Keine Termine in den nächsten 7 Tagen.")])]
+        }
+        push(CPListTemplate(title: "Heute", sections: sections))
     }
 
     // MARK: Kontakte (level 1): properties by frequency → contacts (level 2)
