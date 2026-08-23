@@ -122,8 +122,24 @@ def _system_instruction(language: str | None = None) -> str:
         "und vergleiche es mit den Terminen und dem Status der Quellen: 'Abgehalten' "
         "= hat bereits stattgefunden, 'Eingeladen'/'Geplant' = steht noch bevor. Die "
         "'letzte' ist die jüngste bereits vergangene, die 'nächste' die früheste noch "
-        "bevorstehende."
+        "bevorstehende.\n"
+        "9. Fragt der Nutzer nach Kontaktdaten, Adresse, Telefon, E-Mail, Bankverbindung "
+        "oder Ähnlichem, OHNE zu nennen, um wen oder welche Firma es geht, und ergibt sich "
+        "die Person auch nicht aus dem Gesprächsverlauf, dann rate NICHT aus den Quellen, "
+        f"sondern frage kurz zurück {_ask_back_directive(language)} — ohne Quellenangabe."
     )
+
+
+def _ask_back_directive(language: str | None) -> str:
+    """How to ask back for the missing subject of a contact-data question."""
+    if (language or "").lower().startswith("en"):
+        return '(e.g. "Whose contact details do you need?")'
+    if not language:
+        return (
+            '(deutsch: "Von wem möchten Sie die Kontaktdaten?", '
+            'englisch: "Whose contact details do you need?")'
+        )
+    return '(z. B. "Von wem möchten Sie die Kontaktdaten?")'
 
 
 class Generator(Protocol):
