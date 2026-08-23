@@ -134,6 +134,8 @@ final class AuthStore: ObservableObject {
     /// invalidate the refresh token — Phase 2 hits POST /auth/logout
     /// when the endpoint lands.
     func signOut() {
+        // Siri's short-lived "Frag WHV" memory belongs to the signed-in user.
+        SiriConversation.clear()
         // Demo mode shuts down cleanly without touching Keychain
         // (it never wrote there). Live mode wipes both the auth
         // tokens and the cached user envelope.

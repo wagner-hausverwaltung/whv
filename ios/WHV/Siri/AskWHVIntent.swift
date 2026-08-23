@@ -55,12 +55,20 @@ struct AskWHVIntent: AppIntent {
         // object ≤ 300 m → the object selected in the app. Org-wide
         // retrieval across 27 objects mostly abstains ("nichts gefunden").
         let api = APIClient()
+        // Follow-up within a few minutes → same conversation: replay the
+        // recent turns and keep the object unless the question names another.
+        let convo = SiriConversation.current()
+        let conversationId = convo?.conversationId ?? UUID().uuidString.lowercased()
         var propertyId = property?.id
         if propertyId == nil, !DemoFlag.isActive {
             let props = (try? await api.getMyProperties()) ?? []
-            if let inferred = await Self.resolvePropertyContext(question: q, props: props) {
+            if let named = PropertyMatch.property(named: q, in: props) {
+                propertyId = named.id
+            } else if let prev = convo?.propertyId, props.contains(where: { $0.id == prev }) {
+                propertyId = prev
+            } else if let inferred = await Self.resolvePropertyContext(question: q, props: props) {
                 propertyId = inferred.id
-            } else if !props.isEmpty {
+            } else if !props.isEmpty, convo == nil {
                 // Nothing to go on → let Siri ask back; the spoken answer is
                 // resolved by PropertyEntityQuery and perform() runs again.
                 throw $property.needsValueError(IntentDialog("Für welches Objekt? Sagen Sie den Straßennamen."))
@@ -69,8 +77,17 @@ struct AskWHVIntent: AppIntent {
         let language = Locale.current.language.languageCode?.identifier
         let answer: String
         do {
-            let r = try await api.askAssistant(question: q, propertyId: propertyId, language: language)
+            let r = try await api.askAssistant(
+                question: q,
+                history: (convo?.turns ?? []).map { AssistantHistoryTurn(role: $0.role, content: $0.content) },
+                propertyId: propertyId,
+                conversationId: conversationId,
+                language: language
+            )
             answer = r.answer.isEmpty ? String(localized: "Dazu habe ich leider nichts gefunden.") : r.answer
+            SiriConversation.record(
+                conversationId: conversationId, question: q, answer: answer, propertyId: propertyId
+            )
         } catch APIError.unauthorized {
             answer = String(localized: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch APIError.demoReadOnly {
