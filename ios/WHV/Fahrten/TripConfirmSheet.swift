@@ -93,6 +93,7 @@ struct TripConfirmSheet: View {
     @State private var suggestedId: String?
     @State private var busy = false
     @State private var error: String?
+    @State private var showDeleteConfirm = false
 
     private let suggestRadiusM = 300.0
 
@@ -165,6 +166,26 @@ struct TripConfirmSheet: View {
                 if let error {
                     Section { Text(error).foregroundStyle(.red).font(.callout) }
                 }
+
+                // Deleting lives here too, not only behind a swipe: a test
+                // drive or mis-detection should be one obvious tap away.
+                Section {
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label(isPending ? "Fahrt verwerfen" : "Fahrt löschen", systemImage: "trash")
+                    }
+                    .disabled(busy)
+                } footer: {
+                    Text(isPending
+                         ? "Die Fahrt wird nicht hochgeladen und ist damit weg."
+                         : "Entfernt die Fahrt endgültig aus dem Fahrtenbuch.")
+                }
+            }
+            .confirmationDialog(
+                isPending ? "Diese Fahrt verwerfen?" : "Diese Fahrt endgültig löschen?",
+                isPresented: $showDeleteConfirm, titleVisibility: .visible
+            ) {
+                Button(isPending ? "Verwerfen" : "Löschen", role: .destructive) { Task { await deleteTrip() } }
+                Button("Abbrechen", role: .cancel) {}
             }
             .navigationTitle("Fahrt bestätigen")
             .navigationBarTitleDisplayMode(.inline)
@@ -207,6 +228,26 @@ struct TripConfirmSheet: View {
         }
         suggestedId = best?.id
         if propertyId == nil { propertyId = suggestedId }
+    }
+
+    private func deleteTrip() async {
+        busy = true
+        error = nil
+        switch target {
+        case .pending(let b):
+            TripTracker.shared.discardPending(startedAt: b.started_at)
+            onSaved()
+            dismiss()
+        case .server(let trip):
+            do {
+                try await api.deleteTrip(id: trip.id)
+                onSaved()
+                dismiss()
+            } catch {
+                self.error = "Löschen fehlgeschlagen."
+            }
+        }
+        busy = false
     }
 
     private func save() async {
