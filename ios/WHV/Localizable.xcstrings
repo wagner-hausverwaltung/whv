@@ -5,10 +5,17 @@
       "shouldTranslate" : false
     },
     "—" : {
-
+      "shouldTranslate" : false
     },
     "— kein Objekt —" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— no property —"
+          }
+        }
+      }
     },
     "· %lld Rechnung" : {
       "extractionState" : "stale",
@@ -33,36 +40,43 @@
       }
     },
     "· automatisch" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· automatic"
+          }
+        }
+      }
     },
     "· in der Nähe" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· nearby"
+          }
+        }
+      }
     },
     "„%@“" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”"
+          }
+        }
+      }
     },
     "%@" : {
-
+      "shouldTranslate" : false
     },
     "%@ – %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ – %2$@"
-          }
-        }
-      }
+      "shouldTranslate" : false
     },
     "%@ · %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$@"
-          }
-        }
-      }
+      "shouldTranslate" : false
     },
     "%@ · seit %@" : {
       "localizations" : {
@@ -71,46 +85,66 @@
             "state" : "new",
             "value" : "%1$@ · seit %2$@"
           }
-        }
-      }
-    },
-    "%@ %@" : {
-      "localizations" : {
-        "de" : {
+        },
+        "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@"
+            "state" : "translated",
+            "value" : "%@ · since %@"
           }
         }
       }
     },
+    "%@ %@" : {
+      "shouldTranslate" : false
+    },
     "%@ €" : {
-
+      "shouldTranslate" : false
     },
     "%lld" : {
       "shouldTranslate" : false
     },
     "%lld / %lld" : {
+      "shouldTranslate" : false
+    },
+    "%lld Anfragen" : {
       "localizations" : {
-        "de" : {
+        "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld / %2$lld"
+            "state" : "translated",
+            "value" : "%lld inquiries"
           }
         }
       }
     },
-    "%lld Anfragen" : {
-
-    },
     "%lld Fahrt(en) warten auf Upload." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld trip(s) waiting for upload."
+          }
+        }
+      }
     },
     "%lld Fahrten bestätigen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm %lld trips"
+          }
+        }
+      }
     },
     "%lld fällig" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld due"
+          }
+        }
+      }
     },
     "%lld von %lld Schritten erledigt" : {
       "localizations" : {
@@ -119,6 +153,12 @@
             "state" : "new",
             "value" : "%1$lld von %2$lld Schritten erledigt"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld steps done"
+          }
         }
       }
     },
@@ -126,26 +166,47 @@
       "shouldTranslate" : false
     },
     "%lld/%lld" : {
+      "shouldTranslate" : false
+    },
+    "+ %lld weitere Buchungen" : {
       "localizations" : {
-        "de" : {
+        "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld/%2$lld"
+            "state" : "translated",
+            "value" : "+ %lld more transactions"
           }
         }
       }
     },
-    "+ %lld weitere Buchungen" : {
-
-    },
     "+%lld weitere" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld more"
+          }
+        }
+      }
     },
     "≈ %@ € brutto inkl. 19%% USt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "≈ €%@ gross incl. 19%% VAT"
+          }
+        }
+      }
     },
     "1 Fahrt bestätigen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm 1 trip"
+          }
+        }
+      }
     },
     "Abbrechen" : {
       "localizations" : {
@@ -228,10 +289,24 @@
       }
     },
     "Absender" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sender"
+          }
+        }
+      }
     },
     "Absender, Betreff, Objekt …" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sender, subject, property …"
+          }
+        }
+      }
     },
     "Abstimmung" : {
       "localizations" : {
@@ -267,7 +342,14 @@
       "shouldTranslate" : false
     },
     "Aktionen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions"
+          }
+        }
+      }
     },
     "Aktive Liegenschaft" : {
       "extractionState" : "stale",
@@ -361,25 +443,74 @@
       }
     },
     "Anfrage" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inquiry"
+          }
+        }
+      }
     },
     "Anfrage löschen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete inquiry"
+          }
+        }
+      }
     },
     "Anfragen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inquiries"
+          }
+        }
+      }
     },
     "Angaben bearbeiten" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit details"
+          }
+        }
+      }
     },
     "Angaben speichern" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save details"
+          }
+        }
+      }
     },
     "Angebot herunterladen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download offer"
+          }
+        }
+      }
     },
     "Angebot senden" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send offer"
+          }
+        }
+      }
     },
     "Angenommen" : {
       "localizations" : {
@@ -422,10 +553,24 @@
       }
     },
     "Anrede" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salutation"
+          }
+        }
+      }
     },
     "Anschrift" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Address"
+          }
+        }
+      }
     },
     "Antworten" : {
       "localizations" : {
@@ -471,10 +616,24 @@
       }
     },
     "Art" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        }
+      }
     },
     "Assistent" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistant"
+          }
+        }
+      }
     },
     "Assistent öffnen" : {
       "localizations" : {
@@ -517,7 +676,14 @@
       }
     },
     "Auftraggeber" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client"
+          }
+        }
+      }
     },
     "Aus der Einladung übernommen." : {
       "localizations" : {
@@ -540,7 +706,14 @@
       }
     },
     "Ausführung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Execution"
+          }
+        }
+      }
     },
     "Auszahlung = Betrag an Sie als Eigentümer. Ohne Gewähr." : {
       "localizations" : {
@@ -553,7 +726,14 @@
       }
     },
     "Automatisch erkannt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detected automatically"
+          }
+        }
+      }
     },
     "Automatische Erkennung nicht verfügbar — bitte Wert eintragen." : {
       "extractionState" : "stale",
@@ -567,7 +747,14 @@
       }
     },
     "Bankverbindung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bank details"
+          }
+        }
+      }
     },
     "Bankverbindung / SEPA" : {
       "localizations" : {
@@ -600,7 +787,14 @@
       }
     },
     "Bearbeitung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processing"
+          }
+        }
+      }
     },
     "Beenden" : {
       "localizations" : {
@@ -613,7 +807,14 @@
       }
     },
     "Beginn" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
     },
     "Beirat" : {
       "localizations" : {
@@ -736,7 +937,14 @@
       }
     },
     "Betrag" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount"
+          }
+        }
+      }
     },
     "Betreff" : {
       "localizations" : {
@@ -779,10 +987,24 @@
       }
     },
     "Bevorzugt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferred"
+          }
+        }
+      }
     },
     "Bezeichnung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Designation"
+          }
+        }
+      }
     },
     "Bitte beschreiben …" : {
       "localizations" : {
@@ -848,13 +1070,34 @@
       }
     },
     "Buchungsdetails" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Booking details"
+          }
+        }
+      }
     },
     "Buchungsdetails werden geladen …" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading booking details …"
+          }
+        }
+      }
     },
     "Das Dokument konnte nicht geöffnet werden." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The document could not be opened."
+          }
+        }
+      }
     },
     "Das Protokoll wird in der Regel innerhalb von vier Wochen nach der Versammlung hochgeladen." : {
       "localizations" : {
@@ -887,7 +1130,14 @@
       }
     },
     "Datum" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
+          }
+        }
+      }
     },
     "Demo ansehen" : {
       "localizations" : {
@@ -910,7 +1160,14 @@
       }
     },
     "Der Assistent ist derzeit nicht verfügbar." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The assistant is currently unavailable."
+          }
+        }
+      }
     },
     "Die Abstimmung erfolgt per E-Mail über den Link in Ihrer Einladung." : {
       "localizations" : {
@@ -923,7 +1180,14 @@
       }
     },
     "Die Anfrage ist fehlgeschlagen. Bitte erneut versuchen." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request failed. Please try again."
+          }
+        }
+      }
     },
     "Die App wird gesperrt, wenn sie länger als eine Minute im Hintergrund war. Kurze Tab-Wechsel lösen keine Abfrage aus." : {
       "localizations" : {
@@ -956,10 +1220,24 @@
       }
     },
     "Dienstleister suchen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search service providers"
+          }
+        }
+      }
     },
     "Diese Anfrage endgültig löschen? Das kann nicht rückgängig gemacht werden." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this inquiry permanently? This cannot be undone."
+          }
+        }
+      }
     },
     "Dieses Ticket ist geschlossen." : {
       "localizations" : {
@@ -1042,7 +1320,14 @@
       }
     },
     "E-Mail-Text" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email text"
+          }
+        }
+      }
     },
     "Eigentümer" : {
       "localizations" : {
@@ -1065,7 +1350,14 @@
       }
     },
     "Eine freundliche Erinnerung per E-Mail an den Absender senden?" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send a friendly reminder email to the sender?"
+          }
+        }
+      }
     },
     "Eingeladen" : {
       "localizations" : {
@@ -1078,7 +1370,14 @@
       }
     },
     "Einheit oder Name suchen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search unit or name"
+          }
+        }
+      }
     },
     "Einheiten" : {
       "localizations" : {
@@ -1151,10 +1450,24 @@
       }
     },
     "Empfänger" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipient"
+          }
+        }
+      }
     },
     "Ende" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        }
+      }
     },
     "Enthaltung" : {
       "localizations" : {
@@ -1167,7 +1480,14 @@
       }
     },
     "Entschieden" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decided"
+          }
+        }
+      }
     },
     "Entschieden: %@" : {
       "extractionState" : "stale",
@@ -1237,11 +1557,24 @@
             "state" : "new",
             "value" : "Erinnerung %1$lld× gesendet, zuletzt am %2$@"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder sent %lld×, last on %@"
+          }
         }
       }
     },
     "Erinnerung senden" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send reminder"
+          }
+        }
+      }
     },
     "Erkennung fehlgeschlagen — bitte Wert eintragen." : {
       "extractionState" : "stale",
@@ -1255,10 +1588,24 @@
       }
     },
     "Erkennung nutzt Bewegungssensor und Standort (auch im Hintergrund) und legt nur Dienstfahrten an: Kilometergeld 0,30 €/km, Auslagen je Objekt. Die Route ist optional." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection uses the motion sensor and location (also in the background) and only records business trips: mileage allowance €0.30/km, expenses per property. The route is optional."
+          }
+        }
+      }
     },
     "erledigt am %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "done on %@"
+          }
+        }
+      }
     },
     "Erneut versuchen" : {
       "localizations" : {
@@ -1377,31 +1724,94 @@
       }
     },
     "Fahrt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip"
+          }
+        }
+      }
     },
     "Fahrt bestätigen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm trip"
+          }
+        }
+      }
     },
     "Fahrt läuft" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip in progress"
+          }
+        }
+      }
     },
     "Fahrt starten" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start trip"
+          }
+        }
+      }
     },
     "Fahrten automatisch erkennen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect trips automatically"
+          }
+        }
+      }
     },
     "Fahrten werden automatisch erkannt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trips are detected automatically"
+          }
+        }
+      }
     },
     "Fahrtenbuch" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mileage log"
+          }
+        }
+      }
     },
     "Fällig bis %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due by %@"
+          }
+        }
+      }
     },
     "Fertig" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
     },
     "Feuerschaden" : {
       "localizations" : {
@@ -1414,7 +1824,14 @@
       }
     },
     "Firma" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Company"
+          }
+        }
+      }
     },
     "Fläche" : {
       "localizations" : {
@@ -1468,13 +1885,34 @@
       }
     },
     "Frag WHV" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask WHV"
+          }
+        }
+      }
     },
     "Frag WHV: ${question}" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask WHV: ${question}"
+          }
+        }
+      }
     },
     "Frage" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question"
+          }
+        }
+      }
     },
     "Frage oder Antwort verfassen …" : {
       "localizations" : {
@@ -1507,10 +1945,24 @@
       }
     },
     "Fragen zu Ihren Dokumenten — oder die Verwaltung anrufen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask about your documents — or call the management"
+          }
+        }
+      }
     },
     "Frei" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free"
+          }
+        }
+      }
     },
     "Frist: %@" : {
       "localizations" : {
@@ -1523,7 +1975,14 @@
       }
     },
     "Für die Erkennung im Hintergrund Standort auf „Immer“ stellen." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Location to “Always” for background detection."
+          }
+        }
+      }
     },
     "Für diese Liegenschaft sind keine Dokumente hinterlegt." : {
       "localizations" : {
@@ -1556,7 +2015,14 @@
       }
     },
     "Geburtsdatum" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date of birth"
+          }
+        }
+      }
     },
     "Geplant" : {
       "localizations" : {
@@ -1589,7 +2055,14 @@
       }
     },
     "Handelsregister-Nr." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commercial register no."
+          }
+        }
+      }
     },
     "Hausgeld-Anpassung" : {
       "localizations" : {
@@ -1602,7 +2075,14 @@
       }
     },
     "Hausgeldkonto" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hausgeld account"
+          }
+        }
+      }
     },
     "Heizfl." : {
       "localizations" : {
@@ -1715,7 +2195,14 @@
       }
     },
     "Ihre Frage…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your question…"
+          }
+        }
+      }
     },
     "Ihre Liegenschaften" : {
       "localizations" : {
@@ -1778,7 +2265,14 @@
       }
     },
     "In diesem Monat wurde nichts aufgezeichnet." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was recorded this month."
+          }
+        }
+      }
     },
     "In Safari öffnen" : {
       "localizations" : {
@@ -1801,7 +2295,14 @@
       }
     },
     "Interne Notiz …" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Internal note …"
+          }
+        }
+      }
     },
     "Ja" : {
       "localizations" : {
@@ -1814,7 +2315,14 @@
       }
     },
     "Jahr" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Year"
+          }
+        }
+      }
     },
     "Jahresabrechnung" : {
       "localizations" : {
@@ -1827,7 +2335,7 @@
       }
     },
     "Jahresabrechnung %@" : {
-
+      "shouldTranslate" : false
     },
     "Kalender" : {
       "localizations" : {
@@ -1840,7 +2348,14 @@
       }
     },
     "Kalender exportieren" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export calendar"
+          }
+        }
+      }
     },
     "Kalender konnte nicht geladen werden." : {
       "extractionState" : "stale",
@@ -1874,7 +2389,14 @@
       }
     },
     "Keine Anfragen vorhanden." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No inquiries."
+          }
+        }
+      }
     },
     "Keine Beschlüsse" : {
       "localizations" : {
@@ -1887,16 +2409,44 @@
       }
     },
     "Keine Dokumente" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No documents"
+          }
+        }
+      }
     },
     "Keine Fahrt aktiv" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No trip in progress"
+          }
+        }
+      }
     },
     "Keine Fahrten" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No trips"
+          }
+        }
+      }
     },
     "Keine Liegenschaft" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No property"
+          }
+        }
+      }
     },
     "Keine Liegenschaft gewählt" : {
       "localizations" : {
@@ -1929,7 +2479,14 @@
       }
     },
     "Keine neuen Hinweise" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No new updates"
+          }
+        }
+      }
     },
     "Keine News verfügbar." : {
       "localizations" : {
@@ -1962,7 +2519,14 @@
       }
     },
     "Keine Treffer für die Suche." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No results for this search."
+          }
+        }
+      }
     },
     "Keine Versammlungen" : {
       "localizations" : {
@@ -2025,13 +2589,34 @@
       }
     },
     "Konnte nicht geladen werden" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not be loaded"
+          }
+        }
+      }
     },
     "Konnte nicht geladen werden." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not be loaded."
+          }
+        }
+      }
     },
     "Kontakt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact"
+          }
+        }
+      }
     },
     "Kontaktieren Sie uns" : {
       "localizations" : {
@@ -2054,7 +2639,14 @@
       }
     },
     "Konto %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account %@"
+          }
+        }
+      }
     },
     "Konto löschen" : {
       "localizations" : {
@@ -2217,10 +2809,24 @@
       }
     },
     "Mandat" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mandate"
+          }
+        }
+      }
     },
     "Mandat-Nr." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mandate no."
+          }
+        }
+      }
     },
     "Manuell" : {
       "localizations" : {
@@ -2273,7 +2879,14 @@
       }
     },
     "Meine Fahrten" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My trips"
+          }
+        }
+      }
     },
     "Melden" : {
       "localizations" : {
@@ -2286,10 +2899,24 @@
       }
     },
     "Mietabrechnung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rent statement"
+          }
+        }
+      }
     },
     "Mieteinnahmen %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rental income %@"
+          }
+        }
+      }
     },
     "Mieter" : {
       "localizations" : {
@@ -2429,14 +3056,34 @@
             "state" : "new",
             "value" : "MwSt. %1$@ %%%2$@"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VAT %@ %%%@"
+          }
         }
       }
     },
     "Nachname" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last name"
+          }
+        }
+      }
     },
     "Name, Art, Jahr …" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name, type, year …"
+          }
+        }
+      }
     },
     "name@example.com" : {
       "shouldTranslate" : false
@@ -2462,7 +3109,14 @@
       }
     },
     "NEU" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NEW"
+          }
+        }
+      }
     },
     "Neue Aufgabe" : {
       "localizations" : {
@@ -2569,10 +3223,24 @@
       }
     },
     "Noch keine Verbrauchsdaten" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No consumption data yet"
+          }
+        }
+      }
     },
     "Notiz" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        }
+      }
     },
     "Notiz (optional)" : {
       "localizations" : {
@@ -2585,13 +3253,34 @@
       }
     },
     "Notiz speichern" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save note"
+          }
+        }
+      }
     },
     "Notizen (für alle sichtbar)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes (visible to everyone)"
+          }
+        }
+      }
     },
     "Nur-Lese-Ansicht. Die Verwaltung pflegt den Fortschritt." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only view. The management maintains the progress."
+          }
+        }
+      }
     },
     "Nutzungsbedingungen" : {
       "localizations" : {
@@ -2604,10 +3293,24 @@
       }
     },
     "Objekt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Property"
+          }
+        }
+      }
     },
     "Objekt (Straße + Nr., PLZ + Ort)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Property (street + no., postcode + city)"
+          }
+        }
+      }
     },
     "Objekteigentümer" : {
       "localizations" : {
@@ -2671,7 +3374,14 @@
       }
     },
     "optional" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "optional"
+          }
+        }
+      }
     },
     "Passwort" : {
       "localizations" : {
@@ -2735,7 +3445,14 @@
       }
     },
     "Person" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Person"
+          }
+        }
+      }
     },
     "Personen" : {
       "localizations" : {
@@ -2748,10 +3465,24 @@
       }
     },
     "PLZ + Ort" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Postcode + city"
+          }
+        }
+      }
     },
     "Preis / Monat (netto)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Price / month (net)"
+          }
+        }
+      }
     },
     "Protokoll als PDF öffnen" : {
       "localizations" : {
@@ -2784,7 +3515,7 @@
       }
     },
     "Push" : {
-
+      "shouldTranslate" : false
     },
     "Quorum" : {
       "localizations" : {
@@ -2800,7 +3531,14 @@
       "shouldTranslate" : false
     },
     "Rechnung" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invoice"
+          }
+        }
+      }
     },
     "Rechnung als PDF öffnen" : {
       "localizations" : {
@@ -2823,7 +3561,14 @@
       }
     },
     "Rechnungs-Nr." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invoice no."
+          }
+        }
+      }
     },
     "Rechtliche Informationen" : {
       "localizations" : {
@@ -2856,10 +3601,24 @@
       }
     },
     "Rolle" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Role"
+          }
+        }
+      }
     },
     "Route speichern" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save route"
+          }
+        }
+      }
     },
     "Rückrufbitte" : {
       "localizations" : {
@@ -2872,7 +3631,14 @@
       }
     },
     "Saldo" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balance"
+          }
+        }
+      }
     },
     "Schadensmeldung" : {
       "localizations" : {
@@ -2926,10 +3692,24 @@
       }
     },
     "Schritt antippen, um ihn als erledigt zu markieren." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a step to mark it as done."
+          }
+        }
+      }
     },
     "Schritte" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steps"
+          }
+        }
+      }
     },
     "Seite konnte nicht geladen werden" : {
       "localizations" : {
@@ -2952,7 +3732,7 @@
       }
     },
     "SEV" : {
-
+      "shouldTranslate" : false
     },
     "Sicherheit" : {
       "localizations" : {
@@ -3005,10 +3785,24 @@
       }
     },
     "Später" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
     },
     "Speichern" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
     },
     "Sprache" : {
       "localizations" : {
@@ -3031,13 +3825,34 @@
       }
     },
     "Start" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        }
+      }
     },
     "Status" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        }
+      }
     },
     "Stellt dem WHV-Assistenten eine Frage zu Ihren Objekten, Dokumenten und Terminen." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks the WHV assistant a question about your properties, documents and appointments."
+          }
+        }
+      }
     },
     "Störung" : {
       "localizations" : {
@@ -3050,7 +3865,14 @@
       }
     },
     "Straße + Nr." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Street + no."
+          }
+        }
+      }
     },
     "Stromausfall" : {
       "localizations" : {
@@ -3063,10 +3885,17 @@
       }
     },
     "Suche in Ihren Dokumenten…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Searching your documents…"
+          }
+        }
+      }
     },
     "System" : {
-
+      "shouldTranslate" : false
     },
     "Tagesordnung" : {
       "localizations" : {
@@ -3112,7 +3941,14 @@
       }
     },
     "Telefon" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone"
+          }
+        }
+      }
     },
     "Telefonnotiz" : {
       "localizations" : {
@@ -3162,27 +3998,20 @@
       }
     },
     "Titel" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title"
+          }
+        }
+      }
     },
     "TOP %lld %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "TOP %1$lld %2$@"
-          }
-        }
-      }
+      "shouldTranslate" : false
     },
     "TOP %lld %@ — %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "TOP %1$lld %2$@ — %3$@"
-          }
-        }
-      }
+      "shouldTranslate" : false
     },
     "TOP 1: %@" : {
       "localizations" : {
@@ -3195,7 +4024,14 @@
       }
     },
     "Trotzdem speichern" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save anyway"
+          }
+        }
+      }
     },
     "Umlaufbeschlüsse erscheinen hier, sobald die Verwaltung sie startet." : {
       "localizations" : {
@@ -3208,16 +4044,44 @@
       }
     },
     "Unbekannt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
     },
     "Ungewöhnlicher Wert" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unusual value"
+          }
+        }
+      }
     },
     "Unternehmen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Company"
+          }
+        }
+      }
     },
     "Unternehmer" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Business"
+          }
+        }
+      }
     },
     "Unterschrieben am %@" : {
       "localizations" : {
@@ -3230,13 +4094,34 @@
       }
     },
     "USt-IdNr." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VAT ID"
+          }
+        }
+      }
     },
     "Verbrauch" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consumption"
+          }
+        }
+      }
     },
     "Verbraucher" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consumer"
+          }
+        }
+      }
     },
     "Vergangen" : {
       "localizations" : {
@@ -3342,19 +4227,54 @@
       }
     },
     "Vertrag" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contract"
+          }
+        }
+      }
     },
     "Vertragsbeginn" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contract start"
+          }
+        }
+      }
     },
     "Vertragsbeginn festlegen" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set contract start"
+          }
+        }
+      }
     },
     "Vertragsende" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contract end"
+          }
+        }
+      }
     },
     "Vertragsvariante" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contract variant"
+          }
+        }
+      }
     },
     "Verwalter" : {
       "localizations" : {
@@ -3378,10 +4298,17 @@
       }
     },
     "Verwendungszweck" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payment reference"
+          }
+        }
+      }
     },
     "Vollmacht" : {
-
+      "shouldTranslate" : false
     },
     "Vollmacht erteilen" : {
       "localizations" : {
@@ -3404,22 +4331,57 @@
       }
     },
     "Vom Konto (BIC)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From account (BIC)"
+          }
+        }
+      }
     },
     "Vom Konto (IBAN)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From account (IBAN)"
+          }
+        }
+      }
     },
     "Vorname" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First name"
+          }
+        }
+      }
     },
     "Vorschlag aus der Endposition der Fahrt." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested from the trip's end position."
+          }
+        }
+      }
     },
     "Wagner Hausverwaltung" : {
       "shouldTranslate" : false
     },
     "Wähle eine Liegenschaft aus." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a property."
+          }
+        }
+      }
     },
     "Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten." : {
       "localizations" : {
@@ -3442,7 +4404,14 @@
       }
     },
     "Was möchten Sie wissen?" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What would you like to know?"
+          }
+        }
+      }
     },
     "Wasserschaden" : {
       "localizations" : {
@@ -3455,7 +4424,7 @@
       }
     },
     "WEG" : {
-
+      "shouldTranslate" : false
     },
     "WEG-Anfrage" : {
       "localizations" : {
@@ -3478,7 +4447,7 @@
       }
     },
     "Weisung" : {
-
+      "shouldTranslate" : false
     },
     "Weisung / Einschränkung (optional)" : {
       "localizations" : {
@@ -3501,7 +4470,14 @@
       }
     },
     "Weisungen je Tagesordnungspunkt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weisungen per Tagesordnungspunkt"
+          }
+        }
+      }
     },
     "Weiterleitung" : {
       "localizations" : {
@@ -3566,7 +4542,14 @@
       }
     },
     "WHV — Aktuelles" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV — What's new"
+          }
+        }
+      }
     },
     "WHV — Übersicht" : {
       "extractionState" : "stale",
@@ -3590,7 +4573,14 @@
       }
     },
     "WHV: Keine neuen Hinweise" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV: No new updates"
+          }
+        }
+      }
     },
     "Widerruf fehlgeschlagen." : {
       "extractionState" : "stale",
@@ -3634,7 +4624,14 @@
       }
     },
     "Wird geladen…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading…"
+          }
+        }
+      }
     },
     "Worum geht es?" : {
       "localizations" : {
@@ -3677,7 +4674,14 @@
       }
     },
     "Zähler" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zähler"
+          }
+        }
+      }
     },
     "Zähler nicht geladen" : {
       "localizations" : {
@@ -3690,10 +4694,24 @@
       }
     },
     "Zählerstand" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zähler reading"
+          }
+        }
+      }
     },
     "Zeigt die neuesten WHV-Hinweise: Versammlungen, Beschlüsse, Mitteilungen, Dokumente, Rechnungen, Termine und fällige Zählerstände." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the latest WHV updates: Versammlungen, Beschlüsse, announcements, documents, invoices, appointments and due Zähler readings."
+          }
+        }
+      }
     },
     "Zeigt die wichtigsten WHV-Themen: kommende ETV, neue Mitteilungen, offene Tickets." : {
       "extractionState" : "stale",
@@ -3707,7 +4725,14 @@
       }
     },
     "Zeitraum" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period"
+          }
+        }
+      }
     },
     "Zimmer" : {
       "localizations" : {
@@ -3751,13 +4776,34 @@
       }
     },
     "Zum Konto (BIC)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To account (BIC)"
+          }
+        }
+      }
     },
     "Zum Konto (IBAN)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To account (IBAN)"
+          }
+        }
+      }
     },
     "Zweck" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purpose"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

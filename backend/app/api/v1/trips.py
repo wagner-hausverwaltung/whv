@@ -665,6 +665,7 @@ async def admin_statement_pdf(
         month=month,
         driver_label=driver.email,
         rate_cents_per_km=settings.trip_rate_cents_per_km,
+        payee_label=f"{settings.trip_payee_name}, {settings.trip_payee_address}",
     )
     name = statement_filename(month, driver.email)
     return Response(

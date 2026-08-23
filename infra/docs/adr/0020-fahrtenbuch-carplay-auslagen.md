@@ -15,8 +15,10 @@ Net-new scope gegenüber `REQUIREMENTS.md`, daher diese ADR.
 
 ## Decisions
 
-1. **Kein Finanzamt-Fahrtenbuch.** Das Auto ist privat → WHV zahlt dem Fahrer
-   Kilometergeld (0,30 €/km, `trip_rate_cents_per_km`, als Snapshot je Fahrt).
+1. **Kein Finanzamt-Fahrtenbuch.** Das Auto ist privat (Halter: Luis Wagner,
+   Bozener Straße 12, 71638 Ludwigsburg — Dirk fährt nur) → WHV zahlt dem
+   **Halter** Kilometergeld (0,30 €/km, `trip_rate_cents_per_km`, Snapshot je
+   Fahrt; Zahlungsempfänger `trip_payee_*` auf der Monatsabrechnung).
    GPS-Strecke genügt; kein Tachostand, Manipulationsschutz nur über Audit-Log.
    Modell `Trip` (RUNNING → OPEN → CONFIRMED; Quellen AUTO/MANUAL/CARPLAY;
    Zweck frei als Text mit StrEnum-Validierung; PRIVAT wird geloggt, nie vergütet).
@@ -50,7 +52,8 @@ Net-new scope gegenüber `REQUIREMENTS.md`, daher diese ADR.
    Firmendaten für den PDF-Fuß: `app/integrations/pdf/company.py` (aus dem
    Vertrags-Template übernommen).
 5. **Kilometergeld ≠ Weiterberechnung.** Die Kilometergeld-Abrechnung je Fahrer
-   (`statement.pdf`, 0,30 €/km, „Auslagen je Objekt" als interne Zuordnung) und
+   an den Fahrzeughalter (`statement.pdf`, 0,30 €/km, „Auslagen je Objekt" als
+   interne Zuordnung) und
    die Rechnung an das Objekt (0,42/0,50 €/km zzgl. USt) sind getrennte
    Dokumente mit getrennten Sätzen.
 

@@ -1,9 +1,10 @@
 """Fahrtenbuch — one row per Dienstfahrt of a Verwalter (ADR-0020).
 
-The car is the driver's PRIVATE car, so this is a Kilometergeld log
-(0,30 EUR/km reimbursement + Auslagenersatz towards the WEG, VDIV-2026 § 5.4),
-not a Finanzamt-Fahrtenbuch for a Firmenwagen: GPS distance is sufficient, no
-odometer, no tamper-proofing beyond the audit log.
+The car is a PRIVATE car (owned by Luis Wagner, driven by the Verwalter), so
+this is a Kilometergeld log (0,30 EUR/km reimbursement to the owner, settings
+trip_payee_*) plus the contract-dependent Auslagen-Rechnung to the property
+(see trip_invoice.py), not a Finanzamt-Fahrtenbuch for a Firmenwagen: GPS
+distance is sufficient, no odometer, no tamper-proofing beyond the audit log.
 
 Lifecycle: RUNNING (started, phone is tracking) → OPEN (ended, purpose and/or
 property still to confirm) → CONFIRMED. Most trips arrive already complete via

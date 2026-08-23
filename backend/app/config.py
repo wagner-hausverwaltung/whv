@@ -64,9 +64,13 @@ class Settings(BaseSettings):
     # FROM offer_from_address (must be on the Resend-verified domain).
     anfragen_inbound_address: str = "anfragen@wagner-hausverwaltung.com"
     offer_from_address: str = "anfragen@wagner-hausverwaltung.com"
-    # Fahrtenbuch: Kilometergeld for a Verwalter's private car, in cents per km.
+    # Fahrtenbuch: Kilometergeld for the private car, in cents per km.
     # Snapshotted onto every trip, so changing it never rewrites old trips.
     trip_rate_cents_per_km: int = 30
+    # Who receives the Kilometergeld: the car's private owner (the Verwalter
+    # only drives it). Printed on the monthly statement as the payee.
+    trip_payee_name: str = "Luis Wagner"
+    trip_payee_address: str = "Bozener Straße 12, 71638 Ludwigsburg"
     offer_from_name: str = "Wagner Hausverwaltung"
     # Auto-send is now controlled per-organization via the "Auto-Modus" toggle
     # on Admin -> Anfragen (organizations.offer_auto_send_enabled), NOT by these

@@ -352,6 +352,8 @@ async def test_statement_pdf_lists_trips_and_auslagen(test_engine: AsyncEngine) 
         # 10 km billable at 30 ct = 3,00 € total; private 4 km logged but 0 €.
         assert "3,00 €" in text
         assert "Auslagen je Objekt" in text
+        # The Kilometergeld goes to the car's private owner, not the driver.
+        assert "Zahlungsempfänger (Fahrzeughalter): Luis Wagner, Bozener Straße 12" in text
         # missing month → 422 (required query param)
         assert client.get("/admin/trips/statement.pdf", headers=_auth(token)).status_code == 422
 

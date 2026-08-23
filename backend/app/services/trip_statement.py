@@ -2,8 +2,9 @@
 
 One statement per month and driver: every trip with date, object, purpose,
 km and amount, the month total, and a second block that regroups the
-billable km per property — the Auslagen a WEG can be charged under the
-Verwaltervertrag (VDIV-2026 § 5.4). Rendered with reportlab like the offer
+billable km per property (internal attribution; what a WEG may actually be
+charged is contract-dependent — see services/trip_invoice.py). The payee is
+the car's private owner, not necessarily the driver. Rendered with reportlab like the offer
 documents; pure function of the trips passed in, so it is trivially
 testable and the endpoint just streams the bytes.
 """
@@ -106,10 +107,13 @@ def render_statement(
     month: str,
     driver_label: str,
     rate_cents_per_km: int,
+    payee_label: str | None = None,
     generated_at: datetime | None = None,
 ) -> bytes:
     """Render the monthly Kilometergeld statement. Trips are listed in the
-    order given (callers pass them chronologically)."""
+    order given (callers pass them chronologically). `payee_label` names who
+    is reimbursed — the private owner of the car, which is not necessarily
+    the driver."""
     _, page_h = A4
     margin = 18 * mm
     buf = BytesIO()
@@ -142,13 +146,16 @@ def render_statement(
             y,
             f"Satz {Decimal(rate_cents_per_km) / 100:.2f} € je km".replace(".", ","),
         )
+        if payee_label:
+            y -= 12
+            c.drawString(x0, y, f"Zahlungsempfänger (Fahrzeughalter): {payee_label}")
         if first:
             y -= 12
             c.setFont(_FONT, 7.5)
             c.drawString(
                 x0,
                 y,
-                "Privatwagen, Kilometerpauschale. "
+                "Privatwagen des Zahlungsempfängers, Kilometerpauschale. "
                 "Private Fahrten sind aufgeführt, aber nicht vergütet.",
             )
         y -= 16
