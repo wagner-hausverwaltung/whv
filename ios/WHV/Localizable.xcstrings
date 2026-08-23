@@ -4,79 +4,30 @@
     "" : {
       "shouldTranslate" : false
     },
-    "—" : {
-      "shouldTranslate" : false
-    },
-    "— kein Objekt —" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "— no property —"
-          }
-        }
-      }
-    },
-    "· %lld Rechnung" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %lld invoice"
-          }
-        }
-      }
-    },
-    "· %lld Rechnungen" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %lld invoices"
-          }
-        }
-      }
-    },
-    "· automatisch" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· automatic"
-          }
-        }
-      }
-    },
-    "· in der Nähe" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· nearby"
-          }
-        }
-      }
-    },
-    "„%@“" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”"
-          }
-        }
-      }
-    },
     "%@" : {
       "shouldTranslate" : false
     },
-    "%@ – %@" : {
+    "%@ %@" : {
       "shouldTranslate" : false
     },
     "%@ · %@" : {
       "shouldTranslate" : false
+    },
+    "%@ · %@ · wartet auf Upload" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · wartet auf Upload"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ · waiting for upload"
+          }
+        }
+      }
     },
     "%@ · seit %@" : {
       "localizations" : {
@@ -94,7 +45,7 @@
         }
       }
     },
-    "%@ %@" : {
+    "%@ – %@" : {
       "shouldTranslate" : false
     },
     "%@ €" : {
@@ -184,16 +135,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "+%lld more"
-          }
-        }
-      }
-    },
-    "≈ %@ € brutto inkl. 19%% USt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "≈ €%@ gross incl. 19%% VAT"
           }
         }
       }
@@ -351,17 +292,6 @@
         }
       }
     },
-    "Aktive Liegenschaft" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Active property"
-          }
-        }
-      }
-    },
     "Aktuell" : {
       "localizations" : {
         "en" : {
@@ -432,6 +362,16 @@
         }
       }
     },
+    "An wen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To whom?"
+          }
+        }
+      }
+    },
     "Andere E-Mail?" : {
       "localizations" : {
         "en" : {
@@ -463,7 +403,14 @@
       }
     },
     "Anfrage: %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inquiry: %@"
+          }
+        }
+      }
     },
     "Anfragen" : {
       "localizations" : {
@@ -561,6 +508,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salutation"
+          }
+        }
+      }
+    },
+    "Anrufer-Erkennung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caller ID"
           }
         }
       }
@@ -688,22 +645,22 @@
         }
       }
     },
-    "Aus der Einladung übernommen." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Taken from the invitation."
-          }
-        }
-      }
-    },
     "Aus Mediathek" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "From library"
+          }
+        }
+      }
+    },
+    "Aus der Einladung übernommen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taken from the invitation."
           }
         }
       }
@@ -738,17 +695,6 @@
         }
       }
     },
-    "Automatische Erkennung nicht verfügbar — bitte Wert eintragen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatic recognition unavailable — please enter the value."
-          }
-        }
-      }
-    },
     "Bankverbindung" : {
       "localizations" : {
         "en" : {
@@ -779,16 +725,6 @@
         }
       }
     },
-    "bearbeitet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "edited"
-          }
-        }
-      }
-    },
     "Bearbeitung" : {
       "localizations" : {
         "en" : {
@@ -805,6 +741,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exit"
+          }
+        }
+      }
+    },
+    "Beendet die laufende Fahrt am aktuellen Objekt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends the current trip at the property you are at."
           }
         }
       }
@@ -869,6 +815,26 @@
         }
       }
     },
+    "Beschlusstext" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlusstext"
+          }
+        }
+      }
+    },
+    "Beschlussumsetzung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschlussumsetzung"
+          }
+        }
+      }
+    },
     "Beschlüsse" : {
       "localizations" : {
         "en" : {
@@ -899,26 +865,6 @@
         }
       }
     },
-    "Beschlusstext" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beschlusstext"
-          }
-        }
-      }
-    },
-    "Beschlussumsetzung" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beschlussumsetzung"
-          }
-        }
-      }
-    },
     "Beschreibung" : {
       "localizations" : {
         "en" : {
@@ -930,7 +876,14 @@
       }
     },
     "Besichtigt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visited"
+          }
+        }
+      }
     },
     "Bestätigen" : {
       "localizations" : {
@@ -1022,41 +975,15 @@
         }
       }
     },
-    "Bitte das Ticket kurz beschreiben (mind. 3 Zeichen)." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Please describe the ticket briefly (min. 3 characters)."
-          }
-        }
-      }
-    },
-    "Bitte einen gültigen Zählerstand eintragen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Please enter a valid Zählerstand."
-          }
-        }
-      }
-    },
-    "Bitte geben Sie an, wen Sie bevollmächtigen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Please specify whom you are authorizing."
-          }
-        }
-      }
-    },
     "Bitte melden Sie sich zuerst in der WHV-App an." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please sign in to the WHV app first."
+          }
+        }
+      }
     },
     "Bitte mit Ihrem Portal-Konto anmelden." : {
       "localizations" : {
@@ -1064,6 +991,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Please sign in with your portal account."
+          }
+        }
+      }
+    },
+    "Briefing stoppen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop briefing"
+          }
+        }
+      }
+    },
+    "Briefing vorlesen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read briefing aloud"
           }
         }
       }
@@ -1119,14 +1066,21 @@
       }
     },
     "Das Ticket konnte gerade nicht angelegt werden." : {
-
-    },
-    "Datenänderung" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Data change"
+            "value" : "The ticket could not be created right now."
+          }
+        }
+      }
+    },
+    "Das konnte gerade nicht gespeichert werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That could not be saved right now."
           }
         }
       }
@@ -1137,6 +1091,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Privacy"
+          }
+        }
+      }
+    },
+    "Datenänderung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data change"
           }
         }
       }
@@ -1211,6 +1175,26 @@
         }
       }
     },
+    "Die Fahrt wird nicht hochgeladen und ist damit weg." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The trip will not be uploaded and is gone."
+          }
+        }
+      }
+    },
+    "Die Nachricht konnte nicht gesendet werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The message could not be sent."
+          }
+        }
+      }
+    },
     "Die Sprachänderung wird erst nach einem vollständigen Neustart der App wirksam (App über den App-Switcher schließen und neu öffnen)." : {
       "localizations" : {
         "en" : {
@@ -1247,6 +1231,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete this inquiry permanently? This cannot be undone."
+          }
+        }
+      }
+    },
+    "Diese Fahrt endgültig löschen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this trip permanently?"
+          }
+        }
+      }
+    },
+    "Diese Fahrt verwerfen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard this trip?"
           }
         }
       }
@@ -1337,6 +1341,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Email text"
+          }
+        }
+      }
+    },
+    "ETV" : {
+      "shouldTranslate" : false
+    },
+    "ETV-Einladungen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV invitations"
+          }
+        }
+      }
+    },
+    "ETV-Kommentare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ETV comments"
           }
         }
       }
@@ -1481,6 +1508,16 @@
         }
       }
     },
+    "Entfernt die Fahrt endgültig aus dem Fahrtenbuch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removes the trip from the mileage log for good."
+          }
+        }
+      }
+    },
     "Enthaltung" : {
       "localizations" : {
         "en" : {
@@ -1501,17 +1538,6 @@
         }
       }
     },
-    "Entschieden: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Decided: %@"
-          }
-        }
-      }
-    },
     "Entsperren" : {
       "localizations" : {
         "en" : {
@@ -1528,16 +1554,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Draft"
-          }
-        }
-      }
-    },
-    "erfüllt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "met"
           }
         }
       }
@@ -1588,33 +1604,12 @@
         }
       }
     },
-    "Erkennung fehlgeschlagen — bitte Wert eintragen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recognition failed — please enter the value."
-          }
-        }
-      }
-    },
     "Erkennung nutzt Bewegungssensor und Standort (auch im Hintergrund) und legt nur Dienstfahrten an: Kilometergeld 0,30 €/km, Auslagen je Objekt. Die Route ist optional." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Detection uses the motion sensor and location (also in the background) and only records business trips: mileage allowance €0.30/km, expenses per property. The route is optional."
-          }
-        }
-      }
-    },
-    "erledigt am %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "done on %@"
           }
         }
       }
@@ -1659,58 +1654,12 @@
         }
       }
     },
-    "ETV" : {
-      "shouldTranslate" : false
-    },
-    "ETV ansehen" : {
-      "extractionState" : "stale",
+    "Es läuft gerade keine Fahrt." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "View ETV"
-          }
-        }
-      }
-    },
-    "ETV läuft: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ETV in progress: %@"
-          }
-        }
-      }
-    },
-    "ETV-Einladungen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ETV invitations"
-          }
-        }
-      }
-    },
-    "ETV-Kommentare" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ETV comments"
-          }
-        }
-      }
-    },
-    "ETV: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ETV: %@"
+            "value" : "No trip is in progress."
           }
         }
       }
@@ -1745,12 +1694,32 @@
         }
       }
     },
+    "Fahrt beenden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End trip"
+          }
+        }
+      }
+    },
     "Fahrt bestätigen" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Confirm trip"
+          }
+        }
+      }
+    },
+    "Fahrt gestartet. Gute Fahrt!" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip started. Drive safely!"
           }
         }
       }
@@ -1765,12 +1734,42 @@
         }
       }
     },
+    "Fahrt läuft · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip in progress · %@"
+          }
+        }
+      }
+    },
+    "Fahrt löschen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete trip"
+          }
+        }
+      }
+    },
     "Fahrt starten" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start trip"
+          }
+        }
+      }
+    },
+    "Fahrt verwerfen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard trip"
           }
         }
       }
@@ -1801,16 +1800,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mileage log"
-          }
-        }
-      }
-    },
-    "Fällig bis %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Due by %@"
           }
         }
       }
@@ -1851,17 +1840,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Area"
-          }
-        }
-      }
-    },
-    "Folgt in Phase 2." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Coming in phase 2."
           }
         }
       }
@@ -1986,6 +1964,16 @@
         }
       }
     },
+    "Fällig bis %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due by %@"
+          }
+        }
+      }
+    },
     "Für die Erkennung im Hintergrund Standort auf „Immer“ stellen." : {
       "localizations" : {
         "en" : {
@@ -2076,6 +2064,16 @@
         }
       }
     },
+    "Handwerker vor Ort: ${firma}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contractor on site: ${firma}"
+          }
+        }
+      }
+    },
     "Hausgeld-Anpassung" : {
       "localizations" : {
         "en" : {
@@ -2156,12 +2154,32 @@
         }
       }
     },
+    "Hält fest, dass ein Handwerker am Objekt ist (Ankunft) bzw. fertig ist (Abfahrt) — als Ticket-Notiz." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records that a contractor is on site (arrival) or done (departure) — as a ticket note."
+          }
+        }
+      }
+    },
     "Ich komme später" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Running late"
+          }
+        }
+      }
+    },
+    "Ich weiß nicht, an welchem Objekt Sie sind — bitte die Fahrt zum Objekt laufen lassen oder das Ticket in der App anlegen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I don't know which property you are at — keep the trip to the property running or create the ticket in the app."
           }
         }
       }
@@ -2246,6 +2264,16 @@
         }
       }
     },
+    "Im Demo-Modus ist das Fahrtenbuch nicht verfügbar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mileage log is not available in demo mode."
+          }
+        }
+      }
+    },
     "Im Demo-Modus nicht verfügbar." : {
       "localizations" : {
         "en" : {
@@ -2276,6 +2304,16 @@
         }
       }
     },
+    "In Safari öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Safari"
+          }
+        }
+      }
+    },
     "In diesem Monat wurde nichts aufgezeichnet." : {
       "localizations" : {
         "en" : {
@@ -2286,12 +2324,12 @@
         }
       }
     },
-    "In Safari öffnen" : {
+    "In iOS-Einstellungen aktivieren" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open in Safari"
+            "value" : "Enable in iOS Settings"
           }
         }
       }
@@ -2349,6 +2387,16 @@
     "Jahresabrechnung %@" : {
       "shouldTranslate" : false
     },
+    "Jetzt hochladen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload now"
+          }
+        }
+      }
+    },
     "Kalender" : {
       "localizations" : {
         "en" : {
@@ -2365,17 +2413,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export calendar"
-          }
-        }
-      }
-    },
-    "Kalender konnte nicht geladen werden." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not load the calendar."
           }
         }
       }
@@ -2490,16 +2527,6 @@
         }
       }
     },
-    "Keine neuen Hinweise" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No new updates"
-          }
-        }
-      }
-    },
     "Keine News verfügbar." : {
       "localizations" : {
         "en" : {
@@ -2550,6 +2577,16 @@
         }
       }
     },
+    "Keine Zuordnung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not assigned"
+          }
+        }
+      }
+    },
     "Keine Zähler" : {
       "localizations" : {
         "en" : {
@@ -2560,12 +2597,12 @@
         }
       }
     },
-    "Keine Zuordnung" : {
+    "Keine neuen Hinweise" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not assigned"
+            "value" : "No new updates"
           }
         }
       }
@@ -2586,16 +2623,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Comments are for follow-up questions — formal challenges happen outside the portal."
-          }
-        }
-      }
-    },
-    "Können Sie nicht teilnehmen?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can't attend?"
           }
         }
       }
@@ -2690,32 +2717,22 @@
         }
       }
     },
+    "Können Sie nicht teilnehmen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't attend?"
+          }
+        }
+      }
+    },
     "Lade…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading…"
-          }
-        }
-      }
-    },
-    "läuft gerade" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "live now"
-          }
-        }
-      }
-    },
-    "läuft gerade · %lld min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "live now · %lld min"
           }
         }
       }
@@ -2731,7 +2748,14 @@
       }
     },
     "Legt per Diktat ein Ticket am aktuellen Objekt an." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creates a ticket at the current property by dictation."
+          }
+        }
+      }
     },
     "Letzter Stand: %@ %@ · %@" : {
       "localizations" : {
@@ -2753,22 +2777,22 @@
         }
       }
     },
-    "Liegenschaft wählen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose property"
-          }
-        }
-      }
-    },
     "Liegenschaft wechseln" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Switch property"
+          }
+        }
+      }
+    },
+    "Liegenschaft wählen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose property"
           }
         }
       }
@@ -2789,6 +2813,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading properties …"
+          }
+        }
+      }
+    },
+    "Liste jetzt aktualisieren" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh list now"
           }
         }
       }
@@ -2819,6 +2853,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete"
+          }
+        }
+      }
+    },
+    "MEA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MEA"
           }
         }
       }
@@ -2859,16 +2903,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Marks the upcoming Eigentümerversammlung as running late."
-          }
-        }
-      }
-    },
-    "MEA" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MEA"
           }
         }
       }
@@ -2963,16 +2997,6 @@
         }
       }
     },
-    "min. 10 Zeichen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "min. 10 characters"
-          }
-        }
-      }
-    },
     "Mit der Nutzung unserer App erklären Sie sich ausschließlich mit unseren Nutzungsbedingungen und Datenschutzvereinbarungen einverstanden." : {
       "localizations" : {
         "en" : {
@@ -2989,17 +3013,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Announcement"
-          }
-        }
-      }
-    },
-    "Mitteilung: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Announcement: %@"
           }
         }
       }
@@ -3080,12 +3093,32 @@
         }
       }
     },
+    "NEU" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NEW"
+          }
+        }
+      }
+    },
     "Nachname" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last name"
+          }
+        }
+      }
+    },
+    "Nachricht" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message"
           }
         }
       }
@@ -3099,9 +3132,6 @@
           }
         }
       }
-    },
-    "name@example.com" : {
-      "shouldTranslate" : false
     },
     "Nein" : {
       "localizations" : {
@@ -3123,16 +3153,6 @@
         }
       }
     },
-    "NEU" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "NEW"
-          }
-        }
-      }
-    },
     "Neue Aufgabe" : {
       "localizations" : {
         "en" : {
@@ -3149,17 +3169,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New documents"
-          }
-        }
-      }
-    },
-    "Neue Frage: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New question: %@"
           }
         }
       }
@@ -3217,16 +3226,6 @@
         }
       }
     },
-    "nicht erfüllt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "not met"
-          }
-        }
-      }
-    },
     "Noch keine Ablesungen." : {
       "localizations" : {
         "en" : {
@@ -3263,6 +3262,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Note (optional)"
+          }
+        }
+      }
+    },
+    "Notiz an ${contact}: ${text}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note to ${contact}: ${text}"
           }
         }
       }
@@ -3357,27 +3366,6 @@
         }
       }
     },
-    "Öffnet die Adresse in Google Maps" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opens the address in Google Maps"
-          }
-        }
-      }
-    },
-    "Öffnet die Telefon-App mit der Nummer der Wagner Hausverwaltung" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opens the Phone app with Wagner Hausverwaltung’s number"
-          }
-        }
-      }
-    },
     "Onboarding" : {
       "localizations" : {
         "en" : {
@@ -3388,12 +3376,22 @@
         }
       }
     },
-    "optional" : {
+    "PDF ansehen" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "optional"
+            "value" : "View PDF"
+          }
+        }
+      }
+    },
+    "PLZ + Ort" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Postcode + city"
           }
         }
       }
@@ -3438,27 +3436,6 @@
         }
       }
     },
-    "PDF ansehen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View PDF"
-          }
-        }
-      }
-    },
-    "PDF konnte nicht geladen werden." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not load the PDF."
-          }
-        }
-      }
-    },
     "Person" : {
       "localizations" : {
         "en" : {
@@ -3475,16 +3452,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Persons"
-          }
-        }
-      }
-    },
-    "PLZ + Ort" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Postcode + city"
           }
         }
       }
@@ -3645,6 +3612,9 @@
         }
       }
     },
+    "SEV" : {
+      "shouldTranslate" : false
+    },
     "Saldo" : {
       "localizations" : {
         "en" : {
@@ -3665,12 +3635,12 @@
         }
       }
     },
-    "Schädlinge" : {
+    "Schickt einem Eigentümer oder Mieter eine kurze Nachricht per E-Mail." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pests"
+            "value" : "Sends an owner or tenant a short message by email."
           }
         }
       }
@@ -3695,17 +3665,6 @@
         }
       }
     },
-    "Schnellzugriff" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quick access"
-          }
-        }
-      }
-    },
     "Schritt antippen, um ihn als erledigt zu markieren." : {
       "localizations" : {
         "en" : {
@@ -3722,6 +3681,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Steps"
+          }
+        }
+      }
+    },
+    "Schädlinge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pests"
           }
         }
       }
@@ -3745,9 +3714,6 @@
           }
         }
       }
-    },
-    "SEV" : {
-      "shouldTranslate" : false
     },
     "Sicherheit" : {
       "localizations" : {
@@ -3799,16 +3765,6 @@
         }
       }
     },
-    "Später" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Later"
-          }
-        }
-      }
-    },
     "Speichern" : {
       "localizations" : {
         "en" : {
@@ -3825,6 +3781,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Language"
+          }
+        }
+      }
+    },
+    "Später" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
           }
         }
       }
@@ -3849,6 +3815,16 @@
         }
       }
     },
+    "Startet eine Fahrt im WHV-Fahrtenbuch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts a trip in the WHV mileage log."
+          }
+        }
+      }
+    },
     "Status" : {
       "localizations" : {
         "en" : {
@@ -3865,16 +3841,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Asks the WHV assistant a question about your properties, documents and appointments."
-          }
-        }
-      }
-    },
-    "Störung" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Disturbance"
           }
         }
       }
@@ -3899,6 +3865,16 @@
         }
       }
     },
+    "Störung" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disturbance"
+          }
+        }
+      }
+    },
     "Suche in Ihren Dokumenten…" : {
       "localizations" : {
         "en" : {
@@ -3911,6 +3887,22 @@
     },
     "System" : {
       "shouldTranslate" : false
+    },
+    "TOP %lld %@" : {
+      "shouldTranslate" : false
+    },
+    "TOP %lld %@ — %@" : {
+      "shouldTranslate" : false
+    },
+    "TOP 1: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TOP 1: %@"
+          }
+        }
+      }
     },
     "Tagesordnung" : {
       "localizations" : {
@@ -3991,17 +3983,6 @@
         }
       }
     },
-    "Tickets offen: %lld" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open tickets: %lld"
-          }
-        }
-      }
-    },
     "Tickets werden geladen …" : {
       "localizations" : {
         "en" : {
@@ -4022,28 +4003,22 @@
         }
       }
     },
-    "TOP %lld %@" : {
-      "shouldTranslate" : false
-    },
-    "TOP %lld %@ — %@" : {
-      "shouldTranslate" : false
-    },
-    "TOP 1: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TOP 1: %@"
-          }
-        }
-      }
-    },
     "Trotzdem speichern" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save anyway"
+          }
+        }
+      }
+    },
+    "USt-IdNr." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VAT ID"
           }
         }
       }
@@ -4104,16 +4079,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Signed on %@"
-          }
-        }
-      }
-    },
-    "USt-IdNr." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VAT ID"
           }
         }
       }
@@ -4221,16 +4186,6 @@
     "Version" : {
       "shouldTranslate" : false
     },
-    "verspätet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "running late"
-          }
-        }
-      }
-    },
     "Verspätet" : {
       "localizations" : {
         "en" : {
@@ -4301,23 +4256,22 @@
         }
       }
     },
-    "Verwaltung" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Management"
-          }
-        }
-      }
-    },
     "Verwendungszweck" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Payment reference"
+          }
+        }
+      }
+    },
+    "Verwerfen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard"
           }
         }
       }
@@ -4385,62 +4339,6 @@
         }
       }
     },
-    "Wagner Hausverwaltung" : {
-      "shouldTranslate" : false
-    },
-    "Wähle eine Liegenschaft aus." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select a property."
-          }
-        }
-      }
-    },
-    "Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose for each event whether to be notified via push (app) and/or email."
-          }
-        }
-      }
-    },
-    "Wartet auf Kunde" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Waiting for customer"
-          }
-        }
-      }
-    },
-    "Was möchten Sie wissen?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "What would you like to know?"
-          }
-        }
-      }
-    },
-    "Was soll ins Ticket?" : {
-
-    },
-    "Wasserschaden" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Water damage"
-          }
-        }
-      }
-    },
     "WEG" : {
       "shouldTranslate" : false
     },
@@ -4460,6 +4358,134 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "WEG management"
+          }
+        }
+      }
+    },
+    "WHV Abfahrt" : {
+      "shouldTranslate" : false
+    },
+    "WHV Ankunft" : {
+      "shouldTranslate" : false
+    },
+    "WHV Handwerker vor Ort" : {
+      "shouldTranslate" : false
+    },
+    "WHV Notiz an Kontakt" : {
+      "shouldTranslate" : false
+    },
+    "WHV Ticket" : {
+      "shouldTranslate" : false
+    },
+    "WHV Ticket: ${text}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV Ticket: ${text}"
+          }
+        }
+      }
+    },
+    "WHV gesperrt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV locked"
+          }
+        }
+      }
+    },
+    "WHV — Aktuelles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV — What's new"
+          }
+        }
+      }
+    },
+    "WHV: Keine neuen Hinweise" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WHV: No new updates"
+          }
+        }
+      }
+    },
+    "Wagner Hausverwaltung" : {
+      "shouldTranslate" : false
+    },
+    "Warten auf Upload (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for upload (%lld)"
+          }
+        }
+      }
+    },
+    "Wartet auf Kunde" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for customer"
+          }
+        }
+      }
+    },
+    "Wartet auf Upload — wird mit diesen Angaben hochgeladen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for upload — will be uploaded with these details."
+          }
+        }
+      }
+    },
+    "Was möchten Sie wissen?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What would you like to know?"
+          }
+        }
+      }
+    },
+    "Was soll ich schreiben?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What should I write?"
+          }
+        }
+      }
+    },
+    "Was soll ins Ticket?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What should go into the ticket?"
+          }
+        }
+      }
+    },
+    "Wasserschaden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Water damage"
           }
         }
       }
@@ -4507,6 +4533,16 @@
         }
       }
     },
+    "Welche Firma ist vor Ort?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which company is on site?"
+          }
+        }
+      }
+    },
     "Wen bevollmächtigen Sie?" : {
       "localizations" : {
         "en" : {
@@ -4527,92 +4563,12 @@
         }
       }
     },
-    "Wert aus Foto erkannt — bitte prüfen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Value read from the photo — please check."
-          }
-        }
-      }
-    },
-    "Wert nicht sicher lesbar — bitte manuell eintragen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Value not read reliably — please enter it manually."
-          }
-        }
-      }
-    },
     "Wert wird erkannt…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reading value…"
-          }
-        }
-      }
-    },
-    "WHV — Aktuelles" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WHV — What's new"
-          }
-        }
-      }
-    },
-    "WHV — Übersicht" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WHV — Overview"
-          }
-        }
-      }
-    },
-    "WHV gesperrt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WHV locked"
-          }
-        }
-      }
-    },
-    "WHV Ticket" : {
-
-    },
-    "WHV Ticket: ${text}" : {
-
-    },
-    "WHV: Keine neuen Hinweise" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WHV: No new updates"
-          }
-        }
-      }
-    },
-    "Widerruf fehlgeschlagen." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Revocation failed."
           }
         }
       }
@@ -4667,62 +4623,22 @@
         }
       }
     },
-    "z. B. „Wie hoch war die Heizungsrechnung 2025?“ — mit Quellenangaben." : {
+    "Wähle eine Liegenschaft aus." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "e.g. \"How much was the 2025 heating invoice?\" — with sources."
+            "value" : "Select a property."
           }
         }
       }
     },
-    "z. B. ABC123-XYZ" : {
+    "Wählen Sie je Ereignis, ob Sie per Push (App) und/oder E-Mail benachrichtigt werden möchten." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "e.g. ABC123-XYZ"
-          }
-        }
-      }
-    },
-    "z. B. Beirat, Herr Müller oder die Hausverwaltung." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g. Beirat, Mr Müller or the Hausverwaltung."
-          }
-        }
-      }
-    },
-    "Zähler" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zähler"
-          }
-        }
-      }
-    },
-    "Zähler nicht geladen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't load Zähler"
-          }
-        }
-      }
-    },
-    "Zählerstand" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zähler reading"
+            "value" : "Choose for each event whether to be notified via push (app) and/or email."
           }
         }
       }
@@ -4737,23 +4653,32 @@
         }
       }
     },
-    "Zeigt die wichtigsten WHV-Themen: kommende ETV, neue Mitteilungen, offene Tickets." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shows the most important WHV items: upcoming ETV, new announcements, open tickets."
-          }
-        }
-      }
-    },
     "Zeitraum" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Period"
+          }
+        }
+      }
+    },
+    "Ziel wird am Ende vorgeschlagen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination will be suggested at the end"
+          }
+        }
+      }
+    },
+    "Ziel: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination: %@"
           }
         }
       }
@@ -4788,17 +4713,6 @@
         }
       }
     },
-    "Zuletzt %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Last %@"
-          }
-        }
-      }
-    },
     "Zum Konto (BIC)" : {
       "localizations" : {
         "en" : {
@@ -4825,6 +4739,235 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purpose"
+          }
+        }
+      }
+    },
+    "Zähler" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zähler"
+          }
+        }
+      }
+    },
+    "Zähler nicht geladen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load Zähler"
+          }
+        }
+      }
+    },
+    "Zählerstand" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zähler reading"
+          }
+        }
+      }
+    },
+    "bearbeitet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "edited"
+          }
+        }
+      }
+    },
+    "erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "met"
+          }
+        }
+      }
+    },
+    "erledigt am %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "done on %@"
+          }
+        }
+      }
+    },
+    "läuft gerade" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "live now"
+          }
+        }
+      }
+    },
+    "läuft gerade · %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "live now · %lld min"
+          }
+        }
+      }
+    },
+    "min. 10 Zeichen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min. 10 characters"
+          }
+        }
+      }
+    },
+    "name@example.com" : {
+      "shouldTranslate" : false
+    },
+    "nicht erfüllt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not met"
+          }
+        }
+      }
+    },
+    "optional" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "optional"
+          }
+        }
+      }
+    },
+    "seit %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "since %@"
+          }
+        }
+      }
+    },
+    "verspätet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "running late"
+          }
+        }
+      }
+    },
+    "z. B. ABC123-XYZ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. ABC123-XYZ"
+          }
+        }
+      }
+    },
+    "z. B. Beirat, Herr Müller oder die Hausverwaltung." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Beirat, Mr Müller or the Hausverwaltung."
+          }
+        }
+      }
+    },
+    "z. B. „Wie hoch war die Heizungsrechnung 2025?“ — mit Quellenangaben." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. \"How much was the 2025 heating invoice?\" — with sources."
+          }
+        }
+      }
+    },
+    "· %@" : {
+      "shouldTranslate" : false
+    },
+    "· automatisch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· automatic"
+          }
+        }
+      }
+    },
+    "· in der Nähe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· nearby"
+          }
+        }
+      }
+    },
+    "Öffnet die Adresse in Google Maps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens the address in Google Maps"
+          }
+        }
+      }
+    },
+    "—" : {
+      "shouldTranslate" : false
+    },
+    "— kein Objekt —" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— no property —"
+          }
+        }
+      }
+    },
+    "„%@“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”"
+          }
+        }
+      }
+    },
+    "≈ %@ € brutto inkl. 19%% USt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "≈ €%@ gross incl. 19%% VAT"
           }
         }
       }
