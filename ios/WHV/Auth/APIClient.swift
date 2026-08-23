@@ -967,6 +967,14 @@ struct APIClient {
 
 
 
+    // MARK: Briefing (Verwalter-only)
+
+    /// GET /me/properties/{id}/briefing — spoken German summary for the car.
+    func getBriefing(propertyId: String) async throws -> BriefingResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedGET("/me/properties/\(propertyId)/briefing")
+    }
+
     // MARK: Caller ID (Verwalter-only)
 
     /// GET /me/call-directory — numbers + labels for the Call Directory

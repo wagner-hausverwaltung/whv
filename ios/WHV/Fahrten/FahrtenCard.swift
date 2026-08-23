@@ -11,7 +11,11 @@
 import SwiftUI
 
 struct FahrtenCard: View {
+    /// The property the card sits on (PropertyDetailView) — enables the
+    /// spoken Briefing button; nil on the Start tab.
+    var propertyId: String? = nil
     @ObservedObject private var tracker = TripTracker.shared
+    @ObservedObject private var speaker = BriefingSpeaker.shared
     @State private var showList = false
     @State private var confirming: TripResponse?
 
@@ -21,6 +25,16 @@ struct FahrtenCard: View {
                 Label("Fahrtenbuch", systemImage: "car.fill")
                     .font(.headline)
                 Spacer()
+                if let pid = propertyId {
+                    Button {
+                        Task { await speaker.toggle(propertyId: pid) }
+                    } label: {
+                        Image(systemName: speaker.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                    }
+                    .accessibilityLabel(speaker.isSpeaking ? "Briefing stoppen" : "Briefing vorlesen")
+                    .font(.subheadline)
+                    .padding(.trailing, 4)
+                }
                 Button("Meine Fahrten") { showList = true }
                     .font(.subheadline)
             }

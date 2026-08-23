@@ -207,7 +207,7 @@ struct PropertyDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 headerCard
                 if authStore.user?.role.lowercased() == "verwalter" {
-                    FahrtenCard()
+                    FahrtenCard(propertyId: property.id)
                 }
                 AccountingProgressCard(propertyId: property.id)
                 quickActionsSection()

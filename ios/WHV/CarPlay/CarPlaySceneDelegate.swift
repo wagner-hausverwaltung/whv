@@ -475,8 +475,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     /// Object page (level 2): drive actions, contacts (→ alert), open tickets.
     /// `purpose` presets the trip purpose for "Fahrt hierhin starten" — ETV
     /// when the page was opened from an ETV appointment, else Eigentümertermin.
-    /// Item budget (list cap, 12 in the Simulator car): 2 drive actions +
-    /// 3 Termine + 4 contacts + 3 tickets.
+    /// Item budget (list cap, 12 in the Simulator car): 3 drive actions
+    /// (Navigation, Fahrt, Briefing) + 3 Termine + 3 contacts + 3 tickets.
     private func showObjectPage(_ p: PropertyResponse, purpose: String = "EIGENTUEMERTERMIN") async {
         let tracker = TripTracker.shared
         let purposeLabel = TripPurpose(rawValue: purpose)?.label ?? purpose
@@ -507,7 +507,19 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             }
             completion()
         }
-        var sections = [CPListSection(items: [navi, fahrt], header: "Fahrt", sectionIndexTitle: nil)]
+        // Spoken 30-second summary (tickets, Termine, ETV, Zähler, Abrechnung)
+        // before walking in — tap again to stop.
+        let speaker = BriefingSpeaker.shared
+        let briefing = CPListItem(
+            text: speaker.isSpeaking ? "Briefing stoppen" : "Briefing vorlesen",
+            detailText: "Tickets, Termine, Versammlung, Zähler, Abrechnung"
+        )
+        briefing.setImage(UIImage(systemName: speaker.isSpeaking ? "stop.circle" : "speaker.wave.2.fill"))
+        briefing.handler = { _, completion in
+            completion()
+            Task { @MainActor in await speaker.toggle(propertyId: p.id) }
+        }
+        var sections = [CPListSection(items: [navi, fahrt, briefing], header: "Fahrt", sectionIndexTitle: nil)]
         // Show the page at once with the drive actions; contacts, tickets and
         // appointments arrive a moment later via updateSections — the driver
         // never stares at a spinner while three requests run.
@@ -538,7 +550,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             sections.append(CPListSection(items: agendaRows, header: "Termine", sectionIndexTitle: nil))
         }
 
-        let contactRows: [CPListItem] = people.prefix(4).map { person in
+        let contactRows: [CPListItem] = people.prefix(3).map { person in
             let item = CPListItem(text: person.name, detailText: [person.kind, person.phone ?? person.email ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
             item.setImage(UIImage(systemName: person.kind == "Dienstleister" ? "wrench.and.screwdriver.fill" : "person.fill"))
             item.handler = { [weak self] _, completion in self?.personAlert(person, property: p); completion() }
