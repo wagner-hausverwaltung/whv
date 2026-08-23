@@ -2,7 +2,7 @@
 // note. Distance stays what the phone measured — the Verwalter fixes the
 // bookkeeping side, not the GPS.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import type { TripResponse } from "@/api/types";
+import type { AdminPropertyListItem, TripResponse } from "@/api/types";
 import { purposeLabel } from "@/lib/trips";
 
 const PURPOSES = [
@@ -50,12 +50,27 @@ export function TripEditDialog({ trip, properties, onClose, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The trip's own property may not be in the month-derived list (e.g. the
-  // only trip to it) — keep it selectable.
+  // Offer EVERY property of the org (not just the month's), so a trip can be
+  // pointed at any object; the month list is the instant fallback while the
+  // full list loads. The trip's own property stays selectable regardless.
+  const [allProperties, setAllProperties] = useState<[string, string][] | null>(null);
+  useEffect(() => {
+    api
+      .get<AdminPropertyListItem[]>("/admin/properties")
+      .then((r) =>
+        setAllProperties(
+          r.data
+            .map((p): [string, string] => [p.id, p.name])
+            .sort((a, b) => a[1].localeCompare(b[1])),
+        ),
+      )
+      .catch(() => setAllProperties(null));
+  }, []);
+  const base = allProperties ?? properties;
   const options: [string, string][] =
-    trip.property_id && trip.property_name && !properties.some(([id]) => id === trip.property_id)
-      ? [[trip.property_id, trip.property_name], ...properties]
-      : properties;
+    trip.property_id && trip.property_name && !base.some(([id]) => id === trip.property_id)
+      ? [[trip.property_id, trip.property_name], ...base]
+      : base;
 
   const wantsProperty = !purpose || WANTS_PROPERTY.has(purpose);
 

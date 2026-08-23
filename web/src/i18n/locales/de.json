@@ -880,6 +880,9 @@
       "map": "Karte",
       "mapMonth": "Routen des Monats",
       "inquiry": "Anfrage",
+      "deleteConfirm": "Fahrt vom {{when}} ({{km}}) löschen? Das kann nicht rückgängig gemacht werden.",
+      "deleteFailed": "Fahrt konnte nicht gelöscht werden.",
+      "deleteBilled": "Abgerechnete Fahrt – erst die Rechnung stornieren.",
       "invoice": {
         "sectionTitle": "Auslagen-Rechnungen Fahrtkosten",
         "sectionHint": "Was der WEG/dem Eigentümer berechnet werden darf, richtet sich nach dem Verwaltervertrag (WEG: nur Versammlungen außerhalb Kreis Stuttgart, 0,42 €/km · MV/SEV: Fahrten über die Auslagenpauschale hinaus, 0,50 €/km) – die Auswahl trifft der Verwalter, Fahrten werden danach als abgerechnet markiert.",

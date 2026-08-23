@@ -119,6 +119,17 @@ export function AdminFahrtenPage() {
     URL.revokeObjectURL(url);
   };
 
+  const deleteTrip = async (r: TripResponse) => {
+    const when = new Date(r.started_at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+    if (!window.confirm(t("admin.fahrten.deleteConfirm", { when, km: fmtKm(r.distance_m) }))) return;
+    try {
+      await api.delete(`/admin/trips/${r.id}`);
+      await load();
+    } catch {
+      setError(t("admin.fahrten.deleteFailed"));
+    }
+  };
+
   const cancelInvoice = async (inv: TripInvoiceResponse) => {
     if (!window.confirm(t("admin.fahrten.invoice.cancelConfirm", { number: inv.number }))) return;
     try {
@@ -364,6 +375,15 @@ export function AdminFahrtenPage() {
                     </IconButton>
                     <IconButton size="small" onClick={() => setEditing(r)} aria-label={t("common.edit")}>
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => void deleteTrip(r)}
+                      disabled={!!r.invoice_id}
+                      aria-label={t("common.delete")}
+                      title={r.invoice_id ? t("admin.fahrten.deleteBilled") : t("common.delete")}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                   </TableCell>
                 </TableRow>

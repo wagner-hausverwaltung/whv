@@ -580,3 +580,59 @@ async def test_foreign_inquiry_is_rejected(test_engine: AsyncEngine) -> None:
             ).status_code
             == 400
         )
+
+
+async def test_admin_can_delete_any_trip_but_not_a_billed_one(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    other_org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="WEG Aufraeumen")
+    _, driver_email, driver_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _, admin_email, admin_pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    _, foreign_email, foreign_pw = await make_user(
+        test_engine, org=other_org, role=UserRole.VERWALTER
+    )
+    driver, admin, foreign = (
+        _login(driver_email, driver_pw),
+        _login(admin_email, admin_pw),
+        _login(foreign_email, foreign_pw),
+    )
+    with TestClient(app) as client:
+        # A test drive without purpose (OPEN) — the admin may drop it.
+        open_trip = client.post(
+            "/me/trips/complete", headers=_auth(driver), json=_complete_payload(distance_m=120)
+        ).json()
+        assert (
+            client.delete(f"/admin/trips/{open_trip['id']}", headers=_auth(foreign)).status_code
+            == 404
+        )
+        assert (
+            client.delete(f"/admin/trips/{open_trip['id']}", headers=_auth(admin)).status_code
+            == 204
+        )
+        assert open_trip["id"] not in {
+            t["id"] for t in client.get("/admin/trips", headers=_auth(admin)).json()["items"]
+        }
+        # A billed trip is locked until its invoice is cancelled.
+        billed = client.post(
+            "/me/trips/complete",
+            headers=_auth(driver),
+            json=_complete_payload(purpose="ETV", property_id=str(prop.id)),
+        ).json()
+        inv = client.post(
+            "/admin/trips/invoices",
+            headers=_auth(admin),
+            json={"property_id": str(prop.id), "trip_ids": [billed["id"]], "rate_cents_per_km": 42},
+        )
+        assert inv.status_code == 201, inv.text
+        assert (
+            client.delete(f"/admin/trips/{billed['id']}", headers=_auth(admin)).status_code == 409
+        )
+        assert (
+            client.delete(
+                f"/admin/trips/invoices/{inv.json()['id']}", headers=_auth(admin)
+            ).status_code
+            == 204
+        )
+        assert (
+            client.delete(f"/admin/trips/{billed['id']}", headers=_auth(admin)).status_code == 204
+        )

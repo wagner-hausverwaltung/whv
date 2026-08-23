@@ -255,8 +255,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if actions.count > cap { actions = Array(actions.prefix(cap)) }
         // titleVariants are ALTERNATIVES (CarPlay picks one that fits), not a
         // title + subtitle — so the full text is the first variant and the
-        // bare title the fallback for tiny displays.
-        let full = detail.isEmpty ? title : "\(title)\n\(detail)"
+        // bare title the fallback for tiny displays. CarPlay drops newlines in
+        // alert titles, hence one line joined with the middle dot.
+        let full = detail.isEmpty ? title : "\(title) · \(detail)"
         interface.presentTemplate(CPAlertTemplate(titleVariants: [full, title], actions: actions), animated: true, completion: nil)
     }
 
@@ -302,6 +303,32 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         return String(tail)
     }
 
+    /// Street-name key for alphabetical grouping: the name without its
+    /// "WEG " / "MV " / "SEV " prefix, uppercased ("WEG Hasenbergstraße 32" → "H…").
+    private static func streetKey(_ p: PropertyResponse) -> String {
+        var n = p.name.trimmingCharacters(in: .whitespaces)
+        for prefix in ["WEG ", "MV ", "SEV "] where n.uppercased().hasPrefix(prefix) {
+            n = String(n.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+        }
+        return n.uppercased()
+    }
+
+    /// Split a category into alphabetical batches of at most `size` objects
+    /// and label each by its letter range: one batch → "MV" (n), several →
+    /// "MV A–K", "MV L–Z" (derived from the first/last street name).
+    private static func alphabeticalBatches(
+        _ list: [PropertyResponse], label: String, size: Int
+    ) -> [(title: String, list: [PropertyResponse], detail: String)] {
+        let sorted = list.sorted { streetKey($0) < streetKey($1) }
+        let chunk = max(1, size)
+        let batches = stride(from: 0, to: sorted.count, by: chunk).map { Array(sorted[$0..<min($0 + chunk, sorted.count)]) }
+        return batches.map { batch in
+            let first = streetKey(batch[0]).prefix(1), last = streetKey(batch[batch.count - 1]).prefix(1)
+            let range = batches.count > 1 ? " \(first)–\(last)" : ""
+            return ("\(label)\(range)", batch, "\(batch.count) Objekte · tippen = Navigation + Fahrt")
+        }
+    }
+
     /// Nearest first when the phone knows where it is, else by how often
     /// the object was driven to, else by name.
     private func orderForTheCar(_ props: [PropertyResponse], freq: [String: Int]) -> [PropertyResponse] {
@@ -340,21 +367,30 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         for p in ranked.props { byType[Self.typeLabel(p), default: []].append(p) }
         let wegs = orderForTheCar(byType["WEG"] ?? [], freq: ranked.freq)
 
-        // Category rows first, so we know how many WEG rows fit.
+        // Category rows (MV / SEV / …) first, so we know how many WEG rows fit.
+        // A category with more objects than one list can hold is split into
+        // alphabetical batches ("MV A–K", "MV L–Z"), each ≤ the list cap.
         var categories: [(title: String, list: [PropertyResponse], detail: String)] = []
         for key in ["MV", "SEV", "Weitere"] {
-            if let list = byType[key], !list.isEmpty {
-                categories.append((key, orderForTheCar(list, freq: ranked.freq), "\(list.count) Objekte · tippen = Navigation + Fahrt"))
+            guard let list = byType[key], !list.isEmpty else { continue }
+            categories += Self.alphabeticalBatches(list, label: key, size: maxItems)
+        }
+        // WEGs inline when they fit; otherwise the remainder becomes
+        // alphabetical batches at the bottom ("Weitere WEG G–U").
+        var slots = max(1, maxItems - categories.count)
+        var restBatches: [(title: String, list: [PropertyResponse], detail: String)] = []
+        if wegs.count > slots {
+            // Each extra batch costs a row — iterate until it fits.
+            for _ in 0..<3 {
+                let rest = Array(wegs.dropFirst(slots))
+                restBatches = Self.alphabeticalBatches(rest, label: "Weitere WEG", size: maxItems)
+                let fitting = max(1, maxItems - categories.count - restBatches.count)
+                if fitting == slots { break }
+                slots = fitting
             }
         }
-        // All WEGs inline when they fit; otherwise keep one row for the rest.
-        var slots = max(1, maxItems - categories.count)
-        if wegs.count > slots { slots = max(1, slots - 1) }
         let shownWegs = Array(wegs.prefix(slots))
-        let restWegs = Array(wegs.dropFirst(slots))
-        if !restWegs.isEmpty {
-            categories.insert(("Weitere WEG", restWegs, "\(restWegs.count) weitere · tippen = Navigation + Fahrt"), at: 0)
-        }
+        categories = restBatches + categories
 
         var sections: [CPListSection] = []
         if !shownWegs.isEmpty {

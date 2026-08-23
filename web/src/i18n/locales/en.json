@@ -880,6 +880,9 @@
       "map": "Map",
       "mapMonth": "Routes of the month",
       "inquiry": "Inquiry",
+      "deleteConfirm": "Delete the trip of {{when}} ({{km}})? This cannot be undone.",
+      "deleteFailed": "The trip could not be deleted.",
+      "deleteBilled": "Billed trip – cancel the invoice first.",
       "invoice": {
         "sectionTitle": "Travel expense invoices",
         "sectionHint": "What may be charged to the WEG/owner depends on the management contract (WEG: meetings outside Kreis Stuttgart only, €0.42/km · MV/SEV: trips beyond the expense allowance, €0.50/km) – the Verwalter selects the trips, which are then marked as billed.",

@@ -551,6 +551,50 @@ async def admin_update_trip(
     return (await _to_response(session, [trip]))[0]
 
 
+@admin_router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_trip(
+    trip_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Drop any driver's trip from the admin Fahrtenbuch (test drives,
+    mis-detections, duplicates). A billed trip stays until its invoice is
+    cancelled — the invoice snapshot must keep matching the log. Audited."""
+    trip = await session.scalar(
+        select(Trip).where(Trip.id == trip_id, Trip.organization_id == current_user.organization_id)
+    )
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fahrt nicht gefunden")
+    if trip.invoice_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Fahrt ist abgerechnet — erst die Rechnung stornieren.",
+        )
+    inquiry_id = trip.inquiry_id
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="trip_deleted",
+            target_type="trips",
+            target_id=str(trip.id),
+            payload_json={
+                "by_admin": True,
+                "driver_user_id": str(trip.user_id),
+                "started_at": trip.started_at.isoformat(),
+                "distance_m": trip.distance_m,
+                "purpose": trip.purpose,
+                "status": trip.status,
+            },
+        )
+    )
+    await session.delete(trip)
+    await session.commit()
+    _reindex_inquiry_card(settings, current_user.organization_id, inquiry_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @admin_router.get("/export.csv")
 async def admin_export_trips_csv(
     current_user: Annotated[User, Depends(_verwalter_only)],
