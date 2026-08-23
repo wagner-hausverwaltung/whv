@@ -18,6 +18,7 @@ struct FahrtenListView: View {
     @State private var trips: [TripResponse] = []
     @State private var loading = false
     @State private var editing: TripResponse?
+    @State private var editingPending: TripCompleteBody?
     @State private var error: String?
 
     var body: some View {
@@ -49,18 +50,22 @@ struct FahrtenListView: View {
             if !tracker.pending.isEmpty {
                 Section {
                     ForEach(tracker.pending, id: \.started_at) { b in
-                        HStack(spacing: 12) {
-                            Image(systemName: "icloud.and.arrow.up")
-                                .foregroundStyle(.orange)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(b.started_at.formatted(date: .abbreviated, time: .shortened))
-                                Text("\(TripPurpose.label(for: b.purpose)) · \(b.source) · wartet auf Upload")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        Button { editingPending = b } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "icloud.and.arrow.up")
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 24)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(b.started_at.formatted(date: .abbreviated, time: .shortened))
+                                    Text("\(TripPurpose.label(for: b.purpose)) · \(b.source) · wartet auf Upload")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(TripFormat.km(b.distance_m)).font(.body.monospacedDigit())
                             }
-                            Spacer()
-                            Text(TripFormat.km(b.distance_m)).font(.body.monospacedDigit())
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .swipeActions {
                             Button(role: .destructive) {
                                 tracker.discardPending(startedAt: b.started_at)
@@ -107,6 +112,9 @@ struct FahrtenListView: View {
         .refreshable { await load() }
         .sheet(item: $editing) { t in
             TripConfirmSheet(trip: t) { Task { await load() } }
+        }
+        .sheet(item: $editingPending) { b in
+            TripConfirmSheet(pending: b) {}
         }
     }
 

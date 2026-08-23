@@ -379,6 +379,17 @@ final class TripTracker: NSObject, ObservableObject {
         savePending(loadPending().filter { $0.started_at != startedAt })
     }
 
+    /// Confirm a queued trip before it is uploaded — it then arrives on the
+    /// server as CONFIRMED, same as a trip confirmed after upload.
+    func updatePending(startedAt: Date, purpose: String?, propertyId: String?, note: String?) {
+        var queue = loadPending()
+        guard let i = queue.firstIndex(where: { $0.started_at == startedAt }) else { return }
+        queue[i].purpose = purpose
+        queue[i].property_id = propertyId
+        queue[i].note = note
+        savePending(queue)
+    }
+
     /// Try the queue again right now (button in "Meine Fahrten").
     func retryPending() async {
         await flushPending()

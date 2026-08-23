@@ -11,11 +11,80 @@ import CoreLocation
 import SwiftUI
 
 struct TripConfirmSheet: View {
-    let trip: TripResponse
+    /// What is being confirmed: a trip already on the server (PATCH) or one
+    /// still waiting in the phone's upload queue (edited in place).
+    enum Target {
+        case server(TripResponse)
+        case pending(TripCompleteBody)
+    }
+
+    let target: Target
     var onSaved: () -> Void
+
+    init(trip: TripResponse, onSaved: @escaping () -> Void) {
+        self.target = .server(trip)
+        self.onSaved = onSaved
+    }
+
+    init(pending: TripCompleteBody, onSaved: @escaping () -> Void) {
+        self.target = .pending(pending)
+        self.onSaved = onSaved
+    }
 
     @Environment(\.dismiss) private var dismiss
     private let api = APIClient()
+
+    // Common view of both targets.
+    private var startedAt: Date {
+        switch target {
+        case .server(let t): return t.started_at
+        case .pending(let b): return b.started_at
+        }
+    }
+    private var distanceM: Int? {
+        switch target {
+        case .server(let t): return t.distance_m
+        case .pending(let b): return b.distance_m
+        }
+    }
+    private var source: String {
+        switch target {
+        case .server(let t): return t.source
+        case .pending(let b): return b.source
+        }
+    }
+    private var endCoordinate: CLLocationCoordinate2D? {
+        switch target {
+        case .server(let t): return t.endCoordinate
+        case .pending(let b): return b.endCoordinate
+        }
+    }
+    private var initialPurpose: String? {
+        switch target {
+        case .server(let t): return t.purpose
+        case .pending(let b): return b.purpose
+        }
+    }
+    private var initialPropertyId: String? {
+        switch target {
+        case .server(let t): return t.property_id
+        case .pending(let b): return b.property_id
+        }
+    }
+    private var initialNote: String? {
+        switch target {
+        case .server(let t): return t.note
+        case .pending(let b): return b.note
+        }
+    }
+    private var inquiryAddress: String? {
+        if case .server(let t) = target, t.inquiry_id != nil { return t.inquiry_address ?? "ohne Adresse" }
+        return nil
+    }
+    private var isPending: Bool {
+        if case .pending = target { return true }
+        return false
+    }
 
     @State private var purpose: TripPurpose?
     @State private var propertyId: String?
@@ -32,16 +101,20 @@ struct TripConfirmSheet: View {
             Form {
                 Section {
                     HStack {
-                        Text(trip.started_at.formatted(date: .abbreviated, time: .shortened))
+                        Text(startedAt.formatted(date: .abbreviated, time: .shortened))
                         Spacer()
-                        Text(TripFormat.km(trip.distance_m)).foregroundStyle(.secondary)
+                        Text(TripFormat.km(distanceM)).foregroundStyle(.secondary)
                     }
-                    if trip.source == "AUTO" {
+                    if source == "AUTO" {
                         Text("Automatisch erkannt").font(.caption).foregroundStyle(.secondary)
                     }
-                    if trip.inquiry_id != nil {
-                        Label("Anfrage: \(trip.inquiry_address ?? "ohne Adresse")", systemImage: "binoculars")
+                    if let inquiryAddress {
+                        Label("Anfrage: \(inquiryAddress)", systemImage: "binoculars")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if isPending {
+                        Label("Wartet auf Upload — wird mit diesen Angaben hochgeladen.", systemImage: "icloud.and.arrow.up")
+                            .font(.caption).foregroundStyle(.orange)
                     }
                 } header: { Text("Fahrt") }
 
@@ -116,15 +189,15 @@ struct TripConfirmSheet: View {
     }
 
     private func load() async {
-        purpose = trip.purpose.flatMap(TripPurpose.init(rawValue:))
-        propertyId = trip.property_id
-        note = trip.note ?? ""
+        purpose = initialPurpose.flatMap(TripPurpose.init(rawValue:))
+        propertyId = initialPropertyId
+        note = initialNote ?? ""
         do {
             properties = try await api.getMyProperties()
         } catch {
             return
         }
-        guard let end = trip.endCoordinate else { return }
+        guard let end = endCoordinate else { return }
         // Nearest property within the radius becomes the suggestion.
         var best: (id: String, d: Double)?
         for p in properties {
@@ -140,18 +213,29 @@ struct TripConfirmSheet: View {
         guard let purpose else { return }
         busy = true
         error = nil
-        var body = TripUpdateBody(purpose: purpose.rawValue, note: note.isEmpty ? nil : note)
-        if purpose.wantsProperty, let pid = propertyId {
-            body.property_id = pid
-        } else {
-            body.clearProperty = true
-        }
-        do {
-            _ = try await api.updateTrip(id: trip.id, body: body)
+        let pid = purpose.wantsProperty ? propertyId : nil
+        switch target {
+        case .pending(let b):
+            TripTracker.shared.updatePending(
+                startedAt: b.started_at, purpose: purpose.rawValue, propertyId: pid,
+                note: note.isEmpty ? nil : note
+            )
             onSaved()
             dismiss()
-        } catch {
-            self.error = "Konnte nicht gespeichert werden."
+        case .server(let trip):
+            var body = TripUpdateBody(purpose: purpose.rawValue, note: note.isEmpty ? nil : note)
+            if let pid {
+                body.property_id = pid
+            } else {
+                body.clearProperty = true
+            }
+            do {
+                _ = try await api.updateTrip(id: trip.id, body: body)
+                onSaved()
+                dismiss()
+            } catch {
+                self.error = "Konnte nicht gespeichert werden."
+            }
         }
         busy = false
     }

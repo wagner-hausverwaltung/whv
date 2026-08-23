@@ -68,12 +68,24 @@ struct TripCompleteBody: Codable {
     let distance_m: Int
     let route_polyline: String?
     let source: String
-    let purpose: String?
-    let property_id: String?
+    // Mutable: a queued trip can be confirmed (purpose/object/note) on the
+    // phone before it ever reaches the server.
+    var purpose: String?
+    var property_id: String?
     var note: String? = nil
     /// Besichtigung of a prospect (anfragen@ inquiry) — optional so queued
     /// uploads from before this field decode unchanged.
     var inquiry_id: String? = nil
+
+    var endCoordinate: CLLocationCoordinate2D? {
+        guard let lat = end_lat, let lng = end_lng else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+}
+
+/// Queue rows are keyed by their start instant (unique per device).
+extension TripCompleteBody: Identifiable {
+    var id: Date { started_at }
 }
 
 /// Partial update — only non-nil fields are sent (see APIClient encoder:
