@@ -95,7 +95,7 @@ App-Store-URL. Derselbe Text gehört später in die Review Notes in App Store Co
 > app for their portal. The CarPlay scene is only available to users with
 > the property-manager role.
 
-## Review Notes für App Store Connect (ab Build 1.3.6 (63), 2026-08-23)
+## Review Notes für App Store Connect (ab Build 1.3.7 (64), 2026-08-23)
 
 Einfügen unter „App Review Information → Notes"; der Antragstext oben bleibt der
 Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
