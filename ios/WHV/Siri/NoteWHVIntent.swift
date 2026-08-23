@@ -71,7 +71,9 @@ struct NoteWHVIntent: AppIntent {
         } catch {
             return .result(dialog: "Das Ticket konnte gerade nicht angelegt werden.")
         }
-        let where_ = propertyName.map { " für \($0)" } ?? " ohne Objekt"
-        return .result(dialog: IntentDialog(stringLiteral: "Ticket angelegt\(where_)."))
+        if let propertyName {
+            return .result(dialog: IntentDialog("Ticket angelegt für \(propertyName)."))
+        }
+        return .result(dialog: "Ticket angelegt, ohne Objekt.")
     }
 }

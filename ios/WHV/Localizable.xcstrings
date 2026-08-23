@@ -10,6 +10,38 @@
     "%@ %@" : {
       "shouldTranslate" : false
     },
+    "%@ fertig um %@, %lld Minuten vor Ort. Im Ticket festgehalten." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ fertig um %2$@, %3$lld Minuten vor Ort. Im Ticket festgehalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ finished at %2$@, %3$lld minutes on site. Recorded in the ticket."
+          }
+        }
+      }
+    },
+    "%@ vor Ort seit %@ bei %@ — notiert. Sagen Sie es nochmal, wenn sie fertig sind." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ vor Ort seit %2$@ bei %3$@ — notiert. Sagen Sie es nochmal, wenn sie fertig sind."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ on site since %2$@ at %3$@ — noted. Say it again when they are done."
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "shouldTranslate" : false
     },
@@ -458,6 +490,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Send offer"
+          }
+        }
+      }
+    },
+    "Angekommen bei %@, %@. %@ Kilometer gespeichert." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Angekommen bei %1$@, %2$@. %3$@ Kilometer gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived at %1$@, %2$@. %3$@ kilometres saved."
+          }
+        }
+      }
+    },
+    "Angekommen bei %@. %@ Kilometer gespeichert." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Angekommen bei %1$@. %2$@ Kilometer gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived at %1$@. %2$@ kilometres saved."
           }
         }
       }
@@ -1135,6 +1199,16 @@
         }
       }
     },
+    "Dazu habe ich leider nichts gefunden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I couldn't find anything on that."
+          }
+        }
+      }
+    },
     "Demo ansehen" : {
       "localizations" : {
         "en" : {
@@ -1175,6 +1249,16 @@
         }
       }
     },
+    "Der Assistent ist gerade nicht erreichbar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The assistant is not reachable right now."
+          }
+        }
+      }
+    },
     "Die Abstimmung erfolgt per E-Mail über den Link in Ihrer Einladung." : {
       "localizations" : {
         "en" : {
@@ -1201,6 +1285,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The app locks when it has been in the background for more than a minute. Quick tab switches don’t trigger a prompt."
+          }
+        }
+      }
+    },
+    "Die Fahrt läuft bereits seit %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The trip has been running since %@."
+          }
+        }
+      }
+    },
+    "Die Fahrt läuft bereits." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The trip is already running."
           }
         }
       }
@@ -1754,6 +1858,16 @@
         }
       }
     },
+    "Fahrt beendet, %@ Kilometer. Kein Objekt in der Nähe — Zweck und Objekt bitte in der App bestätigen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip ended, %@ kilometres. No property nearby — please confirm purpose and property in the app."
+          }
+        }
+      }
+    },
     "Fahrt bestätigen" : {
       "localizations" : {
         "en" : {
@@ -2104,6 +2218,16 @@
         }
       }
     },
+    "Für welches Objekt? Sagen Sie den Straßennamen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For which property? Say the street name."
+          }
+        }
+      }
+    },
     "Geburtsdatum" : {
       "localizations" : {
         "en" : {
@@ -2140,6 +2264,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Closed (%lld)"
+          }
+        }
+      }
+    },
+    "Gesendet an %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to %@."
           }
         }
       }
@@ -2360,6 +2494,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The mileage log is not available in demo mode."
+          }
+        }
+      }
+    },
+    "Im Demo-Modus ist der Assistent nicht verfügbar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The assistant is not available in demo mode."
           }
         }
       }
@@ -4079,6 +4223,26 @@
     },
     "Ticket" : {
       "shouldTranslate" : false
+    },
+    "Ticket angelegt für %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ticket created for %@."
+          }
+        }
+      }
+    },
+    "Ticket angelegt, ohne Objekt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ticket created, without a property."
+          }
+        }
+      }
     },
     "Tickets" : {
       "shouldTranslate" : false

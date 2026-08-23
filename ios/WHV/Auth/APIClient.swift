@@ -684,6 +684,9 @@ struct AssistantQueryRequest: Codable {
     let history: [AssistantHistoryTurn]
     let property_id: String?
     let conversation_id: String?
+    // "de"/"en" — answer + abstain phrase in the caller's language. nil → the
+    // model mirrors the question's language.
+    var language: String? = nil
 }
 
 enum APIError: Error, LocalizedError {
@@ -1186,7 +1189,8 @@ struct APIClient {
         question: String,
         history: [AssistantHistoryTurn] = [],
         propertyId: String? = nil,
-        conversationId: String? = nil
+        conversationId: String? = nil,
+        language: String? = nil
     ) async throws -> AssistantQueryResponse {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedJSON(
@@ -1196,7 +1200,8 @@ struct APIClient {
                 question: question,
                 history: history,
                 property_id: propertyId,
-                conversation_id: conversationId
+                conversation_id: conversationId,
+                language: language
             )
         )
     }

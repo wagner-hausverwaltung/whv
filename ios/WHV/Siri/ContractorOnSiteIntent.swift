@@ -68,7 +68,7 @@ struct ContractorOnSiteIntent: AppIntent {
                     ticketId: existing.id,
                     body: "Abfahrt \(time) · vor Ort ca. \(minutes) Min (per Siri, Standort \(property.name))."
                 )
-                return .result(dialog: IntentDialog(stringLiteral: "\(name) fertig um \(time), \(minutes) Minuten vor Ort. Im Ticket festgehalten."))
+                return .result(dialog: IntentDialog("\(name) fertig um \(time), \(minutes) Minuten vor Ort. Im Ticket festgehalten."))
             }
             _ = try await api.createMyTicket(
                 subject: subject,
@@ -76,7 +76,8 @@ struct ContractorOnSiteIntent: AppIntent {
                 category: TicketCategory(rawValue: "SONSTIGES_OTHER") ?? TicketCategory.allCases.first!,
                 propertyId: property.id
             )
-            return .result(dialog: IntentDialog(stringLiteral: "\(name) vor Ort seit \(time) bei \(property.name) — notiert. Sagen Sie es nochmal, wenn sie fertig sind."))
+            let propertyName = property.name
+            return .result(dialog: IntentDialog("\(name) vor Ort seit \(time) bei \(propertyName) — notiert. Sagen Sie es nochmal, wenn sie fertig sind."))
         } catch APIError.unauthorized {
             return .result(dialog: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch {

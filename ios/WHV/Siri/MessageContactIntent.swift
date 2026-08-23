@@ -88,7 +88,11 @@ struct MessageContactIntent: AppIntent {
         guard body.count >= 2 else { throw $text.needsValueError(IntentDialog("Was soll ich schreiben?")) }
         do {
             let r = try await APIClient().messageContact(id: contact.id, text: body)
-            return .result(dialog: IntentDialog(stringLiteral: r.sent ? "Gesendet an \(contact.name)." : r.detail))
+            if r.sent {
+                let name = contact.name
+                return .result(dialog: IntentDialog("Gesendet an \(name)."))
+            }
+            return .result(dialog: IntentDialog(stringLiteral: r.detail))  // server text
         } catch APIError.unauthorized {
             return .result(dialog: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch {

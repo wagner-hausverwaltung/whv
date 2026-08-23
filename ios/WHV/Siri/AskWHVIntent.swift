@@ -15,6 +15,7 @@
 //
 
 import AppIntents
+import CoreLocation
 import Foundation
 
 struct AskWHVIntent: AppIntent {
@@ -26,6 +27,12 @@ struct AskWHVIntent: AppIntent {
     // to the foreground — essential while driving.
     static var openAppWhenRun = false
 
+    /// Optional: the object the question is about. Set by Siri's ask-back
+    /// ("Für welches Objekt?") when we can't infer it from the question,
+    /// the running trip, GPS or the app's selection.
+    @Parameter(title: "Objekt", requestValueDialog: IntentDialog("Für welches Objekt? Sagen Sie den Straßennamen."))
+    var property: PropertyEntity?
+
     @Parameter(
         title: "Frage",
         requestValueDialog: IntentDialog("Was möchten Sie wissen?")
@@ -33,7 +40,9 @@ struct AskWHVIntent: AppIntent {
     var question: String
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Frag WHV: \(\.$question)")
+        Summary("Frag WHV: \(\.$question)") {
+            \.$property
+        }
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<String> {
@@ -41,21 +50,62 @@ struct AskWHVIntent: AppIntent {
         guard !q.isEmpty else {
             throw $question.needsValueError(IntentDialog("Was möchten Sie wissen?"))
         }
+        // Scope the question to an object whenever we can tell which one:
+        // named in the question → running trip's destination → nearest
+        // object ≤ 300 m → the object selected in the app. Org-wide
+        // retrieval across 27 objects mostly abstains ("nichts gefunden").
+        let api = APIClient()
+        var propertyId = property?.id
+        if propertyId == nil, !DemoFlag.isActive {
+            let props = (try? await api.getMyProperties()) ?? []
+            if let inferred = await Self.resolvePropertyContext(question: q, props: props) {
+                propertyId = inferred.id
+            } else if !props.isEmpty {
+                // Nothing to go on → let Siri ask back; the spoken answer is
+                // resolved by PropertyEntityQuery and perform() runs again.
+                throw $property.needsValueError(IntentDialog("Für welches Objekt? Sagen Sie den Straßennamen."))
+            }
+        }
+        let language = Locale.current.language.languageCode?.identifier
         let answer: String
         do {
-            let r = try await APIClient().askAssistant(question: q)
-            answer = r.answer.isEmpty ? "Dazu habe ich leider nichts gefunden." : r.answer
+            let r = try await api.askAssistant(question: q, propertyId: propertyId, language: language)
+            answer = r.answer.isEmpty ? String(localized: "Dazu habe ich leider nichts gefunden.") : r.answer
         } catch APIError.unauthorized {
-            answer = "Bitte melden Sie sich zuerst in der WHV-App an."
+            answer = String(localized: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch APIError.demoReadOnly {
-            answer = "Im Demo-Modus ist der Assistent nicht verfügbar."
+            answer = String(localized: "Im Demo-Modus ist der Assistent nicht verfügbar.")
         } catch {
-            answer = "Der Assistent ist gerade nicht erreichbar."
+            answer = String(localized: "Der Assistent ist gerade nicht erreichbar.")
         }
         // Siri reads the dialog; keep the spoken part digestible and hand the
         // full text back as the value (Shortcuts can show/forward it).
         let spoken = Self.spokenForm(answer)
         return .result(value: answer, dialog: IntentDialog(stringLiteral: spoken))
+    }
+
+    /// Which object is the question about? Longest street-name or short-code
+    /// match in the question wins; otherwise the trip destination, the
+    /// nearest object, then the app's current selection.
+    @MainActor
+    static func resolvePropertyContext(question: String, props: [PropertyResponse]) -> PropertyResponse? {
+        if let named = PropertyMatch.property(named: question, in: props) { return named }
+        let tracker = TripTracker.shared
+        if let pid = tracker.presetPropertyId, let p = props.first(where: { $0.id == pid }) { return p }
+        if let here = tracker.currentCoordinate {
+            var best: (PropertyResponse, Double)?
+            for p in props {
+                guard let lat = p.lat, let lng = p.lng else { continue }
+                let d = haversineMeters(here, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+                if d <= 300, d < (best?.1 ?? .infinity) { best = (p, d) }
+            }
+            if let best { return best.0 }
+        }
+        if let sel = UserDefaults.standard.string(forKey: "WHV.selectedLiegenschaftId"),
+           let p = props.first(where: { $0.id == sel }) {
+            return p
+        }
+        return nil
     }
 
     /// Markdown bullets / headers don't read well aloud; and very long
@@ -83,6 +133,10 @@ struct WHVShortcuts: AppShortcutsProvider {
                 "Frag \(.applicationName)",
                 "Frage an \(.applicationName)",
                 "\(.applicationName) fragen",
+                // English alternates live in the base list too: iOS binds App
+                // Shortcut phrases to the APP language, so a German-set app on
+                // an English Siri would otherwise never match.
+                "Ask \(.applicationName)",
             ],
             shortTitle: "Frag WHV",
             systemImageName: "bubble.left.and.text.bubble.right"
@@ -104,6 +158,7 @@ struct WHVShortcuts: AppShortcutsProvider {
                 "\(.applicationName) Abfahrt",
                 "Abfahrt \(.applicationName)",
                 "\(.applicationName) Fahrt starten",
+                "\(.applicationName) departure",
             ],
             shortTitle: "WHV Abfahrt",
             systemImageName: "car.fill"
@@ -114,6 +169,7 @@ struct WHVShortcuts: AppShortcutsProvider {
                 "\(.applicationName) Ankunft",
                 "Ankunft \(.applicationName)",
                 "\(.applicationName) Fahrt beenden",
+                "\(.applicationName) arrival",
             ],
             shortTitle: "WHV Ankunft",
             systemImageName: "flag.checkered"
@@ -124,6 +180,7 @@ struct WHVShortcuts: AppShortcutsProvider {
                 "\(.applicationName) Handwerker vor Ort",
                 "Handwerker vor Ort \(.applicationName)",
                 "\(.applicationName) Handwerker",
+                "\(.applicationName) contractor on site",
             ],
             shortTitle: "WHV Handwerker vor Ort",
             systemImageName: "wrench.and.screwdriver.fill"
@@ -133,6 +190,7 @@ struct WHVShortcuts: AppShortcutsProvider {
             phrases: [
                 "\(.applicationName) Notiz an \(\.$contact)",
                 "\(.applicationName) Nachricht an \(\.$contact)",
+                "\(.applicationName) note to \(\.$contact)",
             ],
             shortTitle: "WHV Notiz an Kontakt",
             systemImageName: "envelope.fill"

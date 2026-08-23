@@ -6,7 +6,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "${applicationName} departure"
+            "value" : "${applicationName} depart"
           }
         }
       }
@@ -16,7 +16,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "${applicationName} arrival"
+            "value" : "${applicationName} arrive"
           }
         }
       }
@@ -56,7 +56,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "${applicationName} contractor on site"
+            "value" : "${applicationName} contractor is on site"
           }
         }
       }
@@ -86,7 +86,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "${applicationName} note to ${contact}"
+            "value" : "${applicationName} note for ${contact}"
           }
         }
       }
@@ -101,12 +101,52 @@
         }
       }
     },
+    "${applicationName} arrival" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} arrival"
+          }
+        }
+      }
+    },
+    "${applicationName} contractor on site" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} contractor on site"
+          }
+        }
+      }
+    },
+    "${applicationName} departure" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} departure"
+          }
+        }
+      }
+    },
     "${applicationName} fragen" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "${applicationName} question"
+          }
+        }
+      }
+    },
+    "${applicationName} note to ${contact}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} note to ${contact}"
           }
         }
       }
@@ -131,12 +171,22 @@
         }
       }
     },
-    "Frag ${applicationName}" : {
+    "Ask ${applicationName}" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ask ${applicationName}"
+          }
+        }
+      }
+    },
+    "Frag ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask ${applicationName} a question"
           }
         }
       }

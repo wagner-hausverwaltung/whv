@@ -23,8 +23,11 @@ struct DepartWHVIntent: AppIntent {
             return .result(dialog: "Im Demo-Modus ist das Fahrtenbuch nicht verfügbar.")
         }
         if tracker.isRunning {
-            let since = tracker.startedAt.map { " seit \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
-            return .result(dialog: IntentDialog(stringLiteral: "Die Fahrt läuft bereits\(since)."))
+            if let startedAt = tracker.startedAt {
+                let since = startedAt.formatted(date: .omitted, time: .shortened)
+                return .result(dialog: IntentDialog("Die Fahrt läuft bereits seit \(since)."))
+            }
+            return .result(dialog: "Die Fahrt läuft bereits.")
         }
         tracker.startFromSiri()
         return .result(dialog: "Fahrt gestartet. Gute Fahrt!")
@@ -42,11 +45,16 @@ struct ArriveWHVIntent: AppIntent {
         guard tracker.isRunning else {
             return .result(dialog: "Es läuft gerade keine Fahrt.")
         }
-        let km = String(format: "%.1f", Double(tracker.liveDistanceM) / 1000).replacingOccurrences(of: ".", with: ",")
+        // Locale-aware ("1,2" in German, "1.2" in English — Siri reads it).
+        let km = (Double(tracker.liveDistanceM) / 1000).formatted(.number.precision(.fractionLength(1)))
         if let arrival = tracker.arriveFromSiri() {
-            let purpose = arrival.purpose.map { ", \(TripPurpose.label(for: $0))" } ?? ""
-            return .result(dialog: IntentDialog(stringLiteral: "Angekommen bei \(arrival.property.name)\(purpose). \(km) Kilometer gespeichert."))
+            let name = arrival.property.name
+            if let p = arrival.purpose {
+                let purpose = TripPurpose.label(for: p)
+                return .result(dialog: IntentDialog("Angekommen bei \(name), \(purpose). \(km) Kilometer gespeichert."))
+            }
+            return .result(dialog: IntentDialog("Angekommen bei \(name). \(km) Kilometer gespeichert."))
         }
-        return .result(dialog: IntentDialog(stringLiteral: "Fahrt beendet, \(km) Kilometer. Kein Objekt in der Nähe — Zweck und Objekt bitte in der App bestätigen."))
+        return .result(dialog: IntentDialog("Fahrt beendet, \(km) Kilometer. Kein Objekt in der Nähe — Zweck und Objekt bitte in der App bestätigen."))
     }
 }
