@@ -11,5 +11,6 @@ struct WHVWidgetBundle: WidgetBundle {
     var body: some Widget {
         ActivityWidget()
         ETVLiveActivity()
+        TripLiveActivity()
     }
 }

@@ -15,6 +15,7 @@
 //  the route polyline is optional; only Verwalter see any of this.
 //
 
+import ActivityKit
 import Combine
 import CoreLocation
 import CoreMotion
@@ -122,6 +123,8 @@ final class TripTracker: NSObject, ObservableObject {
     /// significant location change): restores a trip that was running when
     /// the app was killed, re-arms detection, and retries failed uploads.
     func bootstrap() {
+        // "Beenden" on the Live Activity runs in this process → stop here.
+        TripIntentHooks.endTrip = { [weak self] in self?.stopManually() }
         restoreRunningIfAny()
         pending = loadPending()
         pendingUploads = pending.count
@@ -189,6 +192,7 @@ final class TripTracker: NSObject, ObservableObject {
         presetPurpose = purpose
         presetPropertyId = propertyId
         persistRunning()
+        updateLiveActivity(force: true)
     }
 
     /// Hand the RUNNING trip its destination (CarPlay "Navigation + Fahrt"):
@@ -201,6 +205,7 @@ final class TripTracker: NSObject, ObservableObject {
         if let note { presetNote = note }
         if let purpose { presetPurpose = purpose }
         persistRunning()
+        updateLiveActivity(force: true)
     }
 
     /// "Hey Siri, WHV Abfahrt": start a trip by voice (MANUAL source).
@@ -318,6 +323,57 @@ final class TripTracker: NSObject, ObservableObject {
         location.startUpdatingLocation()
         persistRunning()
         Task { await refreshArrivalContext() }
+        startLiveActivity()
+    }
+
+    // MARK: Live Activity (Dynamic Island / Lock Screen while driving)
+
+    private var liveActivity: Activity<TripActivityAttributes>?
+    private var lastActivityUpdate = Date.distantPast
+    private var lastActivityDistance = 0
+
+    private func activityState() -> TripActivityAttributes.ContentState {
+        let dest = presetPropertyId.flatMap { pid in knownProperties.first { $0.id == pid }?.name }
+        return TripActivityAttributes.ContentState(
+            distanceM: liveDistanceM,
+            destinationName: dest,
+            purposeLabel: presetPurpose.map { TripPurpose.label(for: $0) },
+            updatedAt: Date()
+        )
+    }
+
+    private func startLiveActivity() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, let started = startedAt else { return }
+        // One trip activity at a time — end leftovers from a killed run.
+        for a in Activity<TripActivityAttributes>.activities {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+        let attributes = TripActivityAttributes(startedAt: started, source: source)
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        liveActivity = try? Activity.request(attributes: attributes, content: content, pushType: nil)
+        lastActivityUpdate = Date()
+        lastActivityDistance = liveDistanceM
+    }
+
+    /// Update at most once per 30 s or every 300 m (battery; Live Activity
+    /// updates are rate-limited by the system anyway), and on preset changes.
+    private func updateLiveActivity(force: Bool = false) {
+        guard let activity = liveActivity else { return }
+        let due = force
+            || Date().timeIntervalSince(lastActivityUpdate) >= 30
+            || liveDistanceM - lastActivityDistance >= 300
+        guard due else { return }
+        lastActivityUpdate = Date()
+        lastActivityDistance = liveDistanceM
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        Task { await activity.update(content) }
+    }
+
+    private func endLiveActivity() {
+        guard let activity = liveActivity else { return }
+        liveActivity = nil
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        Task { await activity.end(content, dismissalPolicy: .immediate) }
     }
 
     /// Objects + today's appointments for arrival detection. Cheap, cached
@@ -397,6 +453,7 @@ final class TripTracker: NSObject, ObservableObject {
         stillnessTimer = nil
         arrivalTimer?.invalidate()
         arrivalTimer = nil
+        endLiveActivity()
         let ended = lastMovementAt ?? Date()
         let distance = liveDistanceM
         let route = storeRoute ? coords : []
@@ -592,6 +649,7 @@ final class TripTracker: NSObject, ObservableObject {
             location.allowsBackgroundLocationUpdates = true
         }
         location.startUpdatingLocation()
+        startLiveActivity()
     }
 }
 
@@ -632,6 +690,7 @@ extension TripTracker: CLLocationManagerDelegate {
                 self.lastLocation = loc
                 self.coords.append(loc.coordinate)
                 if self.coords.count % 10 == 0 { self.persistRunning() }
+                self.updateLiveActivity()
                 // Near an object: the next 2 quiet minutes mean "arrived".
                 // (With distanceFilter set, silence IS standing still.)
                 if self.nearbyProperty(loc) != nil { self.armArrivalTimer() } else {

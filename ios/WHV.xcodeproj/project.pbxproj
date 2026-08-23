@@ -10,6 +10,7 @@
 		04149385F017116FF284764B /* WHVCallDirectory.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
+		26EC3E5A7D3700F86AA9BF0D /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CFB6E28C2A933E374A6890 /* TripActivity.swift */; };
 		5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */; };
 		701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */; };
 		7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
@@ -20,6 +21,8 @@
 		AA10000000000000000A0005 /* ActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0004 /* ActivityWidget.swift */; };
 		AB272D1906F68DF105F342C8 /* RunningLateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB39A43568E05D893E91175 /* RunningLateIntent.swift */; };
 		C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */; };
+		E6EAFA6F4627ABEA0E2C3D49 /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CFB6E28C2A933E374A6890 /* TripActivity.swift */; };
+		EC91D6DF6027F5BBE71FE9A8 /* TripLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0455CC1C9836E2D24F93BC0B /* TripLiveActivity.swift */; };
 		EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EF55359149D4A98925FA1E85 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
 		F0874A4C0BD6B1F71DD9D021 /* CallDirectoryHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00761E3DEED34DCF84A7D1A /* CallDirectoryHandler.swift */; };
@@ -58,10 +61,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0455CC1C9836E2D24F93BC0B /* TripLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripLiveActivity.swift; sourceTree = "<group>"; };
 		0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallDirectoryStore.swift; sourceTree = "<group>"; };
 		1EA64FA4821C489C506029BB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVCallDirectory.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		81CFB6E28C2A933E374A6890 /* TripActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripActivity.swift; sourceTree = "<group>"; };
 		859A4DE91A5BB1F60D77AE8E /* WHVCallDirectory.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVCallDirectory.entitlements; sourceTree = "<group>"; };
 		8725F5EC18242539FEE80331 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -77,7 +82,17 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2A0000010000000000000010 /* WHV */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = WHV; sourceTree = "<group>"; };
+		2A0000010000000000000010 /* WHV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = WHV;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,6 +176,7 @@
 				FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */,
 				AA10000000000000000A0001 /* ActivitySnapshot.swift */,
 				0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */,
+				81CFB6E28C2A933E374A6890 /* TripActivity.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -174,6 +190,7 @@
 				C5E0C16C1334B51DB2CD8F6E /* WHVWidgets.entitlements */,
 				E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */,
 				CDB39A43568E05D893E91175 /* RunningLateIntent.swift */,
+				0455CC1C9836E2D24F93BC0B /* TripLiveActivity.swift */,
 			);
 			path = WHVWidgets;
 			sourceTree = "<group>";
@@ -315,6 +332,7 @@
 				7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */,
 				AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */,
 				76694E652A8B27A238AF4054 /* CallDirectoryStore.swift in Sources */,
+				E6EAFA6F4627ABEA0E2C3D49 /* TripActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,6 +355,8 @@
 				051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */,
 				701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */,
 				AB272D1906F68DF105F342C8 /* RunningLateIntent.swift in Sources */,
+				26EC3E5A7D3700F86AA9BF0D /* TripActivity.swift in Sources */,
+				EC91D6DF6027F5BBE71FE9A8 /* TripLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -364,7 +384,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -512,7 +532,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -540,7 +560,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -567,7 +587,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
@@ -594,7 +614,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
@@ -620,7 +640,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
