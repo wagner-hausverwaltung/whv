@@ -21,6 +21,7 @@ import CoreMotion
 import Foundation
 import OSLog
 import UIKit
+import UserNotifications
 
 @MainActor
 final class TripTracker: NSObject, ObservableObject {
@@ -47,6 +48,15 @@ final class TripTracker: NSObject, ObservableObject {
     @Published private(set) var presetNote: String?
     /// Besichtigung of a prospect: the anfragen@ inquiry this drive is for.
     @Published private(set) var presetInquiryId: String?
+    /// Last automatic arrival (car stood ≥ 2 min within 100 m of an object):
+    /// the trip ended with that object; CarPlay/phone surface it once.
+    @Published private(set) var lastArrival: Arrival?
+
+    struct Arrival: Equatable {
+        let property: PropertyResponse
+        let purpose: String?
+        let at: Date
+    }
 
     /// Opt-in for automatic drive detection (Core Motion + significant
     /// location changes). Off by default — this is the consent switch.
@@ -71,6 +81,18 @@ final class TripTracker: NSObject, ObservableObject {
     private var lastLocation: CLLocation?
     private var lastMovementAt: Date?
     private var stillnessTimer: Timer?
+    // Arrival detection: managed objects (with coordinates) + today's agenda,
+    // refreshed when a trip begins; a short timer that fires when the car
+    // has been quiet near an object.
+    private var knownProperties: [PropertyResponse] = []
+    private var todaysAgenda: [AgendaEntry] = []
+    private var arrivalTimer: Timer?
+    /// Stand still this long within `arrivalRadiusM` of an object = arrived.
+    private let arrivalStillness: TimeInterval = 2 * 60
+    private let arrivalRadiusM = 100.0
+    /// Don't "arrive" at the object you just left (or a parking shuffle).
+    private let arrivalMinDistanceM = 300
+    private let arrivalMinDuration: TimeInterval = 3 * 60
 
     private enum Keys {
         static let autoDetect = "trips.autoDetect"
@@ -104,7 +126,7 @@ final class TripTracker: NSObject, ObservableObject {
         pending = loadPending()
         pendingUploads = pending.count
         if autoDetectEnabled { enableAutoDetection() }
-        Task { await flushPending(); await refreshOpen() }
+        Task { await flushPending(); await refreshOpen(); await refreshArrivalContext() }
     }
 
     var isAvailable: Bool { !DemoFlag.isActive }
@@ -259,6 +281,73 @@ final class TripTracker: NSObject, ObservableObject {
         }
         location.startUpdatingLocation()
         persistRunning()
+        Task { await refreshArrivalContext() }
+    }
+
+    /// Objects + today's appointments for arrival detection. Cheap, cached
+    /// per trip; failures just mean "no auto-arrival this trip".
+    private func refreshArrivalContext() async {
+        guard isAvailable else { return }
+        async let props = api.getMyProperties()
+        async let agenda = api.getMyAgenda(days: 0)
+        knownProperties = (try? await props) ?? knownProperties
+        todaysAgenda = (try? await agenda) ?? todaysAgenda
+    }
+
+    /// Nearest managed object within the arrival radius, if any.
+    private func nearbyProperty(_ loc: CLLocation) -> PropertyResponse? {
+        var best: (PropertyResponse, Double)?
+        for p in knownProperties {
+            guard let lat = p.lat, let lng = p.lng else { continue }
+            let d = loc.distance(from: CLLocation(latitude: lat, longitude: lng))
+            if d <= arrivalRadiusM, d < (best?.1 ?? .infinity) { best = (p, d) }
+        }
+        return best?.0
+    }
+
+    /// Purpose implied by today's appointment at the object (± 2 h), if any.
+    private func purposeFromAgenda(for p: PropertyResponse, at when: Date) -> String? {
+        let hit = todaysAgenda
+            .filter { $0.property_id == p.id && abs($0.starts_at.timeIntervalSince(when)) <= 2 * 3600 }
+            .min { abs($0.starts_at.timeIntervalSince(when)) < abs($1.starts_at.timeIntervalSince(when)) }
+        guard let hit else { return nil }
+        return hit.kind == "ETV" ? "ETV" : "EIGENTUEMERTERMIN"
+    }
+
+    private func armArrivalTimer() {
+        arrivalTimer?.invalidate()
+        arrivalTimer = Timer.scheduledTimer(withTimeInterval: arrivalStillness, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.checkArrival() }
+        }
+    }
+
+    /// Fires after `arrivalStillness` without movement. If we are still next
+    /// to an object and the trip is a real drive, end it there — object from
+    /// the geofence, purpose from the appointment (else the preset, else open).
+    private func checkArrival() {
+        arrivalTimer = nil
+        guard isRunning, let loc = lastLocation, let started = startedAt else { return }
+        guard let last = lastMovementAt, Date().timeIntervalSince(last) >= arrivalStillness - 5 else { return }
+        guard liveDistanceM >= arrivalMinDistanceM, Date().timeIntervalSince(started) >= arrivalMinDuration else { return }
+        guard let p = nearbyProperty(loc) else { return }
+        // A preset destination wins when we are at it; otherwise the object we
+        // actually stopped at (a detour, a different WEG) is the truth.
+        let purpose = presetPurpose ?? purposeFromAgenda(for: p, at: Date())
+        presetPropertyId = p.id
+        if presetPurpose == nil { presetPurpose = purpose }
+        finish()
+        lastArrival = Arrival(property: p, purpose: purpose, at: Date())
+        notifyArrival(p, purpose: purpose)
+    }
+
+    private func notifyArrival(_ p: PropertyResponse, purpose: String?) {
+        let content = UNMutableNotificationContent()
+        content.title = "Angekommen: \(p.name)"
+        content.body = purpose.map { "Fahrt gespeichert · \(TripPurpose.label(for: $0))" }
+            ?? "Fahrt gespeichert — Zweck in der App bestätigen."
+        content.sound = nil
+        let req = UNNotificationRequest(identifier: "trip-arrival-\(p.id)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
     }
 
     /// Ends the running trip SYNCHRONOUSLY — state flips before this returns,
@@ -270,6 +359,8 @@ final class TripTracker: NSObject, ObservableObject {
         location.allowsBackgroundLocationUpdates = false
         stillnessTimer?.invalidate()
         stillnessTimer = nil
+        arrivalTimer?.invalidate()
+        arrivalTimer = nil
         let ended = lastMovementAt ?? Date()
         let distance = liveDistanceM
         let route = storeRoute ? coords : []
@@ -505,6 +596,12 @@ extension TripTracker: CLLocationManagerDelegate {
                 self.lastLocation = loc
                 self.coords.append(loc.coordinate)
                 if self.coords.count % 10 == 0 { self.persistRunning() }
+                // Near an object: the next 2 quiet minutes mean "arrived".
+                // (With distanceFilter set, silence IS standing still.)
+                if self.nearbyProperty(loc) != nil { self.armArrivalTimer() } else {
+                    self.arrivalTimer?.invalidate()
+                    self.arrivalTimer = nil
+                }
             }
         }
     }

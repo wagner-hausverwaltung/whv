@@ -40,6 +40,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     /// the stack back to the root.
     private var rootGridTemplate: CPGridTemplate?
     private var tripStateSubscription: AnyCancellable?
+    private var arrivalSubscription: AnyCancellable?
+    private var connectedAt = Date()
 
     private var maxItems: Int { max(1, CPListTemplate.maximumItemCount) }
 
@@ -51,19 +53,39 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     ) {
         interface = interfaceController
         scene = templateApplicationScene
-        Task { await present() }
+        connectedAt = Date()
         let tracker = TripTracker.shared
         tracker.refreshLocation()
         if tracker.autoDetectEnabled, !tracker.isRunning {
             tracker.startFromCarPlay()
             startedTripOnConnect = true
         }
+        Task { await present() }
         // The Fahrt button mirrors the tracker wherever the change came from
         // (CarPlay tap, phone, auto-detection stop after a standstill).
         tripStateSubscription = tracker.$isRunning
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refreshRoot() }
+        // Automatic arrival (geofence + 2 min standstill) → one alert with a
+        // shortcut to the object page. Only arrivals from this session.
+        arrivalSubscription = tracker.$lastArrival
+            .compactMap { $0 }
+            .filter { [weak self] a in a.at > (self?.connectedAt ?? .distantFuture) }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] arrival in self?.showArrival(arrival) }
+    }
+
+    private func showArrival(_ arrival: TripTracker.Arrival) {
+        let p = arrival.property
+        let detail = arrival.purpose.map { "Fahrt gespeichert · \(TripPurpose.label(for: $0))" }
+            ?? "Fahrt gespeichert — Zweck später bestätigen"
+        let open = CPAlertAction(title: "Objektseite", style: .default) { [weak self] _ in
+            self?.interface?.dismissTemplate(animated: true, completion: nil)
+            Task { @MainActor in await self?.showObjectPage(p) }
+        }
+        alert("Angekommen: \(p.name)", detail, actions: [open])
     }
 
     func templateApplicationScene(
@@ -75,6 +97,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
         startedTripOnConnect = false
         tripStateSubscription = nil
+        arrivalSubscription = nil
         rootGridTemplate = nil
         interface = nil
         scene = nil
@@ -99,6 +122,18 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             return
         }
         interface.setRootTemplate(rootGrid(), animated: false, completion: nil)
+        // Connected without automatic detection and nothing running: offer
+        // the start once, so a drive isn't lost just because the switch is off.
+        let tracker = TripTracker.shared
+        if !tracker.autoDetectEnabled, !tracker.isRunning {
+            let start = CPAlertAction(title: "Starten", style: .default) { [weak self] _ in
+                self?.interface?.dismissTemplate(animated: true, completion: nil)
+                tracker.startFromCarPlay()
+                self?.startedTripOnConnect = true
+                self?.refreshRoot()
+            }
+            alert("Fahrt starten?", "Die Strecke wird bis zum Abstecken aufgezeichnet.", actions: [start])
+        }
     }
 
     private func infoTemplate(_ title: String, _ detail: String) -> CPInformationTemplate {
