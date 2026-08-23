@@ -321,15 +321,19 @@ export function AdminFahrtenPage() {
               const end = r.ended_at ? new Date(r.ended_at) : null;
               return (
                 <TableRow key={r.id} hover>
-                  <TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>
                     {start.toLocaleDateString("de-DE")}{" "}
                     <Typography component="span" variant="caption" color="text.secondary">
                       {start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
                       {end ? `–${end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ""}
                     </Typography>
                   </TableCell>
-                  <TableCell>{r.user_email ?? "—"}</TableCell>
-                  <TableCell>
+                  {/* Local part only — the domain is always ours and the full
+                      address is one hover away; keeps the row on one line. */}
+                  <TableCell sx={{ whiteSpace: "nowrap" }} title={r.user_email ?? undefined}>
+                    {r.user_email ? r.user_email.split("@")[0] : "—"}
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 220 }}>
                     {r.property_name ??
                       (r.inquiry_id ? (
                         <Chip
@@ -359,12 +363,12 @@ export function AdminFahrtenPage() {
                       />
                     )}
                   </TableCell>
-                  <TableCell align="right">{fmtKm(r.distance_m)}</TableCell>
-                  <TableCell align="right">{fmtEur(r.amount_cents)}</TableCell>
-                  <TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>{fmtKm(r.distance_m)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>{fmtEur(r.amount_cents)}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>
                     <Typography variant="caption" color="text.secondary">{r.source}</Typography>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                     <IconButton
                       size="small"
                       onClick={() => setMapTrips({ title: `${r.property_name ?? r.inquiry_address ?? purposeLabel(r.purpose)} · ${start.toLocaleDateString("de-DE")}`, trips: [r] })}
