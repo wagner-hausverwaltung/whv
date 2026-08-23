@@ -82,7 +82,9 @@ _MV_RULE = BillingRule(
 
 
 def default_rule(property_type: PropertyType) -> BillingRule:
-    return _WEG_RULE if property_type == PropertyType.STRATA else _MV_RULE
+    """Impower's enum: OWNER = WEG, RENTAL = MV, STRATA = SEV (see
+    web/src/lib/propertyType.ts). SEV runs on the VDIV MV/SEV contract."""
+    return _WEG_RULE if property_type == PropertyType.OWNER else _MV_RULE
 
 
 def billable_filter(stmt: Any, *, org_id: uuid.UUID, property_id: uuid.UUID, until: date) -> Any:

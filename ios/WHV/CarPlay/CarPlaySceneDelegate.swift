@@ -279,11 +279,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         return Ranked(props: sorted, freq: freq)
     }
 
+    /// Impower's enum → WHV wording (same mapping as Liegenschaft.typeLabel):
+    /// OWNER = WEG, RENTAL = MV, STRATA = SEV.
     private static func typeLabel(_ p: PropertyResponse) -> String {
         switch p.type.uppercased() {
-        case "STRATA": return "WEG"
+        case "OWNER": return "WEG"
         case "RENTAL": return "MV"
-        case "OWNER": return "SEV"
+        case "STRATA": return "SEV"
         default: break
         }
         let n = p.name.uppercased()
@@ -345,7 +347,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 categories.append((key, orderForTheCar(list, freq: ranked.freq), "\(list.count) Objekte · tippen = Navigation + Fahrt"))
             }
         }
-        let slots = max(1, maxItems - categories.count - 1)  // -1 keeps room for "Weitere WEG"
+        // All WEGs inline when they fit; otherwise keep one row for the rest.
+        var slots = max(1, maxItems - categories.count)
+        if wegs.count > slots { slots = max(1, slots - 1) }
         let shownWegs = Array(wegs.prefix(slots))
         let restWegs = Array(wegs.dropFirst(slots))
         if !restWegs.isEmpty {

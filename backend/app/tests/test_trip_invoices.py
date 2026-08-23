@@ -45,8 +45,8 @@ def _trip(client: TestClient, token: str, *, day: int, km: float, **over: Any) -
 
 async def test_weg_invoice_flow(test_engine: AsyncEngine) -> None:
     org = await make_org(test_engine)
-    weg = await make_property(test_engine, org=org, name="WEG Rechnung", type=PropertyType.STRATA)
-    other = await make_property(test_engine, org=org, name="WEG Andere")
+    weg = await make_property(test_engine, org=org, name="WEG Rechnung", type=PropertyType.OWNER)
+    other = await make_property(test_engine, org=org, name="WEG Andere", type=PropertyType.OWNER)
     _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
     token = _login(email, pw)
     with TestClient(app) as client:
@@ -161,7 +161,7 @@ async def test_weg_invoice_flow(test_engine: AsyncEngine) -> None:
 async def test_invoice_rejects_open_foreign_and_private(test_engine: AsyncEngine) -> None:
     org_a = await make_org(test_engine)
     org_b = await make_org(test_engine)
-    prop = await make_property(test_engine, org=org_a, name="WEG A")
+    prop = await make_property(test_engine, org=org_a, name="WEG A", type=PropertyType.OWNER)
     foreign = await make_property(test_engine, org=org_b, name="WEG B")
     _, email, pw = await make_user(test_engine, org=org_a, role=UserRole.VERWALTER)
     token = _login(email, pw)
@@ -219,5 +219,19 @@ async def test_mv_rule_preselects_nothing_at_fifty_cents(test_engine: AsyncEngin
         ).json()
         assert [i["id"] for i in b["items"]] == [t["id"]]
         assert b["suggested_trip_ids"] == []
+        assert b["rate_cents_per_km"] == 50
+        assert "5.4" in b["legal_basis"]
+
+
+async def test_sev_uses_the_mv_rule(test_engine: AsyncEngine) -> None:
+    # Impower STRATA = SEV (Sondereigentumsverwaltung) → VDIV MV/SEV contract, 0,50 €/km.
+    org = await make_org(test_engine)
+    sev = await make_property(test_engine, org=org, name="SEV Fichtel", type=PropertyType.STRATA)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        b = client.get(
+            "/admin/trips/billable", headers=_auth(token), params={"property_id": str(sev.id)}
+        ).json()
         assert b["rate_cents_per_km"] == 50
         assert "5.4" in b["legal_basis"]
