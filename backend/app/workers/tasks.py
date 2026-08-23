@@ -1178,3 +1178,58 @@ async def _roll_meter_reading_due_dates_async() -> int:
         await engine.dispose()
     logger.info("meter due-date roll: updated=%d", updated)
     return updated
+
+
+# --- Fahrtenbuch reports (ADR-0020): Sunday review push, monthly statement ----
+
+
+async def _trip_week_review_async() -> int:
+    from app.constants import WHV_ORGANIZATION_ID
+    from app.services.trip_reports import send_week_reviews
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            return await send_week_reviews(session, org_id=WHV_ORGANIZATION_ID)
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.trip_week_review")
+def trip_week_review() -> int:
+    """Sunday 18:00 Berlin: push "Diese Woche … km, … Objekte, … unbestätigt,
+    … Rechnung möglich" to every driver with trips this week."""
+    return asyncio.run(_trip_week_review_async())
+
+
+async def _trip_monthly_statement_async(month: str | None) -> int:
+    from app.constants import WHV_ORGANIZATION_ID
+    from app.integrations.email.client import EmailClient
+    from app.services.trip_reports import send_monthly_statements
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    client = EmailClient(settings)
+    try:
+        async with session_factory() as session:
+            return await send_monthly_statements(
+                session,
+                org_id=WHV_ORGANIZATION_ID,
+                settings=settings,
+                email_client=client,
+                month=month,
+            )
+    finally:
+        await client.aclose()
+        await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.trip_monthly_statement")
+def trip_monthly_statement(month: str | None = None) -> int:
+    """1st of the month, 07:00 Berlin: last month's Kilometergeld statement
+    (one PDF per driver) to the office address (settings.trip_report_email).
+    `month` ("YYYY-MM") overrides for manual re-runs."""
+    return asyncio.run(_trip_monthly_statement_async(month))

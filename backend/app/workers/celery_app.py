@@ -22,6 +22,17 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
+    # Fahrtenbuch: Sunday review push to the drivers (18:00 Berlin = 16:00 UTC
+    # in summer / 17:00 in winter — close enough for a weekly nudge) and the
+    # monthly Kilometergeld statement to the office on the 1st (07:00 Berlin).
+    "trip-week-review-sunday": {
+        "task": "app.workers.tasks.trip_week_review",
+        "schedule": crontab(hour=16, minute=0, day_of_week="sun"),
+    },
+    "trip-monthly-statement": {
+        "task": "app.workers.tasks.trip_monthly_statement",
+        "schedule": crontab(hour=5, minute=0, day_of_month="1"),
+    },
     # Nightly full sync from Impower at 02:00 UTC.
     # One hour before the postgres backup (03:00 UTC) so fresh data lands in
     # the backup. Real-time updates flow via the webhook receiver in between.

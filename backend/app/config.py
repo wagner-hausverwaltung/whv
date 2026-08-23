@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # only drives it). Printed on the monthly statement as the payee.
     trip_payee_name: str = "Luis Wagner"
     trip_payee_address: str = "Bozener Straße 12, 71638 Ludwigsburg"
+    # Where the monthly Kilometergeld statements (PDF per driver) are mailed
+    # on the 1st — the office inbox.
+    trip_report_email: str = "info@wagner-hausverwaltung.com"
     offer_from_name: str = "Wagner Hausverwaltung"
     # Auto-send is now controlled per-organization via the "Auto-Modus" toggle
     # on Admin -> Anfragen (organizations.offer_auto_send_enabled), NOT by these
