@@ -131,7 +131,7 @@ final class TripTracker: NSObject, ObservableObject {
 
     func stopManually() {
         guard isRunning else { return }
-        Task { await finish() }
+        finish()
     }
 
     // MARK: CarPlay hooks
@@ -172,7 +172,7 @@ final class TripTracker: NSObject, ObservableObject {
 
     func stopFromCarPlay() {
         guard isRunning else { return }
-        Task { await finish() }
+        finish()
     }
 
     // MARK: Permissions
@@ -243,7 +243,10 @@ final class TripTracker: NSObject, ObservableObject {
         persistRunning()
     }
 
-    private func finish() async {
+    /// Ends the running trip SYNCHRONOUSLY — state flips before this returns,
+    /// so a caller that re-renders right away (CarPlay root grid) sees the
+    /// stopped state. Only the upload runs detached.
+    private func finish() {
         guard isRunning, let started = startedAt else { return }
         location.stopUpdatingLocation()
         location.allowsBackgroundLocationUpdates = false
@@ -285,8 +288,10 @@ final class TripTracker: NSObject, ObservableObject {
             note: note,
             inquiry_id: inquiryId
         )
-        await upload(body)
-        await refreshOpen()
+        Task { @MainActor in
+            await self.upload(body)
+            await self.refreshOpen()
+        }
     }
 
     private func armStillnessTimer() {
@@ -296,7 +301,7 @@ final class TripTracker: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self, self.isRunning else { return }
                 if let last = self.lastMovementAt, Date().timeIntervalSince(last) >= self.stillnessLimit {
-                    await self.finish()
+                    self.finish()
                 } else {
                     self.stillnessTimer = nil
                 }

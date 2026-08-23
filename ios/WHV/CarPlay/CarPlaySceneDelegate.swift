@@ -24,6 +24,7 @@
 //
 
 import CarPlay
+import Combine
 import MapKit
 import OSLog
 import UIKit
@@ -34,6 +35,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var scene: CPTemplateApplicationScene?
     private let api = APIClient()
     private var startedTripOnConnect = false
+    /// The root grid instance — refreshed IN PLACE (updateGridButtons), so a
+    /// trip that starts/ends while the driver is deep in a list never pops
+    /// the stack back to the root.
+    private var rootGridTemplate: CPGridTemplate?
+    private var tripStateSubscription: AnyCancellable?
 
     private var maxItems: Int { max(1, CPListTemplate.maximumItemCount) }
 
@@ -52,6 +58,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             tracker.startFromCarPlay()
             startedTripOnConnect = true
         }
+        // The Fahrt button mirrors the tracker wherever the change came from
+        // (CarPlay tap, phone, auto-detection stop after a standstill).
+        tripStateSubscription = tracker.$isRunning
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshRoot() }
     }
 
     func templateApplicationScene(
@@ -62,6 +74,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             TripTracker.shared.stopFromCarPlay()
         }
         startedTripOnConnect = false
+        tripStateSubscription = nil
+        rootGridTemplate = nil
         interface = nil
         scene = nil
     }
@@ -91,14 +105,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         CPInformationTemplate(title: "WHV", layout: .leading, items: [CPInformationItem(title: title, detail: detail)], actions: [])
     }
 
-    private func rootGrid() -> CPGridTemplate {
+    private func gridButtons() -> [CPGridButton] {
         let tracker = TripTracker.shared
         func button(_ title: String, _ symbol: String, _ action: @escaping () async -> Void) -> CPGridButton {
             CPGridButton(titleVariants: [title], image: UIImage(systemName: symbol) ?? UIImage()) { _ in
                 Task { @MainActor in await action() }
             }
         }
-        let buttons = [
+        return [
             button(tracker.isRunning ? "Fahrt beenden" : "Fahrt starten",
                    tracker.isRunning ? "stop.circle.fill" : "car.fill") { [weak self] in await self?.toggleTrip() },
             button("Objekte", "building.2.fill") { [weak self] in await self?.showObjekte() },
@@ -106,20 +120,44 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             button("Kontakte", "phone.fill") { [weak self] in await self?.showKontakteRoot() },
             button("Heute", "list.bullet.clipboard.fill") { [weak self] in await self?.showToday() },
         ]
-        return CPGridTemplate(title: "WHV", gridButtons: buttons)
     }
 
+    private func rootGrid() -> CPGridTemplate {
+        let grid = CPGridTemplate(title: "WHV", gridButtons: gridButtons())
+        rootGridTemplate = grid
+        return grid
+    }
+
+    /// Re-render the Fahrt button. In place when the grid is the live root
+    /// (keeps whatever list the driver is looking at); a fresh root otherwise.
     private func refreshRoot() {
-        interface?.setRootTemplate(rootGrid(), animated: false, completion: nil)
+        guard let interface else { return }
+        if let grid = rootGridTemplate, interface.rootTemplate === grid {
+            grid.updateGridButtons(gridButtons())
+        } else {
+            interface.setRootTemplate(rootGrid(), animated: false, completion: nil)
+        }
     }
 
     /// Push at most two levels below the root; deeper = modal alert.
     private func push(_ template: CPTemplate) {
         guard let interface else { return }
+        if let list = template as? CPListTemplate { Self.ensureHandlers(list.sections) }
         if interface.templates.count >= 3 {
             interface.popToRootTemplate(animated: false, completion: nil)
         }
         interface.pushTemplate(template, animated: true, completion: nil)
+    }
+
+    /// CarPlay shows a spinner on a tapped row until its handler calls
+    /// completion — a row WITHOUT a handler spins forever. Placeholder rows
+    /// ("Keine Objekte geladen", "Lädt …") therefore get a no-op handler.
+    private static func ensureHandlers(_ sections: [CPListSection]) {
+        for section in sections {
+            for case let item as CPListItem in section.items where item.handler == nil {
+                item.handler = { _, completion in completion() }
+            }
+        }
     }
 
     // MARK: Fahrt
@@ -215,7 +253,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         var actions = extra + [dismiss]
         let cap = max(1, CPAlertTemplate.maximumActionCount)
         if actions.count > cap { actions = Array(actions.prefix(cap)) }
-        interface.presentTemplate(CPAlertTemplate(titleVariants: [title, detail], actions: actions), animated: true, completion: nil)
+        // titleVariants are ALTERNATIVES (CarPlay picks one that fits), not a
+        // title + subtitle — so the full text is the first variant and the
+        // bare title the fallback for tiny displays.
+        let full = detail.isEmpty ? title : "\(title)\n\(detail)"
+        interface.presentTemplate(CPAlertTemplate(titleVariants: [full, title], actions: actions), animated: true, completion: nil)
     }
 
     // MARK: Data helpers
@@ -265,7 +307,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 let item = CPListItem(text: p.name, detailText: Self.address(p))
                 item.accessoryType = .disclosureIndicator
                 item.handler = { [weak self] _, completion in
-                    Task { @MainActor in await self?.showObjectPage(p); completion() }
+                    completion()
+                    Task { @MainActor in await self?.showObjectPage(p) }
                 }
                 return item
             }
@@ -331,6 +374,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             completion()
         }
         var sections = [CPListSection(items: [navi, fahrt], header: "Fahrt", sectionIndexTitle: nil)]
+        // Show the page at once with the drive actions; contacts, tickets and
+        // appointments arrive a moment later via updateSections — the driver
+        // never stares at a spinner while three requests run.
+        let template = CPListTemplate(title: p.name, sections: sections + [
+            CPListSection(items: [CPListItem(text: "Lädt …", detailText: "Kontakte, Termine, Tickets")]),
+        ])
+        push(template)
 
         async let contactsTask = loadPeople(for: p)
         async let ticketsTask = api.getAdminTickets(propertyId: p.id)
@@ -366,13 +416,21 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let open = tickets.filter { $0.closed_at == nil }.prefix(3)
         if !open.isEmpty {
             let rows: [CPListItem] = open.map { t in
-                let item = CPListItem(text: t.subject, detailText: t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                let status = t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+                let item = CPListItem(text: t.subject, detailText: status)
                 item.setImage(UIImage(systemName: "tray.full.fill"))
+                // Every row needs a handler that completes — a tap on a row
+                // without one leaves CarPlay's spinner on forever.
+                item.handler = { [weak self] _, completion in
+                    completion()
+                    self?.alert(t.subject, "\(status) · \(p.name) — Details in der App.")
+                }
                 return item
             }
             sections.append(CPListSection(items: rows, header: "Offene Tickets", sectionIndexTitle: nil))
         }
-        push(CPListTemplate(title: p.name, sections: sections))
+        Self.ensureHandlers(sections)
+        template.updateSections(sections)
     }
 
     private func navigate(to p: PropertyResponse) {
@@ -497,15 +555,15 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 if let p = props[a.property_id] {
                     item.accessoryType = .disclosureIndicator
                     item.handler = { [weak self] _, completion in
+                        completion()
                         Task { @MainActor in
                             await self?.showObjectPage(p, purpose: a.kind == "ETV" ? "ETV" : "EIGENTUEMERTERMIN")
-                            completion()
                         }
                     }
                 } else {
                     item.handler = { [weak self] _, completion in
-                        self?.alert(a.title, [a.whenLabel, a.property_name, a.location ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
                         completion()
+                        self?.alert(a.title, [a.whenLabel, a.property_name, a.location ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
                     }
                 }
                 return item
@@ -520,7 +578,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             if let pid = a.propertyId, let p = props[pid] {
                 item.accessoryType = .disclosureIndicator
                 item.handler = { [weak self] _, completion in
-                    Task { @MainActor in await self?.showObjectPage(p); completion() }
+                    completion()
+                    Task { @MainActor in await self?.showObjectPage(p) }
+                }
+            } else {
+                // No object to jump to — still answer the tap, else: spinner.
+                item.handler = { [weak self] _, completion in
+                    completion()
+                    self?.alert(a.title, a.subtitle.isEmpty ? "Details in der App." : a.subtitle)
                 }
             }
             return item

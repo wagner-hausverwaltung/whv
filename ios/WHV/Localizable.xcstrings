@@ -462,6 +462,9 @@
         }
       }
     },
+    "Anfrage: %@" : {
+
+    },
     "Anfragen" : {
       "localizations" : {
         "en" : {
@@ -926,6 +929,9 @@
         }
       }
     },
+    "Besichtigt" : {
+
+    },
     "Bestätigen" : {
       "localizations" : {
         "en" : {
@@ -1049,6 +1055,9 @@
         }
       }
     },
+    "Bitte melden Sie sich zuerst in der WHV-App an." : {
+
+    },
     "Bitte mit Ihrem Portal-Konto anmelden." : {
       "localizations" : {
         "en" : {
@@ -1108,6 +1117,9 @@
           }
         }
       }
+    },
+    "Das Ticket konnte gerade nicht angelegt werden." : {
+
     },
     "Datenänderung" : {
       "localizations" : {
@@ -2717,6 +2729,9 @@
           }
         }
       }
+    },
+    "Legt per Diktat ein Ticket am aktuellen Objekt an." : {
+
     },
     "Letzter Stand: %@ %@ · %@" : {
       "localizations" : {
@@ -4413,6 +4428,9 @@
         }
       }
     },
+    "Was soll ins Ticket?" : {
+
+    },
     "Wasserschaden" : {
       "localizations" : {
         "en" : {
@@ -4571,6 +4589,12 @@
           }
         }
       }
+    },
+    "WHV Ticket" : {
+
+    },
+    "WHV Ticket: ${text}" : {
+
     },
     "WHV: Keine neuen Hinweise" : {
       "localizations" : {
