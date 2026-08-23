@@ -95,7 +95,7 @@ App-Store-URL. Derselbe Text gehört später in die Review Notes in App Store Co
 > app for their portal. The CarPlay scene is only available to users with
 > the property-manager role.
 
-## Review Notes für App Store Connect (ab Build 1.3.7 (64), 2026-08-23)
+## Review Notes für App Store Connect (ab Build 1.3.7 (69), 2026-08-23)
 
 Einfügen unter „App Review Information → Notes"; der Antragstext oben bleibt der
 Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
@@ -126,11 +126,15 @@ Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
 > Identification only — no call blocking. The list is downloaded from our
 > backend for the signed-in manager; it is empty in demo mode.
 >
-> **Siri / App Intents:** "Ask WHV" (question → answer read aloud), "WHV Ticket"
-> (dictated note → ticket at the current property), "WHV Abfahrt/Ankunft",
-> "Handwerker vor Ort", "Nachricht an <Kontakt>" (sent by our backend by
-> e-mail). Speech output uses AVSpeechSynthesizer (property briefing); speech
-> input only via Siri.
+> **Siri / App Intents** (German and English phrases): "Ask WHV" / "Frag WHV"
+> (question → answer read aloud; Siri asks "For which property?" when the
+> question names none, then keeps the dialog open with "Anything else?" until
+> the user says no), "WHV ticket" (dictated note → ticket at the current
+> property), "WHV departure/arrival", "WHV contractor on site", "WHV note to
+> <contact>" (sent by our backend by e-mail). In demo mode the assistant
+> answers that it is not available (it needs the company's documents); the
+> other commands work on the sample data. Speech output uses
+> AVSpeechSynthesizer (property briefing); speech input only via Siri.
 >
 > **Live Activity** shows the running trip on the Lock Screen; **Apple Watch app**
 > mirrors start/end/arrival and creates a ticket by dictation. **Widgets** show
@@ -139,6 +143,32 @@ Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
 > Target users of the manager features are our own employees (two property
 > managers); owners and tenants use the same app for their portal, which is why
 > the app is on the App Store.
+
+## Release-Notes 1.3.7 („Was ist neu", App Store Connect / TestFlight)
+
+**Deutsch**
+
+> Neu für die Verwaltung: Fahrtenbuch mit CarPlay – Fahrten starten automatisch,
+> das Zielobjekt wird erkannt, Zweck und Objekt bestätigen Sie mit einem Tipp
+> im Auto. Siri versteht „WHV Abfahrt/Ankunft", „WHV Ticket" (Diktat wird zum
+> Ticket), „WHV Handwerker vor Ort" und „WHV Notiz an …". „Frag WHV" ist jetzt
+> ein Gespräch: Siri liest die Antwort vor und hört weiter zu. Anrufer-Erkennung
+> zeigt Name, Objekt und Rolle bei eingehenden Anrufen. Objekt-Briefing zum
+> Vorlesen, Fahrt als Live-Aktivität auf dem Sperrbildschirm, Apple-Watch-App,
+> Wochenrückblick. Außerdem: Demo-Modus für Eigentümer und Verwaltung, viele
+> Verbesserungen und Fehlerbehebungen.
+
+**English**
+
+> New for property managers: mileage log with CarPlay – trips start
+> automatically, the destination property is detected, purpose and property are
+> confirmed with one tap in the car. Siri understands "WHV departure/arrival",
+> "WHV ticket" (dictation becomes a ticket), "WHV contractor on site" and "WHV
+> note to …". "Ask WHV" is now a conversation: Siri reads the answer and keeps
+> listening. Caller ID shows name, property and role for incoming calls.
+> Spoken property briefing, running trip as a Live Activity on the Lock Screen,
+> Apple Watch app, weekly review. Also: demo mode for owners and managers, many
+> improvements and bug fixes.
 
 ## Woran Apple sich stören könnte — und wie wir es vorbeugen
 

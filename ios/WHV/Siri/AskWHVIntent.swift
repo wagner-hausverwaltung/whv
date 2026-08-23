@@ -56,9 +56,12 @@ struct AskWHVIntent: AppIntent {
         // object and topic. Capped so a misheard "ja" can't loop forever.
         var lastAnswer = ""
         for round in 0..<Self.maxRounds {
-            let answer = try await answer(to: q, property: round == 0 ? property : nil)
+            let (answer, ok) = try await answer(to: q, property: round == 0 ? property : nil)
             lastAnswer = answer
             let spoken = Self.spokenForm(answer)
+            // Not signed in / demo / backend down: say so and stop — no point
+            // keeping the microphone open.
+            guard ok else { return .result(value: answer, dialog: IntentDialog(stringLiteral: spoken)) }
             let prompt = spoken + " " + String(localized: "Noch eine Frage?")
             let next: String
             do {
@@ -91,7 +94,9 @@ struct AskWHVIntent: AppIntent {
     }
 
     /// One question → one answer, recorded in the conversation memory.
-    private func answer(to q: String, property: PropertyEntity?) async throws -> String {
+    /// `ok` is false for the "can't answer at all" cases (not signed in,
+    /// demo, backend unreachable) — the caller then ends the dialog.
+    private func answer(to q: String, property: PropertyEntity?) async throws -> (String, Bool) {
         // Scope the question to an object whenever we can tell which one:
         // named in the question → the conversation's object → running trip's
         // destination → nearest object ≤ 300 m → the object selected in the
@@ -129,13 +134,13 @@ struct AskWHVIntent: AppIntent {
             SiriConversation.record(
                 conversationId: conversationId, question: q, answer: answer, propertyId: propertyId
             )
-            return answer
+            return (answer, true)
         } catch APIError.unauthorized {
-            return String(localized: "Bitte melden Sie sich zuerst in der WHV-App an.")
+            return (String(localized: "Bitte melden Sie sich zuerst in der WHV-App an."), false)
         } catch APIError.demoReadOnly {
-            return String(localized: "Im Demo-Modus ist der Assistent nicht verfügbar.")
+            return (String(localized: "Im Demo-Modus ist der Assistent nicht verfügbar."), false)
         } catch {
-            return String(localized: "Der Assistent ist gerade nicht erreichbar.")
+            return (String(localized: "Der Assistent ist gerade nicht erreichbar."), false)
         }
     }
 
