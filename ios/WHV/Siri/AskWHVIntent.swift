@@ -85,7 +85,7 @@ struct WHVShortcuts: AppShortcutsProvider {
                 "\(.applicationName) fragen",
             ],
             shortTitle: "Frag WHV",
-            systemImageName: "bubble.left.and.text.bubble"
+            systemImageName: "bubble.left.and.text.bubble.right"
         )
         AppShortcut(
             intent: NoteWHVIntent(),

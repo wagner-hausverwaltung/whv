@@ -13,7 +13,7 @@ import Foundation
 
 struct WatchTicketIntent: AppIntent {
     static var title: LocalizedStringResource = "WHV Ticket"
-    static var description = IntentDescription("Legt per Diktat ein Ticket am aktuellen Objekt an (über das iPhone).")
+    static var description = IntentDescription("Legt per Diktat ein Ticket am aktuellen Objekt an.")
     static var openAppWhenRun = false
 
     @Parameter(title: "Ticket", requestValueDialog: IntentDialog("Was soll ins Ticket?"))

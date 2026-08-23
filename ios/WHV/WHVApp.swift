@@ -119,6 +119,9 @@ struct WHVApp: App {
                     if authStore.user?.role.lowercased() == "verwalter" {
                         CallLogPrompt.shared.start()
                         Task { await CallDirectorySync.shared.syncIfDue() }
+                        // Teach Siri the current contact names for
+                        // "WHV Notiz an <Kontakt>" (ContactEntity phrases).
+                        WHVShortcuts.updateAppShortcutParameters()
                     }
                 default:
                     break
@@ -150,6 +153,9 @@ struct WHVApp: App {
                             CallLogPrompt.shared.start()
                             await CallDirectorySync.shared.sync()
                         }
+                        // Re-index the App Shortcut phrases (incl. the
+                        // contact-name parameter) for the signed-in user.
+                        WHVShortcuts.updateAppShortcutParameters()
                     }
                     // Launch argument for screenshots / review automation:
                     // `-DemoVerwalter` (or `-DemoEigentuemer`) enters the demo

@@ -765,6 +765,16 @@
         }
       }
     },
+    "Beginn und Ende eines Handwerkereinsatzes im Ticket festhalten." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record the start and end of a contractor visit in the ticket."
+          }
+        }
+      }
+    },
     "Beirat" : {
       "localizations" : {
         "en" : {
@@ -1285,6 +1295,16 @@
         }
       }
     },
+    "Diktat wird zum Ticket am Fahrtziel bzw. nächsten Objekt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictation becomes a ticket at the trip destination or the nearest property."
+          }
+        }
+      }
+    },
     "Dirk Ullrich anrufen" : {
       "localizations" : {
         "en" : {
@@ -1794,6 +1814,16 @@
         }
       }
     },
+    "Fahrt starten bzw. beenden — Objekt und Kilometer werden gespeichert." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start or end a trip — property and kilometres are saved."
+          }
+        }
+      }
+    },
     "Fahrt verwerfen" : {
       "localizations" : {
         "en" : {
@@ -1944,6 +1974,16 @@
         }
       }
     },
+    "Frage zu Ihren Unterlagen — Siri liest die Antwort vor." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask about your documents — Siri reads the answer aloud."
+          }
+        }
+      }
+    },
     "Fragen & Antworten" : {
       "localizations" : {
         "en" : {
@@ -1990,6 +2030,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deadline: %@"
+          }
+        }
+      }
+    },
+    "Funktioniert auch über die Kurzbefehle-App. Der Befehl steht nach dem ersten Start der App bereit." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also works from the Shortcuts app. The command is available after the app has been opened once."
+          }
+        }
+      }
+    },
+    "Funktioniert freihändig im Auto, auf der Apple Watch und über die Kurzbefehle-App. Die Befehle stehen nach dem ersten Start der App bereit." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Works hands-free in the car, on Apple Watch and from the Shortcuts app. The commands are available after the app has been opened once."
           }
         }
       }
@@ -2743,6 +2803,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Per-head vote"
+          }
+        }
+      }
+    },
+    "Kurze Nachricht per E-Mail an einen Kontakt — Antwort kommt an Sie." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short e-mail message to a contact — replies come to you."
           }
         }
       }
@@ -3761,6 +3831,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Signed protocol"
+          }
+        }
+      }
+    },
+    "Siri" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siri"
           }
         }
       }
@@ -4998,6 +5078,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@”"
+          }
+        }
+      }
+    },
+    "„Hey Siri, WHV Abfahrt“ / „WHV Ankunft“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hey Siri, WHV departure” / “WHV arrival”"
+          }
+        }
+      }
+    },
+    "„Hey Siri, WHV Handwerker vor Ort“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hey Siri, WHV contractor on site”"
+          }
+        }
+      }
+    },
+    "„Hey Siri, WHV Notiz an Müller“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hey Siri, WHV note to Müller”"
+          }
+        }
+      }
+    },
+    "„Hey Siri, WHV Ticket“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hey Siri, WHV ticket”"
+          }
+        }
+      }
+    },
+    "„Hey Siri, frag WHV“" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hey Siri, ask WHV”"
           }
         }
       }
