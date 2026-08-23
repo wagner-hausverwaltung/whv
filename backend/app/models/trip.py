@@ -76,6 +76,15 @@ class Trip(OrganizationScopedMixin, TimestampMixin, Base):
         index=True,
     )
 
+    # Set once the trip is on an Auslagen-Rechnung to the property (Phase 5);
+    # billed trips are excluded from the next invoice's selection.
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("trip_invoices.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     status: Mapped[str] = mapped_column(Text, nullable=False, default=TripStatus.RUNNING.value)
     source: Mapped[str] = mapped_column(Text, nullable=False, default=TripSource.MANUAL.value)
     purpose: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -93,6 +93,8 @@ class TripResponse(BaseModel):
     # address for display — the trip has no property in that case.
     inquiry_id: uuid.UUID | None = None
     inquiry_address: str | None = None
+    # Auslagen-Rechnung this trip is billed on (None = not billed yet).
+    invoice_id: uuid.UUID | None = None
     status: str
     source: str
     purpose: str | None = None
@@ -154,3 +156,61 @@ class DelayNoticeResponse(BaseModel):
     sent: bool
     to: str | None
     detail: str
+
+
+# --- Auslagen-Rechnung je Objekt (Phase 5) ------------------------------------
+
+
+class BillableTripsResponse(BaseModel):
+    """What the Verwalter sees before creating an invoice: every confirmed,
+    not-yet-billed, non-private trip of the property up to `until`, plus the
+    default rule for this property type (pre-selected ids + rate + clause)."""
+
+    items: list[TripResponse]
+    suggested_trip_ids: list[uuid.UUID]
+    rate_cents_per_km: int
+    legal_basis: str
+    rule_hint: str
+
+
+class TripInvoiceCreate(BaseModel):
+    property_id: uuid.UUID
+    trip_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    rate_cents_per_km: int = Field(ge=1, le=500)
+    vat_percent: Decimal = Field(default=Decimal("19"), ge=0, le=100)
+    issued_on: date | None = None
+    legal_basis: str | None = Field(default=None, max_length=600)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class TripInvoiceLine(BaseModel):
+    trip_id: uuid.UUID
+    date: date
+    purpose: str | None
+    distance_m: int
+    amount_cents: int
+    note: str | None = None
+
+
+class TripInvoiceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    property_id: uuid.UUID
+    property_name: str | None = None
+    number: str
+    issued_on: date
+    period_from: date
+    period_to: date
+    rate_cents_per_km: int
+    vat_percent: DecimalAsFloat
+    trip_count: int
+    distance_m: int
+    net_cents: int
+    vat_cents: int
+    gross_cents: int
+    legal_basis: str | None = None
+    note: str | None = None
+    created_at: datetime
+    # Only the most recent invoice of the org may be cancelled (no gaps).
+    cancellable: bool = False

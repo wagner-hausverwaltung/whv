@@ -879,7 +879,33 @@
       "exportPdf": "Abrechnung (PDF)",
       "map": "Karte",
       "mapMonth": "Routen des Monats",
-      "inquiry": "Anfrage"
+      "inquiry": "Anfrage",
+      "invoice": {
+        "sectionTitle": "Auslagen-Rechnungen Fahrtkosten",
+        "sectionHint": "Was der WEG/dem Eigentümer berechnet werden darf, richtet sich nach dem Verwaltervertrag (WEG: nur Versammlungen außerhalb Kreis Stuttgart, 0,42 €/km · MV/SEV: Fahrten über die Auslagenpauschale hinaus, 0,50 €/km) – die Auswahl trifft der Verwalter, Fahrten werden danach als abgerechnet markiert.",
+        "new": "Neue Rechnung",
+        "newTitle": "Auslagen-Rechnung Fahrtkosten erstellen",
+        "until": "Fahrten bis einschließlich",
+        "rate": "Satz ct/km",
+        "note": "Hinweis auf der Rechnung (optional)",
+        "nothingBillable": "Keine offenen, bestätigten Fahrten für dieses Objekt bis zum Stichtag.",
+        "net": "Netto",
+        "vat": "USt 19 %",
+        "vatShort": "USt",
+        "gross": "Brutto",
+        "create": "Rechnung erzeugen",
+        "createFailed": "Rechnung konnte nicht erstellt werden.",
+        "loadFailed": "Rechnungen konnten nicht geladen werden.",
+        "empty": "Noch keine Rechnung erstellt.",
+        "number": "Nummer",
+        "issuedOn": "Datum",
+        "period": "Leistungszeitraum",
+        "billed": "abgerechnet",
+        "cancel": "Stornieren",
+        "cancelOnlyLatest": "Nur die zuletzt erstellte Rechnung kann storniert werden (lückenlose Nummernfolge).",
+        "cancelConfirm": "Rechnung {{number}} stornieren? Die Fahrten werden wieder zur Abrechnung frei.",
+        "cancelFailed": "Rechnung konnte nicht storniert werden."
+      }
     }
   },
   "meters": {

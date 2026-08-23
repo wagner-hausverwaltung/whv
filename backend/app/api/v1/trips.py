@@ -11,6 +11,7 @@ regular Jahresabrechnung, not through this API.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import uuid
@@ -19,7 +20,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_role
@@ -32,6 +33,7 @@ from app.models import (
     OfferInquiry,
     Property,
     Trip,
+    TripInvoice,
     TripPurpose,
     TripStatus,
     User,
@@ -39,15 +41,19 @@ from app.models import (
 )
 from app.schemas.trip import (
     AdminTripListResponse,
+    BillableTripsResponse,
     DelayNoticeRequest,
     DelayNoticeResponse,
     TripCompleteRequest,
+    TripInvoiceCreate,
+    TripInvoiceResponse,
     TripPropertyTotal,
     TripResponse,
     TripStartRequest,
     TripSummary,
     TripUpdateRequest,
 )
+from app.services import trip_invoice as invoice_svc
 from app.services.units import _contact_label
 
 me_router = APIRouter(prefix="/me/trips", tags=["trips"])
@@ -666,6 +672,183 @@ async def admin_statement_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )
+
+
+# --- /admin/trips/billable + /admin/trips/invoices — Auslagen-Rechnung je Objekt
+
+
+async def _invoice_responses(
+    session: AsyncSession, org_id: uuid.UUID, invoices: list[TripInvoice]
+) -> list[TripInvoiceResponse]:
+    prop_ids = {i.property_id for i in invoices}
+    names: dict[uuid.UUID, str] = {}
+    if prop_ids:
+        rows = (await session.scalars(select(Property).where(Property.id.in_(prop_ids)))).all()
+        names = {p.id: p.name for p in rows}
+    latest = await invoice_svc.latest_invoice_id(session, org_id)
+    out: list[TripInvoiceResponse] = []
+    for inv in invoices:
+        resp = TripInvoiceResponse.model_validate(inv)
+        resp.property_name = names.get(inv.property_id)
+        resp.cancellable = inv.id == latest
+        out.append(resp)
+    return out
+
+
+async def _org_invoice(session: AsyncSession, user: User, invoice_id: uuid.UUID) -> TripInvoice:
+    inv = await session.scalar(
+        select(TripInvoice).where(
+            TripInvoice.id == invoice_id, TripInvoice.organization_id == user.organization_id
+        )
+    )
+    if inv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rechnung nicht gefunden")
+    return inv
+
+
+@admin_router.get("/billable", response_model=BillableTripsResponse)
+async def admin_billable_trips(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    property_id: Annotated[uuid.UUID, Query()],
+    until: Annotated[date | None, Query()] = None,
+) -> BillableTripsResponse:
+    """Trips of one property that could go on the next Auslagen-Rechnung
+    (confirmed, not yet billed, not private) + the default rule for the
+    property's contract type (pre-selection, rate, clause)."""
+    prop = await _org_property(session, current_user, property_id)
+    until_day = until or datetime.now(UTC).date()
+    stmt = invoice_svc.billable_filter(
+        select(Trip), org_id=current_user.organization_id, property_id=prop.id, until=until_day
+    ).order_by(Trip.started_at.asc())
+    trips = list((await session.scalars(stmt)).all())
+    rule = invoice_svc.default_rule(prop.type)
+    return BillableTripsResponse(
+        items=await _to_response(session, trips),
+        suggested_trip_ids=[t.id for t in trips if (t.purpose or "") in rule.suggested_purposes],
+        rate_cents_per_km=rule.rate_cents_per_km,
+        legal_basis=rule.legal_basis,
+        rule_hint=rule.hint,
+    )
+
+
+@admin_router.get("/invoices", response_model=list[TripInvoiceResponse])
+async def admin_list_invoices(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    property_id: Annotated[uuid.UUID | None, Query()] = None,
+    year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> list[TripInvoiceResponse]:
+    stmt = select(TripInvoice).where(TripInvoice.organization_id == current_user.organization_id)
+    if property_id is not None:
+        stmt = stmt.where(TripInvoice.property_id == property_id)
+    if year is not None:
+        stmt = stmt.where(TripInvoice.number.like(f"{invoice_svc.NUMBER_PREFIX}-{year}-%"))
+    stmt = stmt.order_by(TripInvoice.number.desc()).limit(limit)
+    invoices = list((await session.scalars(stmt)).all())
+    return await _invoice_responses(session, current_user.organization_id, invoices)
+
+
+@admin_router.post(
+    "/invoices", response_model=TripInvoiceResponse, status_code=status.HTTP_201_CREATED
+)
+async def admin_create_invoice(
+    req: TripInvoiceCreate,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TripInvoiceResponse:
+    """Create an Auslagen-Rechnung from an explicit trip selection. The
+    selection + rate are the Verwalter's call (contract-dependent — see
+    services/trip_invoice.py); the service validates, numbers, snapshots
+    and marks the trips as billed."""
+    try:
+        inv = await invoice_svc.create_invoice(
+            session,
+            org_id=current_user.organization_id,
+            created_by_user_id=current_user.id,
+            property_id=req.property_id,
+            trip_ids=req.trip_ids,
+            rate_cents_per_km=req.rate_cents_per_km,
+            vat_percent=req.vat_percent,
+            issued_on=req.issued_on,
+            legal_basis=req.legal_basis,
+            note=req.note,
+        )
+    except invoice_svc.TripInvoiceError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="trip_invoice_created",
+            target_type="trip_invoices",
+            target_id=str(inv.id),
+            payload_json={
+                "number": inv.number,
+                "property_id": str(inv.property_id),
+                "trips": inv.trip_count,
+                "gross_cents": inv.gross_cents,
+            },
+        )
+    )
+    await session.commit()
+    return (await _invoice_responses(session, current_user.organization_id, [inv]))[0]
+
+
+@admin_router.get("/invoices/{invoice_id}/invoice.pdf")
+async def admin_invoice_pdf(
+    invoice_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """The invoice as PDF — rendered from the immutable snapshot, so it reads
+    the same today and in five years."""
+    inv = await _org_invoice(session, current_user, invoice_id)
+    pdf = await asyncio.to_thread(invoice_svc.render_invoice_pdf, inv)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{invoice_svc.invoice_filename(inv)}"'
+        },
+    )
+
+
+@admin_router.delete("/invoices/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_cancel_invoice(
+    invoice_id: uuid.UUID,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Cancel (delete) an invoice and release its trips for a new one. Only
+    the most recently numbered invoice may go, so the sequence stays
+    gap-free; anything older needs a Gutschrift outside this tool."""
+    inv = await _org_invoice(session, current_user, invoice_id)
+    latest = await invoice_svc.latest_invoice_id(session, current_user.organization_id)
+    if latest != inv.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Nur die zuletzt erstellte Rechnung kann storniert werden.",
+        )
+    await session.execute(update(Trip).where(Trip.invoice_id == inv.id).values(invoice_id=None))
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="trip_invoice_cancelled",
+            target_type="trip_invoices",
+            target_id=str(inv.id),
+            payload_json={
+                "number": inv.number,
+                "property_id": str(inv.property_id),
+                "gross_cents": inv.gross_cents,
+            },
+        )
+    )
+    await session.delete(inv)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # Re-exported for main.py; TripPurpose kept importable for future validators.

@@ -28,17 +28,21 @@ import {
 } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import MapIcon from "@mui/icons-material/Map";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type {
   AdminTripListResponse,
+  TripInvoiceResponse,
   TripResponse,
 } from "@/api/types";
 import { TripEditDialog } from "@/admin/components/TripEditDialog";
+import { TripInvoiceDialog } from "@/admin/components/TripInvoiceDialog";
 import { TripMapDialog } from "@/admin/components/TripMapDialog";
 import { purposeLabel } from "@/lib/trips";
 
@@ -67,6 +71,9 @@ export function AdminFahrtenPage() {
   const [propertyId, setPropertyId] = useState<string>("");
   const [editing, setEditing] = useState<TripResponse | null>(null);
   const [mapTrips, setMapTrips] = useState<{ title: string; trips: TripResponse[] } | null>(null);
+  const [invoices, setInvoices] = useState<TripInvoiceResponse[]>([]);
+  const [invoiceDialog, setInvoiceDialog] = useState<{ propertyId?: string } | null>(null);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   const key = monthKey(month);
 
@@ -84,6 +91,43 @@ export function AdminFahrtenPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  const loadInvoices = useCallback(async () => {
+    try {
+      const r = await api.get<TripInvoiceResponse[]>("/admin/trips/invoices?limit=25");
+      setInvoices(r.data);
+      setInvoiceError(null);
+    } catch {
+      setInvoiceError(t("admin.fahrten.invoice.loadFailed"));
+    }
+  }, [t]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadInvoices();
+  }, [loadInvoices]);
+
+  const downloadInvoice = async (inv: TripInvoiceResponse) => {
+    const r = await api.get<Blob>(`/admin/trips/invoices/${inv.id}/invoice.pdf`, { responseType: "blob" });
+    const url = URL.createObjectURL(r.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Rechnung-${inv.number}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const cancelInvoice = async (inv: TripInvoiceResponse) => {
+    if (!window.confirm(t("admin.fahrten.invoice.cancelConfirm", { number: inv.number }))) return;
+    try {
+      await api.delete(`/admin/trips/invoices/${inv.id}`);
+      await Promise.all([loadInvoices(), load()]);
+    } catch {
+      setInvoiceError(t("admin.fahrten.invoice.cancelFailed"));
+    }
+  };
 
   // Filter client-side: the month payload is small (dozens of rows) and the
   // dropdowns then only offer drivers/properties that really occur.
@@ -294,6 +338,15 @@ export function AdminFahrtenPage() {
                       color={r.status === "OPEN" ? "warning" : r.purpose === "PRIVAT" ? "default" : "primary"}
                       variant={r.status === "OPEN" ? "filled" : "outlined"}
                     />
+                    {r.invoice_id && (
+                      <Chip
+                        size="small"
+                        label={t("admin.fahrten.invoice.billed")}
+                        color="success"
+                        variant="outlined"
+                        sx={{ ml: 0.5 }}
+                      />
+                    )}
                   </TableCell>
                   <TableCell align="right">{fmtKm(r.distance_m)}</TableCell>
                   <TableCell align="right">{fmtEur(r.amount_cents)}</TableCell>
@@ -319,6 +372,94 @@ export function AdminFahrtenPage() {
           </TableBody>
         </Table>
       </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ flex: 1 }}>
+            {t("admin.fahrten.invoice.sectionTitle")}
+          </Typography>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<ReceiptLongIcon />}
+            onClick={() => setInvoiceDialog({ propertyId: propertyId || undefined })}
+          >
+            {t("admin.fahrten.invoice.new")}
+          </Button>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+          {t("admin.fahrten.invoice.sectionHint")}
+        </Typography>
+        {invoiceError && <Alert severity="error" sx={{ mb: 1 }}>{invoiceError}</Alert>}
+        {invoices.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {t("admin.fahrten.invoice.empty")}
+          </Typography>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t("admin.fahrten.invoice.number")}</TableCell>
+                <TableCell>{t("admin.fahrten.invoice.issuedOn")}</TableCell>
+                <TableCell>{t("admin.fahrten.property")}</TableCell>
+                <TableCell>{t("admin.fahrten.invoice.period")}</TableCell>
+                <TableCell align="right">{t("admin.fahrten.trips")}</TableCell>
+                <TableCell align="right">km</TableCell>
+                <TableCell align="right">{t("admin.fahrten.invoice.gross")}</TableCell>
+                <TableCell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow key={inv.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontFamily: "monospace" }}>{inv.number}</Typography>
+                  </TableCell>
+                  <TableCell>{new Date(inv.issued_on).toLocaleDateString("de-DE")}</TableCell>
+                  <TableCell>{inv.property_name ?? "—"}</TableCell>
+                  <TableCell>
+                    {new Date(inv.period_from).toLocaleDateString("de-DE")}
+                    {inv.period_from !== inv.period_to ? ` – ${new Date(inv.period_to).toLocaleDateString("de-DE")}` : ""}
+                  </TableCell>
+                  <TableCell align="right">{inv.trip_count}</TableCell>
+                  <TableCell align="right">{fmtKm(inv.distance_m)}</TableCell>
+                  <TableCell align="right">
+                    {fmtEur(inv.gross_cents)}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      ({fmtEur(inv.net_cents)} + {t("admin.fahrten.invoice.vatShort")})
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                    <IconButton size="small" onClick={() => void downloadInvoice(inv)} aria-label="PDF">
+                      <PictureAsPdfIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => void cancelInvoice(inv)}
+                      disabled={!inv.cancellable}
+                      aria-label={t("admin.fahrten.invoice.cancel")}
+                      title={inv.cancellable ? t("admin.fahrten.invoice.cancel") : t("admin.fahrten.invoice.cancelOnlyLatest")}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Paper>
+
+      {invoiceDialog && (
+        <TripInvoiceDialog
+          defaultPropertyId={invoiceDialog.propertyId}
+          onClose={() => setInvoiceDialog(null)}
+          onCreated={() => {
+            setInvoiceDialog(null);
+            void Promise.all([loadInvoices(), load()]);
+          }}
+        />
+      )}
 
       {mapTrips && (
         <TripMapDialog title={mapTrips.title} trips={mapTrips.trips} onClose={() => setMapTrips(null)} />

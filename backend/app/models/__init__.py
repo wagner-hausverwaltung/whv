@@ -94,6 +94,7 @@ from app.models.ticket import (
     TicketStatus,
 )
 from app.models.trip import Trip, TripPurpose, TripSource, TripStatus
+from app.models.trip_invoice import TripInvoice
 from app.models.unit import Unit, UnitType
 from app.models.user import InviteCode, PasswordResetToken, Session, User, UserRole
 
@@ -177,6 +178,7 @@ __all__ = [
     "TicketShareScope",
     "TicketStatus",
     "Trip",
+    "TripInvoice",
     "TripPurpose",
     "TripSource",
     "TripStatus",

@@ -879,7 +879,33 @@
       "exportPdf": "Statement (PDF)",
       "map": "Map",
       "mapMonth": "Routes of the month",
-      "inquiry": "Inquiry"
+      "inquiry": "Inquiry",
+      "invoice": {
+        "sectionTitle": "Travel expense invoices",
+        "sectionHint": "What may be charged to the WEG/owner depends on the management contract (WEG: meetings outside Kreis Stuttgart only, €0.42/km · MV/SEV: trips beyond the expense allowance, €0.50/km) – the Verwalter selects the trips, which are then marked as billed.",
+        "new": "New invoice",
+        "newTitle": "Create travel expense invoice",
+        "until": "Trips up to and including",
+        "rate": "Rate ct/km",
+        "note": "Note on the invoice (optional)",
+        "nothingBillable": "No open, confirmed trips for this property up to the cut-off date.",
+        "net": "Net",
+        "vat": "VAT 19 %",
+        "vatShort": "VAT",
+        "gross": "Gross",
+        "create": "Create invoice",
+        "createFailed": "The invoice could not be created.",
+        "loadFailed": "Invoices could not be loaded.",
+        "empty": "No invoice created yet.",
+        "number": "Number",
+        "issuedOn": "Date",
+        "period": "Service period",
+        "billed": "billed",
+        "cancel": "Cancel invoice",
+        "cancelOnlyLatest": "Only the most recently created invoice can be cancelled (gap-free numbering).",
+        "cancelConfirm": "Cancel invoice {{number}}? Its trips become billable again.",
+        "cancelFailed": "The invoice could not be cancelled."
+      }
     }
   },
   "meters": {
