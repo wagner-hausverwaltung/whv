@@ -259,8 +259,57 @@ def test_extract_ticket_ref_finds_16_hex_chars() -> None:
     assert extract_ticket_ref("[#AbCdEf12cafebabe] mixed case") == "abcdef12cafebabe"
     assert extract_ticket_ref("nothing special") is None
     assert extract_ticket_ref("[#xyz12345xyz12345] bad chars") is None  # non-hex letters
-    assert extract_ticket_ref("[#01928374] only 8 chars") is None  # too short
+    assert extract_ticket_ref("[#01928374] only 8 chars") is None  # neither 6 nor 16
     assert extract_ticket_ref("") is None
+
+
+def test_extract_ticket_ref_accepts_short_tag() -> None:
+    # Current scheme: last 6 hex of the UUID, anywhere in the subject.
+    assert extract_ticket_ref("AW: [#a1b2c3] Heizung kalt") == "a1b2c3"
+    assert extract_ticket_ref("Freigegebenes Ticket: Dach [#F0E1D2]") == "f0e1d2"
+    assert extract_ticket_ref("[#a1b2c] five") is None
+
+
+def test_extract_ticket_id_hint_from_quoted_footer() -> None:
+    from app.integrations.email.inbound import extract_ticket_id_hint
+
+    tid = "0198f1c2-3d4e-7a5b-8c6d-0123456789ab"
+    body = f"Danke!\n\n> Wagner Hausverwaltung GmbH\n> Ticket-ID: {tid.upper()}\n"
+    assert extract_ticket_id_hint(body) == tid
+    assert extract_ticket_id_hint("no footer here") is None
+
+
+def test_notification_email_uses_short_tag_and_full_id_footer() -> None:
+    from app.integrations.email.tickets import (
+        render_ticket_notification_email,
+        render_ticket_shared_email,
+        strip_ticket_tags,
+        ticket_tag,
+    )
+
+    tid = uuid.UUID("0198f1c2-3d4e-7a5b-8c6d-0123456789ab")
+    assert ticket_tag(tid) == "6789ab"
+    # A stored subject may still carry a legacy 16-char tag → exactly one tag.
+    subject, html, text = render_ticket_notification_email(
+        ticket_short_id=ticket_tag(tid),
+        ticket_subject="[#0198f1c23d4e7a5b] Heizung kalt",
+        ticket_id=str(tid),
+        sender_email="a@b.de",
+        message_body="Hallo",
+        is_new_ticket=True,
+    )
+    assert subject == "[#6789ab] Neues Ticket: Heizung kalt"
+    assert f"Ticket-ID: {tid}" in text
+    assert f"Ticket-ID: {tid}" in html
+    assert strip_ticket_tags("Re: [#6789ab] Heizung [#0198f1c23d4e7a5b] kalt") == "Re: Heizung kalt"
+    shared_subject, _, shared_text = render_ticket_shared_email(
+        ticket_short_id=ticket_tag(tid),
+        ticket_subject="Dach undicht",
+        property_name="WEG X",
+        ticket_id=str(tid),
+    )
+    assert shared_subject == "Freigegebenes Ticket: Dach undicht [#6789ab]"
+    assert f"Ticket-ID: {tid}" in shared_text
 
 
 def test_parser_extracts_sender_subject_body() -> None:
@@ -784,3 +833,124 @@ async def test_email_inbound_fetches_from_s3_when_no_inline_content(
 
 # Keep make_org / make_user referenced so the imports aren't dropped by linter.
 _ = make_org, make_user
+
+
+# --- reply routing: short tag → quoted Ticket-ID → headers --------------------
+
+
+async def _seed_ticket(
+    test_engine: AsyncEngine, *, with_message_id: str | None = None
+) -> tuple[str, str]:
+    """A ticket of a fresh owner in the WHV org; returns (ticket_id, owner email).
+    With `with_message_id`, one inbound message carrying that Message-ID is
+    attached (what a later reply's In-Reply-To would point at)."""
+    from app.auth.passwords import hash_password
+    from app.models import Organization, User
+
+    sm = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sm() as s:
+        if (
+            await s.scalar(select(Organization).where(Organization.id == WHV_ORGANIZATION_ID))
+            is None
+        ):
+            s.add(Organization(id=WHV_ORGANIZATION_ID, name="WHV"))
+            await s.commit()
+        creator_email = f"owner-{uuid.uuid4().hex[:6]}@test.de"
+        creator = User(
+            organization_id=WHV_ORGANIZATION_ID,
+            email=creator_email,
+            password_hash=hash_password("x"),
+            role=UserRole.EIGENTUEMER,
+        )
+        s.add(creator)
+        await s.flush()
+        ticket = Ticket(
+            organization_id=WHV_ORGANIZATION_ID,
+            created_by_user_id=creator.id,
+            category=TicketCategory.SCHADEN_ALLGEMEIN,
+            status=TicketStatus.WARTET_AUF_KUNDE,
+            subject="Original subject",
+        )
+        s.add(ticket)
+        await s.flush()
+        if with_message_id:
+            s.add(
+                TicketMessage(
+                    ticket_id=ticket.id,
+                    author_user_id=creator.id,
+                    body="erste Mail",
+                    source=TicketMessageSource.EMAIL,
+                    email_message_id=with_message_id,
+                )
+            )
+        await s.commit()
+        return str(ticket.id), creator_email
+
+
+async def _post_reply(envelope: dict[str, Any]) -> dict[str, Any]:
+    with TestClient(app) as client:
+        r = client.post("/webhooks/email/inbound", json=envelope)
+    assert r.status_code == 200, r.text
+    out: dict[str, Any] = r.json()
+    return out
+
+
+async def test_reply_routes_by_short_suffix_tag(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bypass_signature(monkeypatch)
+    tid, owner = await _seed_ticket(test_engine)
+    tag = uuid.UUID(tid).hex[-6:]
+    body = await _post_reply(
+        _sns_envelope(
+            _ses_payload(
+                sender=owner,
+                subject=f"AW: [#{tag.upper()}] Original subject",
+                body="Kurze Rückfrage.",
+                message_id=f"<r-{uuid.uuid4()}@mail.de>",
+            )
+        )
+    )
+    assert body["status"] == "appended"
+    assert body["ticket_id"] == tid
+
+
+async def test_reply_routes_by_quoted_ticket_id_when_tag_missing(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bypass_signature(monkeypatch)
+    tid, owner = await _seed_ticket(test_engine)
+    body = await _post_reply(
+        _sns_envelope(
+            _ses_payload(
+                sender=owner,
+                subject="Heizung",  # client dropped our tag
+                body=(f"Hat sich erledigt.\n\n> Wagner Hausverwaltung GmbH\n> Ticket-ID: {tid}\n"),
+                message_id=f"<r-{uuid.uuid4()}@mail.de>",
+            )
+        )
+    )
+    assert body["status"] == "appended"
+    assert body["ticket_id"] == tid
+
+
+async def test_reply_routes_by_in_reply_to_header(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bypass_signature(monkeypatch)
+    first_id = f"<first-{uuid.uuid4()}@mail.de>"
+    tid, owner = await _seed_ticket(test_engine, with_message_id=first_id)
+    body = await _post_reply(
+        _sns_envelope(
+            _ses_payload(
+                sender=owner,
+                subject="AW: Original subject",
+                body="Noch etwas.",
+                message_id=f"<r-{uuid.uuid4()}@mail.de>",
+                in_reply_to=first_id,
+                references=first_id,
+            )
+        )
+    )
+    assert body["status"] == "appended"
+    assert body["ticket_id"] == tid

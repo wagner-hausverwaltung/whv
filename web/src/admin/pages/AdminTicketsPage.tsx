@@ -53,9 +53,11 @@ function StatusChip({ status }: { status: TicketStatus }) {
   );
 }
 
-// 8-char short id matches the inline-email reference scheme (#xxxxxxxx).
+// 6-char tag = the LAST six hex chars of the UUID — the same "[#xxxxxx]" the
+// e-mail subject carries, so a Verwalter can find a ticket by the tag an
+// owner quotes. (UUIDv7 prefixes are timestamps and look alike; the tail is random.)
 function shortId(id: string): string {
-  return id.replace(/-/g, "").slice(0, 8);
+  return id.replace(/-/g, "").slice(-6);
 }
 
 interface TileProps {

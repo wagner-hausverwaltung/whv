@@ -30,7 +30,16 @@ from typing import Any
 # packs a millisecond timestamp in the first 12 hex chars; an 8-char prefix
 # collides for ~65 seconds, which is fatal for tests that create two tickets
 # in quick succession.
-_TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{16})\]", re.IGNORECASE)
+# Thread tag in the subject: 6 hex chars = current scheme (last 6 of the
+# ticket UUID, see email/tickets.py::ticket_tag); 16 hex chars = legacy prefix
+# tag still present on older mails that owners may reply to months later.
+_TICKET_REF_RE = re.compile(r"\[#([a-f0-9]{16}|[a-f0-9]{6})\]", re.IGNORECASE)
+# Full ticket UUID from the body footer of our notifications ("Ticket-ID: …"),
+# usually quoted back in replies — the unambiguous fallback for the short tag.
+_TICKET_ID_RE = re.compile(
+    r"Ticket-ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -62,7 +71,7 @@ class ParsedInboundEmail:
 
     sender_email: str  # bare address from "From:", lowercased
     subject: str  # full subject including any [#ref] prefix
-    ticket_ref: str | None  # 16-char hex extracted from subject if present
+    ticket_ref: str | None  # 6-char (current) / 16-char (legacy) hex tag from the subject
     message_id: str | None  # RFC 5322 Message-ID (incl. angle brackets) if present
     in_reply_to: str | None  # In-Reply-To header
     references: str | None  # References header (full chain, space-separated)
@@ -77,6 +86,9 @@ class ParsedInboundEmail:
     # Envelope recipients (mail.destination), lowercased — used to route
     # anfragen@ inquiries to the offer pipeline instead of the ticket flow.
     recipients: tuple[str, ...] = ()
+    # Full ticket UUID quoted from our "Ticket-ID: …" footer, if the reply
+    # carries one — resolves the thread when the short subject tag can't.
+    ticket_id_hint: str | None = None
 
 
 class InboundEmailParseError(Exception):
@@ -84,12 +96,23 @@ class InboundEmailParseError(Exception):
 
 
 def extract_ticket_ref(subject: str) -> str | None:
-    """Return the 8-char hex ticket ref from `subject`, or None.
+    """Return the hex ticket tag from `subject` (6 chars current, 16 legacy),
+    or None.
 
     Lowercased. Returns the first match — subjects with multiple refs (rare,
     e.g. forwarded chains) attribute to the first one mentioned.
     """
     match = _TICKET_REF_RE.search(subject or "")
+    if match is None:
+        return None
+    return match.group(1).lower()
+
+
+def extract_ticket_id_hint(body: str) -> str | None:
+    """The full ticket UUID from a quoted "Ticket-ID: …" footer in the body,
+    lowercased, or None. First occurrence wins (the most recent quote sits
+    on top in every common mail client)."""
+    match = _TICKET_ID_RE.search(body or "")
     if match is None:
         return None
     return match.group(1).lower()
@@ -329,4 +352,5 @@ def parse_ses_sns_payload(
         virus_pass=_verdict_pass(receipt, "virusVerdict"),
         attachments=attachments,
         recipients=recipients,
+        ticket_id_hint=extract_ticket_id_hint(body),
     )

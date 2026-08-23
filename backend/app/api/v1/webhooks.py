@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -22,7 +23,7 @@ from app.integrations.email.inbound import (
     parse_ses_sns_payload,
 )
 from app.integrations.email.quoting import split_quoted_reply
-from app.integrations.email.tickets import render_ticket_notification_email
+from app.integrations.email.tickets import render_ticket_notification_email, ticket_tag
 from app.integrations.impower.client import ImpowerClient, get_impower_client
 from app.integrations.impower.sync import (
     sync_contacts,
@@ -285,32 +286,72 @@ async def receive_impower_webhook(
 async def _resolve_ticket_by_ref(
     session: AsyncSession, organization_id: Any, ticket_ref: str
 ) -> Ticket | None:
-    """Look up a ticket whose UUID (without dashes) starts with `ticket_ref`.
+    """Look up the ticket behind a subject `[#…]` tag.
 
-    `ticket_ref` is the 16-char hex prefix extracted from a subject `[#…]` tag.
-    UUIDv7 packs a millisecond timestamp into the first 12 hex chars, so an
-    8-char prefix collides for ~65 seconds — not acceptable. 16 hex chars
-    extend into the version + rand_a bits and give us 12 bits of entropy on
-    top of the timestamp (good for ~64 simultaneously-created tickets before
-    birthday-paradox risk).
+    Two tag generations are in the wild:
+      * 6 hex chars (current, email/tickets.py::ticket_tag) = the LAST six of
+        the UUID — UUIDv7 front-loads a timestamp, so the tail is where the
+        randomness lives; 16.7M values, org-scoped.
+      * 16 hex chars (legacy, mails sent before 2026-08-23) = a UUID PREFIX;
+        owners still reply to those months later.
 
     The cast renders the UUID as `xxxxxxxx-xxxx-…` with dashes, so we strip
-    them in-SQL with replace() before the prefix match.
+    them in-SQL with replace() before matching.
 
-    Returns None on no-match or ambiguous match.
+    Returns None on no-match or ambiguous match — the caller then falls back
+    to the full "Ticket-ID:" quoted in the body and to the mail headers.
     """
     id_no_dashes = func.replace(cast(Ticket.id, String), "-", "")
+    pattern = f"%{ticket_ref}" if len(ticket_ref) == 6 else f"{ticket_ref}%"
     matches = (
         await session.scalars(
             select(Ticket).where(
                 Ticket.organization_id == organization_id,
-                id_no_dashes.ilike(f"{ticket_ref}%"),
+                id_no_dashes.ilike(pattern),
             )
         )
     ).all()
     if len(matches) != 1:
         return None
     return matches[0]
+
+
+async def _resolve_ticket_by_hint(
+    session: AsyncSession, organization_id: Any, ticket_id_hint: str
+) -> Ticket | None:
+    """Exact match on the full UUID quoted from our "Ticket-ID:" footer."""
+    try:
+        ticket_id = uuid.UUID(ticket_id_hint)
+    except ValueError:
+        return None
+    ticket: Ticket | None = await session.scalar(
+        select(Ticket).where(Ticket.id == ticket_id, Ticket.organization_id == organization_id)
+    )
+    return ticket
+
+
+async def _resolve_ticket_by_headers(
+    session: AsyncSession, organization_id: Any, in_reply_to: str | None, references: str | None
+) -> Ticket | None:
+    """Thread by RFC 5322 headers: the reply's In-Reply-To / References name
+    a Message-ID we have stored on one of the ticket's messages (inbound
+    mails keep their own id; outbound notifications thread on them)."""
+    refs = " ".join(filter(None, (in_reply_to, references)))
+    if not refs:
+        return None
+    msg = await session.scalar(
+        select(TicketMessage)
+        .join(Ticket, Ticket.id == TicketMessage.ticket_id)
+        .where(
+            Ticket.organization_id == organization_id,
+            TicketMessage.email_message_id.is_not(None),
+            func.strpos(literal(refs), TicketMessage.email_message_id) > 0,
+        )
+        .order_by(TicketMessage.created_at.desc())
+    )
+    if msg is None:
+        return None
+    return await session.get(Ticket, msg.ticket_id)
 
 
 async def _resolve_author_user(
@@ -540,10 +581,16 @@ async def email_inbound(
     # author_user_id=NULL and stash the sender on the message + ticket.
     author = await _resolve_author_user(session, WHV_ORGANIZATION_ID, parsed.sender_email)
 
-    # Resolve or create the ticket.
+    # Resolve or create the ticket: subject tag → quoted Ticket-ID → headers.
     ticket: Ticket | None = None
     if parsed.ticket_ref:
         ticket = await _resolve_ticket_by_ref(session, WHV_ORGANIZATION_ID, parsed.ticket_ref)
+    if ticket is None and parsed.ticket_id_hint:
+        ticket = await _resolve_ticket_by_hint(session, WHV_ORGANIZATION_ID, parsed.ticket_id_hint)
+    if ticket is None and (parsed.in_reply_to or parsed.references):
+        ticket = await _resolve_ticket_by_headers(
+            session, WHV_ORGANIZATION_ID, parsed.in_reply_to, parsed.references
+        )
     created_new = False
     now = datetime.now(UTC)
     if ticket is None:
@@ -657,15 +704,10 @@ async def email_inbound(
 
     if recipients:
         try:
-            short_id = ticket.id.hex[:16]
-            tagged_subject = (
-                ticket.subject
-                if f"[#{short_id}]" in ticket.subject
-                else f"[#{short_id}] {ticket.subject}"
-            )
             subject_line, html, text = render_ticket_notification_email(
-                ticket_short_id=short_id,
-                ticket_subject=tagged_subject,
+                ticket_short_id=ticket_tag(ticket.id),
+                ticket_subject=ticket.subject,
+                ticket_id=str(ticket.id),
                 sender_email=parsed.sender_email,
                 message_body=parsed.body,
                 # New inbound-email tickets get the "Neues Ticket" framing
