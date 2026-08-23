@@ -280,11 +280,43 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 
     private static func typeLabel(_ p: PropertyResponse) -> String {
+        switch p.type.uppercased() {
+        case "STRATA": return "WEG"
+        case "RENTAL": return "MV"
+        case "OWNER": return "SEV"
+        default: break
+        }
         let n = p.name.uppercased()
         if n.hasPrefix("WEG") { return "WEG" }
         if n.hasPrefix("SEV") { return "SEV" }
         if n.hasPrefix("MV") { return "MV" }
         return "Weitere"
+    }
+
+    /// Short code the team uses for an object — the tail of the Impower
+    /// hr-id ("Stuttgart_H32" → "H32"). Nil when the object has none.
+    private static func code(_ p: PropertyResponse) -> String? {
+        guard let hr = p.property_hr_id, let tail = hr.split(separator: "_").last, !tail.isEmpty else { return nil }
+        return String(tail)
+    }
+
+    /// Nearest first when the phone knows where it is, else by how often
+    /// the object was driven to, else by name.
+    private func orderForTheCar(_ props: [PropertyResponse], freq: [String: Int]) -> [PropertyResponse] {
+        if let here = TripTracker.shared.currentCoordinate {
+            func dist(_ p: PropertyResponse) -> Double {
+                guard let lat = p.lat, let lng = p.lng else { return .infinity }
+                return haversineMeters(here, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+            }
+            return props.sorted { a, b in
+                let da = dist(a), db = dist(b)
+                return da != db ? da < db : a.name < b.name
+            }
+        }
+        return props.sorted { a, b in
+            let fa = freq[a.id] ?? 0, fb = freq[b.id] ?? 0
+            return fa != fb ? fa > fb : a.name < b.name
+        }
     }
 
     private static func address(_ p: PropertyResponse) -> String {
@@ -296,14 +328,33 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     // MARK: Objekte (level 1): frequent ones → object page (level 2);
     //       the long tail by type → plain list (level 2) that navigates.
 
+    /// Objekte = the WEGs, nearest first, each with its object page; the
+    /// other categories (MV / SEV) and the WEGs that don't fit the list cap
+    /// sit at the bottom as category rows (tap = list, row tap = navigate).
     private func showObjekte() async {
+        TripTracker.shared.refreshLocation()
         let ranked = await rankedProperties()
-        var sections: [CPListSection] = []
+        var byType: [String: [PropertyResponse]] = [:]
+        for p in ranked.props { byType[Self.typeLabel(p), default: []].append(p) }
+        let wegs = orderForTheCar(byType["WEG"] ?? [], freq: ranked.freq)
 
-        // Frequent / recent first — these get the full object page.
-        let frequent = Array(ranked.props.prefix(6))
-        if !frequent.isEmpty {
-            let rows: [CPListItem] = frequent.map { p in
+        // Category rows first, so we know how many WEG rows fit.
+        var categories: [(title: String, list: [PropertyResponse], detail: String)] = []
+        for key in ["MV", "SEV", "Weitere"] {
+            if let list = byType[key], !list.isEmpty {
+                categories.append((key, orderForTheCar(list, freq: ranked.freq), "\(list.count) Objekte · tippen = Navigation + Fahrt"))
+            }
+        }
+        let slots = max(1, maxItems - categories.count - 1)  // -1 keeps room for "Weitere WEG"
+        let shownWegs = Array(wegs.prefix(slots))
+        let restWegs = Array(wegs.dropFirst(slots))
+        if !restWegs.isEmpty {
+            categories.insert(("Weitere WEG", restWegs, "\(restWegs.count) weitere · tippen = Navigation + Fahrt"), at: 0)
+        }
+
+        var sections: [CPListSection] = []
+        if !shownWegs.isEmpty {
+            let rows: [CPListItem] = shownWegs.map { p in
                 let item = CPListItem(text: p.name, detailText: Self.address(p))
                 item.accessoryType = .disclosureIndicator
                 item.handler = { [weak self] _, completion in
@@ -312,25 +363,20 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 }
                 return item
             }
-            sections.append(CPListSection(items: rows, header: ranked.freq.isEmpty ? "Objekte" : "Häufig besucht", sectionIndexTitle: nil))
+            let header = TripTracker.shared.currentCoordinate != nil ? "WEG · nach Nähe" : "WEG"
+            sections.append(CPListSection(items: rows, header: header, sectionIndexTitle: nil))
         }
-
-        // Everything, grouped by type — each group fits the item cap.
-        var byType: [String: [PropertyResponse]] = [:]
-        for p in ranked.props { byType[Self.typeLabel(p), default: []].append(p) }
-        let order = ["WEG", "MV", "SEV", "Weitere"]
-        let typeRows: [CPListItem] = order.compactMap { key in
-            guard let list = byType[key], !list.isEmpty else { return nil }
-            let item = CPListItem(text: "Alle \(key)", detailText: "\(list.count) Objekte · tippen = Navigation")
-            item.accessoryType = .disclosureIndicator
-            item.handler = { [weak self] _, completion in
-                self?.showTypeList(key, list)
-                completion()
+        if !categories.isEmpty {
+            let rows: [CPListItem] = categories.map { cat in
+                let item = CPListItem(text: cat.title, detailText: cat.detail)
+                item.accessoryType = .disclosureIndicator
+                item.handler = { [weak self] _, completion in
+                    completion()
+                    self?.showTypeList(cat.title, cat.list)
+                }
+                return item
             }
-            return item
-        }
-        if !typeRows.isEmpty {
-            sections.append(CPListSection(items: typeRows, header: "Nach Typ", sectionIndexTitle: nil))
+            sections.append(CPListSection(items: rows, header: "Weitere", sectionIndexTitle: nil))
         }
         if sections.isEmpty {
             sections = [CPListSection(items: [CPListItem(text: "Keine Objekte geladen", detailText: nil)])]
@@ -342,10 +388,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let rows: [CPListItem] = list.prefix(maxItems).map { p in
             let item = CPListItem(text: p.name, detailText: Self.address(p))
             item.setImage(UIImage(systemName: "location.fill"))
-            item.handler = { [weak self] _, completion in self?.navigate(to: p); completion() }
+            item.handler = { [weak self] _, completion in
+                completion()
+                self?.navigateAndTrack(to: p, purpose: "EIGENTUEMERTERMIN")
+            }
             return item
         }
-        push(CPListTemplate(title: "Alle \(key)", sections: [CPListSection(items: rows)]))
+        push(CPListTemplate(title: key, sections: [CPListSection(items: rows)]))
     }
 
     /// Object page (level 2): drive actions, contacts (→ alert), open tickets.
@@ -356,13 +405,23 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func showObjectPage(_ p: PropertyResponse, purpose: String = "EIGENTUEMERTERMIN") async {
         let tracker = TripTracker.shared
         let purposeLabel = TripPurpose(rawValue: purpose)?.label ?? purpose
-        let navi = CPListItem(text: "Navigation starten", detailText: Self.address(p))
+        // Navigating implies driving: this row also starts the trip (or hands
+        // the running one its destination) — one tap instead of two.
+        let navi = CPListItem(
+            text: "Navigation + Fahrt",
+            detailText: tracker.isRunning
+                ? "Apple Maps · Ziel der laufenden Fahrt: \(p.name)"
+                : "Apple Maps · Fahrt startet (\(purposeLabel))"
+        )
         navi.setImage(UIImage(systemName: "location.fill"))
-        navi.handler = { [weak self] _, completion in self?.navigate(to: p); completion() }
+        navi.handler = { [weak self] _, completion in
+            completion()
+            self?.navigateAndTrack(to: p, purpose: purpose)
+        }
 
         let fahrt = CPListItem(
-            text: tracker.isRunning ? "Fahrt läuft bereits" : "Fahrt hierhin starten",
-            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Zweck: \(purposeLabel), Objekt vorbelegt"
+            text: tracker.isRunning ? "Fahrt läuft bereits" : "Nur Fahrt starten",
+            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Ohne Navigation · Zweck: \(purposeLabel), Objekt vorbelegt"
         )
         fahrt.setImage(UIImage(systemName: "car.fill"))
         fahrt.handler = { [weak self] _, completion in
@@ -441,6 +500,20 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         openMaps(CLLocationCoordinate2D(latitude: lat, longitude: lng), name: p.name)
     }
 
+    /// Navigation implies driving: start the trip for this object if none is
+    /// running (purpose + object preset → uploads CONFIRMED), otherwise give
+    /// the running trip its destination so nothing needs confirming later.
+    private func navigateAndTrack(to p: PropertyResponse, purpose: String) {
+        let tracker = TripTracker.shared
+        if tracker.isRunning {
+            tracker.setDestination(propertyId: p.id)
+        } else {
+            tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY")
+            refreshRoot()
+        }
+        navigate(to: p)
+    }
+
     private func openMaps(_ coord: CLLocationCoordinate2D, name: String) {
         let item = MKMapItem(placemark: MKPlacemark(coordinate: coord))
         item.name = name
@@ -482,14 +555,32 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func showBesichtigungActions(_ inq: OfferInquirySummary) {
         let address = inq.object_address ?? ""
         let tracker = TripTracker.shared
-        let navi = CPListItem(text: "Navigation starten", detailText: address)
+        let navi = CPListItem(
+            text: "Navigation + Besichtigung",
+            detailText: tracker.isRunning ? "Apple Maps · Ziel der laufenden Fahrt" : "Apple Maps · Fahrt startet als Besichtigung"
+        )
         navi.setImage(UIImage(systemName: "location.fill"))
         navi.handler = { [weak self] _, completion in
-            Task { @MainActor in await self?.navigate(toAddress: address); completion() }
+            completion()
+            // Navigating there IS the Besichtigung: start (or retarget) the
+            // trip linked to the inquiry, then hand over to Maps.
+            if tracker.isRunning {
+                tracker.setDestination(
+                    propertyId: nil, inquiryId: inq.id,
+                    note: "Besichtigung (Anfrage): \(address)", purpose: "BESICHTIGUNG"
+                )
+            } else {
+                tracker.startWithPreset(
+                    purpose: "BESICHTIGUNG", propertyId: nil, source: "CARPLAY",
+                    note: "Besichtigung (Anfrage): \(address)", inquiryId: inq.id
+                )
+                self?.refreshRoot()
+            }
+            Task { @MainActor in await self?.navigate(toAddress: address) }
         }
         let fahrt = CPListItem(
-            text: tracker.isRunning ? "Fahrt läuft bereits" : "Besichtigung starten",
-            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Fahrt mit Zweck Besichtigung, Adresse in der Notiz"
+            text: tracker.isRunning ? "Fahrt läuft bereits" : "Nur Besichtigung starten",
+            detailText: tracker.isRunning ? "Erst die laufende Fahrt beenden." : "Ohne Navigation · Zweck Besichtigung, Adresse in der Notiz"
         )
         fahrt.setImage(UIImage(systemName: "binoculars.fill"))
         fahrt.handler = { [weak self] _, completion in
@@ -550,7 +641,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if !shown.isEmpty {
             let rows: [CPListItem] = shown.map { a in
                 let detail = [a.property_name, a.location ?? a.property_address ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
-                let item = CPListItem(text: "\(a.whenLabel) · \(a.title)", detailText: detail)
+                let code = props[a.property_id].flatMap(Self.code).map { " · \($0)" } ?? ""
+                let item = CPListItem(text: "\(a.whenLabel) · \(a.title)\(code)", detailText: detail)
                 item.setImage(UIImage(systemName: a.kind == "ETV" ? "person.3.fill" : "calendar"))
                 if let p = props[a.property_id] {
                     item.accessoryType = .disclosureIndicator
@@ -574,7 +666,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         // What's open — tap jumps to the object it belongs to.
         let room = max(0, maxItems - shown.count)
         let openRows: [CPListItem] = feed.prefix(room).map { a in
-            let item = CPListItem(text: a.title, detailText: a.subtitle)
+            // "… · H32": the team's object code, so the row is placeable at a glance.
+            let code = a.propertyId.flatMap { props[$0] }.flatMap(Self.code).map { " · \($0)" } ?? ""
+            let item = CPListItem(text: "\(a.title)\(code)", detailText: a.subtitle)
             if let pid = a.propertyId, let p = props[pid] {
                 item.accessoryType = .disclosureIndicator
                 item.handler = { [weak self] _, completion in

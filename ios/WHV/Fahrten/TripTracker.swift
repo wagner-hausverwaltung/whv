@@ -163,6 +163,18 @@ final class TripTracker: NSObject, ObservableObject {
         persistRunning()
     }
 
+    /// Hand the RUNNING trip its destination (CarPlay "Navigation + Fahrt"):
+    /// object or prospect (inquiry) + note. The purpose is left alone unless
+    /// given, so an auto-started trip still gets its one-tap purpose at the end.
+    func setDestination(propertyId: String?, inquiryId: String? = nil, note: String? = nil, purpose: String? = nil) {
+        guard isRunning else { return }
+        presetPropertyId = propertyId
+        presetInquiryId = inquiryId
+        if let note { presetNote = note }
+        if let purpose { presetPurpose = purpose }
+        persistRunning()
+    }
+
     /// Connecting the car = the drive begins. Source CARPLAY so the log shows
     /// how the trip was captured.
     func startFromCarPlay() {

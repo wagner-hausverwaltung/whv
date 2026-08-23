@@ -126,3 +126,35 @@ async def test_sync_skips_invalid_property(session: AsyncSession) -> None:
     assert stats.upserted == 0
     assert stats.skipped == 1
     assert len(stats.warnings) == 1
+
+
+async def test_sync_hides_handed_over_properties(session: AsyncSession) -> None:
+    """Impower "Abgegeben" (DISABLED) soft-deletes the row — the one switch that
+    hides it in app, portal, admin and CarPlay — and keeps the first hand-over
+    timestamp; READY again clears it."""
+    await _seed_whv_org(session)
+    base: dict[str, Any] = {
+        "id": 3001,
+        "name": "MV Kornwestheimer Straße 59B",
+        "type": "RENTAL",
+        "address": {"city": "Stuttgart"},
+    }
+    await sync_properties(session, _FakeClient([{**base, "state": "READY"}]))  # type: ignore[arg-type]
+    row = await session.scalar(select(Property).where(Property.impower_id == 3001))
+    assert row is not None and row.deleted_at is None
+
+    await sync_properties(session, _FakeClient([{**base, "state": "DISABLED"}]))  # type: ignore[arg-type]
+    await session.refresh(row)
+    assert row.state == PropertyState.DISABLED
+    assert row.deleted_at is not None
+    handed_over_at = row.deleted_at
+
+    # A second sync while still handed over keeps the original timestamp.
+    await sync_properties(session, _FakeClient([{**base, "state": "DISABLED"}]))
+    await session.refresh(row)
+    assert row.deleted_at == handed_over_at
+
+    # Re-activated in Impower → visible again.
+    await sync_properties(session, _FakeClient([{**base, "state": "READY"}]))
+    await session.refresh(row)
+    assert row.deleted_at is None
