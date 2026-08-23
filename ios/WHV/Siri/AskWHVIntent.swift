@@ -46,14 +46,56 @@ struct AskWHVIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<String> {
-        let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        var q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else {
             throw $question.needsValueError(IntentDialog("Was möchten Sie wissen?"))
         }
+        // A real dialog, eyes-free: answer, then keep listening ("Noch eine
+        // Frage?") until the user says no/thanks/done or stays silent. Every
+        // round goes through the same conversation memory, so follow-ups keep
+        // object and topic. Capped so a misheard "ja" can't loop forever.
+        var lastAnswer = ""
+        for round in 0..<Self.maxRounds {
+            let answer = try await answer(to: q, property: round == 0 ? property : nil)
+            lastAnswer = answer
+            let spoken = Self.spokenForm(answer)
+            let prompt = spoken + " " + String(localized: "Noch eine Frage?")
+            let next: String
+            do {
+                next = try await $question.requestValue(IntentDialog(stringLiteral: prompt))
+            } catch {
+                // Siri session ended (silence, cancel) — the answer was spoken.
+                return .result(value: lastAnswer, dialog: IntentDialog(stringLiteral: spoken))
+            }
+            let t = next.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.isEmpty || Self.isGoodbye(t) { break }
+            q = t
+        }
+        return .result(value: lastAnswer, dialog: "Alles klar.")
+    }
+
+    private static let maxRounds = 10
+
+    /// "nein", "danke", "das war's", "fertig", "no", "thanks", "done" … —
+    /// anything short that doesn't look like a question ends the dialog.
+    static func isGoodbye(_ text: String) -> Bool {
+        let t = text.lowercased()
+            .trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
+        let stops: Set<String> = [
+            "nein", "nö", "ne", "nee", "nichts", "nichts mehr", "danke", "dankeschön", "vielen dank",
+            "das wars", "das war's", "das war es", "fertig", "ende", "stopp", "stop", "tschüss",
+            "passt", "alles gut", "nein danke", "no", "nope", "thanks", "thank you", "done",
+            "that's all", "thats all", "that's it", "bye", "no thanks",
+        ]
+        return stops.contains(t)
+    }
+
+    /// One question → one answer, recorded in the conversation memory.
+    private func answer(to q: String, property: PropertyEntity?) async throws -> String {
         // Scope the question to an object whenever we can tell which one:
-        // named in the question → running trip's destination → nearest
-        // object ≤ 300 m → the object selected in the app. Org-wide
-        // retrieval across 27 objects mostly abstains ("nichts gefunden").
+        // named in the question → the conversation's object → running trip's
+        // destination → nearest object ≤ 300 m → the object selected in the
+        // app. Org-wide retrieval across 27 objects mostly abstains.
         let api = APIClient()
         // Follow-up within a few minutes → same conversation: replay the
         // recent turns and keep the object unless the question names another.
@@ -75,7 +117,6 @@ struct AskWHVIntent: AppIntent {
             }
         }
         let language = Locale.current.language.languageCode?.identifier
-        let answer: String
         do {
             let r = try await api.askAssistant(
                 question: q,
@@ -84,21 +125,18 @@ struct AskWHVIntent: AppIntent {
                 conversationId: conversationId,
                 language: language
             )
-            answer = r.answer.isEmpty ? String(localized: "Dazu habe ich leider nichts gefunden.") : r.answer
+            let answer = r.answer.isEmpty ? String(localized: "Dazu habe ich leider nichts gefunden.") : r.answer
             SiriConversation.record(
                 conversationId: conversationId, question: q, answer: answer, propertyId: propertyId
             )
+            return answer
         } catch APIError.unauthorized {
-            answer = String(localized: "Bitte melden Sie sich zuerst in der WHV-App an.")
+            return String(localized: "Bitte melden Sie sich zuerst in der WHV-App an.")
         } catch APIError.demoReadOnly {
-            answer = String(localized: "Im Demo-Modus ist der Assistent nicht verfügbar.")
+            return String(localized: "Im Demo-Modus ist der Assistent nicht verfügbar.")
         } catch {
-            answer = String(localized: "Der Assistent ist gerade nicht erreichbar.")
+            return String(localized: "Der Assistent ist gerade nicht erreichbar.")
         }
-        // Siri reads the dialog; keep the spoken part digestible and hand the
-        // full text back as the value (Shortcuts can show/forward it).
-        let spoken = Self.spokenForm(answer)
-        return .result(value: answer, dialog: IntentDialog(stringLiteral: spoken))
     }
 
     /// Which object is the question about? Longest street-name or short-code

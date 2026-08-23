@@ -344,6 +344,16 @@
         }
       }
     },
+    "Alles klar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All right."
+          }
+        }
+      }
+    },
     "Allgemeine Frage" : {
       "localizations" : {
         "en" : {
@@ -3466,6 +3476,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn’t load news"
+          }
+        }
+      }
+    },
+    "Noch eine Frage?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anything else?"
           }
         }
       }
