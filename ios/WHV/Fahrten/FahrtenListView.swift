@@ -11,6 +11,7 @@ import SwiftUI
 
 struct FahrtenListView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var tracker = TripTracker.shared
     private let api = APIClient()
 
     @State private var month: Date = Date()
@@ -42,7 +43,43 @@ struct FahrtenListView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            if trips.isEmpty, !loading {
+            // Finished on the phone, not yet on the server: visible, deletable,
+            // retryable — otherwise a queued test drive is invisible until it
+            // suddenly uploads weeks later.
+            if !tracker.pending.isEmpty {
+                Section {
+                    ForEach(tracker.pending, id: \.started_at) { b in
+                        HStack(spacing: 12) {
+                            Image(systemName: "icloud.and.arrow.up")
+                                .foregroundStyle(.orange)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(b.started_at.formatted(date: .abbreviated, time: .shortened))
+                                Text("\(TripPurpose.label(for: b.purpose)) · \(b.source) · wartet auf Upload")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(TripFormat.km(b.distance_m)).font(.body.monospacedDigit())
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                tracker.discardPending(startedAt: b.started_at)
+                            } label: { Label("Verwerfen", systemImage: "trash") }
+                        }
+                    }
+                    Button {
+                        Task { await tracker.retryPending(); await load() }
+                    } label: {
+                        Label("Jetzt hochladen", systemImage: "arrow.clockwise")
+                    }
+                } header: {
+                    Text("Warten auf Upload (\(tracker.pending.count))")
+                } footer: {
+                    if let err = tracker.lastError { Text(err) }
+                }
+            }
+
+            if trips.isEmpty, !loading, tracker.pending.isEmpty {
                 ContentUnavailableView("Keine Fahrten", systemImage: "car",
                                        description: Text("In diesem Monat wurde nichts aufgezeichnet."))
             }

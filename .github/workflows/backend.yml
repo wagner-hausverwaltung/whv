@@ -101,6 +101,8 @@ jobs:
       - run: uv sync --frozen
       - name: Run migrations (verifies migration applies cleanly)
         run: uv run alembic upgrade head
+      - name: Schema drift (migrated DB must match the models, incl. DB defaults)
+        run: uv run python -m scripts.check_schema_drift
       - run: uv run pytest
 
   build:

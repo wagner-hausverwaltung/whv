@@ -814,6 +814,15 @@ struct APIClient {
     /// timestamps as ISO8601 with timezone, sometimes with fractional
     /// seconds (Pydantic v2 includes microseconds). Fall through both
     /// formats so we don't fail to decode microsecond-bearing rows.
+    /// Request-body encoder. Dates go out as ISO 8601 — `JSONEncoder()`'s
+    /// default writes seconds since 2001, which the backend would read as a
+    /// Unix timestamp (31 years off; every trip would have landed in 1995).
+    static let jsonEncoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
     static let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         let withFractional = ISO8601DateFormatter()
@@ -1867,7 +1876,7 @@ struct APIClient {
     ) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
         let url = Self.requestURL(baseURL, path)
-        let encoded = try JSONEncoder().encode(body)
+        let encoded = try Self.jsonEncoder.encode(body)
         do {
             let (data, response) = try await sendAuthed(url: url, method: method, body: encoded, token: token)
             try Self.throwIfNotOK(response: response, data: data)

@@ -19,6 +19,7 @@ import Combine
 import CoreLocation
 import CoreMotion
 import Foundation
+import OSLog
 import UIKit
 
 @MainActor
@@ -35,6 +36,9 @@ final class TripTracker: NSObject, ObservableObject {
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var lastError: String?
     @Published private(set) var pendingUploads: Int = 0
+    /// Finished trips the server hasn't accepted yet (offline, outage) —
+    /// shown in "Meine Fahrten" so the driver can drop a test drive or retry.
+    @Published private(set) var pending: [TripCompleteBody] = []
     /// Preset for the running trip when it was started FOR a destination
     /// ("Besichtigung hier starten" from CarPlay): uploaded with the trip so
     /// no confirmation is needed afterwards. Cleared when the trip ends.
@@ -97,6 +101,8 @@ final class TripTracker: NSObject, ObservableObject {
     /// the app was killed, re-arms detection, and retries failed uploads.
     func bootstrap() {
         restoreRunningIfAny()
+        pending = loadPending()
+        pendingUploads = pending.count
         if autoDetectEnabled { enableAutoDetection() }
         Task { await flushPending(); await refreshOpen() }
     }
@@ -323,11 +329,14 @@ final class TripTracker: NSObject, ObservableObject {
 
     // MARK: Upload + pending queue
 
+    private static let log = Logger(subsystem: "com.wagner-hausverwaltung.portal", category: "trips")
+
     private func upload(_ body: TripCompleteBody) async {
         do {
             _ = try await api.completeTrip(body)
         } catch {
             // Offline or server hiccup: keep it, retry on next bootstrap/stop.
+            Self.log.error("trip upload failed: \(String(describing: error), privacy: .public)")
             var queue = loadPending()
             queue.append(body)
             savePending(queue)
@@ -340,10 +349,16 @@ final class TripTracker: NSObject, ObservableObject {
         guard !queue.isEmpty else { return }
         var remaining: [TripCompleteBody] = []
         for body in queue {
-            do { _ = try await api.completeTrip(body) } catch { remaining.append(body) }
+            do {
+                _ = try await api.completeTrip(body)
+            } catch {
+                Self.log.error("pending trip upload failed: \(String(describing: error), privacy: .public)")
+                remaining.append(body)
+            }
         }
         queue = remaining
         savePending(queue)
+        if remaining.isEmpty { lastError = nil }
     }
 
     private func loadPending() -> [TripCompleteBody] {
@@ -356,6 +371,18 @@ final class TripTracker: NSObject, ObservableObject {
     private func savePending(_ list: [TripCompleteBody]) {
         defaults.set(try? JSONEncoder.iso.encode(list), forKey: Keys.pending)
         pendingUploads = list.count
+        pending = list
+    }
+
+    /// Drop one queued trip (a test drive that should never be uploaded).
+    func discardPending(startedAt: Date) {
+        savePending(loadPending().filter { $0.started_at != startedAt })
+    }
+
+    /// Try the queue again right now (button in "Meine Fahrten").
+    func retryPending() async {
+        await flushPending()
+        await refreshOpen()
     }
 
     // MARK: Open trips (need purpose/property)
