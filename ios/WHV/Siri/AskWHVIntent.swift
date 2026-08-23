@@ -98,5 +98,44 @@ struct WHVShortcuts: AppShortcutsProvider {
             shortTitle: "WHV Ticket",
             systemImageName: "tray.and.arrow.down.fill"
         )
+        AppShortcut(
+            intent: DepartWHVIntent(),
+            phrases: [
+                "\(.applicationName) Abfahrt",
+                "Abfahrt \(.applicationName)",
+                "\(.applicationName) Fahrt starten",
+            ],
+            shortTitle: "WHV Abfahrt",
+            systemImageName: "car.fill"
+        )
+        AppShortcut(
+            intent: ArriveWHVIntent(),
+            phrases: [
+                "\(.applicationName) Ankunft",
+                "Ankunft \(.applicationName)",
+                "\(.applicationName) Fahrt beenden",
+            ],
+            shortTitle: "WHV Ankunft",
+            systemImageName: "flag.checkered"
+        )
+        AppShortcut(
+            intent: ContractorOnSiteIntent(),
+            phrases: [
+                "\(.applicationName) Handwerker vor Ort",
+                "Handwerker vor Ort \(.applicationName)",
+                "\(.applicationName) Handwerker",
+            ],
+            shortTitle: "WHV Handwerker vor Ort",
+            systemImageName: "wrench.and.screwdriver.fill"
+        )
+        AppShortcut(
+            intent: MessageContactIntent(),
+            phrases: [
+                "\(.applicationName) Notiz an \(\.$contact)",
+                "\(.applicationName) Nachricht an \(\.$contact)",
+            ],
+            shortTitle: "WHV Notiz an Kontakt",
+            systemImageName: "envelope.fill"
+        )
     }
 }

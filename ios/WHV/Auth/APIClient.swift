@@ -967,6 +967,20 @@ struct APIClient {
 
 
 
+    // MARK: Siri helpers (Verwalter-only)
+
+    func searchContacts(query: String, limit: Int = 20) async throws -> [ContactSearchResult] {
+        if DemoFlag.isActive { return [] }
+        var comps = URLComponents()
+        comps.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "limit", value: String(limit))]
+        return try await authedGET("/me/contacts/search?\(comps.percentEncodedQuery ?? "")")
+    }
+
+    func messageContact(id: String, text: String, subject: String? = nil) async throws -> ContactMessageResult {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/contacts/\(id)/message", method: "POST", body: ContactMessageBody(text: text, subject: subject))
+    }
+
     // MARK: Briefing (Verwalter-only)
 
     /// GET /me/properties/{id}/briefing — spoken German summary for the car.

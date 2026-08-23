@@ -203,6 +203,42 @@ final class TripTracker: NSObject, ObservableObject {
         persistRunning()
     }
 
+    /// "Hey Siri, WHV Abfahrt": start a trip by voice (MANUAL source).
+    func startFromSiri() {
+        guard !isRunning else { return }
+        requestAuthorization()
+        begin(source: "MANUAL")
+    }
+
+    /// "Hey Siri, WHV Ankunft": end the running trip right here. Object =
+    /// nearest managed property within 300 m (none → open), purpose from the
+    /// preset or today's appointment. Returns what was recorded.
+    func arriveFromSiri() -> Arrival? {
+        guard isRunning else { return nil }
+        let here = lastLocation
+        var nearest: PropertyResponse?
+        if let here {
+            var best: (PropertyResponse, Double)?
+            for p in knownProperties {
+                guard let lat = p.lat, let lng = p.lng else { continue }
+                let d = here.distance(from: CLLocation(latitude: lat, longitude: lng))
+                if d <= 300, d < (best?.1 ?? .infinity) { best = (p, d) }
+            }
+            nearest = best?.0
+        }
+        if let pid = presetPropertyId, let p = knownProperties.first(where: { $0.id == pid }) {
+            nearest = nearest ?? p
+        }
+        let purpose = presetPurpose ?? nearest.flatMap { purposeFromAgenda(for: $0, at: Date()) }
+        if let nearest { presetPropertyId = nearest.id }
+        if presetPurpose == nil { presetPurpose = purpose }
+        finish()
+        guard let nearest else { return nil }
+        let arrival = Arrival(property: nearest, purpose: purpose, at: Date())
+        lastArrival = arrival
+        return arrival
+    }
+
     /// Connecting the car = the drive begins. Source CARPLAY so the log shows
     /// how the trip was captured.
     func startFromCarPlay() {
