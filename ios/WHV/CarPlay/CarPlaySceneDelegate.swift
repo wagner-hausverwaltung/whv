@@ -127,13 +127,82 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func toggleTrip() async {
         let tracker = TripTracker.shared
         if tracker.isRunning {
-            tracker.stopFromCarPlay()
-            alert("Fahrt beendet", "Zweck und Objekt bestätigen Sie später in der App.")
+            if let preset = tracker.presetPurpose {
+                // Started FOR a destination (Fahrt hierhin / Besichtigung):
+                // purpose + object are known, nothing to ask.
+                let label = TripPurpose.label(for: preset)
+                tracker.stopFromCarPlay()
+                alert("Fahrt beendet", "\(label) — bestätigt gespeichert.")
+                refreshRoot()
+            } else {
+                await showPurposePicker()
+            }
         } else {
             tracker.startFromCarPlay()
             alert("Fahrt läuft", "Die Strecke wird aufgezeichnet.")
+            refreshRoot()
         }
+    }
+
+    /// Ending a trip in the car: one tap on the purpose confirms it, the
+    /// object is pre-filled from where the car is (nearest property within
+    /// 300 m — the same rule as the phone's confirmation sheet). The preset
+    /// is applied BEFORE the trip ends, so the upload is CONFIRMED in one go
+    /// and the choice survives even when the phone is offline (queued body).
+    private func showPurposePicker() async {
+        let tracker = TripTracker.shared
+        let props = (try? await api.getMyProperties()) ?? []
+        var suggested: PropertyResponse?
+        if let pid = tracker.presetPropertyId {
+            suggested = props.first { $0.id == pid }
+        } else if let here = tracker.currentCoordinate {
+            var best: (PropertyResponse, Double)?
+            for p in props {
+                guard let lat = p.lat, let lng = p.lng else { continue }
+                let d = haversineMeters(here, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+                if d <= 300, d < (best?.1 ?? .infinity) { best = (p, d) }
+            }
+            suggested = best?.0
+        }
+
+        let later = CPListItem(text: "Später in der App", detailText: "Fahrt beenden, Zweck offen lassen")
+        later.setImage(UIImage(systemName: "clock"))
+        later.handler = { [weak self] _, completion in
+            self?.endTrip(purpose: nil, property: nil)
+            completion()
+        }
+        let rows: [CPListItem] = TripPurpose.allCases.map { p in
+            let detail: String? = p.wantsProperty
+                ? (suggested.map { "Objekt: \($0.name)" } ?? "ohne Objekt — in der App nachtragen")
+                : nil
+            let item = CPListItem(text: p.label, detailText: detail)
+            item.setImage(UIImage(systemName: p.systemImage))
+            item.handler = { [weak self] _, completion in
+                self?.endTrip(purpose: p, property: p.wantsProperty ? suggested : nil)
+                completion()
+            }
+            return item
+        }
+        let sections = [
+            CPListSection(items: [later]),
+            CPListSection(items: rows, header: "Zweck der Fahrt", sectionIndexTitle: nil),
+        ]
+        push(CPListTemplate(title: "Fahrt beenden", sections: sections))
+    }
+
+    private func endTrip(purpose: TripPurpose?, property: PropertyResponse?) {
+        let tracker = TripTracker.shared
+        if let purpose {
+            tracker.applyPreset(purpose: purpose.rawValue, propertyId: property?.id)
+        }
+        tracker.stopFromCarPlay()
+        // No animation: the alert is presented right after, and CarPlay
+        // rejects a second transition while one is in flight.
+        interface?.popToRootTemplate(animated: false, completion: nil)
         refreshRoot()
+        let detail = purpose.map { "\($0.label)\(property.map { " · \($0.name)" } ?? "") — bestätigt gespeichert." }
+            ?? "Zweck und Objekt bestätigen Sie später in der App."
+        alert("Fahrt beendet", detail)
     }
 
     private func alert(_ title: String, _ detail: String, actions extra: [CPAlertAction] = []) {

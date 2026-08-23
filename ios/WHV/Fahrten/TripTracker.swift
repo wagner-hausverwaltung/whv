@@ -153,6 +153,16 @@ final class TripTracker: NSObject, ObservableObject {
     }
 
 
+    /// Confirm purpose/object for the RUNNING trip (CarPlay "Fahrt beenden"
+    /// asks before stopping) so the upload goes out CONFIRMED. Persisted with
+    /// the running snapshot so an app kill between choice and upload keeps it.
+    func applyPreset(purpose: String?, propertyId: String?) {
+        guard isRunning else { return }
+        presetPurpose = purpose
+        presetPropertyId = propertyId
+        persistRunning()
+    }
+
     /// Connecting the car = the drive begins. Source CARPLAY so the log shows
     /// how the trip was captured.
     func startFromCarPlay() {
