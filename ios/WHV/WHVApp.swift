@@ -151,6 +151,28 @@ struct WHVApp: App {
                             await CallDirectorySync.shared.sync()
                         }
                     }
+                    // Launch argument for screenshots / review automation:
+                    // `-DemoVerwalter` (or `-DemoEigentuemer`) enters the demo
+                    // without a tap on the login screen.
+                    let args = ProcessInfo.processInfo.arguments
+                    if !authStore.signedIn, args.contains("-DemoVerwalter") {
+                        await authStore.signInAsDemo(role: .verwalter)
+                    } else if !authStore.signedIn, args.contains("-DemoEigentuemer") {
+                        await authStore.signInAsDemo(role: .eigentuemer)
+                    }
+                    // `-DemoAutoSelect` skips the picker (first object),
+                    // `-OpenURL whv://…` routes a deep link at launch —
+                    // both only honoured in demo mode (screenshot runs).
+                    if DemoStore.shared.isActive {
+                        if args.contains("-DemoAutoSelect"), liegenschaftStore.selected == nil,
+                           let first = liegenschaftStore.available.first {
+                            liegenschaftStore.select(first)
+                        }
+                        if let i = args.firstIndex(of: "-OpenURL"), i + 1 < args.count,
+                           let url = URL(string: args[i + 1]) {
+                            deepLinkRouter.handle(url)
+                        }
+                    }
                     authStore.onSignOut = { [weak liegenschaftStore] in
                         liegenschaftStore?.reset()
                         // Drop this device's token so a signed-out

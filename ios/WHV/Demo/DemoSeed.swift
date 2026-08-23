@@ -36,23 +36,23 @@ struct DemoSeed {
             id: "demo-weg-koenigstrasse",
             property_hr_id: "DEMO_K42",
             name: "WEG Königstraße 42",
-            type: "WEG-Verwaltung",
+            type: "OWNER",
             city: "Stuttgart",
             street: "Königstraße",
             number: "42",
             postal_code: "70173",
-            image_url: nil, lat: nil, lng: nil
+            image_url: nil, lat: 48.7785, lng: 9.1800
         )
         let mv = PropertyResponse(
             id: "demo-mv-hohewart",
             property_hr_id: "DEMO_H13",
             name: "MV Hohewartstraße 13",
-            type: "Mietverwaltung",
+            type: "RENTAL",
             city: "Stuttgart",
             street: "Hohewartstraße",
             number: "13",
             postal_code: "70469",
-            image_url: nil, lat: nil, lng: nil
+            image_url: nil, lat: 48.8230, lng: 9.1620
         )
 
         // ETV per property: 1 past + 1 planned each.
@@ -543,6 +543,20 @@ struct DemoSeed {
         )
     }
 
+    /// Build a ticket for the demo (also used at runtime by the Demo-Verwalter
+    /// when Siri / the Watch create one — `body` overrides the seed text).
+    static func makeTicket(
+        id: String,
+        property: PropertyResponse,
+        subject: String,
+        body: String,
+        category: TicketCategory = .init(rawValue: "SONSTIGES_OTHER") ?? TicketCategory.allCases.first!,
+        status: TicketStatus = .neu
+    ) -> (TicketSummary, TicketDetail) {
+        let summary = ticketSummary(id: id, property: property, subject: subject, status: status, category: category, ageDays: 0)
+        return (summary, detailFor(ticket: summary, body: body))
+    }
+
     private static func ticketSummary(
         id: String,
         property: PropertyResponse,
@@ -597,9 +611,11 @@ struct DemoSeed {
         return try! APIClient.jsonDecoder.decode(TicketSummary.self, from: data)
     }
 
-    private static func detailFor(ticket t: TicketSummary) -> TicketDetail {
+    private static func detailFor(ticket t: TicketSummary, body override: String? = nil) -> TicketDetail {
         let body: String
         switch t.id {
+        case _ where override != nil:
+            body = override ?? ""
         case "demo-tic-1":
             body = "Der Aufzug bleibt seit gestern Morgen im 3. OG hängen. Mehrere Bewohner betroffen, bitte um schnelle Reaktion."
         case "demo-tic-2":

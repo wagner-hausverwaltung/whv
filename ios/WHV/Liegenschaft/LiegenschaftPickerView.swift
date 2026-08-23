@@ -90,7 +90,7 @@ struct LiegenschaftPickerView: View {
 
     private func row(for l: Liegenschaft) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: l.type?.contains("WEG") == true ? "building.2" : "house")
+            Image(systemName: l.hasOwnershipShares ? "building.2" : "house")
                 .font(.system(size: 22))
                 .foregroundStyle(.tint)
                 .frame(width: 32)
@@ -100,8 +100,8 @@ struct LiegenschaftPickerView: View {
                 Text(l.address)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                if let type = l.type {
-                    Text(type)
+                if l.type != nil {
+                    Text(l.typeLongLabel)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .padding(.top, 2)

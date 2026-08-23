@@ -18,6 +18,8 @@ struct TripResponse: Codable, Identifiable, Hashable {
     /// (no property exists yet for such a trip).
     let inquiry_id: String?
     let inquiry_address: String?
+    /// Auslagen-Rechnung the trip is billed on (admin feature); nil = not billed.
+    let invoice_id: String?
     let status: String  // RUNNING | OPEN | CONFIRMED
     let source: String  // AUTO | MANUAL | CARPLAY
     let purpose: String?

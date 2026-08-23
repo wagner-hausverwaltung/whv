@@ -82,8 +82,8 @@ final class AuthStore: ObservableObject {
     /// identity. No network call, no Keychain write — everything
     /// downstream consults DemoStore.shared via DemoFlag.isActive
     /// and short-circuits to seed data.
-    func signInAsDemo() async {
-        DemoStore.shared.activate()
+    func signInAsDemo(role: DemoStore.Role = .eigentuemer) async {
+        DemoStore.shared.activate(role: role)
         user = DemoStore.shared.demoUser
         // No token writes, no /me/properties fetch — every Store's
         // call into APIClient short-circuits.

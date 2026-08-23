@@ -947,7 +947,8 @@ struct APIClient {
     /// GET /me — the current user envelope. AuthStore hits this on
     /// cold start to detect a server-revoked session.
     func getMe() async throws -> UserResponse {
-        try await authedGET("/me")
+        if DemoFlag.isActive { return await DemoStore.shared.demoUser }
+        return try await authedGET("/me")
     }
 
     // MARK: Activity feed (unified "what's new")
@@ -970,14 +971,14 @@ struct APIClient {
     // MARK: Siri helpers (Verwalter-only)
 
     func searchContacts(query: String, limit: Int = 20) async throws -> [ContactSearchResult] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return Array(await DemoStore.shared.searchContacts(query: query).prefix(limit)) }
         var comps = URLComponents()
         comps.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "limit", value: String(limit))]
         return try await authedGET("/me/contacts/search?\(comps.percentEncodedQuery ?? "")")
     }
 
     func messageContact(id: String, text: String, subject: String? = nil) async throws -> ContactMessageResult {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive { return ContactMessageResult(sent: true, to: "demo@example.com", detail: "Demo: Nachricht wäre per E-Mail verschickt worden.") }
         return try await authedJSON("/me/contacts/\(id)/message", method: "POST", body: ContactMessageBody(text: text, subject: subject))
     }
 
@@ -985,7 +986,10 @@ struct APIClient {
 
     /// GET /me/properties/{id}/briefing — spoken German summary for the car.
     func getBriefing(propertyId: String) async throws -> BriefingResponse {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive {
+            if let b = await DemoStore.shared.briefing(propertyId: propertyId) { return b }
+            throw APIError.http(status: 404, detail: "Objekt nicht gefunden")
+        }
         return try await authedGET("/me/properties/\(propertyId)/briefing")
     }
 
@@ -1004,7 +1008,7 @@ struct APIClient {
     /// Termine across the org (or one property) with property address and
     /// coordinates. CarPlay "Heute" and the object page's "Termine".
     func getMyAgenda(days: Int = 7, propertyId: String? = nil) async throws -> [AgendaEntry] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return await DemoStore.shared.agenda(days: days, propertyId: propertyId) }
         var path = "/me/agenda?days=\(days)"
         if let propertyId { path += "&property_id=\(propertyId)" }
         return try await authedGET(path)
@@ -1012,13 +1016,13 @@ struct APIClient {
 
     /// Owners/tenants of a property with phone + e-mail (admin endpoint).
     func getAdminPropertyContacts(propertyId: String) async throws -> [AdminPropertyContact] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return await DemoStore.shared.propertyContacts(propertyId: propertyId) }
         return try await authedGET("/admin/properties/\(propertyId)/contacts")
     }
 
     /// Open tickets of one property (admin list, filtered server-side).
     func getAdminTickets(propertyId: String, status: String? = nil) async throws -> [TicketSummary] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return await DemoStore.shared.tickets.filter { $0.property_id == propertyId } }
         var path = "/admin/tickets?property_id=\(propertyId)"
         if let status { path += "&status=\(status)" }
         return try await authedGET(path)
@@ -1026,6 +1030,9 @@ struct APIClient {
 
     /// "Ich verspäte mich" — the backend e-mails the contact for us.
     func sendDelayNotice(_ body: DelayNoticeBody) async throws -> DelayNoticeResponse {
+        if DemoFlag.isActive {
+            return DelayNoticeResponse(sent: true, to: "demo@example.com", detail: "Demo: Mitteilung wäre per E-Mail verschickt worden.")
+        }
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedJSON("/me/trips/delay-notice", method: "POST", body: body)
     }
@@ -1033,7 +1040,14 @@ struct APIClient {
     // MARK: Fahrtenbuch (Verwalter-only, ADR-0020)
 
     func getMyTrips(month: String? = nil, status: String? = nil) async throws -> [TripResponse] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive {
+            let all = await DemoStore.shared.trips
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM"
+            return all.filter { t in
+                (status == nil || t.status == status) && (month == nil || f.string(from: t.started_at) == month)
+            }
+        }
         var q: [String] = []
         if let month { q.append("month=\(month)") }
         if let status { q.append("status=\(status)") }
@@ -1042,7 +1056,7 @@ struct APIClient {
     }
 
     func getRunningTrip() async throws -> TripResponse? {
-        if DemoFlag.isActive { return nil }
+        if DemoFlag.isActive { return nil }  // demo trips are recorded on the phone only
         return try await authedGET("/me/trips/running")
     }
 
@@ -1052,17 +1066,20 @@ struct APIClient {
     }
 
     func completeTrip(_ body: TripCompleteBody) async throws -> TripResponse {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive { return await DemoStore.shared.addTrip(body) }
         return try await authedJSON("/me/trips/complete", method: "POST", body: body)
     }
 
     func updateTrip(id: String, body: TripUpdateBody) async throws -> TripResponse {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive {
+            if let t = await DemoStore.shared.updateTrip(id: id, body: body) { return t }
+            throw APIError.http(status: 404, detail: "Fahrt nicht gefunden")
+        }
         return try await authedJSON("/me/trips/\(id)", method: "PATCH", body: body)
     }
 
     func deleteTrip(id: String) async throws {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive { await DemoStore.shared.deleteTrip(id: id); return }
         guard let token = tokenProvider() else { throw APIError.unauthorized }
         // Percent-encode the token for the path segment (it's hex so
         // usually safe, but defensive).
@@ -1080,7 +1097,7 @@ struct APIClient {
 
     /// GET /admin/offer-inquiries — inbound anfragen@ inquiries (newest first).
     func listOfferInquiries() async throws -> [OfferInquirySummary] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return await DemoStore.shared.inquiries }
         return try await authedGET("/admin/offer-inquiries")
     }
 
@@ -1671,7 +1688,9 @@ struct APIClient {
         category: TicketCategory,
         propertyId: String?
     ) async throws -> TicketDetail {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive {
+            return await DemoStore.shared.addTicket(subject: subject, body: body, propertyId: propertyId)
+        }
         return try await authedJSON(
             "/me/tickets",
             method: "POST",

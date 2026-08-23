@@ -19,30 +19,53 @@ final class DemoStore: ObservableObject {
 
     @Published private(set) var isActive: Bool = false
 
+    /// Which demo the reviewer chose on the login screen. Eigentümer =
+    /// the classic owner/Beirat tour; Verwalter = Fahrtenbuch, CarPlay,
+    /// Siri, Watch, Briefing, Anfragen — everything the manager role adds.
+    enum Role: String { case eigentuemer, verwalter }
+    private(set) var role: Role = .eigentuemer
+    var isVerwalter: Bool { role == .verwalter }
+
     /// The fake user that AuthStore presents while demo is active.
-    /// Role "beirat" gives the broadest read scope so every visible
-    /// surface (ETV, Tickets, Mitteilungen) is populated.
-    let demoUser = UserResponse(
-        id: "00000000-demo-demo-demo-000000000001",
-        email: "demo@example.com",
-        role: "beirat",
-        organization_id: "00000000-demo-org-demo-000000000001",
-        contact_id_impower: nil,
-        avatar_url: nil
-    )
+    /// "beirat" gives the broadest owner-side read scope; "verwalter"
+    /// unlocks the manager surfaces (CarPlay gates on this).
+    var demoUser: UserResponse {
+        UserResponse(
+            id: "00000000-demo-demo-demo-000000000001",
+            email: role == .verwalter ? "demo-verwalter@example.com" : "demo@example.com",
+            role: role == .verwalter ? "verwalter" : "beirat",
+            organization_id: "00000000-demo-org-demo-000000000001",
+            contact_id_impower: nil,
+            avatar_url: nil
+        )
+    }
 
     private(set) var seed: DemoSeed?
 
+    // Verwalter-only runtime state (trips the reviewer records, tickets
+    // dictated via Siri/Watch). In memory — a demo session is a session.
+    private var demoTrips: [TripResponse] = []
+    private var extraTickets: [TicketSummary] = []
+    private var extraTicketDetails: [TicketDetail] = []
+
     private init() {}
 
-    func activate() {
+    func activate(role: Role = .eigentuemer) {
+        self.role = role
         seed = DemoSeed.build()
+        demoTrips = role == .verwalter ? DemoVerwalter.seedTrips(properties: DemoVerwalter.properties(seed: seed)) : []
+        extraTickets = []
+        extraTicketDetails = []
         DemoFlag.isActive = true
         isActive = true
     }
 
     func deactivate() {
         seed = nil
+        demoTrips = []
+        extraTickets = []
+        extraTicketDetails = []
+        role = .eigentuemer
         DemoFlag.isActive = false
         isActive = false
     }
@@ -50,7 +73,7 @@ final class DemoStore: ObservableObject {
     // MARK: - Data accessors used by APIClient short-circuits
 
     var properties: [PropertyResponse] {
-        seed?.properties ?? []
+        isVerwalter ? DemoVerwalter.properties(seed: seed) : (seed?.properties ?? [])
     }
 
     func assemblies(for propertyId: String) -> [AssemblySummary] {
@@ -82,7 +105,7 @@ final class DemoStore: ObservableObject {
     }
 
     var tickets: [TicketSummary] {
-        seed?.tickets ?? []
+        (seed?.tickets ?? []) + extraTickets
     }
 
     func openTickets() -> [TicketSummary] {
@@ -90,7 +113,58 @@ final class DemoStore: ObservableObject {
     }
 
     func ticketDetail(id: String) -> TicketDetail? {
-        seed?.ticketDetails.first { $0.id == id }
+        (seed?.ticketDetails ?? []).first { $0.id == id } ?? extraTicketDetails.first { $0.id == id }
+    }
+
+    // MARK: - Verwalter demo: trips, tickets, agenda, contacts, inquiries, briefing
+
+    /// Ticket dictated via Siri / Watch / the app while in demo.
+    func addTicket(subject: String, body: String, propertyId: String?) -> TicketDetail {
+        let property = properties.first { $0.id == propertyId } ?? properties.first ?? DemoVerwalter.fallbackProperty
+        let (summary, detail) = DemoSeed.makeTicket(
+            id: "demo-tic-\(UUID().uuidString.prefix(8).lowercased())",
+            property: property, subject: subject, body: body
+        )
+        extraTickets.insert(summary, at: 0)
+        extraTicketDetails.insert(detail, at: 0)
+        return detail
+    }
+
+    var trips: [TripResponse] { demoTrips }
+
+    func addTrip(_ body: TripCompleteBody) -> TripResponse {
+        let trip = DemoVerwalter.trip(from: body, properties: properties)
+        demoTrips.insert(trip, at: 0)
+        return trip
+    }
+
+    func updateTrip(id: String, body: TripUpdateBody) -> TripResponse? {
+        guard let i = demoTrips.firstIndex(where: { $0.id == id }) else { return nil }
+        demoTrips[i] = DemoVerwalter.apply(body, to: demoTrips[i], properties: properties)
+        return demoTrips[i]
+    }
+
+    func deleteTrip(id: String) {
+        demoTrips.removeAll { $0.id == id }
+    }
+
+    func agenda(days: Int, propertyId: String?) -> [AgendaEntry] {
+        DemoVerwalter.agenda(seed: seed, properties: properties, days: days, propertyId: propertyId)
+    }
+
+    func propertyContacts(propertyId: String) -> [AdminPropertyContact] {
+        DemoVerwalter.contacts(propertyId: propertyId)
+    }
+
+    var inquiries: [OfferInquirySummary] { DemoVerwalter.inquiries() }
+
+    func briefing(propertyId: String) -> BriefingResponse? {
+        guard let p = properties.first(where: { $0.id == propertyId }) else { return nil }
+        return DemoVerwalter.briefing(for: p, tickets: tickets, agenda: agenda(days: 14, propertyId: p.id))
+    }
+
+    func searchContacts(query: String) -> [ContactSearchResult] {
+        DemoVerwalter.searchContacts(query: query, properties: properties)
     }
 
     func units(for propertyId: String) -> [UnitResponse] {

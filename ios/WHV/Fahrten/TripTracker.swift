@@ -132,7 +132,9 @@ final class TripTracker: NSObject, ObservableObject {
         Task { await flushPending(); await refreshOpen(); await refreshArrivalContext() }
     }
 
-    var isAvailable: Bool { !DemoFlag.isActive }
+    /// Demo mode records trips too (locally, via DemoStore) so reviewers can
+    /// drive the Fahrtenbuch + CarPlay flow end to end.
+    var isAvailable: Bool { true }
 
     /// Last known position — while tracking it updates continuously; when
     /// idle `refreshLocation()` asks for a single fix. Used for the "Ich

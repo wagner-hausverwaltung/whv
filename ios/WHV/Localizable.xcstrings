@@ -775,6 +775,16 @@
         }
       }
     },
+    "Beispieldaten, keine Anmeldung nötig. Die Verwalter-Demo zeigt Fahrtenbuch, CarPlay und Siri mit Beispielobjekten." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sample data, no sign-in required. The Verwalter demo shows the mileage log, CarPlay and Siri with sample objects."
+          }
+        }
+      }
+    },
     "Belege" : {
       "localizations" : {
         "en" : {
@@ -1125,6 +1135,16 @@
         }
       }
     },
+    "Demo ansehen als …" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View demo as …"
+          }
+        }
+      }
+    },
     "Demo-Modus — keine echten Daten" : {
       "localizations" : {
         "en" : {
@@ -1374,6 +1394,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eigentümer"
+          }
+        }
+      }
+    },
+    "Eigentümer / Beirat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigentümer / Beirat"
           }
         }
       }
@@ -4252,6 +4282,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Administrator"
+          }
+        }
+      }
+    },
+    "Verwalter (Fahrtenbuch, CarPlay, Siri)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwalter (mileage log, CarPlay, Siri)"
           }
         }
       }
