@@ -14,6 +14,7 @@ from app.api.v1 import announcements as announcements_router
 from app.api.v1 import assistant as assistant_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import calendar as calendar_router
+from app.api.v1 import call_directory as call_directory_router
 from app.api.v1 import circular as circular_router
 from app.api.v1 import etv as etv_router
 from app.api.v1 import me as me_router
@@ -97,6 +98,7 @@ app.include_router(meters_router.admin_router)
 app.include_router(offers_router.admin_router)
 app.include_router(supplier_contracts_router.admin_router)
 app.include_router(trips_router.me_router)
+app.include_router(call_directory_router.me_router)
 app.include_router(trips_router.admin_router)
 app.include_router(vollmachten_router.me_router)
 app.include_router(vollmachten_router.admin_router)

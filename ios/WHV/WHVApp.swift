@@ -111,6 +111,11 @@ struct WHVApp: App {
                     biometricLock.didEnterBackground()
                 case .active:
                     biometricLock.didBecomeActive()
+                    // Caller ID list: keep it fresh (12 h) for Verwalter.
+                    if authStore.user?.role.lowercased() == "verwalter" {
+                        CallLogPrompt.shared.start()
+                        Task { await CallDirectorySync.shared.syncIfDue() }
+                    }
                 default:
                     break
                 }
@@ -136,6 +141,11 @@ struct WHVApp: App {
                         // device token now that there's a backend
                         // session to attach it to. No-ops in demo.
                         await PushManager.shared.requestAuthorizationAndRegister()
+                        // Verwalter: caller ID list + post-call prompt.
+                        if authStore.user?.role.lowercased() == "verwalter" {
+                            CallLogPrompt.shared.start()
+                            await CallDirectorySync.shared.sync()
+                        }
                     }
                     authStore.onSignOut = { [weak liegenschaftStore] in
                         liegenschaftStore?.reset()

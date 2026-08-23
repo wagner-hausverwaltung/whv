@@ -967,6 +967,15 @@ struct APIClient {
 
 
 
+    // MARK: Caller ID (Verwalter-only)
+
+    /// GET /me/call-directory — numbers + labels for the Call Directory
+    /// Extension (see CallDirectorySync).
+    func getCallDirectory() async throws -> CallDirectoryResponse {
+        if DemoFlag.isActive { return CallDirectoryResponse(entries: [], contacts: 0) }
+        return try await authedGET("/me/call-directory")
+    }
+
     // MARK: CarPlay helpers (Verwalter-only)
 
     /// GET /me/agenda?days=&property_id= — the Verwalter's upcoming ETV +

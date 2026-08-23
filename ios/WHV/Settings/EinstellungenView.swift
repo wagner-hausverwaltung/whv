@@ -319,6 +319,7 @@ struct EinstellungenView: View {
     private var infoSection: some View {
         if authStore.user?.role.lowercased() == "verwalter" {
             fahrtenbuchSection
+            anruferSection
         }
         Section("App") {
             HStack {
@@ -328,6 +329,12 @@ struct EinstellungenView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Caller ID (CallKit Call Directory Extension): status, manual refresh,
+    /// jump to the iOS switch the user has to flip once.
+    private var anruferSection: some View {
+        AnruferSection()
     }
 
     /// Fahrtenbuch (ADR-0020) — the consent switch lives here. Nothing is
@@ -500,4 +507,60 @@ private struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+
+/// "Anrufer-Erkennung" in Einstellungen (Verwalter). Owned state lives in
+/// CallDirectorySync; this view only renders + triggers.
+private struct AnruferSection: View {
+    @ObservedObject private var sync = CallDirectorySync.shared
+
+    var body: some View {
+        Section {
+            HStack {
+                Text("Status")
+                Spacer()
+                Text(statusLabel).foregroundStyle(sync.status == .enabled ? .green : .secondary)
+            }
+            if sync.status != .enabled {
+                Button("In iOS-Einstellungen aktivieren") { sync.openSettings() }
+            }
+            Button {
+                Task { await sync.sync() }
+            } label: {
+                HStack {
+                    Text("Liste jetzt aktualisieren")
+                    Spacer()
+                    if sync.busy { ProgressView() }
+                }
+            }
+            .disabled(sync.busy)
+            if let err = sync.lastError {
+                Text(err).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Anrufer-Erkennung")
+        } footer: {
+            Text(footer)
+        }
+        .task { await sync.refreshStatus() }
+    }
+
+    private var statusLabel: String {
+        switch sync.status {
+        case .enabled: return "Aktiv"
+        case .disabled: return "Nicht aktiviert"
+        default: return "Unbekannt"
+        }
+    }
+
+    private var footer: String {
+        var parts: [String] = [
+            "Anrufe von Eigentümern, Mietern und Dienstleistern zeigen Name, Objekt und Rolle — auf dem iPhone und im Auto. Einmalig unter Einstellungen → Telefon → „Anrufe blockieren u. identifizieren“ WHV einschalten."
+        ]
+        if let last = sync.lastSync {
+            parts.append("Zuletzt aktualisiert \(last.formatted(date: .abbreviated, time: .shortened)) · \(sync.entryCount) Nummern.")
+        }
+        return parts.joined(separator: " ")
+    }
 }

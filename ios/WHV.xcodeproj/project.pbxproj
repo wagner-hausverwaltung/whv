@@ -7,17 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04149385F017116FF284764B /* WHVCallDirectory.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
 		5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */; };
 		701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */; };
 		7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
+		76694E652A8B27A238AF4054 /* CallDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */; };
+		A84395BA981CE4DBD0158AB6 /* CallDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */; };
 		AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
 		AA10000000000000000A0003 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
 		AA10000000000000000A0005 /* ActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0004 /* ActivityWidget.swift */; };
 		AB272D1906F68DF105F342C8 /* RunningLateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB39A43568E05D893E91175 /* RunningLateIntent.swift */; };
 		C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */; };
 		EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EF55359149D4A98925FA1E85 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
+		F0874A4C0BD6B1F71DD9D021 /* CallDirectoryHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00761E3DEED34DCF84A7D1A /* CallDirectoryHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +32,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 72F45ED374BF436525F9FFF4;
 			remoteInfo = WHVWidgets;
+		};
+		9F484186DF9315B7970343A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A0000010000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7DEA09723ACBE47D1105C3A1;
+			remoteInfo = WHVCallDirectory;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -38,6 +50,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */,
+				04149385F017116FF284764B /* WHVCallDirectory.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -45,8 +58,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallDirectoryStore.swift; sourceTree = "<group>"; };
 		1EA64FA4821C489C506029BB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVCallDirectory.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		859A4DE91A5BB1F60D77AE8E /* WHVCallDirectory.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVCallDirectory.entitlements; sourceTree = "<group>"; };
+		8725F5EC18242539FEE80331 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA10000000000000000A0001 /* ActivitySnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivitySnapshot.swift; sourceTree = "<group>"; };
 		AA10000000000000000A0004 /* ActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityWidget.swift; sourceTree = "<group>"; };
@@ -54,6 +71,7 @@
 		C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json.xcstrings; name = Localizable.xcstrings; path = WHV/Localizable.xcstrings; sourceTree = "<group>"; };
 		CDB39A43568E05D893E91175 /* RunningLateIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunningLateIntent.swift; sourceTree = "<group>"; };
 		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
+		E00761E3DEED34DCF84A7D1A /* CallDirectoryHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallDirectoryHandler.swift; sourceTree = "<group>"; };
 		E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVLiveActivity.swift; sourceTree = "<group>"; };
 		FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -78,6 +96,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		587944B7F15B88A98549BA2E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF55359149D4A98925FA1E85 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -98,6 +124,7 @@
 				0E255BF922D567A8EAB28C5C /* Frameworks */,
 				BAC5E43D50A5C289859D632C /* Shared */,
 				7FFA0314F67630CFFA312BB1 /* WHV-Localization */,
+				8F66E5D5DE70BC245E83C8E3 /* WHVCallDirectory */,
 			);
 			sourceTree = "<group>";
 		};
@@ -105,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */,
+				23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -117,11 +145,22 @@
 			name = "WHV-Localization";
 			sourceTree = "<group>";
 		};
+		8F66E5D5DE70BC245E83C8E3 /* WHVCallDirectory */ = {
+			isa = PBXGroup;
+			children = (
+				E00761E3DEED34DCF84A7D1A /* CallDirectoryHandler.swift */,
+				8725F5EC18242539FEE80331 /* Info.plist */,
+				859A4DE91A5BB1F60D77AE8E /* WHVCallDirectory.entitlements */,
+			);
+			path = WHVCallDirectory;
+			sourceTree = "<group>";
+		};
 		BAC5E43D50A5C289859D632C /* Shared */ = {
 			isa = PBXGroup;
 			children = (
 				FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */,
 				AA10000000000000000A0001 /* ActivitySnapshot.swift */,
+				0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -163,6 +202,7 @@
 			);
 			dependencies = (
 				DB65F19F79F73C9F708AE531 /* PBXTargetDependency */,
+				8F2C58CBCD7E2A9E8B6CF24B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2A0000010000000000000010 /* WHV */,
@@ -186,6 +226,23 @@
 			name = WHVWidgets;
 			productName = WHVWidgets;
 			productReference = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		7DEA09723ACBE47D1105C3A1 /* WHVCallDirectory */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 49D6FDC26E57E8CDC0EECDDB /* Build configuration list for PBXNativeTarget "WHVCallDirectory" */;
+			buildPhases = (
+				81022036CFCF2227B0725F70 /* Sources */,
+				587944B7F15B88A98549BA2E /* Frameworks */,
+				F6F7DA6DAC26BB447FCF8EB8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WHVCallDirectory;
+			productName = WHVCallDirectory;
+			productReference = 23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -220,6 +277,7 @@
 			targets = (
 				2A0000010000000000000050 /* WHV */,
 				72F45ED374BF436525F9FFF4 /* WHVWidgets */,
+				7DEA09723ACBE47D1105C3A1 /* WHVCallDirectory */,
 			);
 		};
 /* End PBXProject section */
@@ -240,6 +298,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F6F7DA6DAC26BB447FCF8EB8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -249,6 +314,16 @@
 			files = (
 				7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */,
 				AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */,
+				76694E652A8B27A238AF4054 /* CallDirectoryStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81022036CFCF2227B0725F70 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0874A4C0BD6B1F71DD9D021 /* CallDirectoryHandler.swift in Sources */,
+				A84395BA981CE4DBD0158AB6 /* CallDirectoryStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +343,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		8F2C58CBCD7E2A9E8B6CF24B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = WHVCallDirectory;
+			target = 7DEA09723ACBE47D1105C3A1 /* WHVCallDirectory */;
+			targetProxy = 9F484186DF9315B7970343A6 /* PBXContainerItemProxy */;
+		};
 		DB65F19F79F73C9F708AE531 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = WHVWidgets;
@@ -283,7 +364,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -431,7 +512,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -459,7 +540,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -480,13 +561,66 @@
 			};
 			name = Release;
 		};
+		64426FB8832885188E10E296 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 58;
+				DEVELOPMENT_TEAM = K4KDX9GN74;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.portal.calldirectory";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E381BC8B647AF41680B94731 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 58;
+				DEVELOPMENT_TEAM = K4KDX9GN74;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.portal.calldirectory";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		EC1DAF64A86A43F4DD949147 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -525,6 +659,15 @@
 			buildConfigurations = (
 				2A00000100000000000000B0 /* Debug */,
 				2A00000100000000000000C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		49D6FDC26E57E8CDC0EECDDB /* Build configuration list for PBXNativeTarget "WHVCallDirectory" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64426FB8832885188E10E296 /* Release */,
+				E381BC8B647AF41680B94731 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
