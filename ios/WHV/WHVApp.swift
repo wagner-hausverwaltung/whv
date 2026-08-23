@@ -33,7 +33,11 @@ struct WHVApp: App {
     init() {
         // Fahrtenbuch: restore a running trip / re-arm detection even on a
         // background relaunch (significant location change), before any view.
-        Task { @MainActor in TripTracker.shared.bootstrap() }
+        Task { @MainActor in
+            TripTracker.shared.bootstrap()
+            // Apple Watch companion: answer start/stop/arrive/ticket.
+            PhoneWatchBridge.shared.start()
+        }
         // Single launch-arg gate. UI test runs (see WHVUITests)
         // inject -UITestScreenshots to neutralise environment state
         // that would otherwise interfere with screenshot capture:

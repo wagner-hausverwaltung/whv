@@ -386,6 +386,11 @@ final class TripTracker: NSObject, ObservableObject {
         todaysAgenda = (try? await agenda) ?? todaysAgenda
     }
 
+    /// Name of a cached object (Live Activity / Watch state).
+    func knownPropertyName(_ id: String) -> String? {
+        knownProperties.first { $0.id == id }?.name
+    }
+
     /// Nearest managed object within the arrival radius, if any.
     private func nearbyProperty(_ loc: CLLocation) -> PropertyResponse? {
         var best: (PropertyResponse, Double)?

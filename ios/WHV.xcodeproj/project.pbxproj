@@ -11,16 +11,23 @@
 		051615395EE37DE4F10647E3 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		13E556E1CAD031D6C62BDD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67F718301EE433F26BB4AB54 /* Foundation.framework */; };
 		26EC3E5A7D3700F86AA9BF0D /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CFB6E28C2A933E374A6890 /* TripActivity.swift */; };
+		2BAF9E0B841D540EFC6FB428 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F2281AB820C6AF0198F87D77 /* Assets.xcassets */; };
+		4480DD8BDEDC953CFD8350F5 /* WatchTicketIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8818D05393E8656EE7A21D /* WatchTicketIntent.swift */; };
+		56560A031CF47D6C395C6BD5 /* WHVWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09F83EDF01FE19CE7B5420CF /* WHVWatchApp.swift */; };
 		5BF3F01D04119F710AB4A2F7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C936277BD55B26BDC8DA9729 /* Localizable.xcstrings */; };
 		701565BFF08B0837EC3826CE /* ETVLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */; };
 		7048AD8FFC3D9424C37B2260 /* ETVActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */; };
 		76694E652A8B27A238AF4054 /* CallDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */; };
+		76DDE5A2E1398314C7CEBA88 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 43F15A7760C8B670CB4873FC /* Foundation.framework */; };
 		A84395BA981CE4DBD0158AB6 /* CallDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */; };
 		AA10000000000000000A0002 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
 		AA10000000000000000A0003 /* ActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0001 /* ActivitySnapshot.swift */; };
 		AA10000000000000000A0005 /* ActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000A0004 /* ActivityWidget.swift */; };
 		AB272D1906F68DF105F342C8 /* RunningLateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB39A43568E05D893E91175 /* RunningLateIntent.swift */; };
+		BDA0C84BCAD04BD97338BB64 /* WatchHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A0802D01B95173FB0A7875 /* WatchHomeView.swift */; };
 		C3AC380F5961E530B2B377B0 /* WHVWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */; };
+		CFB0870F3CC7862F57E25256 /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A59F4FC6DD0824553228 /* WatchBridge.swift */; };
+		E27C4EBED7332FA9AFE15A0A /* WHVWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 51B8FBD51EF860F63631FE43 /* WHVWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E6EAFA6F4627ABEA0E2C3D49 /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CFB6E28C2A933E374A6890 /* TripActivity.swift */; };
 		EC91D6DF6027F5BBE71FE9A8 /* TripLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0455CC1C9836E2D24F93BC0B /* TripLiveActivity.swift */; };
 		EEC694A253F3FB21776A00A8 /* WHVWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -36,6 +43,13 @@
 			remoteGlobalIDString = 72F45ED374BF436525F9FFF4;
 			remoteInfo = WHVWidgets;
 		};
+		82F91692E4E8CB186C657512 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A0000010000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1B30E471F01E9DB377AC9837;
+			remoteInfo = WHVWatch;
+		};
 		9F484186DF9315B7970343A6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2A0000010000000000000090 /* Project object */;
@@ -46,6 +60,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		2F6AC714476AB5BCE95EC07D /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				E27C4EBED7332FA9AFE15A0A /* WHVWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		87A26F8629B72652D76D6F08 /* Embed App Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -62,13 +87,19 @@
 
 /* Begin PBXFileReference section */
 		0455CC1C9836E2D24F93BC0B /* TripLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripLiveActivity.swift; sourceTree = "<group>"; };
+		09F83EDF01FE19CE7B5420CF /* WHVWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWatchApp.swift; sourceTree = "<group>"; };
 		0E9C8457ADB2A5D5BD1069BC /* CallDirectoryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallDirectoryStore.swift; sourceTree = "<group>"; };
 		1EA64FA4821C489C506029BB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVCallDirectory.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		36A0802D01B95173FB0A7875 /* WatchHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchHomeView.swift; sourceTree = "<group>"; };
+		43F15A7760C8B670CB4873FC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		51B8FBD51EF860F63631FE43 /* WHVWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WHVWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		67F718301EE433F26BB4AB54 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		7C8818D05393E8656EE7A21D /* WatchTicketIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchTicketIntent.swift; sourceTree = "<group>"; };
 		81CFB6E28C2A933E374A6890 /* TripActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripActivity.swift; sourceTree = "<group>"; };
 		859A4DE91A5BB1F60D77AE8E /* WHVCallDirectory.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = WHVCallDirectory.entitlements; sourceTree = "<group>"; };
 		8725F5EC18242539FEE80331 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8A93A59F4FC6DD0824553228 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WHVWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA10000000000000000A0001 /* ActivitySnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivitySnapshot.swift; sourceTree = "<group>"; };
 		AA10000000000000000A0004 /* ActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityWidget.swift; sourceTree = "<group>"; };
@@ -78,6 +109,7 @@
 		D75FB159679E5834C8A21905 /* WHVWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHVWidgetBundle.swift; sourceTree = "<group>"; };
 		E00761E3DEED34DCF84A7D1A /* CallDirectoryHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallDirectoryHandler.swift; sourceTree = "<group>"; };
 		E468142B2293B74BF5E6A86A /* ETVLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVLiveActivity.swift; sourceTree = "<group>"; };
+		F2281AB820C6AF0198F87D77 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FB4F94A90E9B2CC798CD19E5 /* ETVActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ETVActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -119,6 +151,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F9065CCFA65EA6AD9082626E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				76DDE5A2E1398314C7CEBA88 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -126,6 +166,7 @@
 			isa = PBXGroup;
 			children = (
 				E2FF9A41D0C9EFBF2223C713 /* iOS */,
+				E8F29329CB066D664115732B /* watchOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -140,6 +181,7 @@
 				BAC5E43D50A5C289859D632C /* Shared */,
 				7FFA0314F67630CFFA312BB1 /* WHV-Localization */,
 				8F66E5D5DE70BC245E83C8E3 /* WHVCallDirectory */,
+				35DA4C6EB0F1A76ECC912A31 /* WHVWatch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -148,8 +190,22 @@
 			children = (
 				A65487940CEC1FDBE5D89431 /* WHVWidgets.appex */,
 				23529C300BCCE0C1ECB82FC9 /* WHVCallDirectory.appex */,
+				51B8FBD51EF860F63631FE43 /* WHVWatch.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		35DA4C6EB0F1A76ECC912A31 /* WHVWatch */ = {
+			isa = PBXGroup;
+			children = (
+				09F83EDF01FE19CE7B5420CF /* WHVWatchApp.swift */,
+				8A93A59F4FC6DD0824553228 /* WatchBridge.swift */,
+				36A0802D01B95173FB0A7875 /* WatchHomeView.swift */,
+				7C8818D05393E8656EE7A21D /* WatchTicketIntent.swift */,
+				F2281AB820C6AF0198F87D77 /* Assets.xcassets */,
+			);
+			name = WHVWatch;
+			path = WHVWatch;
 			sourceTree = "<group>";
 		};
 		7FFA0314F67630CFFA312BB1 /* WHV-Localization */ = {
@@ -203,9 +259,34 @@
 			name = iOS;
 			sourceTree = "<group>";
 		};
+		E8F29329CB066D664115732B /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				43F15A7760C8B670CB4873FC /* Foundation.framework */,
+			);
+			name = watchOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1B30E471F01E9DB377AC9837 /* WHVWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6AD3110F076B50B1A3D153B3 /* Build configuration list for PBXNativeTarget "WHVWatch" */;
+			buildPhases = (
+				C415EF8E6354B2B5D5940733 /* Sources */,
+				F9065CCFA65EA6AD9082626E /* Frameworks */,
+				2475DA0C04FA538E3D68779E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WHVWatch;
+			productName = WHVWatch;
+			productReference = 51B8FBD51EF860F63631FE43 /* WHVWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 		2A0000010000000000000050 /* WHV */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2A0000010000000000000080 /* Build configuration list for PBXNativeTarget "WHV" */;
@@ -214,12 +295,14 @@
 				2A0000010000000000000020 /* Frameworks */,
 				2A0000010000000000000070 /* Resources */,
 				87A26F8629B72652D76D6F08 /* Embed App Extensions */,
+				2F6AC714476AB5BCE95EC07D /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				DB65F19F79F73C9F708AE531 /* PBXTargetDependency */,
 				8F2C58CBCD7E2A9E8B6CF24B /* PBXTargetDependency */,
+				D3309287D0D1F26E72B8B2A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2A0000010000000000000010 /* WHV */,
@@ -295,11 +378,20 @@
 				2A0000010000000000000050 /* WHV */,
 				72F45ED374BF436525F9FFF4 /* WHVWidgets */,
 				7DEA09723ACBE47D1105C3A1 /* WHVCallDirectory */,
+				1B30E471F01E9DB377AC9837 /* WHVWatch */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2475DA0C04FA538E3D68779E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2BAF9E0B841D540EFC6FB428 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2A0000010000000000000070 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -345,6 +437,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C415EF8E6354B2B5D5940733 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				56560A031CF47D6C395C6BD5 /* WHVWatchApp.swift in Sources */,
+				CFB0870F3CC7862F57E25256 /* WatchBridge.swift in Sources */,
+				BDA0C84BCAD04BD97338BB64 /* WatchHomeView.swift in Sources */,
+				4480DD8BDEDC953CFD8350F5 /* WatchTicketIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EB6CB990BACC886F5688C759 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -369,6 +472,12 @@
 			target = 7DEA09723ACBE47D1105C3A1 /* WHVCallDirectory */;
 			targetProxy = 9F484186DF9315B7970343A6 /* PBXContainerItemProxy */;
 		};
+		D3309287D0D1F26E72B8B2A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = WHVWatch;
+			target = 1B30E471F01E9DB377AC9837 /* WHVWatch */;
+			targetProxy = 82F91692E4E8CB186C657512 /* PBXContainerItemProxy */;
+		};
 		DB65F19F79F73C9F708AE531 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = WHVWidgets;
@@ -384,7 +493,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -406,6 +515,36 @@
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
+		};
+		20030B4E4C226BA5D1DD24FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 62;
+				DEVELOPMENT_TEAM = K4KDX9GN74;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = WHV;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.wagner-hausverwaltung.portal";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.portal.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
 		};
 		2A00000100000000000000B0 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -532,7 +671,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -560,7 +699,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = WHV/WHV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_ASSET_PATHS = "\"WHV/Preview Content\"";
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				ENABLE_PREVIEWS = YES;
@@ -581,13 +720,44 @@
 			};
 			name = Release;
 		};
+		386ECB7FD276546E3A398627 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 62;
+				DEVELOPMENT_TEAM = K4KDX9GN74;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = WHV;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.wagner-hausverwaltung.portal";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wagner-hausverwaltung.portal.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 		64426FB8832885188E10E296 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
@@ -614,7 +784,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVCallDirectory/WHVCallDirectory.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVCallDirectory/Info.plist;
@@ -640,7 +810,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = WHVWidgets/WHVWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_TEAM = K4KDX9GN74;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHVWidgets/Info.plist;
@@ -697,6 +867,15 @@
 			buildConfigurations = (
 				07B7B7BA5704A85E04969830 /* Release */,
 				EC1DAF64A86A43F4DD949147 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6AD3110F076B50B1A3D153B3 /* Build configuration list for PBXNativeTarget "WHVWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				386ECB7FD276546E3A398627 /* Release */,
+				20030B4E4C226BA5D1DD24FD /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
