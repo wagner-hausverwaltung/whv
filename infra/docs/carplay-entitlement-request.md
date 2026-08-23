@@ -95,6 +95,51 @@ App-Store-URL. Derselbe Text gehört später in die Review Notes in App Store Co
 > app for their portal. The CarPlay scene is only available to users with
 > the property-manager role.
 
+## Review Notes für App Store Connect (ab Build 1.3.6 (63), 2026-08-23)
+
+Einfügen unter „App Review Information → Notes"; der Antragstext oben bleibt der
+Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
+
+> **Demo access (no credentials needed):** on the login screen tap "View demo"
+> → "Verwalter (mileage log, CarPlay, Siri)". This signs in as a property
+> manager with sample data (5 sample properties in Stuttgart, contacts,
+> appointments, sample trips). Nothing is sent to our servers in demo mode.
+> "Eigentümer / Beirat" shows the owner/board-member portal (tickets,
+> documents, meetings, meters).
+>
+> **CarPlay (Driving Task entitlement, granted 2026-08-23, Case-ID 21774792):**
+> the demo manager role also enables the CarPlay scene. In the Simulator:
+> I/O → External Displays → CarPlay. Root grid: Trip (start/end, purpose
+> picked from a list), Destination (managed properties by proximity → Apple
+> Maps hand-off), Site visits (sales inquiries with an address), Today
+> (appointments/open tasks, read-only), Call at destination. Only Grid, List,
+> Information and Alert templates; no free text, no documents, no media.
+>
+> **Location / Motion:** "Always" location + CoreMotion are used solely for the
+> mileage log of the manager role (trip auto-start when driving, arrival
+> detection via a 100 m geofence around the destination property). Owners and
+> tenants are never asked for location. The manager consents explicitly in
+> Settings before any tracking starts.
+>
+> **CallKit Call Directory extension:** identifies incoming calls from the
+> company's own owner/tenant/contractor contacts ("Name · Property · Role").
+> Identification only — no call blocking. The list is downloaded from our
+> backend for the signed-in manager; it is empty in demo mode.
+>
+> **Siri / App Intents:** "Ask WHV" (question → answer read aloud), "WHV Ticket"
+> (dictated note → ticket at the current property), "WHV Abfahrt/Ankunft",
+> "Handwerker vor Ort", "Nachricht an <Kontakt>" (sent by our backend by
+> e-mail). Speech output uses AVSpeechSynthesizer (property briefing); speech
+> input only via Siri.
+>
+> **Live Activity** shows the running trip on the Lock Screen; **Apple Watch app**
+> mirrors start/end/arrival and creates a ticket by dictation. **Widgets** show
+> the owner's news feed and the running trip.
+>
+> Target users of the manager features are our own employees (two property
+> managers); owners and tenants use the same app for their portal, which is why
+> the app is on the App Store.
+
 ## Woran Apple sich stören könnte — und wie wir es vorbeugen
 
 - **„Business app in disguise."** Deshalb führt der Antrag mit dem Fahrtenbuch
