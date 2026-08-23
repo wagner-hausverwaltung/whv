@@ -16,8 +16,10 @@
 //     rows (12 on the Simulator car) — 27 properties alphabetically cut off
 //     after the 12 "MV …" ones. Lists are therefore grouped and trimmed.
 //
-//  Until Apple grants the entitlement this runs only in the Simulator (the
-//  Simulator-SDK entitlements carry the key); see
+//  Entitlement com.apple.developer.carplay-driving-task granted by Apple on
+//  2026-08-23 (Case-ID 21774792) — it lives in WHV.entitlements for every
+//  configuration, so this scene runs on devices, TestFlight and in the
+//  Simulator (I/O → External Displays → CarPlay). Background + design notes:
 //  infra/docs/carplay-entitlement-request.md.
 //
 

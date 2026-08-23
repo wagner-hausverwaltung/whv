@@ -26,6 +26,18 @@ Provisioning Profile + in `ios/WHV/WHV.entitlements`.
 | Templates we will use | Grid, List, Information, Alert |
 | Company | Wagner Hausverwaltung GmbH, Staufeneckstraße 17, 70469 Stuttgart |
 
+## Erteilt (2026-08-23)
+
+Apple: „The entitlement for CarPlay Driving Task App has been assigned to your
+account." Seitdem trägt `ios/WHV/WHV.entitlements` den Key
+`com.apple.developer.carplay-driving-task` für ALLE Konfigurationen; die
+Simulator-only-Datei `WHV.debug.entitlements` und die SDK-Bedingung im
+Projekt sind entfernt. Die Managed Capability muss am App-ID
+`com.wagner-hausverwaltung.portal` aktiv sein (Developer-Portal → Identifiers →
+Additional Capabilities → CarPlay Driving Task); automatisches Signieren zieht
+sie dann ins Profil. Review Notes (§4) bei der nächsten App-Store-Einreichung
+nicht vergessen — Text unten.
+
 ## Eingereicht — Case-ID 21774792 (2026-08-21)
 
 Apples Eingangsbestätigung listet drei Felder, die **leer** übermittelt wurden:
