@@ -29,6 +29,8 @@ struct WHVApp: App {
     // First-launch legal/consent gate (casavi-style "Rechtliche Informationen").
     // Sits in front of the login flow; once accepted it's never shown again.
     @AppStorage("hasAcceptedLegalConsent") private var hasAcceptedLegal = false
+    // Award splash is per-process: shown before the first login screen only.
+    @State private var showAwardSplash = true
 
     init() {
         // Fahrtenbuch: restore a running trip / re-arm detection even on a
@@ -239,7 +241,13 @@ struct WHVApp: App {
         if !hasAcceptedLegal {
             LegalConsentView(onConfirm: { hasAcceptedLegal = true })
         } else if !authStore.signedIn {
-            LoginView()
+            // Plus X Award splash, once per launch, only in the onboarding
+            // path (signed-in launches go straight to their content).
+            if showAwardSplash {
+                AwardSplashView { showAwardSplash = false }
+            } else {
+                LoginView()
+            }
         } else if liegenschaftStore.selected == nil {
             LiegenschaftPickerView()
         } else {
