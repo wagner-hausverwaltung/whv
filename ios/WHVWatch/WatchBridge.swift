@@ -36,10 +36,29 @@ final class WatchBridge: NSObject, ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    /// `-ScreenshotTrip` launch argument (App Store screenshots in the
+    /// watch simulator, which has no paired phone): show a running sample
+    /// trip and never talk to WatchConnectivity.
+    private let screenshotMode = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-Screenshot") }
+
     private override init() {
         super.init()
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
+        if screenshotMode {
+            let running = ProcessInfo.processInfo.arguments.contains("-ScreenshotTrip")
+            state = WatchTripState(
+                isRunning: running,
+                startedAt: running ? Date().addingTimeInterval(-17 * 60) : nil,
+                distanceM: running ? 12_400 : 0,
+                destinationName: running ? "WEG Hasenbergstraße 32, Stuttgart" : nil,
+                purposeLabel: running ? "Eigentümerversammlung" : nil,
+                pendingUploads: 0,
+                signedIn: true,
+                updatedAt: Date()
+            )
+            return
+        }
         session?.delegate = self
         session?.activate()
     }
@@ -47,6 +66,7 @@ final class WatchBridge: NSObject, ObservableObject {
     /// Send a command and wait for the phone's reply (≈ 1–3 s). The phone
     /// answers with {"ok": Bool, "message": String, "state": <json>}.
     func send(_ command: String, _ extra: [String: Any] = [:]) async {
+        if screenshotMode { return }
         guard let session, session.activationState == .activated else {
             lastMessage = "iPhone nicht verbunden."
             return
