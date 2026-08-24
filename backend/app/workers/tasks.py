@@ -78,6 +78,29 @@ async def _sync_all_async() -> dict[str, int]:
     return counts
 
 
+async def _welcome_new_properties_async() -> dict[str, int]:
+    """Post-sync step: greet objects Impower has just handed to us.
+
+    A newly taken-over WEG/MV gets one automatic welcome announcement
+    (portal + app + contact person). Own session, best effort — a failure
+    here must never fail the nightly mirror sync. Idempotent via
+    `properties.welcome_sent_at`.
+    """
+    from app.services.property_welcome import welcome_new_properties
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            created = await welcome_new_properties(session, settings=settings)
+            if created:
+                logger.info("welcome announcements created: %d", created)
+            return {"welcome_announcements": created}
+    finally:
+        await engine.dispose()
+
+
 async def _backfill_etv_and_notify_async() -> dict[str, int]:
     """Post-sync ETV step: turn freshly-imported OWNERS_MEETING_INVITATION
     documents into EtvAssembly stubs, then nudge each property's owners +
@@ -288,12 +311,17 @@ async def _enqueue_rag_indexing_async() -> dict[str, int]:
 def sync_all_impower() -> dict[str, int]:
     """Celery task wrapper. Bridges Celery's sync model to our async sync layer.
 
-    Runs the full entity sync first, then two isolated post-sync
-    phases — the ETV invitation backfill + owner notification, and the
-    new-document notification — each in its own session so a problem in
-    one can't roll back the mirror sync or the other.
+    Runs the full entity sync first, then the isolated post-sync phases —
+    welcome announcements for newly taken-over objects, the ETV invitation
+    backfill + owner notification, the new-document notification, plan
+    adjustments and RAG indexing — each in its own session so a problem in
+    one can't roll back the mirror sync or the others.
     """
     counts = asyncio.run(_sync_all_async())
+    try:
+        counts.update(asyncio.run(_welcome_new_properties_async()))
+    except Exception:
+        logger.exception("welcome-announcement phase failed")
     try:
         counts.update(asyncio.run(_backfill_etv_and_notify_async()))
     except Exception:

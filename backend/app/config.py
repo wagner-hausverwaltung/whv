@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     # portal.wagner-hausverwaltung.com). When set, it joins portal_base_url
     # in the CORS allow-list. Empty in dev (single Vite origin).
     admin_base_url: str = ""
+    # Public App Store URL of the iOS app, used in the automatic welcome
+    # announcement for a newly handed-over object. Empty until the app is
+    # released — the text then points at an App Store search instead.
+    app_store_url: str = ""
 
     # AWS SES inbound email pipeline. The SES receipt rule saves the full MIME
     # to s3://{s3_inbound_bucket}/{messageId} and publishes a notification to
