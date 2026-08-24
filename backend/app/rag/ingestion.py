@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.document import DocumentKind
 from app.rag.chunking import Chunk, chunk_pages
 from app.rag.constants import EMBEDDING_DIM
-from app.rag.extraction import ExtractionResult, extract_pdf
+from app.rag.extraction import ExtractionResult, extract_pdf, scrub_text
 from app.rag.metadata import build_metadata_header
 from app.rag.models import RagChunk, RagDocument
 
@@ -146,7 +146,9 @@ async def index_document(
         RagDocument(
             document_id=meta.document_id,
             organization_id=meta.organization_id,
-            extracted_text="\n\n".join(extraction.pages),
+            # Belt and braces: extraction already scrubs, but this is the one
+            # place every document text reaches Postgres.
+            extracted_text=scrub_text("\n\n".join(extraction.pages)),
             content_hash=digest,
             ocr_engine=extraction.ocr_engine,
             page_count=extraction.page_count,
@@ -173,7 +175,7 @@ async def index_document(
                 visibility=meta.visibility,
                 source_type="document",
                 sensitivity=meta.sensitivity,
-                chunk_text=chunk.text,
+                chunk_text=scrub_text(chunk.text),
                 page=chunk.page,
                 embedding=vector,
                 source_kind=meta.kind.value,
@@ -242,7 +244,7 @@ async def index_masterdata_card(
         RagDocument(
             document_id=document_id,
             organization_id=organization_id,
-            extracted_text=card_text,
+            extracted_text=scrub_text(card_text),
             content_hash=digest,
             ocr_engine="masterdata",
             page_count=None,
@@ -263,7 +265,7 @@ async def index_masterdata_card(
             visibility=visibility,
             source_type=source_type,
             sensitivity=sensitivity,
-            chunk_text=card_text,
+            chunk_text=scrub_text(card_text),
             page=None,
             embedding=vector,
             source_kind=source_kind,

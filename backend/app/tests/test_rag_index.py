@@ -130,3 +130,48 @@ async def test_index_document_incremental_skip_and_force(rag_session: AsyncSessi
         )
     ).scalar_one()
     assert total == third.chunk_count
+
+
+async def test_index_document_with_nul_bytes_persists(
+    rag_session: AsyncSession, monkeypatch: object
+) -> None:
+    """Regression (prod 2026-08-24): a NUL in the PDF's text layer made the
+    INSERT fail with CharacterNotInRepertoireError, so the whole document
+    dropped out of the index and the task burned three retries re-embedding."""
+    import pytest
+
+    assert isinstance(monkeypatch, pytest.MonkeyPatch)
+    monkeypatch.setattr(
+        "pypdf._page.PageObject.extract_text",
+        lambda self: "Jahresabrechnung 2025\x00 Hausgeld 1.234,56 EUR\x00",
+    )
+    meta = DocumentMeta(
+        document_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        kind=DocumentKind.JAHRESABRECHNUNG,
+        visibility="OWNERS",
+        property_id=uuid.uuid4(),
+    )
+    result = await index_document(
+        rag_session,
+        FakeEmbedder(),
+        meta=meta,
+        pdf_bytes=_pdf("Platzhalter mit genug Text fuer die Textebene"),
+    )
+    # The commit is what used to explode — not the flush.
+    await rag_session.commit()
+
+    assert result.chunk_count >= 1
+    stored = (
+        await rag_session.execute(
+            select(RagDocument.extracted_text).where(RagDocument.document_id == meta.document_id)
+        )
+    ).scalar_one()
+    assert "\x00" not in stored
+    assert "Jahresabrechnung 2025" in stored
+    chunk = (
+        await rag_session.execute(
+            select(RagChunk.chunk_text).where(RagChunk.document_id == meta.document_id).limit(1)
+        )
+    ).scalar_one()
+    assert "\x00" not in chunk

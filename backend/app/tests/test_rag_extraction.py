@@ -155,3 +155,42 @@ def test_ocr_window_spans_are_capped_for_scattered_pages(
     # Digital pages keep their text layer untouched.
     assert "digitale" in result.pages[1]
     assert "digitale" in result.pages[38]
+
+
+def test_scrub_text_removes_nul_and_control_chars_keeps_layout() -> None:
+    """A single NUL in a PDF's text layer used to abort the whole INSERT
+    (Postgres rejects 0x00), so the document never reached the index."""
+    from app.rag.extraction import scrub_text
+
+    assert scrub_text("Haus\x00geld") == "Hausgeld"
+    # tabs/newlines carry layout and survive; other C0 controls and DEL don't
+    assert scrub_text("a\tb\nc\rd\x07e\x7ff") == "a\tb\nc\rdef"
+    # unpaired surrogates would raise on encode — dropped, not crashed
+    assert scrub_text("WEG \ud800Eibenweg") == "WEG Eibenweg"
+    assert scrub_text("unverändert — ÄÖÜ 42 €") == "unverändert — ÄÖÜ 42 €"
+
+
+def test_extract_scrubs_nul_from_text_layer(monkeypatch: pytest.MonkeyPatch) -> None:
+    pdf = _make_pdf(["Platzhalter mit ausreichend Text fuer die Textebene"])
+
+    def poisoned(self: object) -> str:
+        return "Jahresabrechnung 2025\x00 Hausgeld\x00"
+
+    monkeypatch.setattr("pypdf._page.PageObject.extract_text", poisoned)
+
+    result = extract_pdf(pdf)
+    assert result.pages == ["Jahresabrechnung 2025 Hausgeld"]
+    assert "\x00" not in result.pages[0]
+
+
+def test_extract_scrubs_nul_from_ocr_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    pdf = _make_pdf(["x"])  # scan → OCR path
+
+    def fake_ocr(img: object, lang: str | None = None) -> str:
+        return "Wärmekosten\x00abrechnung"
+
+    monkeypatch.setattr("pdf2image.convert_from_bytes", _fake_convert([], []))
+    monkeypatch.setattr("pytesseract.image_to_string", fake_ocr)
+
+    result = extract_pdf(pdf, ocr_lang="deu")
+    assert result.pages == ["Wärmekostenabrechnung"]
