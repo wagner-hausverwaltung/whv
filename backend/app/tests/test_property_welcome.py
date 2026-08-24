@@ -7,6 +7,7 @@ the right audience per type, and the text a Verwalter would actually send.
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -183,9 +184,12 @@ def test_body_mentions_portal_app_and_contact_without_a_start_date() -> None:
     assert settings.portal_base_url in body
     assert "ullrich@wagner-hausverwaltung.com" in body
     assert "+49 156 79 062409" in body
-    # no invented hand-over date, no IBAN/SEPA (those stay in the letter)
+    # no invented hand-over date; the IBAN itself is never interpolated —
+    # the text points at the comment where the Verwalter posts it per object
     assert "01.01." not in body
-    assert "IBAN" not in body
+    assert re.search(r"\bDE\d{2}[\d ]{10,}", body) is None
+    assert "im Kommentar zu dieser Mitteilung" in body
+    assert "SEPA-Lastschriftmandat" in body
     # app store: search hint while the URL is unset
     assert "App Store" in body
 

@@ -5,10 +5,11 @@ state READY — every owner (WEG) resp. owner + tenant (MV) should find a
 short welcome waiting in the portal: what the portal and the app do, who
 their contact is, and a nudge to check their contact details.
 
-Deliberately NOT in here: Verwaltungsbeginn (Impower doesn't carry one, the
-text says "ab sofort") and the Hausgeld-IBAN / SEPA mandate (Impower's API
-exposes the property account only inside payment orders, which a brand-new
-object doesn't have yet — those stay in the postal Anschreiben).
+Deliberately NOT interpolated: the Verwaltungsbeginn (Impower carries none, so
+the text says "ab sofort") and the Hausgeld-IBAN (Impower's API exposes the
+property account only inside payment orders, which a brand-new object doesn't
+have yet). The message therefore points at the announcement's comment thread,
+where the Verwalter posts IBAN + SEPA mandate per object.
 
 The announcement goes through the normal create path, so the existing
 editorial delay applies and the publish worker fans it out; an object with
@@ -85,6 +86,11 @@ def welcome_body(prop: Property, *, settings: Settings) -> str:
         (
             f"Für operative Themen erreichen Sie {_CONTACT_NAME} unter "
             f"{_CONTACT_EMAIL} und {_CONTACT_PHONE}."
+        ),
+        "Hausgeld und Unterlagen",
+        (
+            "Die Bankverbindung des Hausgeldkontos und das SEPA-Lastschriftmandat "
+            "finden Sie im Kommentar zu dieser Mitteilung."
         ),
         (
             "Unterlagen wie den Wirtschaftsplan und die Jahresabrechnung erhalten Sie "
