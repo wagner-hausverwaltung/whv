@@ -36,6 +36,7 @@ from app.models import (
     UserRole,
 )
 from app.services import calendar as calendar_svc
+from app.services.access import active_property_filter
 from app.services.accounting import active_accounting_year, get_progress
 from app.services.activity import METER_DUE_LOOKAHEAD_DAYS
 
@@ -96,7 +97,7 @@ async def property_briefing(
         select(Property).where(
             Property.id == property_id,
             Property.organization_id == current_user.organization_id,
-            Property.deleted_at.is_(None),
+            active_property_filter(),
         )
     )
     if prop is None:

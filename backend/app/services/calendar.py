@@ -29,6 +29,7 @@ from app.schemas.calendar import (
     CalendarEventCreate,
     CalendarEventUpdate,
 )
+from app.services.access import active_property_filter
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -279,7 +280,7 @@ async def agenda(
     and TERMIN events (all-day). Kehrwoche/Winterdienst are owner duties and
     stay out. Sorted by start; an all-day Termin sorts at 00:00 of its day."""
     props_stmt = select(Property).where(
-        Property.organization_id == organization_id, Property.deleted_at.is_(None)
+        Property.organization_id == organization_id, active_property_filter()
     )
     if property_id is not None:
         props_stmt = props_stmt.where(Property.id == property_id)

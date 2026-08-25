@@ -614,8 +614,11 @@ async def test_beat_opens_due_and_finalizes_expired(
     from app.workers.tasks import _process_due_resolutions_async
 
     result = await _process_due_resolutions_async()
-    assert result["opened"] == 1
-    assert result["closed"] == 1
+    # Counts are global across ALL orgs in the shared test DB; other tests'
+    # committed rows can cross their deadlines mid-run and inflate these, so
+    # assert only the lower bound and verify exact state per-resolution below.
+    assert result["opened"] >= 1
+    assert result["closed"] >= 1
     assert result["failed"] == 0
 
     async with sm() as s:

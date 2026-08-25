@@ -53,7 +53,7 @@ from app.schemas.vendor import VendorSummary
 from app.services import notification_prefs
 from app.services import units as units_svc
 from app.services import vendors as vendors_svc
-from app.services.access import active_contract_filter
+from app.services.access import active_contract_filter, active_property_filter
 from app.services.activity import ActivityItem, build_activity_feed
 from app.services.reversed_invoices import get_reversed_invoice_cache
 
@@ -270,7 +270,10 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
         Property.deleted_at.is_(None),
     )
     if user.role == UserRole.VERWALTER:
-        return base
+        # Field surfaces only (app, CarPlay, Siri): an object still in DRAFT
+        # is not one the Verwalter drives to. Onboarding happens in the
+        # admin SPA, which queries `/admin/*` without this filter.
+        return base.where(active_property_filter())
     return (
         base.where(Property.state == PropertyState.READY)
         .join(Contract, Contract.property_id == Property.id)

@@ -636,3 +636,58 @@ async def test_admin_can_delete_any_trip_but_not_a_billed_one(test_engine: Async
         assert (
             client.delete(f"/admin/trips/{billed['id']}", headers=_auth(admin)).status_code == 204
         )
+
+
+async def test_callback_request_mails_the_chef(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """The CarPlay "Chef" tile: one tap, the backend mails the callback
+    request with the context the car already knows — nothing typed."""
+    from app.config import get_settings
+
+    org = await make_org(test_engine)
+    prop = await make_property(test_engine, org=org, name="WEG Rückrufstraße 1")
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post(
+            "/me/trips/callback-request",
+            headers=_auth(token),
+            json={"property_id": str(prop.id), "lat": 48.77, "lng": 9.18},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["sent"] is True
+        assert body["to"] == get_settings().chef_email
+
+    sent = [m for m in stub_email.sent if m["to"] == get_settings().chef_email]
+    assert sent, "no mail recorded"
+    assert "Rückruf erbeten" in sent[-1]["subject"]
+    assert "WEG Rückrufstraße 1" in sent[-1]["text"]
+    assert "maps.apple.com" in sent[-1]["text"]
+    # the driver must be reachable by hitting reply
+    assert sent[-1].get("reply_to") == email
+    assert email in sent[-1]["text"]
+
+
+async def test_callback_request_works_without_context(
+    test_engine: AsyncEngine, stub_email: _StubEmailClient
+) -> None:
+    """No GPS fix, no running trip — the tile must still work."""
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.VERWALTER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post("/me/trips/callback-request", headers=_auth(token), json={})
+        assert r.status_code == 200, r.text
+        assert r.json()["sent"] is True
+    assert "Standort" not in stub_email.sent[-1]["text"]
+
+
+async def test_callback_request_is_verwalter_only(test_engine: AsyncEngine) -> None:
+    org = await make_org(test_engine)
+    _, email, pw = await make_user(test_engine, org=org, role=UserRole.EIGENTUEMER)
+    token = _login(email, pw)
+    with TestClient(app) as client:
+        r = client.post("/me/trips/callback-request", headers=_auth(token), json={})
+        assert r.status_code == 403, r.text

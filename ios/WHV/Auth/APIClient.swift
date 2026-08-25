@@ -550,6 +550,18 @@ struct DelayNoticeBody: Encodable {
     let property_id: String?
 }
 
+struct CallbackRequestBody: Encodable {
+    let property_id: String?
+    let lat: Double?
+    let lng: Double?
+}
+
+struct CallbackResult: Codable {
+    let sent: Bool
+    let to: String?
+    let detail: String
+}
+
 struct DelayNoticeResponse: Codable {
     let sent: Bool
     let to: String?
@@ -896,6 +908,15 @@ struct APIClient {
         return try Self.decode(InviteInfoResponse.self, from: data)
     }
 
+    /// POST /me/trips/callback-request — the CarPlay "Chef" tile. The mail
+    /// goes out server-side; nothing is typed in the car.
+    func requestCallback(_ body: CallbackRequestBody) async throws -> CallbackResult {
+        if DemoFlag.isActive {
+            return CallbackResult(sent: true, to: "chef@example.com", detail: "Demo: Rückrufbitte wäre verschickt worden.")
+        }
+        return try await authedJSON("/me/trips/callback-request", method: "POST", body: body)
+    }
+
     /// Redeem an invite code (POST /auth/invite/redeem). Returns the
     /// same TokenResponse as /auth/login — the backend creates the
     /// user, sets the password, and issues a fresh JWT pair in one
@@ -1024,6 +1045,13 @@ struct APIClient {
     }
 
     /// Open tickets of one property (admin list, filtered server-side).
+    /// Every open ticket in the org (no property filter) — the car's "Heute"
+    /// ranks them by distance, so it needs them all in one call.
+    func getAllAdminTickets() async throws -> [TicketSummary] {
+        if DemoFlag.isActive { return await DemoStore.shared.tickets }
+        return try await authedGET("/admin/tickets")
+    }
+
     func getAdminTickets(propertyId: String, status: String? = nil) async throws -> [TicketSummary] {
         if DemoFlag.isActive { return await DemoStore.shared.tickets.filter { $0.property_id == propertyId } }
         var path = "/admin/tickets?property_id=\(propertyId)"

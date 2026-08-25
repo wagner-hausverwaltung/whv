@@ -158,6 +158,22 @@ class DelayNoticeResponse(BaseModel):
     detail: str
 
 
+class CallbackRequest(BaseModel):
+    """One-tap "Chef anrufen lassen" from CarPlay. Everything optional: the
+    car sends what it has (current object, GPS fix) and nothing has to be
+    typed while driving."""
+
+    property_id: uuid.UUID | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+class CallbackResponse(BaseModel):
+    sent: bool
+    to: str | None
+    detail: str
+
+
 # --- Auslagen-Rechnung je Objekt (Phase 5) ------------------------------------
 
 

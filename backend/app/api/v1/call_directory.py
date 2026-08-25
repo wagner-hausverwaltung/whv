@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import require_role
 from app.db import get_session
 from app.models import Contact, Contract, ContractContact, ContractType, Property, User, UserRole
+from app.services.access import active_property_filter
 from app.services.units import _contact_label
 
 me_router = APIRouter(prefix="/me", tags=["call-directory"])
@@ -120,7 +121,7 @@ async def my_call_directory(
                 Contact.phone.is_not(None),
                 Contract.deleted_at.is_(None),
                 or_(Contract.end_date.is_(None), Contract.end_date >= today),
-                Property.deleted_at.is_(None),
+                active_property_filter(),
             )
             .order_by(Property.name)
         )

@@ -154,6 +154,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             button("Besichtigung", "binoculars.fill") { [weak self] in await self?.showBesichtigungen() },
             button("Kontakte", "phone.fill") { [weak self] in await self?.showKontakteRoot() },
             button("Heute", "list.bullet.clipboard.fill") { [weak self] in await self?.showToday() },
+            button("Chef", "person.crop.circle.fill") { [weak self] in self?.showChef() },
         ]
     }
 
@@ -172,6 +173,15 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         } else {
             interface.setRootTemplate(rootGrid(), animated: false, completion: nil)
         }
+    }
+
+    /// Swap the top template for another at the SAME depth (pop + push).
+    /// Driving-Task stacks are flat — two pushes below the root — so a list
+    /// reached from an object page has to replace it rather than stack on it.
+    @MainActor
+    private func replaceTop(with property: PropertyResponse) async {
+        interface?.popTemplate(animated: false, completion: nil)
+        await showContacts(for: property)
     }
 
     /// Push at most two levels below the root; deeper = modal alert.
@@ -550,16 +560,35 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             sections.append(CPListSection(items: agendaRows, header: "Termine", sectionIndexTitle: nil))
         }
 
-        let contactRows: [CPListItem] = people.prefix(3).map { person in
+        // The whole template is capped at `maxItems` (12 in the simulator),
+        // so an object with eight owners can only preview a few here. Show
+        // three plus a row that opens the complete list — without it the rest
+        // were simply invisible (Luis, Mähdachstraße: "ich sehe nur 3").
+        var contactRows: [CPListItem] = people.prefix(3).map { person in
             let item = CPListItem(text: person.name, detailText: [person.kind, person.phone ?? person.email ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
             item.setImage(UIImage(systemName: person.kind == "Dienstleister" ? "wrench.and.screwdriver.fill" : "person.fill"))
             item.handler = { [weak self] _, completion in self?.personAlert(person, property: p); completion() }
             return item
         }
+        if people.count > contactRows.count {
+            let more = CPListItem(text: "Alle Kontakte (\(people.count))", detailText: "Eigentümer, Mieter und Dienstleister")
+            more.setImage(UIImage(systemName: "person.2.fill"))
+            more.accessoryType = .disclosureIndicator
+            more.handler = { [weak self] _, completion in
+                completion()
+                // Sideways, not deeper: the object page already sits at the
+                // depth limit, so pop it before pushing the contact list.
+                Task { @MainActor in await self?.replaceTop(with: p) }
+            }
+            contactRows.append(more)
+        }
         if !contactRows.isEmpty {
             sections.append(CPListSection(items: contactRows, header: "Kontakte", sectionIndexTitle: nil))
         }
-        let open = tickets.filter { $0.closed_at == nil }.prefix(3)
+        // Budget: Fahrt 3 + Termine ≤3 + Kontakte ≤4 = up to 10, so tickets
+        // take what is left of the cap rather than a fixed three.
+        let used = sections.reduce(0) { $0 + $1.items.count }
+        let open = tickets.filter { $0.closed_at == nil }.prefix(max(0, maxItems - used))
         if !open.isEmpty {
             let rows: [CPListItem] = open.map { t in
                 let status = t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
@@ -713,18 +742,22 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     /// tap opens the object page (navigation, trip, contacts) — the list is
     /// level 1, so the object page is the allowed level 2.
     private func showToday() async {
+        TripTracker.shared.refreshLocation()
         async let agendaTask = api.getMyAgenda(days: 7)
         async let feedTask = api.getMyActivity(limit: maxItems)
         async let propsTask = api.getMyProperties()
+        async let ticketsTask = api.getAllAdminTickets()
         let agenda = (try? await agendaTask) ?? []
         let feed = (try? await feedTask) ?? []
         let props = Dictionary(uniqueKeysWithValues: ((try? await propsTask) ?? []).map { ($0.id, $0) })
+        let openTickets = Self.ticketsByDistance((try? await ticketsTask) ?? [], props: props)
 
         var sections: [CPListSection] = []
         let todays = agenda.filter(\.isToday)
         // Today's appointments; when the day is empty, the next ones instead
-        // so the driver still sees what's coming.
-        let shown = Array((todays.isEmpty ? agenda : todays).prefix(6))
+        // so the driver still sees what's coming. Trimmed to leave room for
+        // the nearby tickets below.
+        let shown = Array((todays.isEmpty ? agenda : todays).prefix(4))
         if !shown.isEmpty {
             let rows: [CPListItem] = shown.map { a in
                 let detail = [a.property_name, a.location ?? a.property_address ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -750,9 +783,34 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             sections.append(CPListSection(items: rows, header: todays.isEmpty ? "Nächste Termine" : "Termine heute", sectionIndexTitle: nil))
         }
 
+        // Open tickets, nearest object first: driving past an object with an
+        // open ticket is exactly when the Verwalter wants to know (Luis).
+        let ticketRows: [CPListItem] = openTickets.prefix(5).map { entry in
+            let t = entry.ticket
+            let code = t.property_id.flatMap { props[$0] }.flatMap(Self.code).map { " · \($0)" } ?? ""
+            let distance = entry.metres.map { Self.distanceLabel($0) }
+            let detail = [t.property_name, distance, Self.statusLabel(t)]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            let item = CPListItem(text: "\(t.subject)\(code)", detailText: detail)
+            item.setImage(UIImage(systemName: "tray.full.fill"))
+            item.handler = { [weak self] _, completion in
+                completion()
+                self?.ticketAlert(t, distance: distance, property: t.property_id.flatMap { props[$0] })
+            }
+            return item
+        }
+        if !ticketRows.isEmpty {
+            let header = TripTracker.shared.currentCoordinate != nil
+                ? "Offene Tickets · nach Nähe"
+                : "Offene Tickets"
+            sections.append(CPListSection(items: ticketRows, header: header, sectionIndexTitle: nil))
+        }
+
         // What's open — tap jumps to the object it belongs to.
-        let room = max(0, maxItems - shown.count)
-        let openRows: [CPListItem] = feed.prefix(room).map { a in
+        let used = sections.reduce(0) { $0 + $1.items.count }
+        let room = max(0, maxItems - used)
+        // Tickets already have their own section above; don't list them twice.
+        let openRows: [CPListItem] = feed.filter { !$0.type.lowercased().contains("ticket") }.prefix(room).map { a in
             // "… · H32": the team's object code, so the row is placeable at a glance.
             let code = a.propertyId.flatMap { props[$0] }.flatMap(Self.code).map { " · \($0)" } ?? ""
             let item = CPListItem(text: "\(a.title)\(code)", detailText: a.subtitle)
@@ -778,6 +836,81 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             sections = [CPListSection(items: [CPListItem(text: "Nichts Offenes", detailText: "Keine Termine in den nächsten 7 Tagen.")])]
         }
         push(CPListTemplate(title: "Heute", sections: sections))
+    }
+
+    struct NearbyTicket {
+        let ticket: TicketSummary
+        /// Distance to the ticket's object; nil without a GPS fix or coordinates.
+        let metres: Double?
+    }
+
+    /// Open tickets of ACTIVE objects, nearest first. Without a position (or
+    /// for objects lacking coordinates) the most recently active ticket wins,
+    /// so the list is never arbitrary.
+    @MainActor
+    static func ticketsByDistance(
+        _ tickets: [TicketSummary], props: [String: PropertyResponse]
+    ) -> [NearbyTicket] {
+        let here = TripTracker.shared.currentCoordinate
+        let open = tickets.filter { t in
+            // `props` is the car's scope — DRAFT and handed-over objects are
+            // already gone from it, and their tickets go with them.
+            t.closed_at == nil && t.property_id.map { props[$0] != nil } ?? false
+        }
+        let entries = open.map { t -> NearbyTicket in
+            guard let here,
+                  let p = t.property_id.flatMap({ props[$0] }),
+                  let lat = p.lat, let lng = p.lng
+            else { return NearbyTicket(ticket: t, metres: nil) }
+            return NearbyTicket(
+                ticket: t,
+                metres: haversineMeters(here, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+            )
+        }
+        return entries.sorted { a, b in
+            switch (a.metres, b.metres) {
+            case let (x?, y?): return x < y
+            case (nil, _?): return false
+            case (_?, nil): return true
+            default: return a.ticket.last_message_at > b.ticket.last_message_at
+            }
+        }
+    }
+
+    static func distanceLabel(_ metres: Double) -> String {
+        metres < 950
+            ? "\(Int((metres / 50).rounded()) * 50) m"
+            : String(format: "%.1f km", metres / 1000).replacingOccurrences(of: ".", with: ",")
+    }
+
+    static func statusLabel(_ t: TicketSummary) -> String {
+        t.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    /// Ticket details as a modal — the object page is a push away and the
+    /// full thread belongs on the phone.
+    private func ticketAlert(_ t: TicketSummary, distance: String?, property: PropertyResponse?) {
+        let age = Self.relativeDay(t.last_message_at)
+        let detail = [t.property_name, distance, Self.statusLabel(t), "zuletzt \(age)"]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        var actions: [CPAlertAction] = []
+        if let property {
+            actions.append(CPAlertAction(title: "Zum Objekt", style: .default) { [weak self] _ in
+                self?.interface?.dismissTemplate(animated: true, completion: nil)
+                Task { @MainActor in await self?.showObjectPage(property) }
+            })
+        }
+        alert(t.subject, detail.isEmpty ? "Details in der App." : detail, actions: actions)
+    }
+
+    static func relativeDay(_ date: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        switch days {
+        case ..<1: return "heute"
+        case 1: return "gestern"
+        case 2...13: return "vor \(days) Tagen"
+        default: return date.formatted(date: .abbreviated, time: .omitted)
+        }
     }
 
     // MARK: Kontakte (level 1): properties by frequency → contacts (level 2)
@@ -856,6 +989,44 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if !vendorRows.isEmpty { sections.append(CPListSection(items: vendorRows, header: "Dienstleister", sectionIndexTitle: nil)) }
         if sections.isEmpty { sections = [CPListSection(items: [CPListItem(text: "Keine Kontakte hinterlegt", detailText: nil)])] }
         push(CPListTemplate(title: p.name, sections: sections))
+    }
+
+    /// "Chef": call the mobile, or have the backend ask for a callback.
+    /// An alert rather than a pushed list — two taps deep is where this
+    /// belongs while driving, and it costs no stack depth.
+    private func showChef() {
+        let call = CPAlertAction(title: "Anrufen", style: .default) { [weak self] _ in
+            self?.interface?.dismissTemplate(animated: true, completion: nil)
+            self?.call(Self.chefPhone)
+        }
+        let callback = CPAlertAction(title: "Um Rückruf bitten", style: .default) { [weak self] _ in
+            self?.interface?.dismissTemplate(animated: true, completion: nil)
+            Task { @MainActor in await self?.requestCallback() }
+        }
+        alert("Chef", "\(Self.chefLabel) · \(Self.chefPhone)", actions: [call, callback])
+    }
+
+    private static let chefPhone = "+491736774683"
+    private static let chefLabel = "Luis Wagner"
+
+    /// Sends the callback request server-side (a Driving-Task app may not
+    /// compose mail) with whatever context the car has: current object and
+    /// position.
+    private func requestCallback() async {
+        let tracker = TripTracker.shared
+        let loc = tracker.currentCoordinate
+        do {
+            let r = try await api.requestCallback(
+                CallbackRequestBody(
+                    property_id: tracker.presetPropertyId,
+                    lat: loc?.latitude,
+                    lng: loc?.longitude
+                )
+            )
+            alert(r.sent ? "Rückruf erbeten" : "Nicht gesendet", r.detail)
+        } catch {
+            alert("Nicht gesendet", "Die Anfrage konnte nicht verschickt werden.")
+        }
     }
 
     /// Modal (no push): call, or one-tap "Ich verspäte mich ~15 Min".

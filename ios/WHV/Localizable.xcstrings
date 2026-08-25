@@ -3720,6 +3720,16 @@
         }
       }
     },
+    "Plus X Award — Top 100 Hausverwaltungen Deutschlands, ausgezeichnet 2024" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus X Award — Top 100 property managers in Germany, awarded 2024"
+          }
+        }
+      }
+    },
     "Preis / Monat (netto)" : {
       "localizations" : {
         "en" : {

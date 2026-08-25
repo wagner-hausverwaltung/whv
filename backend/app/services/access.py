@@ -19,10 +19,26 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Contact, Contract, ContractContact, User, UserRole
+from app.models import Contact, Contract, ContractContact, Property, PropertyState, User, UserRole
+
+
+def active_property_filter() -> ColumnElement[bool]:
+    """SQLAlchemy boolean: the object is one WHV actively manages today.
+
+    Two ways an object stops being active:
+      * Impower "Abgegeben" (state DISABLED) → the sync soft-deletes it.
+      * state DRAFT → onboarding not finished, or the object was parked.
+
+    Field-facing surfaces (CarPlay lists, Objekt-Briefing, Anrufer-Erkennung,
+    Siri contact search, Termine) must show neither: a manager in the car
+    should not be offered contacts or briefings for an object WHV no longer
+    (or not yet) looks after (Luis 2026-08-25). The admin SPA keeps its own
+    unfiltered queries so DRAFT stays visible where onboarding happens.
+    """
+    return and_(Property.deleted_at.is_(None), Property.state == PropertyState.READY)
 
 
 def active_contract_filter(today: date | None = None) -> ColumnElement[bool]:

@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     # Where the monthly Kilometergeld statements (PDF per driver) are mailed
     # on the 1st — the office inbox.
     trip_report_email: str = "info@wagner-hausverwaltung.com"
+    # "Chef" tile in CarPlay: who a driver reaches with one tap — call the
+    # mobile, or have the backend mail a callback request (no typing in the
+    # car). Overridable per environment.
+    chef_email: str = "wagner@wagner-hausverwaltung.com"
+    chef_phone: str = "+491736774683"
+    chef_label: str = "Luis Wagner"
     offer_from_name: str = "Wagner Hausverwaltung"
     # Auto-send is now controlled per-organization via the "Auto-Modus" toggle
     # on Admin -> Anfragen (organizations.offer_auto_send_enabled), NOT by these

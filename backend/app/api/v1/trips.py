@@ -18,6 +18,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import Select, select, update
@@ -42,6 +43,8 @@ from app.models import (
 from app.schemas.trip import (
     AdminTripListResponse,
     BillableTripsResponse,
+    CallbackRequest,
+    CallbackResponse,
     DelayNoticeRequest,
     DelayNoticeResponse,
     TripCompleteRequest,
@@ -60,6 +63,7 @@ me_router = APIRouter(prefix="/me/trips", tags=["trips"])
 admin_router = APIRouter(prefix="/admin/trips", tags=["admin-trips"])
 
 _verwalter_only = require_role(UserRole.VERWALTER)
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
 # --- helpers ------------------------------------------------------------------
@@ -434,6 +438,73 @@ async def send_delay_notice(
     await session.commit()
     return DelayNoticeResponse(
         sent=True, to=contact.email, detail=f"Mitteilung an {contact.email} gesendet."
+    )
+
+
+@me_router.post("/callback-request", response_model=CallbackResponse)
+async def request_callback(
+    req: CallbackRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> CallbackResponse:
+    """ "Chef, bitte zurückrufen" — the CarPlay tile a driver taps instead of
+    typing. Mail goes out server-side (a Driving-Task app may not compose
+    messages) with reply-to the driver, and carries the context the phone
+    already knows: time, current object, position."""
+    prop_name = None
+    if req.property_id is not None:
+        prop = await session.get(Property, req.property_id)
+        prop_name = (
+            prop.name if prop and prop.organization_id == current_user.organization_id else None
+        )
+    driver = current_user.email.split("@", 1)[0].replace(".", " ").title()
+    now_local = datetime.now(_BERLIN).strftime("%d.%m.%Y %H:%M")
+    maps = (
+        f"https://maps.apple.com/?ll={req.lat},{req.lng}&q=Standort"
+        if req.lat is not None and req.lng is not None
+        else None
+    )
+    subject = f"Rückruf erbeten: {driver}"
+    text = (
+        f"{driver} bittet um Rückruf.\n\n"
+        f"Gesendet am {now_local} aus dem Auto (CarPlay).\n"
+        + (f"Aktuelles Objekt: {prop_name}\n" if prop_name else "")
+        + (f"Standort: {maps}\n" if maps else "")
+        + f"\nRückruf an: {current_user.email}\n"
+        "\nWagner Hausverwaltung — Fahrtenbuch"
+    )
+    html = text.replace("\n", "<br>")
+    if maps:
+        html = html.replace(maps, f'<a href="{maps}">{maps}</a>')
+    try:
+        await email_client.send(
+            to=settings.chef_email,
+            subject=subject,
+            html=f"<p>{html}</p>",
+            text=text,
+            reply_to=current_user.email,
+        )
+    except EmailError as exc:
+        return CallbackResponse(
+            sent=False, to=settings.chef_email, detail=f"Versand fehlgeschlagen: {exc}"
+        )
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="callback_requested",
+            target_type="users",
+            target_id=str(current_user.id),
+            payload_json={"property_id": str(req.property_id) if req.property_id else None},
+        )
+    )
+    await session.commit()
+    return CallbackResponse(
+        sent=True,
+        to=settings.chef_email,
+        detail=f"{settings.chef_label} wurde um Rückruf gebeten.",
     )
 
 

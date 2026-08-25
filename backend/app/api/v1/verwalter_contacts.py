@@ -33,6 +33,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.services.access import active_property_filter
 from app.services.units import _contact_label
 
 me_router = APIRouter(prefix="/me/contacts", tags=["verwalter-contacts"])
@@ -86,7 +87,7 @@ async def search_contacts(
             Contact.deleted_at.is_(None),
             Contract.deleted_at.is_(None),
             or_(Contract.end_date.is_(None), Contract.end_date >= today),
-            Property.deleted_at.is_(None),
+            active_property_filter(),
         )
         .order_by(Contact.last_name, Contact.company_name, Contact.first_name)
     )
