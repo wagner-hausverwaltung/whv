@@ -4,6 +4,13 @@ import { Alert, Box, Button, Link, Stack, TextField, Typography } from "@mui/mat
 import { api, setTokens } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { AuthShell } from "@/components/AuthShell";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_HINT,
+  PASSWORD_TOO_SHORT,
+  isValidationError,
+  passwordError,
+} from "@/lib/password";
 
 interface InviteInfoResponse {
   email: string;
@@ -70,12 +77,9 @@ export function InviteRedeemPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password !== confirm) {
-      setError("Passwörter stimmen nicht überein.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Passwort muss mindestens 8 Zeichen lang sein.");
+    const invalid = passwordError(password, confirm);
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setSubmitting(true);
@@ -88,9 +92,13 @@ export function InviteRedeemPage() {
       setTokens(res.data.access_token, res.data.refresh_token);
       await refreshMe();
       navigate("/", { replace: true });
-    } catch {
+    } catch (err) {
+      // 422 = the body failed validation (the password rule), NOT a broken
+      // invite — saying "invite invalid" here is what stranded owners.
       setError(
-        "Einladung ungültig, abgelaufen oder die E-Mail-Adresse passt nicht zur Einladung.",
+        isValidationError(err)
+          ? PASSWORD_TOO_SHORT
+          : "Einladung ungültig, abgelaufen oder die E-Mail-Adresse passt nicht zur Einladung.",
       );
     } finally {
       setSubmitting(false);
@@ -177,7 +185,8 @@ export function InviteRedeemPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            helperText={PASSWORD_HINT}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <TextField
@@ -188,7 +197,7 @@ export function InviteRedeemPage() {
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <Button

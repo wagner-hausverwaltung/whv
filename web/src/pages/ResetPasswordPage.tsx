@@ -7,6 +7,13 @@ import {
 import { Alert, Box, Button, Link, Stack, TextField } from "@mui/material";
 import { api } from "@/api/client";
 import { AuthShell } from "@/components/AuthShell";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_HINT,
+  PASSWORD_TOO_SHORT,
+  isValidationError,
+  passwordError,
+} from "@/lib/password";
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -43,12 +50,9 @@ export function ResetPasswordPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password !== confirm) {
-      setError("Passwörter stimmen nicht überein.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Passwort muss mindestens 8 Zeichen lang sein.");
+    const invalid = passwordError(password, confirm);
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setSubmitting(true);
@@ -58,9 +62,12 @@ export function ResetPasswordPage() {
         new_password: password,
       });
       navigate("/login?reset=ok", { replace: true });
-    } catch {
+    } catch (err) {
+      // 422 = body validation (the password rule), not a dead token.
       setError(
-        "Token ungültig, abgelaufen oder bereits eingelöst. Bitte fordern Sie einen neuen an.",
+        isValidationError(err)
+          ? PASSWORD_TOO_SHORT
+          : "Token ungültig, abgelaufen oder bereits eingelöst. Bitte fordern Sie einen neuen an.",
       );
     } finally {
       setSubmitting(false);
@@ -70,7 +77,7 @@ export function ResetPasswordPage() {
   return (
     <AuthShell
       title="Neues Passwort setzen"
-      subtitle="Mindestens 8 Zeichen. Nach dem Speichern werden alle aktiven Sitzungen beendet."
+      subtitle={`${PASSWORD_HINT} Nach dem Speichern werden alle aktiven Sitzungen beendet.`}
     >
       {error && (
         <Alert severity="error" role="alert">
@@ -89,7 +96,8 @@ export function ResetPasswordPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            helperText={PASSWORD_HINT}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <TextField
@@ -100,7 +108,7 @@ export function ResetPasswordPage() {
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <Button
