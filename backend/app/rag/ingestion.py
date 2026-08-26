@@ -14,6 +14,7 @@ commits. This keeps it composable and lets tests roll back.
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -27,9 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.document import DocumentKind
 from app.rag.chunking import Chunk, chunk_pages
 from app.rag.constants import EMBEDDING_DIM
-from app.rag.extraction import ExtractionResult, extract_pdf, scrub_text
+from app.rag.extraction import ExtractionResult, extract_pdf, looks_like_pdf, scrub_text
 from app.rag.metadata import build_metadata_header
 from app.rag.models import RagChunk, RagDocument
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionError(RuntimeError):
@@ -78,6 +81,12 @@ class IndexResult:
     ocr_engine: str
 
 
+# Marker written for sources that are not PDFs at all (ZUGFeRD/XRechnung
+# XML). The row keeps the document OUT of every future backfill without
+# adding a single searchable chunk — "handled, nothing to index".
+NOT_PDF_ENGINE = "skipped-not-pdf"
+
+
 def content_hash(pdf_bytes: bytes) -> str:
     """Stable SHA-256 of the source bytes — drives incremental re-index."""
     return hashlib.sha256(pdf_bytes).hexdigest()
@@ -104,6 +113,39 @@ def build_chunks(meta: DocumentMeta, pdf_bytes: bytes) -> tuple[ExtractionResult
     return extraction, chunk_pages(pages)
 
 
+async def _mark_not_indexable(
+    rag_session: AsyncSession, *, meta: DocumentMeta, digest: str
+) -> None:
+    """Persist "seen, nothing to index" for a non-PDF source: a RagDocument
+    row with no chunks. Retrieval only reads rag_chunks, so this is inert for
+    search while making the skip permanent and visible."""
+    await rag_session.execute(delete(RagChunk).where(RagChunk.document_id == meta.document_id))
+    await rag_session.execute(
+        delete(RagDocument).where(RagDocument.document_id == meta.document_id)
+    )
+    rag_session.add(
+        RagDocument(
+            document_id=meta.document_id,
+            organization_id=meta.organization_id,
+            extracted_text="",
+            content_hash=digest,
+            ocr_engine=NOT_PDF_ENGINE,
+            page_count=0,
+            source_kind=meta.kind.value,
+            amount=meta.amount,
+            issued_date=meta.issued_date,
+            contact_id=meta.contact_id,
+            contact_name=meta.contact_name,
+            property_id=meta.property_id,
+            unit_id=meta.unit_id,
+            visibility=meta.visibility,
+            sensitivity=meta.sensitivity,
+        )
+    )
+    await rag_session.flush()
+    logger.info("rag: document %s is not a PDF — marked as not indexable", meta.document_id)
+
+
 async def index_document(
     rag_session: AsyncSession,
     embedder: Embedder,
@@ -123,6 +165,13 @@ async def index_document(
     ).scalar_one_or_none()
     if existing is not None and existing == digest and not force:
         return IndexResult(meta.document_id, chunk_count=0, skipped=True, ocr_engine="")
+
+    # Not a PDF (e-invoice XML) → record the skip and stop. Without this row
+    # every backfill re-downloads the same file, fails in pypdf and logs a
+    # warning, forever.
+    if not looks_like_pdf(pdf_bytes):
+        await _mark_not_indexable(rag_session, meta=meta, digest=digest)
+        return IndexResult(meta.document_id, chunk_count=0, skipped=True, ocr_engine=NOT_PDF_ENGINE)
 
     extraction, chunks = build_chunks(meta, pdf_bytes)
     texts = [chunk.text for chunk in chunks]

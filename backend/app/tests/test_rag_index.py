@@ -175,3 +175,66 @@ async def test_index_document_with_nul_bytes_persists(
         )
     ).scalar_one()
     assert "\x00" not in chunk
+
+
+async def test_xml_einvoice_is_marked_not_indexable(rag_session: AsyncSession) -> None:
+    """Impower serves ZUGFeRD/XRechnung invoices as XML on the same download
+    endpoint. They are not PDFs and carry nothing for semantic search, so
+    they are recorded as handled — once, with no chunks — instead of failing
+    in pypdf on every backfill (prod 2026-08-25: 88 such warnings per run)."""
+    from app.rag.ingestion import NOT_PDF_ENGINE
+
+    xml = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b"<rsm:CrossIndustryInvoice><ram:ID>R26/000199</ram:ID></rsm:CrossIndustryInvoice>"
+    )
+    meta = DocumentMeta(
+        document_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        kind=DocumentKind.RECHNUNG,
+        visibility="OWNERS",
+        property_id=uuid.uuid4(),
+    )
+    embedder = FakeEmbedder()
+    result = await index_document(rag_session, embedder, meta=meta, pdf_bytes=xml)
+    await rag_session.commit()
+
+    assert result.skipped is True
+    assert result.chunk_count == 0
+    assert result.ocr_engine == NOT_PDF_ENGINE
+    # No embedding call — the XML never reaches Gemini.
+    assert embedder.calls == []
+    # Nothing searchable …
+    chunks = (
+        await rag_session.execute(
+            select(func.count())
+            .select_from(RagChunk)
+            .where(RagChunk.document_id == meta.document_id)
+        )
+    ).scalar_one()
+    assert chunks == 0
+    # … but the document counts as handled, so the next backfill skips it.
+    engine = (
+        await rag_session.execute(
+            select(RagDocument.ocr_engine).where(RagDocument.document_id == meta.document_id)
+        )
+    ).scalar_one()
+    assert engine == NOT_PDF_ENGINE
+
+
+async def test_repeated_xml_index_does_not_re_download_or_embed(rag_session: AsyncSession) -> None:
+    """Second pass over the same XML: the unchanged-hash shortcut takes it,
+    so the skip really is permanent rather than repeated work."""
+    xml = b'<?xml version="1.0"?><Invoice/>'
+    meta = DocumentMeta(
+        document_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        kind=DocumentKind.RECHNUNG,
+        visibility="OWNERS",
+    )
+    embedder = FakeEmbedder()
+    await index_document(rag_session, embedder, meta=meta, pdf_bytes=xml)
+    await rag_session.commit()
+    second = await index_document(rag_session, embedder, meta=meta, pdf_bytes=xml)
+    assert second.skipped is True
+    assert embedder.calls == []

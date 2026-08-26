@@ -57,6 +57,15 @@ def scrub_text(text: str) -> str:
     return cleaned.encode("utf-8", "ignore").decode("utf-8", "ignore")
 
 
+def looks_like_pdf(data: bytes) -> bool:
+    """Cheap magic-byte check. Impower serves e-invoices as raw ZUGFeRD/
+    XRechnung XML under the same /documents/{id}/download endpoint; feeding
+    those to pypdf only ever produces "Stream has ended unexpectedly". The
+    figures and dates of an invoice come from Impower's structured fields
+    anyway (ADR-0013 §3), so XML carries nothing for semantic search."""
+    return data[:5] == b"%PDF-"
+
+
 class ExtractionError(RuntimeError):
     """Raised when a document's bytes can't be parsed as a PDF."""
 
