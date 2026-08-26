@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { isAxiosError } from "axios";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Box, Button, Link, Stack, TextField, Typography } from "@mui/material";
 import { api, setTokens } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
@@ -32,6 +33,10 @@ export function InviteRedeemPage() {
   const [info, setInfo] = useState<InviteInfoResponse | null | undefined>(
     code ? undefined : null,
   );
+  // 410 = already redeemed. The invitation mail is the only link owners
+  // keep, so they reopen it to get back in; that must lead to the login,
+  // not to "ask your Hausverwaltung for a new invitation" (B42, 2026-08-26).
+  const [alreadyRedeemed, setAlreadyRedeemed] = useState(false);
   const [emailEditable, setEmailEditable] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,12 +66,17 @@ export function InviteRedeemPage() {
         setEmail(r.data.email);
         setError(null);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         setInfo(null);
+        const redeemed = isAxiosError(err) && err.response?.status === 410;
+        setAlreadyRedeemed(redeemed);
         setError(
-          "Diese Einladung ist nicht (mehr) gültig. Bitte wenden Sie sich "
-            + "an Ihre Hausverwaltung für eine neue Einladung.",
+          redeemed
+            ? "Diese Einladung haben Sie bereits eingelöst. Melden Sie sich "
+              + "einfach mit Ihrer E-Mail-Adresse und Ihrem Passwort an."
+            : "Diese Einladung ist nicht (mehr) gültig. Bitte wenden Sie sich "
+              + "an Ihre Hausverwaltung für eine neue Einladung.",
         );
       });
     return () => {
@@ -110,12 +120,39 @@ export function InviteRedeemPage() {
   if (info === null) {
     return (
       <AuthShell
-        title="Einladung einlösen"
-        subtitle="Bitte verwenden Sie den Link aus Ihrer Einladungs-E-Mail."
+        title={alreadyRedeemed ? "Sie haben bereits ein Konto" : "Einladung einlösen"}
+        subtitle={
+          alreadyRedeemed
+            ? "Diese Einladung wurde schon verwendet."
+            : "Bitte verwenden Sie den Link aus Ihrer Einladungs-E-Mail."
+        }
       >
-        <Alert severity="error" role="alert">
-          {error}
-        </Alert>
+        <Stack spacing={2}>
+          <Alert severity={alreadyRedeemed ? "info" : "error"} role="alert">
+            {error}
+          </Alert>
+          {/* Always offer the way forward: someone who lands here has no
+              other link to the portal in hand. */}
+          <Button
+            component={RouterLink}
+            to="/login"
+            variant="contained"
+            size="large"
+            fullWidth
+          >
+            Zur Anmeldung
+          </Button>
+          <Box sx={{ textAlign: "center" }}>
+            <Link
+              component={RouterLink}
+              to="/forgot-password"
+              variant="body2"
+              underline="hover"
+            >
+              Passwort vergessen?
+            </Link>
+          </Box>
+        </Stack>
       </AuthShell>
     );
   }

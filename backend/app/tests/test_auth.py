@@ -84,13 +84,37 @@ async def test_invite_info_unknown_returns_404(test_engine: AsyncEngine) -> None
     assert response.status_code == 404
 
 
-async def test_invite_info_consumed_returns_404(test_engine: AsyncEngine) -> None:
-    """Consumed invites must look identical to never-existed ones over
-    the wire — anything else would leak that the code was real once."""
+async def test_invite_info_consumed_returns_410_without_the_email(
+    test_engine: AsyncEngine,
+) -> None:
+    """An owner's only lasting link is the invitation mail, so she opens it
+    again when she wants back in. A flat 404 told her the invitation was
+    broken and to ask for a new one — that is how an owner with a perfectly
+    good account considered herself locked out (B42, 2026-08-26). 410 lets
+    the client say "already redeemed, just sign in".
+
+    The endpoint hands out the invited address for LIVE codes by design, so
+    admitting "this one is used up" to whoever holds the code discloses
+    strictly less than that; the response still carries no email, and redeem
+    keeps rejecting the code.
+    """
     invite, _ = await make_invite(test_engine, consumed=True)
     with TestClient(app) as client:
         response = client.get(f"/auth/invite/{invite.code}")
-    assert response.status_code == 404
+    assert response.status_code == 410
+    assert invite.email not in response.text
+    assert "@" not in response.json()["detail"]
+
+
+async def test_consumed_invite_still_cannot_be_redeemed(test_engine: AsyncEngine) -> None:
+    """The friendlier 410 must not soften the actual gate."""
+    invite, _ = await make_invite(test_engine, consumed=True)
+    with TestClient(app) as client:
+        response = client.post(
+            "/auth/invite/redeem",
+            json={"code": invite.code, "email": invite.email, "password": "Hausgeld2026!"},
+        )
+    assert response.status_code == 400
 
 
 async def test_invite_info_expired_returns_404(test_engine: AsyncEngine) -> None:

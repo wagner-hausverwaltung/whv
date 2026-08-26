@@ -1379,6 +1379,16 @@
         }
       }
     },
+    "Diese Einladung haben Sie bereits eingelöst. Bitte melden Sie sich mit Ihrer E-Mail-Adresse und Ihrem Passwort an." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have already redeemed this invitation. Please sign in with your e-mail address and password."
+          }
+        }
+      }
+    },
     "Diese Fahrt endgültig löschen?" : {
       "localizations" : {
         "en" : {

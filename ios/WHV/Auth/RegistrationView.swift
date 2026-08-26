@@ -285,6 +285,16 @@ struct RegistrationView: View {
             self.email = info.email
             self.emailEditable = false
             self.inviteLookupState = .success
+        } catch APIError.http(let status, _) where status == 410 {
+            // Already redeemed. The invitation mail is the only link an owner
+            // keeps, so reopening it must lead to the sign-in — not to "ask
+            // for a new invitation" (B42, 2026-08-26).
+            self.inviteInfo = nil
+            self.emailEditable = true
+            self.inviteLookupState = .failed
+            self.localError = String(
+                localized: "Diese Einladung haben Sie bereits eingelöst. Bitte melden Sie sich mit Ihrer E-Mail-Adresse und Ihrem Passwort an."
+            )
         } catch {
             self.inviteInfo = nil
             self.emailEditable = true
