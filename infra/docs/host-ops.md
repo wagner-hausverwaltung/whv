@@ -61,3 +61,38 @@ stehen und kommen von selbst.
 Altlast aus den nächtlichen Celery-OOM-Schleifen (siehe
 `backend/app/rag/extraction.py`, behoben im Aug 2026). Noch unkritisch
 (Disk 36 %), bei Bedarf `journalctl --vacuum-size=500M`.
+
+## Wartung 2026-08-26 (beide Hosts, WARN „regular updates")
+
+Erledigt per SSH, ohne Ausfall (`healthz` vor und nach 200, Container
+unverändert gesund, kein Reboot nötig):
+
+```bash
+ssh root@<host> 'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+  apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade'
+```
+
+* **staging**: `open-vm-tools`. Übrig bleibt `byobu` — **phased 40 %**, kommt von selbst.
+* **prod**: `console-setup*`, `keyboard-configuration`, `open-vm-tools`, `byobu` — und
+  zusätzlich **`openssl`/`libssl3t64` (Security) sowie `vim`/`xxd`**, die im Mail von
+  07:38 noch nicht standen. `needrestart` hat die betroffenen Host-Dienste selbst
+  neugestartet („No containers need to be restarted" — die Container bringen ihr
+  eigenes libssl mit). Übrig bleiben `python3.12*`, `procps`, `libproc2-0` — alle phased.
+
+`NEEDRESTART_MODE=a` ist hier wichtig: ohne das fragt `needrestart` interaktiv und der
+Lauf hängt. `--force-confold` behält die eigenen Configs (u. a. die Caddy-/cloud-init-Anpassungen).
+
+### `host-health.service` selbst taucht als „failed unit" auf
+
+Der Check beendet sich bei Verdict WARN/FAIL mit Exit 1 — systemd merkt sich das als
+`failed`. Der **nächste saubere Lauf setzt das von allein zurück**; solange aber irgendetwas
+warnt, meldet die Folgenacht zusätzlich „1 failed unit" und warnt damit über sich selbst.
+Nach einer Wartung deshalb aufräumen:
+
+```bash
+ssh root@<host> 'systemctl reset-failed host-health.service'
+```
+
+Phased-Pakete meldet der Check übrigens korrekt NICHT: er liest `apt-get -s upgrade`
+und zählt nur `^Inst`-Zeilen; zurückgehaltene Pakete stehen dort unter „deferred due to
+phasing".
