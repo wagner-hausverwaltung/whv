@@ -114,12 +114,15 @@ enum OfferStatus {
 
 let offerLeadStatuses = ["OPEN", "ON_HOLD", "ACCEPTED", "DECLINED"]
 
+/// Lead state → the word the Verwalter sees. `String(localized:)` rather than
+/// a bare literal so the labels land in the String Catalog and follow the
+/// app's language — the tab titles and the row badges must not disagree.
 func offerLeadLabel(_ s: String) -> String {
     switch s {
-    case "OPEN": return "Offen"
-    case "ON_HOLD": return "Wartend"
-    case "ACCEPTED": return "Angenommen"
-    case "DECLINED": return "Abgelehnt"
+    case "OPEN": return String(localized: "Offen")
+    case "ON_HOLD": return String(localized: "Wartend")
+    case "ACCEPTED": return String(localized: "Angenommen")
+    case "DECLINED": return String(localized: "Abgelehnt")
     default: return s
     }
 }
@@ -244,16 +247,39 @@ final class AnfragenStore: ObservableObject {
 // MARK: - Tab (list)
 
 struct AnfragenTab: View {
+    /// The two states a Verwalter still has to act on. Won and lost deals are
+    /// deliberately absent: in the car and on the phone this list is a to-do
+    /// list, and the full history stays in the admin portal (Luis 2026-08-28).
+    enum LeadFilter: String, CaseIterable, Identifiable {
+        case open = "OPEN"
+        case onHold = "ON_HOLD"
+
+        var id: String { rawValue }
+        var label: String { offerLeadLabel(rawValue) }
+    }
+
     @StateObject private var store = AnfragenStore()
     @State private var searchText = ""
     @State private var deleteCandidate: OfferInquirySummary?
+    // Survives a tab switch and an app restart, so the Verwalter comes back to
+    // the list he was working in.
+    @SceneStorage("anfragen.leadFilter") private var leadFilterRaw = LeadFilter.open.rawValue
+
+    private var leadFilter: LeadFilter { LeadFilter(rawValue: leadFilterRaw) ?? .open }
+
+    /// Everything in the selected state — the count on the segment shows this,
+    /// so it stays honest while a search narrows the list below.
+    private func items(in filter: LeadFilter) -> [OfferInquirySummary] {
+        store.items.filter { $0.lead_status == filter.rawValue }
+    }
 
     /// Token AND-search over sender, subject, address and Art — mirrors the
     /// admin portal's search field.
     private var visibleItems: [OfferInquirySummary] {
+        let inTab = items(in: leadFilter)
         let tokens = searchText.lowercased().split(separator: " ").map(String.init)
-        guard !tokens.isEmpty else { return store.items }
-        return store.items.filter { item in
+        guard !tokens.isEmpty else { return inTab }
+        return inTab.filter { item in
             let haystack = [
                 item.sender_name, item.sender_email, item.subject,
                 item.object_address, item.art,
@@ -273,10 +299,26 @@ struct AnfragenTab: View {
                 }
 
                 Section {
-                    if store.items.isEmpty, !store.loading {
-                        Text("Keine Anfragen vorhanden.").foregroundStyle(.secondary)
-                    } else if visibleItems.isEmpty, !store.loading {
-                        Text("Keine Treffer für die Suche.").foregroundStyle(.secondary)
+                    Picker("Status", selection: $leadFilterRaw) {
+                        ForEach(LeadFilter.allCases) { filter in
+                            Text("\(filter.label) (\(items(in: filter).count))").tag(filter.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                }
+                .listRowBackground(Color.clear)
+
+                Section {
+                    if visibleItems.isEmpty, !store.loading {
+                        Text(
+                            searchText.isEmpty
+                                ? (leadFilter == .open
+                                    ? "Keine offenen Anfragen."
+                                    : "Keine Anfragen auf Wiedervorlage.")
+                                : "Keine Treffer für die Suche."
+                        )
+                        .foregroundStyle(.secondary)
                     }
                     ForEach(visibleItems) { item in
                         NavigationLink(value: item.id) { AnfrageRow(item: item) }
@@ -289,7 +331,7 @@ struct AnfragenTab: View {
                             }
                     }
                 } header: {
-                    Text("\(visibleItems.count) Anfragen")
+                    Text("\(visibleItems.count) \(leadFilter.label)")
                 }
             }
             .searchable(text: $searchText, prompt: "Absender, Betreff, Objekt …")

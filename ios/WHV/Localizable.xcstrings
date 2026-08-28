@@ -10,6 +10,22 @@
     "%@ %@" : {
       "shouldTranslate" : false
     },
+    "%@ (%lld)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$lld)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (%2$lld)"
+          }
+        }
+      }
+    },
     "%@ fertig um %@, %lld Minuten vor Ort. Im Ticket festgehalten." : {
       "localizations" : {
         "de" : {
@@ -86,18 +102,24 @@
     "%lld" : {
       "shouldTranslate" : false
     },
-    "%lld / %lld" : {
-      "shouldTranslate" : false
-    },
-    "%lld Anfragen" : {
+    "%lld %@" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld inquiries"
+            "value" : "%1$lld %2$@"
           }
         }
       }
+    },
+    "%lld / %lld" : {
+      "shouldTranslate" : false
     },
     "%lld Fahrt(en) warten auf Upload." : {
       "localizations" : {
@@ -2691,12 +2713,12 @@
         }
       }
     },
-    "Keine Anfragen vorhanden." : {
+    "Keine Anfragen auf Wiedervorlage." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No inquiries."
+            "value" : "No inquiries on hold."
           }
         }
       }
@@ -2857,6 +2879,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No new updates"
+          }
+        }
+      }
+    },
+    "Keine offenen Anfragen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No open inquiries."
           }
         }
       }
@@ -4750,6 +4782,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Waiting for upload (%lld)"
+          }
+        }
+      }
+    },
+    "Wartend" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On hold"
           }
         }
       }

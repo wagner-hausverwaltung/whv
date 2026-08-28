@@ -26,7 +26,20 @@ struct RootTabView: View {
     @EnvironmentObject var store: LiegenschaftStore
     @EnvironmentObject var deepLinkRouter: DeepLinkRouter
     @EnvironmentObject var authStore: AuthStore
-    @State private var selection = 0  // Start
+    // `-DemoTab anfragen|einstellungen` preselects a tab for screenshot runs
+    // (demo only, same family as -DemoVerwalter / -DemoAutoSelect).
+    @State private var selection = RootTabView.launchTabSelection ?? 0  // Start
+
+    static var launchTabSelection: Int? {
+        guard DemoFlag.isActive else { return nil }
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-DemoTab"), i + 1 < args.count else { return nil }
+        switch args[i + 1] {
+        case "anfragen": return 1
+        case "einstellungen": return 2
+        default: return 0
+        }
+    }
     @State private var newTicketSheetOpen = false
     @State private var assistantOpen = false
     // Owned here (not in the sheet) so the assistant conversation is preserved

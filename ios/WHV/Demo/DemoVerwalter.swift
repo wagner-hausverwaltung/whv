@@ -126,10 +126,13 @@ enum DemoVerwalter {
     static func inquiries() -> [OfferInquirySummary] {
         let iso = ISO8601DateFormatter()
         let now = Date()
-        func inq(_ id: String, _ name: String, _ address: String, _ art: String, _ units: Int, daysAgo: Int, visited: Bool) -> OfferInquirySummary {
+        func inq(
+            _ id: String, _ name: String, _ address: String, _ art: String, _ units: Int,
+            daysAgo: Int, visited: Bool, lead: String = "OPEN"
+        ) -> OfferInquirySummary {
             OfferInquirySummary(
                 id: id, sender_email: "\(name.lowercased().replacingOccurrences(of: " ", with: "."))@example.com",
-                sender_name: name, subject: "Anfrage Hausverwaltung", status: "SENT", lead_status: "OPEN",
+                sender_name: name, subject: "Anfrage Hausverwaltung", status: "SENT", lead_status: lead,
                 art: art, object_address: address, units: units,
                 desired_start: "2027-01-01", confidence: 0.92,
                 sent_at: iso.string(from: now.addingTimeInterval(-Double(daysAgo) * 86400)),
@@ -142,6 +145,10 @@ enum DemoVerwalter {
         return [
             inq("demo-inq-1", "Roman Klassen", "Hermann-Essig-Str. 5, 71701 Schwieberdingen", "WEG", 6, daysAgo: 3, visited: false),
             inq("demo-inq-2", "Anna Schreiber", "Marienstraße 12, 70178 Stuttgart", "MV", 4, daysAgo: 9, visited: true),
+            // One per state so a reviewer sees both tabs filled — and one that
+            // must NOT show up anywhere in the app.
+            inq("demo-inq-3", "Beate Kurz", "Lindenweg 3, 70597 Stuttgart", "WEG", 12, daysAgo: 21, visited: true, lead: "ON_HOLD"),
+            inq("demo-inq-4", "Peter Marquardt", "Talstraße 88, 70188 Stuttgart", "MV", 7, daysAgo: 40, visited: false, lead: "DECLINED"),
         ]
     }
 
