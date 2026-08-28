@@ -95,7 +95,7 @@ App-Store-URL. Derselbe Text gehört später in die Review Notes in App Store Co
 > app for their portal. The CarPlay scene is only available to users with
 > the property-manager role.
 
-## Review Notes für App Store Connect (ab Build 1.3.7 (69), 2026-08-23)
+## Review Notes für App Store Connect (ab Build 1.3.8 (72), 2026-08-28)
 
 Einfügen unter „App Review Information → Notes"; der Antragstext oben bleibt der
 Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
@@ -144,7 +144,7 @@ Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
 > managers); owners and tenants use the same app for their portal, which is why
 > the app is on the App Store.
 
-## Release-Notes 1.3.7 („Was ist neu", App Store Connect / TestFlight)
+## Release-Notes 1.3.8 („Was ist neu", App Store Connect / TestFlight)
 
 **Deutsch**
 
@@ -155,8 +155,10 @@ Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
 > ein Gespräch: Siri liest die Antwort vor und hört weiter zu. Anrufer-Erkennung
 > zeigt Name, Objekt und Rolle bei eingehenden Anrufen. Objekt-Briefing zum
 > Vorlesen, Fahrt als Live-Aktivität auf dem Sperrbildschirm, Apple-Watch-App,
-> Wochenrückblick. Außerdem: Demo-Modus für Eigentümer und Verwaltung, viele
-> Verbesserungen und Fehlerbehebungen.
+> Wochenrückblick. Die Anfragenliste zeigt jetzt „Offen“ und „Wartend“ als
+> eigene Register — erledigte Anfragen verschwinden aus der Liste. Außerdem:
+> Demo-Modus für Eigentümer und Verwaltung, viele Verbesserungen und
+> Fehlerbehebungen.
 
 **English**
 
@@ -167,8 +169,9 @@ Kern, ergänzt um Demo-Zugang und die neuen Systemintegrationen.
 > note to …". "Ask WHV" is now a conversation: Siri reads the answer and keeps
 > listening. Caller ID shows name, property and role for incoming calls.
 > Spoken property briefing, running trip as a Live Activity on the Lock Screen,
-> Apple Watch app, weekly review. Also: demo mode for owners and managers, many
-> improvements and bug fixes.
+> Apple Watch app, weekly review. The inquiry list now has "Open" and "On hold"
+> tabs — settled inquiries drop out of the list. Also: demo mode for owners and
+> managers, many improvements and bug fixes.
 
 ## Woran Apple sich stören könnte — und wie wir es vorbeugen
 
