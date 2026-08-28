@@ -96,3 +96,48 @@ ssh root@<host> 'systemctl reset-failed host-health.service'
 Phased-Pakete meldet der Check übrigens korrekt NICHT: er liest `apt-get -s upgrade`
 und zählt nur `^Inst`-Zeilen; zurückgehaltene Pakete stehen dort unter „deferred due to
 phasing".
+
+## Updates laufen jetzt automatisch (beide Hosts, 2026-08-28)
+
+Bis hierher installierte `unattended-upgrades` nur **Security**-Pakete; alles aus
+dem `-updates`-Pocket (python3.12, procps, open-vm-tools, console-setup, byobu …)
+blieb liegen und erzeugte Nacht für Nacht eine host-health-WARN, auf die ohnehin
+nur jemand mit `apt-get upgrade` reagierte. Zwei Drop-ins schalten das um — als
+eigene Dateien, damit ein Paket-Update von `unattended-upgrades` sie nicht
+überschreibt und ein `rm` genügt, um zurückzugehen:
+
+* `/etc/apt/apt.conf.d/52whv-unattended-updates`
+  * `Allowed-Origins:: "${distro_id}:${distro_codename}-updates"` — reguläre Updates dazu.
+  * `Automatic-Reboot "false"` — **Neustarts bleiben manuell**; host-health meldet
+    weiterhin „reboot pending", die Entscheidung trifft ein Mensch.
+* `/etc/needrestart/conf.d/50-whv-auto.conf` → `$nrconf{restart} = 'a';`
+  Ohne das aktualisiert der Lauf zwar die Pakete, die laufenden Prozesse hängen
+  aber weiter an der alten Bibliothek (needrestart steht sonst auf `i`,
+  interaktiv, und tut im automatischen Lauf nichts).
+
+**Warum das vertretbar ist:** `docker-ce` kommt von `download.docker.com`, nicht
+aus Ubuntus Pocket — die Container-Laufzeit fällt **nicht** unter die neue Origin
+und bleibt unter manueller Kontrolle. needrestart fasst Container ohnehin nicht an
+(„No containers need to be restarted"). Kernel-Updates führen weiterhin nur zu
+„reboot pending", nie zu einem selbsttätigen Neustart.
+
+Geprüft: `unattended-upgrade --dry-run --debug` zeigt `a=noble-updates` in den
+Allowed origins; auf staging lief ein echter Durchlauf durch (danach 0 offene
+Pakete, 12 Container gesund, `healthz` 200).
+
+Zurückdrehen: die beiden Dateien löschen, fertig.
+
+## `host-health.service` meldete sich selbst als „failed" — behoben (2026-08-28)
+
+Das Skript beendet sich bei WARN/FAIL mit Exit ≠ 0, systemd merkt sich den Lauf
+dadurch als `failed` — und der **nächste** Lauf las das als „failed unit" und
+machte aus einer Warnung einen **FAIL**, der sich selbst am Leben hielt, bis
+jemand `systemctl reset-failed` ausführte. Am 2026-08-28 auf staging genau so
+passiert: 07:34 WARN wegen offener Updates, der Folgelauf meldete FAIL, obwohl
+die Updates längst installiert waren.
+
+Fix im Repo **`slr-pipeline`** (Commit e2fb830, `scripts/host-health.sh`): die
+eigene Unit wird aus der Liste gefiltert (überschreibbar per `HOST_HEALTH_UNIT`),
+andere failed units zählen unverändert. Test deckt beide Fälle ab. Das Skript
+liegt auf den Hosts unter `/usr/local/sbin/host-health` und wurde dort ersetzt —
+bei einem erneuten `install-host-health.sh` kommt es ohnehin aus dem Repo.
