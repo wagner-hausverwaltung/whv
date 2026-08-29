@@ -39,6 +39,9 @@ export function WithheldDocumentsCard() {
   }, [t]);
 
   useEffect(() => {
+    // Same suppression as AdminJahresabrechnungPage: the fetch resolves in a
+    // microtask, the rule just can't see through the async boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
