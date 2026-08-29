@@ -1,9 +1,11 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,7 +88,9 @@ from app.schemas.document import (
     DocumentUpdateRequest,
 )
 from app.schemas.signature import SignatureRequestResponse
+from app.services import document_release
 from app.services import signatures as signatures_svc
+from app.services.document_notify import notify_new_documents
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -1588,6 +1592,101 @@ async def upload_document(
     await session.commit()
     await session.refresh(doc)
     return DocumentResponse.model_validate(doc)
+
+
+class WithheldDocumentResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    kind: str
+    property_id: uuid.UUID | None
+    property_name: str | None
+    unit_hr_id: str | None
+    amount: Decimal | None
+    issued_date: date | None
+    created_at: datetime
+
+
+class ReleaseDocumentsRequest(BaseModel):
+    document_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
+class ReleaseDocumentsResponse(BaseModel):
+    released: int
+    notified_documents: int
+
+
+@router.get("/documents/withheld", response_model=list[WithheldDocumentResponse])
+async def list_withheld_documents(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[WithheldDocumentResponse]:
+    """Jahresabrechnungen/Wirtschaftspläne, die der Sync geholt hat und die
+    noch auf Freigabe warten — Impower exportiert diese PDFs auch als
+    Entwurf, ohne das zu markieren (B42, 2026-08-29)."""
+    docs = await document_release.list_withheld(
+        session, organization_id=current_user.organization_id
+    )
+    prop_ids = {d.property_id for d in docs if d.property_id}
+    props: dict[uuid.UUID, str] = {}
+    if prop_ids:
+        rows = (await session.scalars(select(Property).where(Property.id.in_(prop_ids)))).all()
+        props = {p.id: p.name for p in rows}
+    unit_ids = {d.unit_id for d in docs if d.unit_id}
+    units: dict[uuid.UUID, str | None] = {}
+    if unit_ids:
+        unit_rows = (await session.scalars(select(Unit).where(Unit.id.in_(unit_ids)))).all()
+        units = {u.id: u.unit_hr_id for u in unit_rows}
+    return [
+        WithheldDocumentResponse(
+            id=d.id,
+            name=d.name,
+            kind=d.kind.value,
+            property_id=d.property_id,
+            property_name=props.get(d.property_id) if d.property_id else None,
+            unit_hr_id=units.get(d.unit_id) if d.unit_id else None,
+            amount=d.amount,
+            issued_date=d.issued_date,
+            created_at=d.created_at,
+        )
+        for d in docs
+    ]
+
+
+@router.post("/documents/release", response_model=ReleaseDocumentsResponse)
+async def release_documents(
+    req: ReleaseDocumentsRequest,
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email_client: Annotated[EmailClient, Depends(get_email_client)],
+) -> ReleaseDocumentsResponse:
+    """Give the selected Abrechnungs-/Wirtschaftsplan-Dokumente frei und
+    stoße die "Neues Dokument"-Benachrichtigung sofort an (statt erst mit
+    dem nächtlichen Lauf)."""
+    released = await document_release.release(
+        session,
+        organization_id=current_user.organization_id,
+        document_ids=req.document_ids,
+    )
+    session.add(
+        AuditLog(
+            organization_id=current_user.organization_id,
+            actor_user_id=current_user.id,
+            action="documents_released",
+            target_type="documents",
+            target_id=None,
+            payload_json={"document_ids": [str(d.id) for d in released]},
+        )
+    )
+    await session.commit()
+    notified = 0
+    if released:
+        # Ample freshness: a release may happen weeks after the sync brought
+        # the draft in. Other legitimately pending docs riding along just get
+        # their nightly mail a little earlier.
+        notified = await notify_new_documents(
+            session, email_client=email_client, freshness_days=3650
+        )
+    return ReleaseDocumentsResponse(released=len(released), notified_documents=notified)
 
 
 @router.patch("/documents/{document_id}", response_model=DocumentResponse)

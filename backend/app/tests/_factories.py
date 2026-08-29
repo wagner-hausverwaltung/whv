@@ -158,10 +158,16 @@ async def make_document(
     unit: "Unit | None" = None,
     contract: "Contract | None" = None,
     contact: "Contact | None" = None,
+    released: bool = True,
 ) -> "Document":
+    from datetime import UTC, datetime
+
     from app.models import Document as _Document
     from app.models import DocumentKind as _DocumentKind
 
+    # Gated kinds (Jahresabrechnung/Wirtschaftsplan) default to released so
+    # the many tests written before the release gate keep exercising the
+    # visible path; pass released=False to test the withheld state.
     sm = async_sessionmaker(engine, expire_on_commit=False)
     async with sm() as s:
         doc = _Document(
@@ -172,6 +178,7 @@ async def make_document(
             contact_id=contact.id if contact is not None else None,
             name=name or f"Test Doc {_short_id()}.pdf",
             kind=kind or _DocumentKind.SONSTIGES,
+            released_at=datetime.now(UTC) if released else None,
         )
         s.add(doc)
         await s.commit()

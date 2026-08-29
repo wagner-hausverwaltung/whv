@@ -280,7 +280,14 @@
     "boardSubtitle": "Fortschritt je Objekt – Schritt anklicken zum Abhaken.",
     "empty": "Keine Objekte.",
     "colProperty": "Objekt",
-    "colProgress": "Fortschritt"
+    "colProgress": "Fortschritt",
+    "withheldTitle": "Zurückgehaltene Abrechnungsdokumente",
+    "withheldSubtitle": "Vom Sync geholt, aber noch nicht freigegeben — im Portal unsichtbar, keine Benachrichtigung. Impower exportiert Abrechnungen auch als Entwurf; erst die Freigabe hier verschickt die Mitteilung an die Eigentümer.",
+    "withheldRelease": "Freigeben",
+    "withheldReleaseAll": "Alle freigeben",
+    "withheldReleased": "{{count}} Dokument(e) freigegeben — Benachrichtigungen sind unterwegs.",
+    "withheldLoadError": "Zurückgehaltene Dokumente konnten nicht geladen werden.",
+    "withheldReleaseError": "Freigabe fehlgeschlagen — bitte erneut versuchen."
   },
   "admin": {
     "title": "Admin",

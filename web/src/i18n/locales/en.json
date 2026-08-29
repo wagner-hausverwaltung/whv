@@ -280,7 +280,14 @@
     "boardSubtitle": "Progress per property – click a step to tick it.",
     "empty": "No properties.",
     "colProperty": "Property",
-    "colProgress": "Progress"
+    "colProgress": "Progress",
+    "withheldTitle": "Withheld statement documents",
+    "withheldSubtitle": "Synced from Impower but not yet released — invisible in the portal, no notifications. Impower exports statements even as drafts; releasing them here sends the owner notification.",
+    "withheldRelease": "Release",
+    "withheldReleaseAll": "Release all",
+    "withheldReleased": "{{count}} document(s) released — notifications are on their way.",
+    "withheldLoadError": "Could not load the withheld documents.",
+    "withheldReleaseError": "Release failed — please try again."
   },
   "admin": {
     "title": "Admin",
