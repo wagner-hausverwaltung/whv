@@ -1,9 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { isAxiosError } from "axios";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Box, Button, Link, Stack, TextField, Typography } from "@mui/material";
 import { api, setTokens } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { AuthShell } from "@/components/AuthShell";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_HINT,
+  PASSWORD_TOO_SHORT,
+  isValidationError,
+  passwordError,
+} from "@/lib/password";
 
 interface InviteInfoResponse {
   email: string;
@@ -25,6 +33,10 @@ export function InviteRedeemPage() {
   const [info, setInfo] = useState<InviteInfoResponse | null | undefined>(
     code ? undefined : null,
   );
+  // 410 = already redeemed. The invitation mail is the only link owners
+  // keep, so they reopen it to get back in; that must lead to the login,
+  // not to "ask your Hausverwaltung for a new invitation" (B42, 2026-08-26).
+  const [alreadyRedeemed, setAlreadyRedeemed] = useState(false);
   const [emailEditable, setEmailEditable] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,12 +66,17 @@ export function InviteRedeemPage() {
         setEmail(r.data.email);
         setError(null);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         setInfo(null);
+        const redeemed = isAxiosError(err) && err.response?.status === 410;
+        setAlreadyRedeemed(redeemed);
         setError(
-          "Diese Einladung ist nicht (mehr) gültig. Bitte wenden Sie sich "
-            + "an Ihre Hausverwaltung für eine neue Einladung.",
+          redeemed
+            ? "Diese Einladung haben Sie bereits eingelöst. Melden Sie sich "
+              + "einfach mit Ihrer E-Mail-Adresse und Ihrem Passwort an."
+            : "Diese Einladung ist nicht (mehr) gültig. Bitte wenden Sie sich "
+              + "an Ihre Hausverwaltung für eine neue Einladung.",
         );
       });
     return () => {
@@ -70,12 +87,9 @@ export function InviteRedeemPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password !== confirm) {
-      setError("Passwörter stimmen nicht überein.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Passwort muss mindestens 8 Zeichen lang sein.");
+    const invalid = passwordError(password, confirm);
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setSubmitting(true);
@@ -88,9 +102,13 @@ export function InviteRedeemPage() {
       setTokens(res.data.access_token, res.data.refresh_token);
       await refreshMe();
       navigate("/", { replace: true });
-    } catch {
+    } catch (err) {
+      // 422 = the body failed validation (the password rule), NOT a broken
+      // invite — saying "invite invalid" here is what stranded owners.
       setError(
-        "Einladung ungültig, abgelaufen oder die E-Mail-Adresse passt nicht zur Einladung.",
+        isValidationError(err)
+          ? PASSWORD_TOO_SHORT
+          : "Einladung ungültig, abgelaufen oder die E-Mail-Adresse passt nicht zur Einladung.",
       );
     } finally {
       setSubmitting(false);
@@ -102,12 +120,39 @@ export function InviteRedeemPage() {
   if (info === null) {
     return (
       <AuthShell
-        title="Einladung einlösen"
-        subtitle="Bitte verwenden Sie den Link aus Ihrer Einladungs-E-Mail."
+        title={alreadyRedeemed ? "Sie haben bereits ein Konto" : "Einladung einlösen"}
+        subtitle={
+          alreadyRedeemed
+            ? "Diese Einladung wurde schon verwendet."
+            : "Bitte verwenden Sie den Link aus Ihrer Einladungs-E-Mail."
+        }
       >
-        <Alert severity="error" role="alert">
-          {error}
-        </Alert>
+        <Stack spacing={2}>
+          <Alert severity={alreadyRedeemed ? "info" : "error"} role="alert">
+            {error}
+          </Alert>
+          {/* Always offer the way forward: someone who lands here has no
+              other link to the portal in hand. */}
+          <Button
+            component={RouterLink}
+            to="/login"
+            variant="contained"
+            size="large"
+            fullWidth
+          >
+            Zur Anmeldung
+          </Button>
+          <Box sx={{ textAlign: "center" }}>
+            <Link
+              component={RouterLink}
+              to="/forgot-password"
+              variant="body2"
+              underline="hover"
+            >
+              Passwort vergessen?
+            </Link>
+          </Box>
+        </Stack>
       </AuthShell>
     );
   }
@@ -177,7 +222,8 @@ export function InviteRedeemPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            helperText={PASSWORD_HINT}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <TextField
@@ -188,7 +234,7 @@ export function InviteRedeemPage() {
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            slotProps={{ htmlInput: { minLength: 8 } }}
+            slotProps={{ htmlInput: { minLength: MIN_PASSWORD_LENGTH } }}
             fullWidth
           />
           <Button

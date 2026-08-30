@@ -37,6 +37,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.services.document_release import RELEASE_GATED_KINDS
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,13 @@ async def notify_new_documents(
                 Document.kind.in_(MEANINGFUL_KINDS),
                 Document.property_id.is_not(None),
                 Document.created_at >= cutoff,
+                # Abrechnung/Wirtschaftsplan erst nach Verwalter-Freigabe —
+                # Impower exportiert auch Entwürfe (B42, 2026-08-29). Die
+                # Freigabe im Admin stößt die Mail dann direkt an.
+                or_(
+                    Document.kind.notin_(RELEASE_GATED_KINDS),
+                    Document.released_at.is_not(None),
+                ),
             )
             .limit(500)
         )

@@ -12,6 +12,7 @@ import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { Footer } from "@/components/Footer";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LibraryBackdrop } from "@/components/LibraryBackdrop";
+import { PlusXAwardSplash } from "@/components/PlusXAwardSplash";
 
 // Shared chrome for pre-auth pages (login, invite redeem, forgot/reset).
 // Library background (Stadtbibliothek Stuttgart) with a near-opaque overlay
@@ -37,6 +38,7 @@ export function AuthShell({
       }}
     >
       <LibraryBackdrop />
+      <PlusXAwardSplash />
 
       <AppBar
         position="static"

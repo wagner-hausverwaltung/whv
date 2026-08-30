@@ -3,6 +3,9 @@
 Member (read-only):
   GET /me/properties/{id}/calendar?year=&month=     merged month view
 
+Verwalter:
+  GET /me/agenda?days=&property_id=                 ETV + Termine org-wide (CarPlay "Heute")
+
 Admin (Verwalter):
   GET    /admin/properties/{id}/calendar?year=&month=    merged month view
   POST   /admin/properties/{id}/calendar/events          create event
@@ -14,10 +17,11 @@ Admin (Verwalter):
 import asyncio
 import calendar as _calmod
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +32,15 @@ from app.integrations.calendar_ics import render_property_calendar_ics
 from app.integrations.pdf.calendar_document import render_calendar_pdf
 from app.models import CalendarEvent, Property, User, UserRole
 from app.schemas.calendar import (
+    AgendaItem,
     CalendarEntry,
     CalendarEventCreate,
     CalendarEventResponse,
     CalendarEventUpdate,
 )
 from app.services import calendar as calendar_svc
+
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 me_router = APIRouter(prefix="/me", tags=["calendar"])
 admin_router = APIRouter(prefix="/admin", tags=["calendar"])
@@ -144,6 +151,27 @@ async def my_calendar_ics(
         content=ics,
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@me_router.get("/agenda", response_model=list[AgendaItem])
+async def my_agenda(
+    current_user: Annotated[User, Depends(_verwalter_only)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    days: Annotated[int, Query(ge=0, le=60)] = 7,
+    property_id: Annotated[uuid.UUID | None, Query()] = None,
+    from_date: Annotated[date | None, Query(alias="from")] = None,
+) -> list[AgendaItem]:
+    """The Verwalter's appointments from today (Europe/Berlin) for `days`
+    days, org-wide or for one property — ETV + Termine with property
+    address/coordinates. Drives CarPlay "Heute" and the object page."""
+    start = from_date or datetime.now(_BERLIN).date()
+    return await calendar_svc.agenda(
+        session,
+        organization_id=current_user.organization_id,
+        from_day=start,
+        to_day=start + timedelta(days=days),
+        property_id=property_id,
     )
 
 

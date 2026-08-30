@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "@/api/client";
+import { WithheldDocumentsCard } from "@/admin/components/WithheldDocumentsCard";
 
 interface Stage {
   code: string;
@@ -120,6 +121,7 @@ export function AdminJahresabrechnungPage() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {t("accounting.boardSubtitle")}
       </Typography>
+      <WithheldDocumentsCard />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}

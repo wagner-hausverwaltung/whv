@@ -13,6 +13,7 @@
 //                         floating button for users who'd rather find
 //                         it via the settings menu.
 
+import AppIntents
 import SwiftUI
 
 struct EinstellungenView: View {
@@ -315,7 +316,13 @@ struct EinstellungenView: View {
         }
     }
 
+    @ViewBuilder
     private var infoSection: some View {
+        if authStore.user?.role.lowercased() == "verwalter" {
+            fahrtenbuchSection
+            anruferSection
+        }
+        SiriSection(isVerwalter: authStore.user?.role.lowercased() == "verwalter")
         Section("App") {
             HStack {
                 Text("Version")
@@ -323,6 +330,33 @@ struct EinstellungenView: View {
                 Text(appVersionString)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// Caller ID (CallKit Call Directory Extension): status, manual refresh,
+    /// jump to the iOS switch the user has to flip once.
+    private var anruferSection: some View {
+        AnruferSection()
+    }
+
+    /// Fahrtenbuch (ADR-0020) — the consent switch lives here. Nothing is
+    /// recorded until the Verwalter turns automatic detection on or taps
+    /// "Fahrt starten" on the Start tab.
+    private var fahrtenbuchSection: some View {
+        Section {
+            Toggle("Fahrten automatisch erkennen", isOn: Binding(
+                get: { TripTracker.shared.autoDetectEnabled },
+                set: { TripTracker.shared.autoDetectEnabled = $0 }
+            ))
+            Toggle("Route speichern", isOn: Binding(
+                get: { TripTracker.shared.storeRoute },
+                set: { TripTracker.shared.storeRoute = $0 }
+            ))
+            NavigationLink("Meine Fahrten") { FahrtenListView() }
+        } header: {
+            Text("Fahrtenbuch")
+        } footer: {
+            Text("Erkennung nutzt Bewegungssensor und Standort (auch im Hintergrund) und legt nur Dienstfahrten an: Kilometergeld 0,30 €/km, Auslagen je Objekt. Die Route ist optional.")
         }
     }
 
@@ -475,4 +509,126 @@ private struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+
+/// "Anrufer-Erkennung" in Einstellungen (Verwalter). Owned state lives in
+/// CallDirectorySync; this view only renders + triggers.
+private struct AnruferSection: View {
+    @ObservedObject private var sync = CallDirectorySync.shared
+
+    var body: some View {
+        Section {
+            HStack {
+                Text("Status")
+                Spacer()
+                Text(statusLabel).foregroundStyle(sync.status == .enabled ? .green : .secondary)
+            }
+            if sync.status != .enabled {
+                Button("In iOS-Einstellungen aktivieren") { sync.openSettings() }
+            }
+            Button {
+                Task { await sync.sync() }
+            } label: {
+                HStack {
+                    Text("Liste jetzt aktualisieren")
+                    Spacer()
+                    if sync.busy { ProgressView() }
+                }
+            }
+            .disabled(sync.busy)
+            if let err = sync.lastError {
+                Text(err).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Anrufer-Erkennung")
+        } footer: {
+            Text(footer)
+        }
+        .task { await sync.refreshStatus() }
+    }
+
+    private var statusLabel: String {
+        switch sync.status {
+        case .enabled: return "Aktiv"
+        case .disabled: return "Nicht aktiviert"
+        default: return "Unbekannt"
+        }
+    }
+
+    private var footer: String {
+        var parts: [String] = [
+            "Anrufe von Eigentümern, Mietern und Dienstleistern zeigen Name, Objekt und Rolle — auf dem iPhone und im Auto. Einmalig unter Einstellungen → Telefon → „Anrufe blockieren u. identifizieren“ WHV einschalten."
+        ]
+        if let last = sync.lastSync {
+            parts.append("Zuletzt aktualisiert \(last.formatted(date: .abbreviated, time: .shortened)) · \(sync.entryCount) Nummern.")
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
+/// Siri / App Shortcuts cheat sheet. The phrases mirror `WHVShortcuts`
+/// (AskWHVIntent.swift) — keep both in sync. Owners only get "Frag WHV";
+/// the trip/ticket/contact commands are Verwalter features.
+private struct SiriSection: View {
+    let isVerwalter: Bool
+
+    private struct Row: Identifiable {
+        let phrase: LocalizedStringKey
+        let detail: LocalizedStringKey
+        let symbol: String
+        var id: String { symbol }
+    }
+
+    private var rows: [Row] {
+        var out: [Row] = [
+            Row(phrase: "„Hey Siri, frag WHV“",
+                detail: "Frage zu Ihren Unterlagen — Siri liest die Antwort vor.",
+                symbol: "bubble.left.and.text.bubble.right"),
+        ]
+        if isVerwalter {
+            out += [
+                Row(phrase: "„Hey Siri, WHV Ticket“",
+                    detail: "Diktat wird zum Ticket am Fahrtziel bzw. nächsten Objekt.",
+                    symbol: "tray.and.arrow.down.fill"),
+                Row(phrase: "„Hey Siri, WHV Abfahrt“ / „WHV Ankunft“",
+                    detail: "Fahrt starten bzw. beenden — Objekt und Kilometer werden gespeichert.",
+                    symbol: "car.fill"),
+                Row(phrase: "„Hey Siri, WHV Handwerker vor Ort“",
+                    detail: "Beginn und Ende eines Handwerkereinsatzes im Ticket festhalten.",
+                    symbol: "wrench.and.screwdriver.fill"),
+                Row(phrase: "„Hey Siri, WHV Notiz an Müller“",
+                    detail: "Kurze Nachricht per E-Mail an einen Kontakt — Antwort kommt an Sie.",
+                    symbol: "envelope.fill"),
+            ]
+        }
+        return out
+    }
+
+    var body: some View {
+        Section {
+            ForEach(rows) { row in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: row.symbol)
+                        .foregroundStyle(.tint)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.phrase).font(.subheadline.weight(.semibold))
+                        Text(row.detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            ShortcutsLink()
+                .shortcutsLinkStyle(.automaticOutline)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
+        } header: {
+            Text("Siri")
+        } footer: {
+            Text(isVerwalter
+                 ? "Funktioniert freihändig im Auto, auf der Apple Watch und über die Kurzbefehle-App. Die Befehle stehen nach dem ersten Start der App bereit."
+                 : "Funktioniert auch über die Kurzbefehle-App. Der Befehl steht nach dem ersten Start der App bereit.")
+        }
+    }
 }

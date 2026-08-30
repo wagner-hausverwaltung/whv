@@ -65,6 +65,9 @@ struct PropertyResponse: Codable, Hashable {
     let number: String?
     let postal_code: String?
     let image_url: String?
+    // Geocoded server-side; used to suggest the destination of a trip.
+    let lat: Double?
+    let lng: Double?
 }
 
 /// One contract currently active on a unit. Backend bundles them
@@ -483,6 +486,42 @@ struct CalendarEntry: Codable, Hashable, Identifiable {
     let assembly_id: String?
 }
 
+/// One row of GET /me/agenda (Verwalter): an ETV (timed) or a Termin
+/// (all-day) somewhere in the org, with the property to drive to.
+struct AgendaEntry: Codable, Hashable, Identifiable {
+    let kind: String  // ETV | TERMIN
+    let source: String
+    let id: String
+    let title: String
+    let starts_at: Date
+    let ends_at: Date?
+    let all_day: Bool
+    let property_id: String
+    let property_name: String
+    let property_address: String?
+    let lat: Double?
+    let lng: Double?
+    let location: String?
+    let note: String?
+    let assigned_label: String?
+    let assembly_id: String?
+
+    var isToday: Bool { Calendar.current.isDateInToday(starts_at) }
+
+    /// "Do 28.08. 18:00" / "Do 28.08. · ganztägig" — short enough for a
+    /// CarPlay row; today's entries drop the date.
+    var whenLabel: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = isToday ? "HH:mm" : "EE dd.MM. HH:mm"
+        if all_day {
+            f.dateFormat = isToday ? "'heute'" : "EE dd.MM."
+            return f.string(from: starts_at) + " · ganztägig"
+        }
+        return f.string(from: starts_at)
+    }
+}
+
 /// Minimal Ticket summary — only the fields the widget feeder
 /// reads. The full Mitteilungen / Tickets screens get their own
 /// richer types once those tabs land.
@@ -491,6 +530,44 @@ struct CalendarEntry: Codable, Hashable, Identifiable {
 /// values. Unknown status decodes to .neu defensively; unknown
 /// category to .sonstigesOther (forward-compat with future server
 /// additions). Both decoders surface on this list endpoint.
+
+/// One contact of a property (admin view) — owners + tenants via contracts.
+struct AdminPropertyContact: Codable, Hashable, Identifiable {
+    let contact_id: String
+    let impower_id: Int?
+    let name: String
+    let email: String?
+    let phone: String?
+    let contract_type: String
+    var id: String { contact_id }
+}
+
+struct DelayNoticeBody: Encodable {
+    let contact_id: String
+    let minutes: Int
+    let lat: Double?
+    let lng: Double?
+    let property_id: String?
+}
+
+struct CallbackRequestBody: Encodable {
+    let property_id: String?
+    let lat: Double?
+    let lng: Double?
+}
+
+struct CallbackResult: Codable {
+    let sent: Bool
+    let to: String?
+    let detail: String
+}
+
+struct DelayNoticeResponse: Codable {
+    let sent: Bool
+    let to: String?
+    let detail: String
+}
+
 struct TicketSummary: Codable, Hashable, Identifiable {
     let id: String
     let property_id: String?
@@ -619,6 +696,9 @@ struct AssistantQueryRequest: Codable {
     let history: [AssistantHistoryTurn]
     let property_id: String?
     let conversation_id: String?
+    // "de"/"en" — answer + abstain phrase in the caller's language. nil → the
+    // model mirrors the question's language.
+    var language: String? = nil
 }
 
 enum APIError: Error, LocalizedError {
@@ -673,9 +753,17 @@ struct APIClient {
     static let stagingBaseURL = URL(string: "https://staging.api.wagner-hausverwaltung.com")!
     static let prodBaseURL = URL(string: "https://api.wagner-hausverwaltung.com")!
 
+    /// Debug builds talk to staging by default. For CarPlay/Simulator checks
+    /// against real data, opt into prod per device:
+    ///   xcrun simctl spawn booted defaults write com.wagner-hausverwaltung.portal WHV_API_BASE prod
+    /// (or `defaults delete …` to go back). Never consulted in Release.
+    static func debugBaseURL() -> URL {
+        UserDefaults.standard.string(forKey: "WHV_API_BASE") == "prod" ? prodBaseURL : stagingBaseURL
+    }
+
     /// Debug → staging, Release → prod.
     #if DEBUG
-    static let defaultBaseURL = stagingBaseURL
+    static let defaultBaseURL = debugBaseURL()
     static let portalForgotPasswordURL = URL(
         string: "https://staging.portal.wagner-hausverwaltung.com/forgot-password")!
     #else
@@ -741,6 +829,15 @@ struct APIClient {
     /// timestamps as ISO8601 with timezone, sometimes with fractional
     /// seconds (Pydantic v2 includes microseconds). Fall through both
     /// formats so we don't fail to decode microsecond-bearing rows.
+    /// Request-body encoder. Dates go out as ISO 8601 — `JSONEncoder()`'s
+    /// default writes seconds since 2001, which the backend would read as a
+    /// Unix timestamp (31 years off; every trip would have landed in 1995).
+    static let jsonEncoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
     static let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         let withFractional = ISO8601DateFormatter()
@@ -811,6 +908,15 @@ struct APIClient {
         return try Self.decode(InviteInfoResponse.self, from: data)
     }
 
+    /// POST /me/trips/callback-request — the CarPlay "Chef" tile. The mail
+    /// goes out server-side; nothing is typed in the car.
+    func requestCallback(_ body: CallbackRequestBody) async throws -> CallbackResult {
+        if DemoFlag.isActive {
+            return CallbackResult(sent: true, to: "chef@example.com", detail: "Demo: Rückrufbitte wäre verschickt worden.")
+        }
+        return try await authedJSON("/me/trips/callback-request", method: "POST", body: body)
+    }
+
     /// Redeem an invite code (POST /auth/invite/redeem). Returns the
     /// same TokenResponse as /auth/login — the backend creates the
     /// user, sets the password, and issues a fresh JWT pair in one
@@ -865,7 +971,8 @@ struct APIClient {
     /// GET /me — the current user envelope. AuthStore hits this on
     /// cold start to detect a server-revoked session.
     func getMe() async throws -> UserResponse {
-        try await authedGET("/me")
+        if DemoFlag.isActive { return await DemoStore.shared.demoUser }
+        return try await authedGET("/me")
     }
 
     // MARK: Activity feed (unified "what's new")
@@ -883,11 +990,145 @@ struct APIClient {
         return try await authedGET("/me/activity?limit=\(limit)")
     }
 
+
+
+    // MARK: Siri helpers (Verwalter-only)
+
+    func searchContacts(query: String, limit: Int = 20) async throws -> [ContactSearchResult] {
+        if DemoFlag.isActive { return Array(await DemoStore.shared.searchContacts(query: query).prefix(limit)) }
+        var comps = URLComponents()
+        comps.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "limit", value: String(limit))]
+        return try await authedGET("/me/contacts/search?\(comps.percentEncodedQuery ?? "")")
+    }
+
+    func messageContact(id: String, text: String, subject: String? = nil) async throws -> ContactMessageResult {
+        if DemoFlag.isActive { return ContactMessageResult(sent: true, to: "demo@example.com", detail: "Demo: Nachricht wäre per E-Mail verschickt worden.") }
+        return try await authedJSON("/me/contacts/\(id)/message", method: "POST", body: ContactMessageBody(text: text, subject: subject))
+    }
+
+    // MARK: Briefing (Verwalter-only)
+
+    /// GET /me/properties/{id}/briefing — spoken German summary for the car.
+    func getBriefing(propertyId: String) async throws -> BriefingResponse {
+        if DemoFlag.isActive {
+            if let b = await DemoStore.shared.briefing(propertyId: propertyId) { return b }
+            throw APIError.http(status: 404, detail: "Objekt nicht gefunden")
+        }
+        return try await authedGET("/me/properties/\(propertyId)/briefing")
+    }
+
+    // MARK: Caller ID (Verwalter-only)
+
+    /// GET /me/call-directory — numbers + labels for the Call Directory
+    /// Extension (see CallDirectorySync).
+    func getCallDirectory() async throws -> CallDirectoryResponse {
+        if DemoFlag.isActive { return CallDirectoryResponse(entries: [], contacts: 0) }
+        return try await authedGET("/me/call-directory")
+    }
+
+    // MARK: CarPlay helpers (Verwalter-only)
+
+    /// GET /me/agenda?days=&property_id= — the Verwalter's upcoming ETV +
+    /// Termine across the org (or one property) with property address and
+    /// coordinates. CarPlay "Heute" and the object page's "Termine".
+    func getMyAgenda(days: Int = 7, propertyId: String? = nil) async throws -> [AgendaEntry] {
+        if DemoFlag.isActive { return await DemoStore.shared.agenda(days: days, propertyId: propertyId) }
+        var path = "/me/agenda?days=\(days)"
+        if let propertyId { path += "&property_id=\(propertyId)" }
+        return try await authedGET(path)
+    }
+
+    /// Owners/tenants of a property with phone + e-mail (admin endpoint).
+    func getAdminPropertyContacts(propertyId: String) async throws -> [AdminPropertyContact] {
+        if DemoFlag.isActive { return await DemoStore.shared.propertyContacts(propertyId: propertyId) }
+        return try await authedGET("/admin/properties/\(propertyId)/contacts")
+    }
+
+    /// Open tickets of one property (admin list, filtered server-side).
+    /// Every open ticket in the org (no property filter) — the car's "Heute"
+    /// ranks them by distance, so it needs them all in one call.
+    func getAllAdminTickets() async throws -> [TicketSummary] {
+        if DemoFlag.isActive { return await DemoStore.shared.tickets }
+        return try await authedGET("/admin/tickets")
+    }
+
+    func getAdminTickets(propertyId: String, status: String? = nil) async throws -> [TicketSummary] {
+        if DemoFlag.isActive { return await DemoStore.shared.tickets.filter { $0.property_id == propertyId } }
+        var path = "/admin/tickets?property_id=\(propertyId)"
+        if let status { path += "&status=\(status)" }
+        return try await authedGET(path)
+    }
+
+    /// "Ich verspäte mich" — the backend e-mails the contact for us.
+    func sendDelayNotice(_ body: DelayNoticeBody) async throws -> DelayNoticeResponse {
+        if DemoFlag.isActive {
+            return DelayNoticeResponse(sent: true, to: "demo@example.com", detail: "Demo: Mitteilung wäre per E-Mail verschickt worden.")
+        }
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips/delay-notice", method: "POST", body: body)
+    }
+
+    // MARK: Fahrtenbuch (Verwalter-only, ADR-0020)
+
+    func getMyTrips(month: String? = nil, status: String? = nil) async throws -> [TripResponse] {
+        if DemoFlag.isActive {
+            let all = await DemoStore.shared.trips
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM"
+            return all.filter { t in
+                (status == nil || t.status == status) && (month == nil || f.string(from: t.started_at) == month)
+            }
+        }
+        var q: [String] = []
+        if let month { q.append("month=\(month)") }
+        if let status { q.append("status=\(status)") }
+        let qs = q.isEmpty ? "" : "?" + q.joined(separator: "&")
+        return try await authedGET("/me/trips\(qs)")
+    }
+
+    func getRunningTrip() async throws -> TripResponse? {
+        if DemoFlag.isActive { return nil }  // demo trips are recorded on the phone only
+        return try await authedGET("/me/trips/running")
+    }
+
+    func startTrip(_ body: TripStartBody) async throws -> TripResponse {
+        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        return try await authedJSON("/me/trips", method: "POST", body: body)
+    }
+
+    func completeTrip(_ body: TripCompleteBody) async throws -> TripResponse {
+        if DemoFlag.isActive { return await DemoStore.shared.addTrip(body) }
+        return try await authedJSON("/me/trips/complete", method: "POST", body: body)
+    }
+
+    func updateTrip(id: String, body: TripUpdateBody) async throws -> TripResponse {
+        if DemoFlag.isActive {
+            if let t = await DemoStore.shared.updateTrip(id: id, body: body) { return t }
+            throw APIError.http(status: 404, detail: "Fahrt nicht gefunden")
+        }
+        return try await authedJSON("/me/trips/\(id)", method: "PATCH", body: body)
+    }
+
+    func deleteTrip(id: String) async throws {
+        if DemoFlag.isActive { await DemoStore.shared.deleteTrip(id: id); return }
+        guard let token = tokenProvider() else { throw APIError.unauthorized }
+        // Percent-encode the token for the path segment (it's hex so
+        // usually safe, but defensive).
+        let encoded =
+            id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        var request = URLRequest(url: baseURL.appending(path: "/me/trips/\(encoded)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performWithMapping(request)
+        try Self.throwIfNotOK(response: response, data: data)
+    }
+
     // MARK: Anfragen / Angebote (Verwalter-only, ADR-0019)
 
     /// GET /admin/offer-inquiries — inbound anfragen@ inquiries (newest first).
     func listOfferInquiries() async throws -> [OfferInquirySummary] {
-        if DemoFlag.isActive { return [] }
+        if DemoFlag.isActive { return await DemoStore.shared.inquiries }
         return try await authedGET("/admin/offer-inquiries")
     }
 
@@ -976,7 +1217,8 @@ struct APIClient {
         question: String,
         history: [AssistantHistoryTurn] = [],
         propertyId: String? = nil,
-        conversationId: String? = nil
+        conversationId: String? = nil,
+        language: String? = nil
     ) async throws -> AssistantQueryResponse {
         if DemoFlag.isActive { throw APIError.demoReadOnly }
         return try await authedJSON(
@@ -986,7 +1228,8 @@ struct APIClient {
                 question: question,
                 history: history,
                 property_id: propertyId,
-                conversation_id: conversationId
+                conversation_id: conversationId,
+                language: language
             )
         )
     }
@@ -1478,7 +1721,9 @@ struct APIClient {
         category: TicketCategory,
         propertyId: String?
     ) async throws -> TicketDetail {
-        if DemoFlag.isActive { throw APIError.demoReadOnly }
+        if DemoFlag.isActive {
+            return await DemoStore.shared.addTicket(subject: subject, body: body, propertyId: propertyId)
+        }
         return try await authedJSON(
             "/me/tickets",
             method: "POST",
@@ -1714,7 +1959,7 @@ struct APIClient {
     ) async throws -> T {
         guard let token = tokenProvider() else { throw APIError.unauthorized }
         let url = Self.requestURL(baseURL, path)
-        let encoded = try JSONEncoder().encode(body)
+        let encoded = try Self.jsonEncoder.encode(body)
         do {
             let (data, response) = try await sendAuthed(url: url, method: method, body: encoded, token: token)
             try Self.throwIfNotOK(response: response, data: data)

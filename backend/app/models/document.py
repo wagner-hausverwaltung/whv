@@ -164,5 +164,10 @@ class Document(OrganizationScopedMixin, TimestampMixin, SoftDeleteMixin, Base):
     # available. NULL = not yet notified; the post-sync pass picks those
     # up. Baselined to now() at migration time for the existing backlog.
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Freigabe-Schranke (nur JAHRESABRECHNUNG/WIRTSCHAFTSPLAN): Impower
+    # exportiert Abrechnungs-PDFs auch als Entwurf, ohne Marker. NULL bei
+    # diesen Arten = vom Verwalter noch nicht freigegeben — für Eigentümer
+    # unsichtbar, keine Benachrichtigung. Der Sync fasst die Spalte nie an.
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_documents_org_kind", "organization_id", "kind"),)

@@ -121,6 +121,9 @@ async def assistant_query(
                 "question": body.question,
                 "abstained": answer.abstained,
                 "retrieved_document_ids": [str(d) for d in answer.retrieved_document_ids],
+                # effective scope (explicit or inferred from the question)
+                "property_id": str(answer.property_id) if answer.property_id else None,
+                "contact_query": answer.contact_query,
             },
         )
     )
@@ -131,7 +134,9 @@ async def assistant_query(
             organization_id=current_user.organization_id,
             conversation_id=body.conversation_id or uuid.uuid4(),
             actor_user_id=current_user.id,
-            property_id=body.property_id,
+            # the property retrieval actually used — inferred from the
+            # question when the caller (Siri, fresh chat) sent none
+            property_id=answer.property_id or body.property_id,
             question=body.question,
             answer=answer.answer,
             abstained=answer.abstained,

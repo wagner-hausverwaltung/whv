@@ -82,6 +82,8 @@ class AdminPropertyContactResponse(BaseModel):
     impower_id: int | None
     name: str
     email: str | None
+    # Added for the CarPlay "Am Ziel anrufen" list; None when Impower has none.
+    phone: str | None = None
     contract_type: str  # raw enum value for the UI badge
     suggested_role: UserRole
     has_user_account: bool

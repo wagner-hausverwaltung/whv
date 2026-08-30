@@ -64,6 +64,22 @@ class Settings(BaseSettings):
     # FROM offer_from_address (must be on the Resend-verified domain).
     anfragen_inbound_address: str = "anfragen@wagner-hausverwaltung.com"
     offer_from_address: str = "anfragen@wagner-hausverwaltung.com"
+    # Fahrtenbuch: Kilometergeld for the private car, in cents per km.
+    # Snapshotted onto every trip, so changing it never rewrites old trips.
+    trip_rate_cents_per_km: int = 30
+    # Who receives the Kilometergeld: the car's private owner (the Verwalter
+    # only drives it). Printed on the monthly statement as the payee.
+    trip_payee_name: str = "Luis Wagner"
+    trip_payee_address: str = "Bozener Straße 12, 71638 Ludwigsburg"
+    # Where the monthly Kilometergeld statements (PDF per driver) are mailed
+    # on the 1st — the office inbox.
+    trip_report_email: str = "info@wagner-hausverwaltung.com"
+    # "Chef" tile in CarPlay: who a driver reaches with one tap — call the
+    # mobile, or have the backend mail a callback request (no typing in the
+    # car). Overridable per environment.
+    chef_email: str = "wagner@wagner-hausverwaltung.com"
+    chef_phone: str = "+491736774683"
+    chef_label: str = "Luis Wagner"
     offer_from_name: str = "Wagner Hausverwaltung"
     # Auto-send is now controlled per-organization via the "Auto-Modus" toggle
     # on Admin -> Anfragen (organizations.offer_auto_send_enabled), NOT by these
@@ -90,6 +106,10 @@ class Settings(BaseSettings):
     # portal.wagner-hausverwaltung.com). When set, it joins portal_base_url
     # in the CORS allow-list. Empty in dev (single Vite origin).
     admin_base_url: str = ""
+    # Public App Store URL of the iOS app, used in the automatic welcome
+    # announcement for a newly handed-over object. Empty until the app is
+    # released — the text then points at an App Store search instead.
+    app_store_url: str = ""
 
     # AWS SES inbound email pipeline. The SES receipt rule saves the full MIME
     # to s3://{s3_inbound_bucket}/{messageId} and publishes a notification to

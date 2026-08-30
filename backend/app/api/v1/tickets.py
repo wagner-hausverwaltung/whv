@@ -23,6 +23,7 @@ from app.integrations.email.client import EmailClient, EmailError, get_email_cli
 from app.integrations.email.tickets import (
     render_ticket_notification_email,
     render_ticket_shared_email,
+    ticket_tag,
 )
 from app.integrations.storage.ticket_attachments import (
     TicketAttachmentStorageError,
@@ -581,11 +582,10 @@ async def _send_message_notification(
             return None, None
     try:
         subject, html, text = render_ticket_notification_email(
-            # 16 hex chars (no dashes) — reaches into UUIDv7's version + rand_a
-            # bits so two tickets created in the same millisecond can be
-            # distinguished. Must stay in sync with the inbound subject regex
-            # in app/integrations/email/inbound.py.
-            ticket_short_id=ticket.id.hex[:16],
+            # Short tag (last 6 hex of the UUID) in the subject, full UUID in
+            # the footer — see email/tickets.py; inbound.py parses both.
+            ticket_short_id=ticket_tag(ticket.id),
+            ticket_id=str(ticket.id),
             ticket_subject=ticket.subject,
             sender_email=sender_email,
             message_body=message.body,
@@ -1300,7 +1300,8 @@ async def _notify_property_share(
         )
         prop = await session.get(Property, ticket.property_id)
         subject, html, text = render_ticket_shared_email(
-            ticket_short_id=ticket.id.hex[:16],
+            ticket_short_id=ticket_tag(ticket.id),
+            ticket_id=str(ticket.id),
             ticket_subject=ticket.subject,
             property_name=prop.name if prop else "—",
         )

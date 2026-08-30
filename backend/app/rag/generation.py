@@ -28,6 +28,7 @@ from app.config import Settings
 from app.models.user import User
 from app.rag.ingestion import Embedder
 from app.rag.masterdata import SOURCE_TYPE_CONTACT, SOURCE_TYPE_ETV
+from app.rag.query_facets import infer_facets
 from app.rag.retrieval import (
     RetrievedChunk,
     fetch_property_cards,
@@ -121,8 +122,24 @@ def _system_instruction(language: str | None = None) -> str:
         "und vergleiche es mit den Terminen und dem Status der Quellen: 'Abgehalten' "
         "= hat bereits stattgefunden, 'Eingeladen'/'Geplant' = steht noch bevor. Die "
         "'letzte' ist die jüngste bereits vergangene, die 'nächste' die früheste noch "
-        "bevorstehende."
+        "bevorstehende.\n"
+        "9. Fragt der Nutzer nach Kontaktdaten, Adresse, Telefon, E-Mail, Bankverbindung "
+        "oder Ähnlichem, OHNE zu nennen, um wen oder welche Firma es geht, und ergibt sich "
+        "die Person auch nicht aus dem Gesprächsverlauf, dann rate NICHT aus den Quellen, "
+        f"sondern frage kurz zurück {_ask_back_directive(language)} — ohne Quellenangabe."
     )
+
+
+def _ask_back_directive(language: str | None) -> str:
+    """How to ask back for the missing subject of a contact-data question."""
+    if (language or "").lower().startswith("en"):
+        return '(e.g. "Whose contact details do you need?")'
+    if not language:
+        return (
+            '(deutsch: "Von wem möchten Sie die Kontaktdaten?", '
+            'englisch: "Whose contact details do you need?")'
+        )
+    return '(z. B. "Von wem möchten Sie die Kontaktdaten?")'
 
 
 class Generator(Protocol):
@@ -171,6 +188,11 @@ class AssistantAnswer:
     # Every document retrieval pulled — for the query audit log (NOT the
     # displayed citations, which are the subset the answer actually cited).
     retrieved_document_ids: list[uuid.UUID]
+    # The facets retrieval actually ran with — explicit from the caller or
+    # inferred from the question (query_facets). Logged with the turn so the
+    # assistant log shows WHY a question was scoped the way it was.
+    property_id: uuid.UUID | None = None
+    contact_query: str | None = None
 
 
 def _abstain_language(text: str) -> str | None:
@@ -294,19 +316,46 @@ async def answer_question(
     scope = await resolve_caller_scope(app_session, user)
     embeddings = await embedder.embed_texts([question], task_type="retrieval_query")
 
-    chunks: list[RetrievedChunk] = []
-    if embeddings:
-        chunks = await retrieve(
+    # Facets the caller didn't set are inferred from the question (the object
+    # named in it, a contact/vendor name). They are hints: if retrieval with
+    # an inferred facet finds nothing, retry without it — a false positive
+    # must not turn an answerable question into an abstain.
+    inferred = await infer_facets(
+        app_session,
+        rag_session,
+        user=user,
+        scope=scope,
+        question=question,
+        property_id=property_id,
+        contact_query=contact_query,
+    )
+    explicit_property_id = property_id
+    explicit_contact = contact_query
+    property_id = property_id or inferred.property_id
+    contact_query = contact_query or inferred.contact_query
+
+    async def _retrieve(pid: uuid.UUID | None, contact: str | None) -> list[RetrievedChunk]:
+        return await retrieve(
             rag_session,
             scope=scope,
             query_embedding=embeddings[0],
             top_k=settings.rag_retrieval_top_k,
             min_similarity=settings.rag_min_similarity,
-            property_id=property_id,
+            property_id=pid,
             issued_year=issued_year,
             kind=kind,
-            contact_query=contact_query,
+            contact_query=contact,
         )
+
+    chunks: list[RetrievedChunk] = []
+    if embeddings:
+        chunks = await _retrieve(property_id, contact_query)
+        if not chunks and contact_query and explicit_contact is None:
+            contact_query = None
+            chunks = await _retrieve(property_id, None)
+        if not chunks and property_id and explicit_property_id is None:
+            property_id = None
+            chunks = await _retrieve(None, contact_query)
 
     # Roster questions: ANN returns only the single closest card, so "welche war
     # die letzte ETV / gab es andere" or "alle Eigentümer mit Telefonnummer"
@@ -345,6 +394,8 @@ async def answer_question(
             abstained=True,
             sources=[],
             retrieved_document_ids=[],
+            property_id=property_id,
+            contact_query=contact_query,
         )
 
     answer_text = (
@@ -372,6 +423,8 @@ async def answer_question(
             abstained=True,
             sources=[],
             retrieved_document_ids=document_ids,
+            property_id=property_id,
+            contact_query=contact_query,
         )
 
     used = _used_indices(answer_text, len(chunks))
@@ -380,4 +433,6 @@ async def answer_question(
         abstained=False,
         sources=_citations(chunks, used),
         retrieved_document_ids=document_ids,
+        property_id=property_id,
+        contact_query=contact_query,
     )

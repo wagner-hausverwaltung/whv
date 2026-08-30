@@ -78,6 +78,29 @@ async def _sync_all_async() -> dict[str, int]:
     return counts
 
 
+async def _welcome_new_properties_async() -> dict[str, int]:
+    """Post-sync step: greet objects Impower has just handed to us.
+
+    A newly taken-over WEG/MV gets one automatic welcome announcement
+    (portal + app + contact person). Own session, best effort — a failure
+    here must never fail the nightly mirror sync. Idempotent via
+    `properties.welcome_sent_at`.
+    """
+    from app.services.property_welcome import welcome_new_properties
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            created = await welcome_new_properties(session, settings=settings)
+            if created:
+                logger.info("welcome announcements created: %d", created)
+            return {"welcome_announcements": created}
+    finally:
+        await engine.dispose()
+
+
 async def _backfill_etv_and_notify_async() -> dict[str, int]:
     """Post-sync ETV step: turn freshly-imported OWNERS_MEETING_INVITATION
     documents into EtvAssembly stubs, then nudge each property's owners +
@@ -288,12 +311,17 @@ async def _enqueue_rag_indexing_async() -> dict[str, int]:
 def sync_all_impower() -> dict[str, int]:
     """Celery task wrapper. Bridges Celery's sync model to our async sync layer.
 
-    Runs the full entity sync first, then two isolated post-sync
-    phases — the ETV invitation backfill + owner notification, and the
-    new-document notification — each in its own session so a problem in
-    one can't roll back the mirror sync or the other.
+    Runs the full entity sync first, then the isolated post-sync phases —
+    welcome announcements for newly taken-over objects, the ETV invitation
+    backfill + owner notification, the new-document notification, plan
+    adjustments and RAG indexing — each in its own session so a problem in
+    one can't roll back the mirror sync or the others.
     """
     counts = asyncio.run(_sync_all_async())
+    try:
+        counts.update(asyncio.run(_welcome_new_properties_async()))
+    except Exception:
+        logger.exception("welcome-announcement phase failed")
     try:
         counts.update(asyncio.run(_backfill_etv_and_notify_async()))
     except Exception:
@@ -1178,3 +1206,58 @@ async def _roll_meter_reading_due_dates_async() -> int:
         await engine.dispose()
     logger.info("meter due-date roll: updated=%d", updated)
     return updated
+
+
+# --- Fahrtenbuch reports (ADR-0020): Sunday review push, monthly statement ----
+
+
+async def _trip_week_review_async() -> int:
+    from app.constants import WHV_ORGANIZATION_ID
+    from app.services.trip_reports import send_week_reviews
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            return await send_week_reviews(session, org_id=WHV_ORGANIZATION_ID)
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.trip_week_review")
+def trip_week_review() -> int:
+    """Sunday 18:00 Berlin: push "Diese Woche … km, … Objekte, … unbestätigt,
+    … Rechnung möglich" to every driver with trips this week."""
+    return asyncio.run(_trip_week_review_async())
+
+
+async def _trip_monthly_statement_async(month: str | None) -> int:
+    from app.constants import WHV_ORGANIZATION_ID
+    from app.integrations.email.client import EmailClient
+    from app.services.trip_reports import send_monthly_statements
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    client = EmailClient(settings)
+    try:
+        async with session_factory() as session:
+            return await send_monthly_statements(
+                session,
+                org_id=WHV_ORGANIZATION_ID,
+                settings=settings,
+                email_client=client,
+                month=month,
+            )
+    finally:
+        await client.aclose()
+        await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.trip_monthly_statement")
+def trip_monthly_statement(month: str | None = None) -> int:
+    """1st of the month, 07:00 Berlin: last month's Kilometergeld statement
+    (one PDF per driver) to the office address (settings.trip_report_email).
+    `month` ("YYYY-MM") overrides for manual re-runs."""
+    return asyncio.run(_trip_monthly_statement_async(month))

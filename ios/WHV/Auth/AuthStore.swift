@@ -65,7 +65,14 @@ final class AuthStore: ObservableObject {
             let tokens = try await api.login(email: email, password: password)
             await persist(tokens)
         } catch let error as APIError {
-            self.lastError = error.errorDescription
+            // 422 on /auth/login = the address didn't validate (classic: "~"
+            // instead of "-" from an autocorrecting keyboard). A status code
+            // alone has cost support round-trips; say what to check.
+            if case .http(let status, _) = error, status == 422 {
+                self.lastError = "E-Mail-Adresse ungültig – bitte Schreibweise prüfen (z. B. Bindestrich statt „~“)."
+            } else {
+                self.lastError = error.errorDescription
+            }
         } catch {
             self.lastError = error.localizedDescription
         }
@@ -75,8 +82,8 @@ final class AuthStore: ObservableObject {
     /// identity. No network call, no Keychain write — everything
     /// downstream consults DemoStore.shared via DemoFlag.isActive
     /// and short-circuits to seed data.
-    func signInAsDemo() async {
-        DemoStore.shared.activate()
+    func signInAsDemo(role: DemoStore.Role = .eigentuemer) async {
+        DemoStore.shared.activate(role: role)
         user = DemoStore.shared.demoUser
         // No token writes, no /me/properties fetch — every Store's
         // call into APIClient short-circuits.
@@ -127,6 +134,8 @@ final class AuthStore: ObservableObject {
     /// invalidate the refresh token — Phase 2 hits POST /auth/logout
     /// when the endpoint lands.
     func signOut() {
+        // Siri's short-lived "Frag WHV" memory belongs to the signed-in user.
+        SiriConversation.clear()
         // Demo mode shuts down cleanly without touching Keychain
         // (it never wrote there). Live mode wipes both the auth
         // tokens and the cached user envelope.

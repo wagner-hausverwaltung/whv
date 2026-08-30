@@ -85,10 +85,13 @@ def build_anfrage_card(
     status: str | None = None,
     lead_status: str | None = None,
     received_on: str | None = None,
+    visited_on: str | None = None,
+    visit_count: int | None = None,
 ) -> str:
     """Render one inbound offer inquiry (Anfrage) to a compact German card so the
-    assistant can answer "wie lautet die Kontakt-Mail der Anfrage zur WEG in …?"
-    or "welche offenen Anfragen gibt es?". VERWALTER-only (prospect PII)."""
+    assistant can answer "wie lautet die Kontakt-Mail der Anfrage zur WEG in …?",
+    "welche offenen Anfragen gibt es?" or "wurde die Anfrage … schon besichtigt?"
+    (``visited_on`` comes from the Fahrtenbuch). VERWALTER-only (prospect PII)."""
     who = sender_name or sender_email
     parts: list[str] = [f"Anfrage (anfragen@): {who}"]
     if sender_name and sender_email:
@@ -107,6 +110,9 @@ def build_anfrage_card(
         parts.append(f"Status: {lead_status}")
     if received_on:
         parts.append(f"Eingegangen: {received_on}")
+    if visited_on:
+        times = f" ({visit_count}x)" if visit_count and visit_count > 1 else ""
+        parts.append(f"Besichtigt: {visited_on}{times}")
     return " · ".join(parts)
 
 

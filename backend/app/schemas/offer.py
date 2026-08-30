@@ -127,6 +127,11 @@ class OfferInquiryResponse(BaseModel):
     generated_offer_filename: str | None = None
     last_reminder_at: datetime | None = None
     reminder_count: int = 0
+    # Derived from the Fahrtenbuch: trips linked to this inquiry (Besichtigung
+    # of the prospect before it has a property). visited_at = end of the most
+    # recent linked trip; 0 / None until someone actually drove there.
+    visited_at: datetime | None = None
+    visit_count: int = 0
 
 
 class OfferInquiryDetailResponse(OfferInquiryResponse):

@@ -15,6 +15,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showRegistration = false
+    @State private var showDemoChoice = false
     @FocusState private var focused: Field?
 
     enum Field { case email, password }
@@ -144,7 +145,7 @@ struct LoginView: View {
                         // a fake user; APIClient short-circuits to
                         // the seed data, no network traffic.
                         Button {
-                            Task { await auth.signInAsDemo() }
+                            showDemoChoice = true
                         } label: {
                             Label("Demo ansehen", systemImage: "sparkles")
                                 .font(.subheadline.weight(.semibold))
@@ -164,6 +165,13 @@ struct LoginView: View {
             }
         }
         .onAppear { focused = .email }
+        .confirmationDialog("Demo ansehen als …", isPresented: $showDemoChoice, titleVisibility: .visible) {
+            Button("Eigentümer / Beirat") { Task { await auth.signInAsDemo(role: .eigentuemer) } }
+            Button("Verwalter (Fahrtenbuch, CarPlay, Siri)") { Task { await auth.signInAsDemo(role: .verwalter) } }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Beispieldaten, keine Anmeldung nötig. Die Verwalter-Demo zeigt Fahrtenbuch, CarPlay und Siri mit Beispielobjekten.")
+        }
         .sheet(isPresented: $showRegistration) {
             RegistrationView()
                 .environmentObject(auth)

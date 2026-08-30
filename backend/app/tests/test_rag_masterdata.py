@@ -152,6 +152,16 @@ def test_build_anfrage_card_full() -> None:
     )
 
 
+def test_build_anfrage_card_shows_besichtigung() -> None:
+    # Linked Fahrtenbuch trips → "Besichtigt: …", with a count once > 1.
+    once = build_anfrage_card(sender_name=None, sender_email="x@y.de", visited_on="2026-08-22")
+    assert once.endswith(" · Besichtigt: 2026-08-22")
+    twice = build_anfrage_card(
+        sender_name=None, sender_email="x@y.de", visited_on="2026-08-22", visit_count=2
+    )
+    assert twice.endswith(" · Besichtigt: 2026-08-22 (2x)")
+
+
 def test_build_anfrage_card_skips_missing() -> None:
     # No sender name → the prospect's email becomes the heading (and the
     # separate "E-Mail:" line is suppressed to avoid repeating it).

@@ -1260,3 +1260,98 @@ export interface SupplierContractBody {
   price_period?: "MONATLICH" | "JAEHRLICH" | null;
   notes?: string | null;
 }
+
+// --- Fahrtenbuch (ADR-0020) ---------------------------------------------------
+
+export interface TripResponse {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  property_id?: string | null;
+  property_name?: string | null;
+  /** Besichtigung of a prospect: linked anfragen@ inquiry + its address. */
+  inquiry_id?: string | null;
+  inquiry_address?: string | null;
+  /** Auslagen-Rechnung the trip is billed on; null = not billed yet. */
+  invoice_id?: string | null;
+  status: "RUNNING" | "OPEN" | "CONFIRMED" | string;
+  source: "AUTO" | "MANUAL" | "CARPLAY" | string;
+  purpose?: string | null;
+  started_at: string;
+  ended_at?: string | null;
+  start_lat?: string | number | null;
+  start_lng?: string | number | null;
+  end_lat?: string | number | null;
+  end_lng?: string | number | null;
+  distance_m?: number | null;
+  /** Decimal serialised as string by the backend ("12.3"). */
+  distance_km: string;
+  route_polyline?: string | null;
+  rate_cents_per_km: number;
+  amount_cents: number;
+  note?: string | null;
+}
+
+export interface TripSummary {
+  trips: number;
+  distance_m: number;
+  amount_cents: number;
+  billable_trips: number;
+  billable_distance_m: number;
+}
+
+export interface TripPropertyTotal {
+  property_id: string | null;
+  property_name: string;
+  trips: number;
+  distance_m: number;
+  amount_cents: number;
+}
+
+export interface AdminTripListResponse {
+  items: TripResponse[];
+  summary: TripSummary;
+  by_property: TripPropertyTotal[];
+}
+
+/** GET /admin/trips/billable — candidates for the next Auslagen-Rechnung of
+ * one property plus the default rule of its contract type. */
+export interface BillableTripsResponse {
+  items: TripResponse[];
+  suggested_trip_ids: string[];
+  rate_cents_per_km: number;
+  legal_basis: string;
+  rule_hint: string;
+}
+
+export interface TripInvoiceCreate {
+  property_id: string;
+  trip_ids: string[];
+  rate_cents_per_km: number;
+  vat_percent?: number;
+  issued_on?: string | null;
+  legal_basis?: string | null;
+  note?: string | null;
+}
+
+export interface TripInvoiceResponse {
+  id: string;
+  property_id: string;
+  property_name?: string | null;
+  number: string;
+  issued_on: string;
+  period_from: string;
+  period_to: string;
+  rate_cents_per_km: number;
+  vat_percent: number;
+  trip_count: number;
+  distance_m: number;
+  net_cents: number;
+  vat_cents: number;
+  gross_cents: number;
+  legal_basis?: string | null;
+  note?: string | null;
+  created_at: string;
+  /** Only the most recently numbered invoice can be cancelled (no gaps). */
+  cancellable: boolean;
+}

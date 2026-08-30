@@ -206,6 +206,9 @@ struct PropertyDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerCard
+                if authStore.user?.role.lowercased() == "verwalter" {
+                    FahrtenCard(propertyId: property.id)
+                }
                 AccountingProgressCard(propertyId: property.id)
                 quickActionsSection()
                 if let account = store.account, account.account_id != nil {

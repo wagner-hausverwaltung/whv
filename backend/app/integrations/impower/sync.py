@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,11 +117,23 @@ async def sync_properties(session: AsyncSession, client: ImpowerClient) -> SyncS
             "country": addr.country if addr else None,
             "raw_jsonb": _serialize(prop),
             "last_synced_at": now,
+            # "Abgegeben" in Impower (state DISABLED) = no longer managed by
+            # WHV. Hide it everywhere — app, portal, admin, CarPlay, RAG scope
+            # — by soft-deleting: every property query already filters on
+            # deleted_at. A re-activation in Impower un-hides it on the next
+            # sync (the sync owns this column; nothing else soft-deletes
+            # properties). Rows and history (trips, invoices) stay intact.
+            "deleted_at": now if prop.state.value == "DISABLED" else None,
         }
         update_set = {
             k: v for k, v in values.items() if k not in ("id", "organization_id", "impower_id")
         }
         update_set["updated_at"] = now
+        # Keep the original hand-over timestamp on repeated syncs (the
+        # existing row's column, not `excluded`); clear it when re-activated.
+        update_set["deleted_at"] = (
+            func.coalesce(Property.deleted_at, now) if values["deleted_at"] is not None else None
+        )
         stmt = (
             pg_insert(Property)
             .values(**values)

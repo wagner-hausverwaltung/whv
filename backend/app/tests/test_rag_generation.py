@@ -257,3 +257,19 @@ def test_assistant_response_language_directive() -> None:
     assert _abstain_language(ABSTAIN_ANSWERS["de"]) == "de"
     assert _is_abstain(ABSTAIN_ANSWERS["en"])
     assert not _is_abstain("Die Heizungsrechnung 2025 betrug 1.234 €. [1]")
+
+
+def test_system_instruction_asks_back_for_unnamed_contact_subject() -> None:
+    """A contact-data question without a subject ("Adresse, E-Mail und
+    Telefon") must not be answered with whichever contact card ANN happened
+    to surface — the model is told to ask whose details are meant, in the
+    caller's language."""
+    from app.rag.generation import _system_instruction
+
+    assert "Von wem möchten Sie die Kontaktdaten?" in _system_instruction("de")
+    assert "Whose contact details do you need?" in _system_instruction("en")
+    # no preference → both phrasings offered, the model mirrors the question
+    both = _system_instruction(None)
+    assert "Von wem möchten Sie die Kontaktdaten?" in both
+    assert "Whose contact details do you need?" in both
+    assert "rate NICHT aus den Quellen" in both

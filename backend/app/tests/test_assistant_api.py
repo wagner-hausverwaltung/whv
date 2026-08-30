@@ -76,6 +76,8 @@ async def test_assistant_query_propagates_citation_source_type(
             )
         ],
         retrieved_document_ids=[card_id],
+        property_id=prop.id,
+        contact_query=None,
     )
 
     @asynccontextmanager

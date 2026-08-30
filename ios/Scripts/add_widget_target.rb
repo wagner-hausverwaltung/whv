@@ -39,7 +39,7 @@ abort("Could not find WHV target") unless app_target
 
 # Shared sources (visible to both targets). Loops at the end so
 # re-runs converge regardless of which targets pre-existed.
-SHARED_FILES = ['Shared/ETVActivity.swift'].freeze
+SHARED_FILES = ['Shared/ETVActivity.swift', 'Shared/TripActivity.swift'].freeze
 
 def ensure_shared_file(project, app_target, widget_target, relative_path)
   # Find or create the file ref under a "Shared" group at root.

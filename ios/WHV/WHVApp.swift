@@ -29,8 +29,17 @@ struct WHVApp: App {
     // First-launch legal/consent gate (casavi-style "Rechtliche Informationen").
     // Sits in front of the login flow; once accepted it's never shown again.
     @AppStorage("hasAcceptedLegalConsent") private var hasAcceptedLegal = false
+    // Award splash is per-process: shown before the first login screen only.
+    @State private var showAwardSplash = true
 
     init() {
+        // Fahrtenbuch: restore a running trip / re-arm detection even on a
+        // background relaunch (significant location change), before any view.
+        Task { @MainActor in
+            TripTracker.shared.bootstrap()
+            // Apple Watch companion: answer start/stop/arrive/ticket.
+            PhoneWatchBridge.shared.start()
+        }
         // Single launch-arg gate. UI test runs (see WHVUITests)
         // inject -UITestScreenshots to neutralise environment state
         // that would otherwise interfere with screenshot capture:
@@ -108,6 +117,14 @@ struct WHVApp: App {
                     biometricLock.didEnterBackground()
                 case .active:
                     biometricLock.didBecomeActive()
+                    // Caller ID list: keep it fresh (12 h) for Verwalter.
+                    if authStore.user?.role.lowercased() == "verwalter" {
+                        CallLogPrompt.shared.start()
+                        Task { await CallDirectorySync.shared.syncIfDue() }
+                        // Teach Siri the current contact names for
+                        // "WHV Notiz an <Kontakt>" (ContactEntity phrases).
+                        WHVShortcuts.updateAppShortcutParameters()
+                    }
                 default:
                     break
                 }
@@ -133,6 +150,36 @@ struct WHVApp: App {
                         // device token now that there's a backend
                         // session to attach it to. No-ops in demo.
                         await PushManager.shared.requestAuthorizationAndRegister()
+                        // Verwalter: caller ID list + post-call prompt.
+                        if authStore.user?.role.lowercased() == "verwalter" {
+                            CallLogPrompt.shared.start()
+                            await CallDirectorySync.shared.sync()
+                        }
+                        // Re-index the App Shortcut phrases (incl. the
+                        // contact-name parameter) for the signed-in user.
+                        WHVShortcuts.updateAppShortcutParameters()
+                    }
+                    // Launch argument for screenshots / review automation:
+                    // `-DemoVerwalter` (or `-DemoEigentuemer`) enters the demo
+                    // without a tap on the login screen.
+                    let args = ProcessInfo.processInfo.arguments
+                    if !authStore.signedIn, args.contains("-DemoVerwalter") {
+                        await authStore.signInAsDemo(role: .verwalter)
+                    } else if !authStore.signedIn, args.contains("-DemoEigentuemer") {
+                        await authStore.signInAsDemo(role: .eigentuemer)
+                    }
+                    // `-DemoAutoSelect` skips the picker (first object),
+                    // `-OpenURL whv://…` routes a deep link at launch —
+                    // both only honoured in demo mode (screenshot runs).
+                    if DemoStore.shared.isActive {
+                        if args.contains("-DemoAutoSelect"), liegenschaftStore.selected == nil,
+                           let first = liegenschaftStore.available.first {
+                            liegenschaftStore.select(first)
+                        }
+                        if let i = args.firstIndex(of: "-OpenURL"), i + 1 < args.count,
+                           let url = URL(string: args[i + 1]) {
+                            deepLinkRouter.handle(url)
+                        }
                     }
                     authStore.onSignOut = { [weak liegenschaftStore] in
                         liegenschaftStore?.reset()
@@ -194,7 +241,13 @@ struct WHVApp: App {
         if !hasAcceptedLegal {
             LegalConsentView(onConfirm: { hasAcceptedLegal = true })
         } else if !authStore.signedIn {
-            LoginView()
+            // Plus X Award splash, once per launch, only in the onboarding
+            // path (signed-in launches go straight to their content).
+            if showAwardSplash {
+                AwardSplashView { showAwardSplash = false }
+            } else {
+                LoginView()
+            }
         } else if liegenschaftStore.selected == nil {
             LiegenschaftPickerView()
         } else {

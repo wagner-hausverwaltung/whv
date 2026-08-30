@@ -1,0 +1,236 @@
+{
+  "sourceLanguage" : "de",
+  "strings" : {
+    "${applicationName} Abfahrt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} depart"
+          }
+        }
+      }
+    },
+    "${applicationName} Ankunft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} arrive"
+          }
+        }
+      }
+    },
+    "${applicationName} Fahrt beenden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} end trip"
+          }
+        }
+      }
+    },
+    "${applicationName} Fahrt starten" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} start trip"
+          }
+        }
+      }
+    },
+    "${applicationName} Handwerker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} contractor"
+          }
+        }
+      }
+    },
+    "${applicationName} Handwerker vor Ort" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} contractor is on site"
+          }
+        }
+      }
+    },
+    "${applicationName} Nachricht an ${contact}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} message to ${contact}"
+          }
+        }
+      }
+    },
+    "${applicationName} Notiz" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} note"
+          }
+        }
+      }
+    },
+    "${applicationName} Notiz an ${contact}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} note for ${contact}"
+          }
+        }
+      }
+    },
+    "${applicationName} Ticket" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} ticket"
+          }
+        }
+      }
+    },
+    "${applicationName} arrival" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} arrival"
+          }
+        }
+      }
+    },
+    "${applicationName} contractor on site" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} contractor on site"
+          }
+        }
+      }
+    },
+    "${applicationName} departure" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} departure"
+          }
+        }
+      }
+    },
+    "${applicationName} fragen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} question"
+          }
+        }
+      }
+    },
+    "${applicationName} note to ${contact}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${applicationName} note to ${contact}"
+          }
+        }
+      }
+    },
+    "Abfahrt ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depart ${applicationName}"
+          }
+        }
+      }
+    },
+    "Ankunft ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrive ${applicationName}"
+          }
+        }
+      }
+    },
+    "Ask ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask ${applicationName}"
+          }
+        }
+      }
+    },
+    "Frag ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask ${applicationName} a question"
+          }
+        }
+      }
+    },
+    "Frage an ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question for ${applicationName}"
+          }
+        }
+      }
+    },
+    "Handwerker vor Ort ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contractor on site ${applicationName}"
+          }
+        }
+      }
+    },
+    "Neues Ticket für ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New ticket for ${applicationName}"
+          }
+        }
+      }
+    },
+    "Ticket an ${applicationName}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ticket for ${applicationName}"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

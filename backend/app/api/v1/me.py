@@ -53,8 +53,9 @@ from app.schemas.vendor import VendorSummary
 from app.services import notification_prefs
 from app.services import units as units_svc
 from app.services import vendors as vendors_svc
-from app.services.access import active_contract_filter
+from app.services.access import active_contract_filter, active_property_filter
 from app.services.activity import ActivityItem, build_activity_feed
+from app.services.document_release import RELEASE_GATED_KINDS
 from app.services.reversed_invoices import get_reversed_invoice_cache
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -270,7 +271,10 @@ def _visible_properties_stmt(user: User):  # type: ignore[no-untyped-def]
         Property.deleted_at.is_(None),
     )
     if user.role == UserRole.VERWALTER:
-        return base
+        # Field surfaces only (app, CarPlay, Siri): an object still in DRAFT
+        # is not one the Verwalter drives to. Onboarding happens in the
+        # admin SPA, which queries `/admin/*` without this filter.
+        return base.where(active_property_filter())
     return (
         base.where(Property.state == PropertyState.READY)
         .join(Contract, Contract.property_id == Property.id)
@@ -373,7 +377,17 @@ def _document_visibility_filter(user: User):  # type: ignore[no-untyped-def]
             ),
         ),
     )
-    return and_(scope_ok, visibility_ok)
+    # Freigabe-Schranke: Jahresabrechnung und Wirtschaftsplan erscheinen erst,
+    # wenn der Verwalter sie freigegeben hat. Impower exportiert diese PDFs
+    # auch als ENTWURF und markiert das nirgends (B42, 2026-08-29: Entwuerfe
+    # wurden gespiegelt und benachrichtigt). Alle anderen Arten sind sofort
+    # sichtbar wie bisher. Greift fuer Portal, Download UND den RAG-Scope der
+    # Eigentuemer (retrieval.py nutzt genau diesen Filter).
+    release_ok = or_(
+        Document.kind.notin_(RELEASE_GATED_KINDS),
+        Document.released_at.is_not(None),
+    )
+    return and_(scope_ok, visibility_ok, release_ok)
 
 
 def _invoice_visibility_filter(user: User):  # type: ignore[no-untyped-def]

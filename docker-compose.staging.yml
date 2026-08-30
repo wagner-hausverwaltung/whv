@@ -15,19 +15,32 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - /srv/slr-pipeline/compose/caddy:/etc/caddy/slr:ro
     depends_on:
       backend:
         condition: service_started
+    networks:
+      - default
+      - slr_proxy
 
   # Compose v2 merges sequences by concat — a plain `ports: []` override would
   # be appended to the base, leaving the host port mappings in place. The
   # `!reset []` tag explicitly clears the sequence so postgres/redis/backend
   # are reachable only via the internal docker network on staging. Requires
   # compose ≥ v2.20 (staging's Docker 29.5 ships v2.36+).
+  # restart: unless-stopped on the stores/workers too — without it a host
+  # reboot left postgres/redis/worker/beat dead while healthz kept saying
+  # 200 (found by the auto-reboot end-to-end test, 2026-08-30).
   postgres:
     ports: !reset []
+    restart: unless-stopped
   redis:
     ports: !reset []
+    restart: unless-stopped
+  worker:
+    restart: unless-stopped
+  beat:
+    restart: unless-stopped
   backend:
     ports: !reset []
     restart: unless-stopped
@@ -93,3 +106,7 @@ volumes:
   caddy-data:
   caddy-config:
   docuseal-data:
+
+networks:
+  slr_proxy:
+    external: true

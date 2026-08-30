@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Daily Postgres backup for a WHV stack (staging by default; prod via the
-# systemd drop-in infra/systemd/whv-backup-prod.conf).
+# Daily Postgres backup for the WHV staging stack.
 #
 # 1. pg_dump inside the running postgres container → gzip → atomic write
 #    to /var/backups/postgres/whv-YYYY-MM-DD.sql.gz
@@ -22,11 +21,10 @@ RETENTION_DAYS=${RETENTION_DAYS:-30}
 REPO_ROOT=${REPO_ROOT:-/home/whv/whv}
 RCLONE_CONFIG_PATH=${RCLONE_CONFIG_PATH:-/etc/rclone.conf}
 RCLONE_REMOTE=${RCLONE_REMOTE:-b2:whv-staging-postgres-backups}
-# The override file that describes this box's stack: docker-compose.staging.yml
-# on staging, docker-compose.prod.yml on prod. Only used to find the running
-# postgres service for `exec`; nothing is (re)created.
-COMPOSE_OVERRIDE=${COMPOSE_OVERRIDE:-docker-compose.staging.yml}
-COMPOSE="docker compose -f $REPO_ROOT/docker-compose.yml -f $REPO_ROOT/$COMPOSE_OVERRIDE"
+# Prod sets COMPOSE_OVERLAY=docker-compose.prod.yml (+ its own
+# RCLONE_REMOTE) via a systemd drop-in; the script itself is host-agnostic.
+COMPOSE_OVERLAY=${COMPOSE_OVERLAY:-docker-compose.staging.yml}
+COMPOSE="docker compose -f $REPO_ROOT/docker-compose.yml -f $REPO_ROOT/$COMPOSE_OVERLAY"
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -36,6 +34,22 @@ OUTPUT="$BACKUP_DIR/whv-$TIMESTAMP.sql.gz"
 
 # --- 1 & 2: local backup + prune ---
 cd "$REPO_ROOT"
+
+# The timer can fire right after boot (Persistent+RandomizedDelaySec
+# re-triggers on boot) while the container is still starting — wait for
+# postgres instead of failing, which turned every auto-reboot into a
+# red unit + FAIL mail.
+for i in $(seq 1 60); do
+    if $COMPOSE exec -T postgres pg_isready -U whv -d whv >/dev/null 2>&1; then
+        break
+    fi
+    if [ "$i" = 60 ]; then
+        echo "postgres not ready after 5 minutes; giving up" >&2
+        exit 1
+    fi
+    sleep 5
+done
+
 $COMPOSE exec -T postgres \
     pg_dump -U whv -d whv --no-owner --no-privileges \
     | gzip -9 > "$OUTPUT.tmp"

@@ -28,13 +28,13 @@ extension Liegenschaft {
             id: "019e5f2a-ad1c-7c90-b7d1-3fe2f670136f",
             name: "MV Hohewartstraße 13",
             address: "70469 Stuttgart",
-            type: "Mietverwaltung"
+            type: "RENTAL"
         ),
         Liegenschaft(
             id: "demo-weg-koenigstrasse",
             name: "WEG Königstraße 42",
             address: "70173 Stuttgart",
-            type: "WEG-Verwaltung"
+            type: "OWNER"
         ),
     ]
 
@@ -64,6 +64,17 @@ extension Liegenschaft {
         case "OWNER": return "WEG"
         case "RENTAL": return "MV"
         case "STRATA": return "SEV"
+        default: return type ?? "—"
+        }
+    }
+
+    /// Long form for captions ("WEG-Verwaltung" etc.); raw type for
+    /// anything the mapping does not know.
+    var typeLongLabel: String {
+        switch type {
+        case "OWNER": return "WEG-Verwaltung"
+        case "RENTAL": return "Mietverwaltung"
+        case "STRATA": return "Sondereigentumsverwaltung"
         default: return type ?? "—"
         }
     }

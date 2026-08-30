@@ -14,7 +14,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import date
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -31,6 +31,7 @@ from app.models.etv import (
     EtvAssembly,
 )
 from app.models.property import Property
+from app.models.trip import Trip
 from app.models.unit import Unit
 from app.rag.ingestion import (
     DocumentMeta,
@@ -440,6 +441,15 @@ async def reindex_anfrage_card(
             rag_session, document_id=anfrage_doc_id(organization_id, inquiry_id)
         )
         return None
+    # Besichtigungen from the Fahrtenbuch (trips linked to this inquiry).
+    visit_row = (
+        await app_session.execute(
+            select(
+                func.max(func.coalesce(Trip.ended_at, Trip.started_at)), func.count(Trip.id)
+            ).where(Trip.inquiry_id == inquiry.id)
+        )
+    ).one()
+    visited_at, visit_count = visit_row[0], int(visit_row[1] or 0)
     card = build_anfrage_card(
         sender_name=inquiry.sender_name,
         sender_email=inquiry.sender_email,
@@ -450,6 +460,8 @@ async def reindex_anfrage_card(
         status=inquiry.status,
         lead_status=inquiry.lead_status,
         received_on=inquiry.created_at.date().isoformat() if inquiry.created_at else None,
+        visited_on=visited_at.date().isoformat() if visited_at else None,
+        visit_count=visit_count or None,
     )
     return await index_masterdata_card(
         rag_session,

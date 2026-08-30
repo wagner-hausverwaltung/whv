@@ -97,19 +97,31 @@ async def get_invite_info(
     re-type something already in their inbox (avoids the "typo →
     Einladung ungültig" failure mode).
 
-    Defense-in-depth: 404 on any of {not found, already consumed,
-    expired}. The redeem POST still validates email match, so the
-    second-factor stays intact — this endpoint just removes the
-    typing risk for the legitimate path. Anyone holding the code
-    presumably has the email it was sent to anyway.
+    Defense-in-depth: 404 on {not found, expired}. The redeem POST
+    still validates email match, so the second-factor stays intact —
+    this endpoint just removes the typing risk for the legitimate
+    path. Anyone holding the code presumably has the email it was
+    sent to anyway.
+
+    An ALREADY REDEEMED code answers 410 instead, carrying no email.
+    The invitation mail is the only link owners keep, so they open it
+    again when they want back in; a flat 404 told them the invitation
+    was broken and to ask for a new one, which is how an owner with a
+    working account ended up locked out in her own mind (B42,
+    2026-08-26). 410 lets the client say "already redeemed — just sign
+    in" and offer the login instead of a dead end.
     """
     invite = await session.scalar(
         select(InviteCode).where(
             InviteCode.code == code,
-            InviteCode.consumed_at.is_(None),
             InviteCode.expires_at > datetime.now(UTC),
         )
     )
+    if invite is not None and invite.consumed_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Invite already redeemed — please sign in instead",
+        )
     if invite is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

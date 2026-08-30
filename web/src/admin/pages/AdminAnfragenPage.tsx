@@ -64,6 +64,11 @@ interface OfferInquiry {
   generated_offer_filename: string | null;
   last_reminder_at: string | null;
   reminder_count: number;
+  /// Derived from the Fahrtenbuch: trips linked to this inquiry (a
+  /// Besichtigung before the object has a property). Absent on older
+  /// payloads → treat as "not visited".
+  visited_at?: string | null;
+  visit_count?: number;
 }
 
 interface OfferInquiryDetail extends OfferInquiry {
@@ -165,6 +170,12 @@ function formatDateTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("de-DE");
 }
 
 // The LLM returns a single combined object address ("Straße 1, 70123 Stadt").
@@ -698,6 +709,25 @@ export function AdminAnfragenPage() {
                     </TableCell>
                     <TableCell sx={{ borderBottom: open ? "none" : undefined }}>
                       {r.object_address ?? "—"}
+                      {(r.visit_count ?? 0) > 0 && (
+                        <>
+                          <br />
+                          <Tooltip
+                            title={tp("visitedTimes", {
+                              count: r.visit_count,
+                              date: formatDateTime(r.visited_at ?? null),
+                            })}
+                          >
+                            <Chip
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                              label={tp("visited", { date: formatDate(r.visited_at ?? null) })}
+                              sx={{ mt: 0.5 }}
+                            />
+                          </Tooltip>
+                        </>
+                      )}
                     </TableCell>
                     <TableCell align="right" sx={{ borderBottom: open ? "none" : undefined }}>
                       {r.units ?? "—"}
@@ -898,6 +928,14 @@ export function AdminAnfragenPage() {
                                     {tp("reminderSent", {
                                       count: r.reminder_count,
                                       date: formatDateTime(r.last_reminder_at),
+                                    })}
+                                  </Typography>
+                                )}
+                                {(r.visit_count ?? 0) > 0 && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {tp("visitedTimes", {
+                                      count: r.visit_count,
+                                      date: formatDateTime(r.visited_at ?? null),
                                     })}
                                   </Typography>
                                 )}

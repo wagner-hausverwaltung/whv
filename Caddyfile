@@ -99,3 +99,6 @@ sign.wagner-hausverwaltung.com {
         level INFO
     }
 }
+
+# SLR pipeline site blocks (rendered by the slr-pipeline repo).
+import /etc/caddy/slr/*.caddy

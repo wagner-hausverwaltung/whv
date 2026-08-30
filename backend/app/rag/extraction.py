@@ -37,6 +37,35 @@ _OCR_DPI = 200
 _OCR_MAX_PAGES_PER_PASS = 8
 
 
+# Characters Postgres' text type cannot store (NUL) or that carry no meaning
+# for search — stripped from every extracted page. A single 0x00 anywhere in a
+# PDF's text layer (broken CID font maps produce them) otherwise aborts the
+# whole INSERT with CharacterNotInRepertoireError, the task retries three times
+# re-embedding the document each round, and the document silently never lands
+# in the index. Tabs/newlines survive; they carry layout.
+_DISALLOWED = {c: None for c in range(0x20) if c not in (0x09, 0x0A, 0x0D)}
+_DISALLOWED[0x7F] = None
+
+
+def scrub_text(text: str) -> str:
+    """Strip control characters Postgres rejects or that add no signal, and
+    drop unpaired surrogates (pypdf emits them for damaged encodings) so the
+    result always encodes as UTF-8."""
+    cleaned = text.translate(_DISALLOWED)
+    # Surrogates survive in Python strs but blow up on encode; the round-trip
+    # below is the cheapest way to drop exactly those code points.
+    return cleaned.encode("utf-8", "ignore").decode("utf-8", "ignore")
+
+
+def looks_like_pdf(data: bytes) -> bool:
+    """Cheap magic-byte check. Impower serves e-invoices as raw ZUGFeRD/
+    XRechnung XML under the same /documents/{id}/download endpoint; feeding
+    those to pypdf only ever produces "Stream has ended unexpectedly". The
+    figures and dates of an invoice come from Impower's structured fields
+    anyway (ADR-0013 §3), so XML carries nothing for semantic search."""
+    return data[:5] == b"%PDF-"
+
+
 class ExtractionError(RuntimeError):
     """Raised when a document's bytes can't be parsed as a PDF."""
 
@@ -61,7 +90,7 @@ def extract_pdf(pdf_bytes: bytes, *, ocr_lang: str = "deu") -> ExtractionResult:
     needs_ocr: list[int] = []
     for index, page in enumerate(reader.pages):
         try:
-            text = (page.extract_text() or "").strip()
+            text = scrub_text(page.extract_text() or "").strip()
         except Exception:
             text = ""
         pages.append(text)
@@ -120,7 +149,7 @@ def _ocr_pages_in_place(
                 # page. Unreachable while indices arrive ascending, but the
                 # failure mode is silent corruption, so guard it.
                 if 0 <= offset < len(images):
-                    text = image_to_string(images[offset], lang=ocr_lang) or ""
+                    text = scrub_text(image_to_string(images[offset], lang=ocr_lang) or "")
                     pages[index] = text.strip()
         finally:
             # Drop the bitmaps before rasterising the next window. Popping

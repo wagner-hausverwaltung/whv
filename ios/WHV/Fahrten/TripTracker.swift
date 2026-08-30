@@ -1,0 +1,732 @@
+//
+//  TripTracker.swift
+//  WHV
+//
+//  Records Dienstfahrten for the Verwalter's Fahrtenbuch (ADR-0020).
+//
+//  Two ways a trip starts: the driver taps "Fahrt starten", or — when the
+//  driver has opted in — the phone notices it is in a moving car (Core
+//  Motion `automotive`) and starts on its own. Either way the phone collects
+//  GPS points while driving, stops after a few minutes of standstill, and
+//  uploads ONE finished trip. The driver then confirms purpose + property
+//  from a suggestion (nearest property to where the trip ended).
+//
+//  Privacy: nothing is recorded until the driver enables it in Einstellungen;
+//  the route polyline is optional; only Verwalter see any of this.
+//
+
+import ActivityKit
+import Combine
+import CoreLocation
+import CoreMotion
+import Foundation
+import OSLog
+import UIKit
+import UserNotifications
+
+@MainActor
+final class TripTracker: NSObject, ObservableObject {
+    static let shared = TripTracker()
+
+    // MARK: Published state
+
+    @Published private(set) var isRunning = false
+    @Published private(set) var startedAt: Date?
+    @Published private(set) var liveDistanceM: Int = 0
+    @Published private(set) var source: String = "MANUAL"
+    @Published private(set) var openTrips: [TripResponse] = []
+    @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
+    @Published private(set) var lastError: String?
+    @Published private(set) var pendingUploads: Int = 0
+    /// Finished trips the server hasn't accepted yet (offline, outage) —
+    /// shown in "Meine Fahrten" so the driver can drop a test drive or retry.
+    @Published private(set) var pending: [TripCompleteBody] = []
+    /// Preset for the running trip when it was started FOR a destination
+    /// ("Besichtigung hier starten" from CarPlay): uploaded with the trip so
+    /// no confirmation is needed afterwards. Cleared when the trip ends.
+    @Published private(set) var presetPurpose: String?
+    @Published private(set) var presetPropertyId: String?
+    @Published private(set) var presetNote: String?
+    /// Besichtigung of a prospect: the anfragen@ inquiry this drive is for.
+    @Published private(set) var presetInquiryId: String?
+    /// Last automatic arrival (car stood ≥ 2 min within 100 m of an object):
+    /// the trip ended with that object; CarPlay/phone surface it once.
+    @Published private(set) var lastArrival: Arrival?
+
+    struct Arrival: Equatable {
+        let property: PropertyResponse
+        let purpose: String?
+        let at: Date
+    }
+
+    /// Opt-in for automatic drive detection (Core Motion + significant
+    /// location changes). Off by default — this is the consent switch.
+    @Published var autoDetectEnabled: Bool {
+        didSet {
+            defaults.set(autoDetectEnabled, forKey: Keys.autoDetect)
+            autoDetectEnabled ? enableAutoDetection() : disableAutoDetection()
+        }
+    }
+    /// Keep the driven route (polyline) with the trip. Off = start/end only.
+    @Published var storeRoute: Bool {
+        didSet { defaults.set(storeRoute, forKey: Keys.storeRoute) }
+    }
+
+    // MARK: Private
+
+    private let api = APIClient()
+    private let defaults = UserDefaults.standard
+    private let location = CLLocationManager()
+    private let motion = CMMotionActivityManager()
+    private var coords: [CLLocationCoordinate2D] = []
+    private var lastLocation: CLLocation?
+    private var lastMovementAt: Date?
+    private var stillnessTimer: Timer?
+    // Arrival detection: managed objects (with coordinates) + today's agenda,
+    // refreshed when a trip begins; a short timer that fires when the car
+    // has been quiet near an object.
+    private var knownProperties: [PropertyResponse] = []
+    private var todaysAgenda: [AgendaEntry] = []
+    private var arrivalTimer: Timer?
+    /// Stand still this long within `arrivalRadiusM` of an object = arrived.
+    private let arrivalStillness: TimeInterval = 2 * 60
+    private let arrivalRadiusM = 100.0
+    /// Don't "arrive" at the object you just left (or a parking shuffle).
+    private let arrivalMinDistanceM = 300
+    private let arrivalMinDuration: TimeInterval = 3 * 60
+
+    private enum Keys {
+        static let autoDetect = "trips.autoDetect"
+        static let storeRoute = "trips.storeRoute"
+        static let running = "trips.running"
+        static let pending = "trips.pendingUploads"
+    }
+
+    /// Standstill after which a running trip is closed automatically.
+    private let stillnessLimit: TimeInterval = 4 * 60
+    /// Minimum for a detected drive to count — filters parking-lot shuffles.
+    private let minimumTripMeters = 300
+
+    private override init() {
+        autoDetectEnabled = defaults.bool(forKey: Keys.autoDetect)
+        storeRoute = defaults.object(forKey: Keys.storeRoute) as? Bool ?? true
+        super.init()
+        location.delegate = self
+        location.pausesLocationUpdatesAutomatically = false
+        location.activityType = .automotiveNavigation
+        authorization = location.authorizationStatus
+    }
+
+    // MARK: Lifecycle
+
+    /// Call once at app start (also on a background relaunch triggered by a
+    /// significant location change): restores a trip that was running when
+    /// the app was killed, re-arms detection, and retries failed uploads.
+    func bootstrap() {
+        // "Beenden" on the Live Activity runs in this process → stop here.
+        TripIntentHooks.endTrip = { [weak self] in self?.stopManually() }
+        restoreRunningIfAny()
+        pending = loadPending()
+        pendingUploads = pending.count
+        if autoDetectEnabled { enableAutoDetection() }
+        Task { await flushPending(); await refreshOpen(); await refreshArrivalContext() }
+    }
+
+    /// Demo mode records trips too (locally, via DemoStore) so reviewers can
+    /// drive the Fahrtenbuch + CarPlay flow end to end.
+    var isAvailable: Bool { true }
+
+    /// Last known position — while tracking it updates continuously; when
+    /// idle `refreshLocation()` asks for a single fix. Used for the "Ich
+    /// verspäte mich" Maps link and for ranking CarPlay lists by proximity.
+    var currentCoordinate: CLLocationCoordinate2D? { lastLocation?.coordinate }
+
+    /// One-shot fix when no trip is running (CarPlay connect, contact list).
+    func refreshLocation() {
+        guard isAvailable, !isRunning else { return }
+        switch location.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            location.requestLocation()
+        case .notDetermined:
+            location.requestWhenInUseAuthorization()
+        default:
+            break
+        }
+    }
+
+    // MARK: Manual control
+
+    func startManually() {
+        guard !isRunning else { return }
+        requestAuthorization()
+        begin(source: "MANUAL")
+    }
+
+    func stopManually() {
+        guard isRunning else { return }
+        finish()
+    }
+
+    // MARK: CarPlay hooks
+
+    /// Start a trip that is already known to be, e.g., a Besichtigung at a
+    /// given property — or at a prospect (`inquiryId`) that has no property
+    /// yet. The trip uploads CONFIRMED with these values.
+    func startWithPreset(
+        purpose: String, propertyId: String?, source: String, note: String? = nil,
+        inquiryId: String? = nil
+    ) {
+        guard !isRunning else { return }
+        presetPurpose = purpose
+        presetPropertyId = propertyId
+        presetNote = note
+        presetInquiryId = inquiryId
+        requestAuthorization()
+        begin(source: source)
+    }
+
+
+    /// Confirm purpose/object for the RUNNING trip (CarPlay "Fahrt beenden"
+    /// asks before stopping) so the upload goes out CONFIRMED. Persisted with
+    /// the running snapshot so an app kill between choice and upload keeps it.
+    func applyPreset(purpose: String?, propertyId: String?) {
+        guard isRunning else { return }
+        presetPurpose = purpose
+        presetPropertyId = propertyId
+        persistRunning()
+        updateLiveActivity(force: true)
+    }
+
+    /// Hand the RUNNING trip its destination (CarPlay "Navigation + Fahrt"):
+    /// object or prospect (inquiry) + note. The purpose is left alone unless
+    /// given, so an auto-started trip still gets its one-tap purpose at the end.
+    func setDestination(propertyId: String?, inquiryId: String? = nil, note: String? = nil, purpose: String? = nil) {
+        guard isRunning else { return }
+        presetPropertyId = propertyId
+        presetInquiryId = inquiryId
+        if let note { presetNote = note }
+        if let purpose { presetPurpose = purpose }
+        persistRunning()
+        updateLiveActivity(force: true)
+    }
+
+    /// "Hey Siri, WHV Abfahrt": start a trip by voice (MANUAL source).
+    func startFromSiri() {
+        guard !isRunning else { return }
+        requestAuthorization()
+        begin(source: "MANUAL")
+    }
+
+    /// "Hey Siri, WHV Ankunft": end the running trip right here. Object =
+    /// nearest managed property within 300 m (none → open), purpose from the
+    /// preset or today's appointment. Returns what was recorded.
+    func arriveFromSiri() -> Arrival? {
+        guard isRunning else { return nil }
+        let here = lastLocation
+        var nearest: PropertyResponse?
+        if let here {
+            var best: (PropertyResponse, Double)?
+            for p in knownProperties {
+                guard let lat = p.lat, let lng = p.lng else { continue }
+                let d = here.distance(from: CLLocation(latitude: lat, longitude: lng))
+                if d <= 300, d < (best?.1 ?? .infinity) { best = (p, d) }
+            }
+            nearest = best?.0
+        }
+        if let pid = presetPropertyId, let p = knownProperties.first(where: { $0.id == pid }) {
+            nearest = nearest ?? p
+        }
+        let purpose = presetPurpose ?? nearest.flatMap { purposeFromAgenda(for: $0, at: Date()) }
+        if let nearest { presetPropertyId = nearest.id }
+        if presetPurpose == nil { presetPurpose = purpose }
+        finish()
+        guard let nearest else { return nil }
+        let arrival = Arrival(property: nearest, purpose: purpose, at: Date())
+        lastArrival = arrival
+        return arrival
+    }
+
+    /// Connecting the car = the drive begins. Source CARPLAY so the log shows
+    /// how the trip was captured.
+    func startFromCarPlay() {
+        guard !isRunning else { return }
+        begin(source: "CARPLAY")
+    }
+
+    func stopFromCarPlay() {
+        guard isRunning else { return }
+        finish()
+    }
+
+    // MARK: Permissions
+
+    func requestAuthorization() {
+        switch location.authorizationStatus {
+        case .notDetermined:
+            location.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse:
+            // Background continuation needs Always; iOS shows the prompt at
+            // most once, afterwards the user must flip it in Settings.
+            location.requestAlwaysAuthorization()
+        default:
+            break
+        }
+    }
+
+    var needsAlwaysForAutoDetect: Bool {
+        autoDetectEnabled && authorization != .authorizedAlways
+    }
+
+    // MARK: Automatic detection
+
+    private func enableAutoDetection() {
+        guard isAvailable else { return }
+        requestAuthorization()
+        // Wakes the app (even from terminated) on ~500 m moves; cheap on battery.
+        location.startMonitoringSignificantLocationChanges()
+        guard CMMotionActivityManager.isActivityAvailable() else { return }
+        motion.startActivityUpdates(to: .main) { [weak self] activity in
+            guard let self, let a = activity else { return }
+            Task { @MainActor in self.handle(activity: a) }
+        }
+    }
+
+    private func disableAutoDetection() {
+        location.stopMonitoringSignificantLocationChanges()
+        motion.stopActivityUpdates()
+    }
+
+    private func handle(activity a: CMMotionActivity) {
+        if a.automotive, a.confidence != .low {
+            lastMovementAt = Date()
+            if !isRunning { begin(source: "AUTO") }
+        } else if isRunning, a.stationary, a.confidence == .high {
+            // Standstill — the timer decides whether it's a red light or the end.
+            armStillnessTimer()
+        }
+    }
+
+    // MARK: Trip state machine
+
+    private func begin(source: String) {
+        isRunning = true
+        self.source = source
+        startedAt = Date()
+        coords = []
+        liveDistanceM = 0
+        lastLocation = nil
+        lastMovementAt = Date()
+        lastError = nil
+        location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        location.distanceFilter = 25
+        if location.authorizationStatus == .authorizedAlways {
+            location.allowsBackgroundLocationUpdates = true
+        }
+        location.startUpdatingLocation()
+        persistRunning()
+        Task { await refreshArrivalContext() }
+        startLiveActivity()
+    }
+
+    // MARK: Live Activity (Dynamic Island / Lock Screen while driving)
+
+    private var liveActivity: Activity<TripActivityAttributes>?
+    private var lastActivityUpdate = Date.distantPast
+    private var lastActivityDistance = 0
+
+    private func activityState() -> TripActivityAttributes.ContentState {
+        let dest = presetPropertyId.flatMap { pid in knownProperties.first { $0.id == pid }?.name }
+        return TripActivityAttributes.ContentState(
+            distanceM: liveDistanceM,
+            destinationName: dest,
+            purposeLabel: presetPurpose.map { TripPurpose.label(for: $0) },
+            updatedAt: Date()
+        )
+    }
+
+    private func startLiveActivity() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, let started = startedAt else { return }
+        // One trip activity at a time — end leftovers from a killed run.
+        for a in Activity<TripActivityAttributes>.activities {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+        let attributes = TripActivityAttributes(startedAt: started, source: source)
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        liveActivity = try? Activity.request(attributes: attributes, content: content, pushType: nil)
+        lastActivityUpdate = Date()
+        lastActivityDistance = liveDistanceM
+    }
+
+    /// Update at most once per 30 s or every 300 m (battery; Live Activity
+    /// updates are rate-limited by the system anyway), and on preset changes.
+    private func updateLiveActivity(force: Bool = false) {
+        guard let activity = liveActivity else { return }
+        let due = force
+            || Date().timeIntervalSince(lastActivityUpdate) >= 30
+            || liveDistanceM - lastActivityDistance >= 300
+        guard due else { return }
+        lastActivityUpdate = Date()
+        lastActivityDistance = liveDistanceM
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        Task { await activity.update(content) }
+    }
+
+    private func endLiveActivity() {
+        guard let activity = liveActivity else { return }
+        liveActivity = nil
+        let content = ActivityContent(state: activityState(), staleDate: nil)
+        Task { await activity.end(content, dismissalPolicy: .immediate) }
+    }
+
+    /// Objects + today's appointments for arrival detection. Cheap, cached
+    /// per trip; failures just mean "no auto-arrival this trip".
+    private func refreshArrivalContext() async {
+        guard isAvailable else { return }
+        async let props = api.getMyProperties()
+        async let agenda = api.getMyAgenda(days: 0)
+        knownProperties = (try? await props) ?? knownProperties
+        todaysAgenda = (try? await agenda) ?? todaysAgenda
+    }
+
+    /// Name of a cached object (Live Activity / Watch state).
+    func knownPropertyName(_ id: String) -> String? {
+        knownProperties.first { $0.id == id }?.name
+    }
+
+    /// Nearest managed object within the arrival radius, if any.
+    private func nearbyProperty(_ loc: CLLocation) -> PropertyResponse? {
+        var best: (PropertyResponse, Double)?
+        for p in knownProperties {
+            guard let lat = p.lat, let lng = p.lng else { continue }
+            let d = loc.distance(from: CLLocation(latitude: lat, longitude: lng))
+            if d <= arrivalRadiusM, d < (best?.1 ?? .infinity) { best = (p, d) }
+        }
+        return best?.0
+    }
+
+    /// Purpose implied by today's appointment at the object (± 2 h), if any.
+    private func purposeFromAgenda(for p: PropertyResponse, at when: Date) -> String? {
+        let hit = todaysAgenda
+            .filter { $0.property_id == p.id && abs($0.starts_at.timeIntervalSince(when)) <= 2 * 3600 }
+            .min { abs($0.starts_at.timeIntervalSince(when)) < abs($1.starts_at.timeIntervalSince(when)) }
+        guard let hit else { return nil }
+        return hit.kind == "ETV" ? "ETV" : "EIGENTUEMERTERMIN"
+    }
+
+    private func armArrivalTimer() {
+        arrivalTimer?.invalidate()
+        arrivalTimer = Timer.scheduledTimer(withTimeInterval: arrivalStillness, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.checkArrival() }
+        }
+    }
+
+    /// Fires after `arrivalStillness` without movement. If we are still next
+    /// to an object and the trip is a real drive, end it there — object from
+    /// the geofence, purpose from the appointment (else the preset, else open).
+    private func checkArrival() {
+        arrivalTimer = nil
+        guard isRunning, let loc = lastLocation, let started = startedAt else { return }
+        guard let last = lastMovementAt, Date().timeIntervalSince(last) >= arrivalStillness - 5 else { return }
+        guard liveDistanceM >= arrivalMinDistanceM, Date().timeIntervalSince(started) >= arrivalMinDuration else { return }
+        guard let p = nearbyProperty(loc) else { return }
+        // A preset destination wins when we are at it; otherwise the object we
+        // actually stopped at (a detour, a different WEG) is the truth.
+        let purpose = presetPurpose ?? purposeFromAgenda(for: p, at: Date())
+        presetPropertyId = p.id
+        if presetPurpose == nil { presetPurpose = purpose }
+        finish()
+        lastArrival = Arrival(property: p, purpose: purpose, at: Date())
+        notifyArrival(p, purpose: purpose)
+    }
+
+    private func notifyArrival(_ p: PropertyResponse, purpose: String?) {
+        let content = UNMutableNotificationContent()
+        content.title = "Angekommen: \(p.name)"
+        content.body = purpose.map { "Fahrt gespeichert · \(TripPurpose.label(for: $0))" }
+            ?? "Fahrt gespeichert — Zweck in der App bestätigen."
+        content.sound = nil
+        let req = UNNotificationRequest(identifier: "trip-arrival-\(p.id)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
+    }
+
+    /// Ends the running trip SYNCHRONOUSLY — state flips before this returns,
+    /// so a caller that re-renders right away (CarPlay root grid) sees the
+    /// stopped state. Only the upload runs detached.
+    private func finish() {
+        guard isRunning, let started = startedAt else { return }
+        location.stopUpdatingLocation()
+        location.allowsBackgroundLocationUpdates = false
+        stillnessTimer?.invalidate()
+        stillnessTimer = nil
+        arrivalTimer?.invalidate()
+        arrivalTimer = nil
+        endLiveActivity()
+        let ended = lastMovementAt ?? Date()
+        let distance = liveDistanceM
+        let route = storeRoute ? coords : []
+        let src = source
+        let purpose = presetPurpose
+        let propertyId = presetPropertyId
+        let note = presetNote
+        let inquiryId = presetInquiryId
+        presetPurpose = nil
+        presetPropertyId = nil
+        presetNote = nil
+        presetInquiryId = nil
+        isRunning = false
+        startedAt = nil
+        liveDistanceM = 0
+        clearRunning()
+
+        // Auto-detected shuffles below the threshold are dropped silently;
+        // a manual trip is always kept (the driver meant it).
+        if src == "AUTO", distance < minimumTripMeters { return }
+
+        let body = TripCompleteBody(
+            started_at: started,
+            ended_at: max(ended, started.addingTimeInterval(60)),
+            start_lat: route.first?.latitude ?? coords.first?.latitude,
+            start_lng: route.first?.longitude ?? coords.first?.longitude,
+            end_lat: coords.last?.latitude,
+            end_lng: coords.last?.longitude,
+            distance_m: distance,
+            route_polyline: route.isEmpty ? nil : Polyline.encode(route),
+            source: src,
+            purpose: purpose,
+            property_id: propertyId,
+            note: note,
+            inquiry_id: inquiryId
+        )
+        Task { @MainActor in
+            await self.upload(body)
+            await self.refreshOpen()
+        }
+    }
+
+    private func armStillnessTimer() {
+        guard stillnessTimer == nil else { return }
+        stillnessTimer = Timer.scheduledTimer(withTimeInterval: stillnessLimit, repeats: false) {
+            [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.isRunning else { return }
+                if let last = self.lastMovementAt, Date().timeIntervalSince(last) >= self.stillnessLimit {
+                    self.finish()
+                } else {
+                    self.stillnessTimer = nil
+                }
+            }
+        }
+    }
+
+    // MARK: Upload + pending queue
+
+    private static let log = Logger(subsystem: "com.wagner-hausverwaltung.portal", category: "trips")
+
+    private func upload(_ body: TripCompleteBody) async {
+        do {
+            _ = try await api.completeTrip(body)
+        } catch {
+            // Offline or server hiccup: keep it, retry on next bootstrap/stop.
+            Self.log.error("trip upload failed: \(String(describing: error), privacy: .public)")
+            var queue = loadPending()
+            queue.append(body)
+            savePending(queue)
+            lastError = "Fahrt gespeichert, Upload folgt bei Verbindung."
+        }
+    }
+
+    func flushPending() async {
+        var queue = loadPending()
+        guard !queue.isEmpty else { return }
+        var remaining: [TripCompleteBody] = []
+        for body in queue {
+            do {
+                _ = try await api.completeTrip(body)
+            } catch {
+                Self.log.error("pending trip upload failed: \(String(describing: error), privacy: .public)")
+                remaining.append(body)
+            }
+        }
+        queue = remaining
+        savePending(queue)
+        if remaining.isEmpty { lastError = nil }
+    }
+
+    private func loadPending() -> [TripCompleteBody] {
+        guard let data = defaults.data(forKey: Keys.pending),
+              let list = try? JSONDecoder.iso.decode([TripCompleteBody].self, from: data)
+        else { return [] }
+        return list
+    }
+
+    private func savePending(_ list: [TripCompleteBody]) {
+        defaults.set(try? JSONEncoder.iso.encode(list), forKey: Keys.pending)
+        pendingUploads = list.count
+        pending = list
+    }
+
+    /// Drop one queued trip (a test drive that should never be uploaded).
+    func discardPending(startedAt: Date) {
+        savePending(loadPending().filter { $0.started_at != startedAt })
+    }
+
+    /// Confirm a queued trip before it is uploaded — it then arrives on the
+    /// server as CONFIRMED, same as a trip confirmed after upload.
+    func updatePending(startedAt: Date, purpose: String?, propertyId: String?, note: String?) {
+        var queue = loadPending()
+        guard let i = queue.firstIndex(where: { $0.started_at == startedAt }) else { return }
+        queue[i].purpose = purpose
+        queue[i].property_id = propertyId
+        queue[i].note = note
+        savePending(queue)
+    }
+
+    /// Try the queue again right now (button in "Meine Fahrten").
+    func retryPending() async {
+        await flushPending()
+        await refreshOpen()
+    }
+
+    // MARK: Open trips (need purpose/property)
+
+    func refreshOpen() async {
+        guard isAvailable else { return }
+        do {
+            openTrips = try await api.getMyTrips(status: "OPEN")
+        } catch {
+            // Not worth surfacing — the badge just stays stale.
+        }
+    }
+
+    // MARK: Running-state persistence (survives app kill)
+
+    private struct RunningSnapshot: Codable {
+        var startedAt: Date
+        var source: String
+        var distanceM: Int
+        var coords: [[Double]]
+        // Presets survive an app kill too (optional: older snapshots lack them).
+        var presetPurpose: String? = nil
+        var presetPropertyId: String? = nil
+        var presetNote: String? = nil
+        var presetInquiryId: String? = nil
+    }
+
+    private func persistRunning() {
+        guard let started = startedAt else { return }
+        let snap = RunningSnapshot(
+            startedAt: started,
+            source: source,
+            distanceM: liveDistanceM,
+            coords: coords.map { [$0.latitude, $0.longitude] },
+            presetPurpose: presetPurpose,
+            presetPropertyId: presetPropertyId,
+            presetNote: presetNote,
+            presetInquiryId: presetInquiryId
+        )
+        defaults.set(try? JSONEncoder.iso.encode(snap), forKey: Keys.running)
+    }
+
+    private func clearRunning() {
+        defaults.removeObject(forKey: Keys.running)
+    }
+
+    private func restoreRunningIfAny() {
+        guard let data = defaults.data(forKey: Keys.running),
+              let snap = try? JSONDecoder.iso.decode(RunningSnapshot.self, from: data)
+        else { return }
+        // Older than 6 h = the app died mid-trip long ago; close it as-is.
+        if Date().timeIntervalSince(snap.startedAt) > 6 * 3600 {
+            clearRunning()
+            return
+        }
+        isRunning = true
+        startedAt = snap.startedAt
+        source = snap.source
+        liveDistanceM = snap.distanceM
+        presetPurpose = snap.presetPurpose
+        presetPropertyId = snap.presetPropertyId
+        presetNote = snap.presetNote
+        presetInquiryId = snap.presetInquiryId
+        coords = snap.coords.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil }
+        lastMovementAt = Date()
+        location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        location.distanceFilter = 25
+        if location.authorizationStatus == .authorizedAlways {
+            location.allowsBackgroundLocationUpdates = true
+        }
+        location.startUpdatingLocation()
+        startLiveActivity()
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+
+extension TripTracker: CLLocationManagerDelegate {
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            self.authorization = status
+            if status == .authorizedAlways, self.isRunning {
+                self.location.allowsBackgroundLocationUpdates = true
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor in
+            for loc in locations where loc.horizontalAccuracy >= 0 && loc.horizontalAccuracy <= 65 {
+                guard self.isRunning else {
+                    // Idle: keep the latest fix (proximity ranking, delay
+                    // notice) but accumulate nothing — motion decides if a
+                    // drive starts.
+                    self.lastLocation = loc
+                    continue
+                }
+                if let prev = self.lastLocation {
+                    let d = loc.distance(from: prev)
+                    if d >= 10 {
+                        self.liveDistanceM += Int(d.rounded())
+                        self.lastMovementAt = loc.timestamp
+                        self.stillnessTimer?.invalidate()
+                        self.stillnessTimer = nil
+                    }
+                } else {
+                    self.lastMovementAt = loc.timestamp
+                }
+                self.lastLocation = loc
+                self.coords.append(loc.coordinate)
+                if self.coords.count % 10 == 0 { self.persistRunning() }
+                self.updateLiveActivity()
+                // Near an object: the next 2 quiet minutes mean "arrived".
+                // (With distanceFilter set, silence IS standing still.)
+                if self.nearbyProperty(loc) != nil { self.armArrivalTimer() } else {
+                    self.arrivalTimer?.invalidate()
+                    self.arrivalTimer = nil
+                }
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in self.lastError = error.localizedDescription }
+    }
+}
+
+// MARK: - ISO coders for local persistence
+
+extension JSONEncoder {
+    static let iso: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+}
+
+extension JSONDecoder {
+    static let iso: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+}

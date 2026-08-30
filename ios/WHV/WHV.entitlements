@@ -13,5 +13,11 @@
 	     the backend routes to the right APNs host. -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- CarPlay "Driving Task" — granted by Apple on 2026-08-23 (Case-ID
+	     21774792, see infra/docs/carplay-entitlement-request.md). Drives the
+	     CPTemplateApplicationScene in WHV/CarPlay/. The App ID carries the
+	     managed capability; automatic signing picks it up. -->
+	<key>com.apple.developer.carplay-driving-task</key>
+	<true/>
 </dict>
 </plist>
