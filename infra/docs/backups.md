@@ -1,12 +1,17 @@
 # Database backups
 
-## Current setup (2026-05-24)
+## Current setup (2026-05-24, prod ergänzt 2026-08-30)
 
-- **Frequency**: daily at 03:00 UTC
-- **Mechanism**: systemd timer `whv-backup.timer` invokes `/usr/local/bin/backup-postgres.sh`, which runs `pg_dump` inside the running `postgres` container
+- **Frequency**: daily at 03:00 UTC, **beide Hosts** (staging + prod)
+- **Mechanism**: systemd timer `whv-backup.timer` invokes `/usr/local/bin/backup-postgres.sh`, which runs `pg_dump` inside the running `postgres` container. The script waits up to 5 min for `pg_isready` first — the timer can re-fire right after a boot (`Persistent` + `RandomizedDelaySec`) while the container is still starting.
+- **Host selection**: the script defaults to the staging compose overlay; prod overrides via drop-in `/etc/systemd/system/whv-backup.service.d/prod.conf` (`COMPOSE_OVERLAY=docker-compose.prod.yml`, own `RCLONE_REMOTE`).
 - **Format**: gzipped SQL (`pg_dump --no-owner --no-privileges` + `gzip -9`)
-- **Local copy**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz` on the staging server, 30-day retention, auto-pruned by the script
-- **Off-site copy** (DR): Backblaze B2 bucket `whv-staging-postgres-backups`, uploaded by `rclone` after each successful local write, same 30-day retention. Bucket is private, SSE-B2 encryption at rest, account key scoped read+write to this bucket only (no `listAllBucketNames`).
+- **Local copy**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz`, 30-day retention, auto-pruned by the script
+- **Off-site copy** (DR): Backblaze B2, uploaded by `rclone` after each successful local write, same 30-day retention.
+  - staging: bucket `whv-staging-postgres-backups` — läuft. Bucket is private, SSE-B2 encryption at rest, account key scoped read+write to this bucket only (no `listAllBucketNames`).
+  - **prod: NOCH OFFEN** — auf prod ist kein rclone/`/etc/rclone.conf` eingerichtet; das Skript loggt das und macht nur das lokale Backup. TODO: B2-Bucket `whv-prod-postgres-backups` + scoped key anlegen, `rclone` installieren, `/etc/rclone.conf` befüllen — dann läuft der Upload ohne weitere Änderung mit.
+- **Nicht abgedeckt**: die RAG-`vectordb` (eigener Postgres-Container). Bewusst — der Index ist aus den Dokumenten reproduzierbar (Backfill-Rezept in den RAG-Notizen).
+- **Historie**: Bis 2026-08-30 lief das Backup **nur auf staging** — prod (die echten Daten!) hatte keins. Aufgefallen beim Auto-Reboot-Echttest, seitdem läuft es auf beiden Hosts.
 
 ## Install (already done on staging)
 

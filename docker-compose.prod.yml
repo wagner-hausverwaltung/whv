@@ -28,10 +28,15 @@ services:
 
   # `!reset []` clears the base host-port mappings so postgres/redis/backend
   # are reachable only on the internal docker network (Caddy fronts 80/443).
+  # restart: unless-stopped also on the stores — without it a host reboot
+  # left postgres/redis dead (staging proved it 2026-08-30; prod had the
+  # identical gap).
   postgres:
     ports: !reset []
+    restart: unless-stopped
   redis:
     ports: !reset []
+    restart: unless-stopped
   # Only runs when the `rag` profile is enabled (ADR-0013). When it does,
   # keep it off the public internet + auto-restart like the other stores.
   vectordb:

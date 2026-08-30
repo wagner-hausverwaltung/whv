@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily WHV staging Postgres backup
+Description=Daily WHV Postgres backup
 Requires=whv-backup.service
 
 [Timer]

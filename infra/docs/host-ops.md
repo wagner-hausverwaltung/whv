@@ -165,3 +165,65 @@ meldet „reboot pending", den Zeitpunkt wählt ein Mensch) und Paketen in
 Ubuntus **Phasing** (kommen von selbst). Zurückdrehen: Origin-Zeile aus dem
 Drop-in löschen; `live-restore` kann bleiben, es ist auch solo eine
 Verbesserung.
+
+## Auch Reboots laufen jetzt automatisch — nachts um 06:00 (beide Hosts, 2026-08-30)
+
+Der letzte manuelle Rest fällt weg. Beide Hosts prüfen jede Nacht um **06:00
+deutscher Zeit**, ob ein Update einen Neustart verlangt, starten dann neu und
+prüfen sich danach selbst — eine Mail kommt **nur, wenn danach etwas nicht
+läuft**. Läuft alles: Stille.
+
+Quelle ist das Repo **`slr-pipeline`** (Commit d547146), Installation per
+`scripts/install-auto-reboot.sh root@HOST` (idempotent, setzt installiertes
+host-health voraus). Drei Teile:
+
+* `auto-reboot.timer` → `auto-reboot` (06:00 Europe/Berlin, `Persistent=false`
+  — ein verpasster Lauf holt den Reboot **nicht** zu einer Überraschungszeit
+  nach, er wartet auf die nächste Nacht). 06:00 liegt vor den apt-Läufen des
+  Tages und vor der 09:30-health-Mail: ein heute installierter Kernel rebootet
+  morgen früh, und die Morgenmail sieht schon den Zustand *nach* dem Reboot.
+  Rebootet wird **nur** bei `/var/run/reboot-required`; vorher schreibt das
+  Skript einen persistenten Marker (`/var/lib/host-health/reboot-verify-pending`,
+  inkl. auslösender Pakete). Kein Loop möglich — der Boot löscht das Flag.
+* `post-reboot-verify.service` (läuft beim Boot, nur wenn der Marker da ist):
+  wartet auf Docker, lässt die Container ansettlen (health=starting abwarten),
+  löscht den Marker und läuft `host-health --mail` — **Mail nur bei
+  WARN/FAIL**. Der Unit-Exit ist immer 0, damit die Folgenacht nicht „failed
+  units" meldet; die Mail ist der Alarmkanal.
+* Neuer Check `/etc/host-health/checks.d/50-healthz` auf beiden Hosts: die
+  **öffentliche** `/readyz`-URL (staging.api… bzw. api…) muss von der
+  Maschine selbst mit 200 antworten. Bewusst readyz statt healthz: readyz
+  pingt Postgres + Redis, healthz sagt auch dann „ok", wenn die Datenbank
+  tot ist (siehe unten — genau so passiert). Damit prüft sowohl die Nacht-
+  als auch die Nach-Reboot-Kontrolle den ganzen Pfad (Caddy, DNS, App, DB).
+
+**Der erste Echttest auf staging (2026-08-30) hat sofort zwei echte Löcher
+gefunden** — der Reboot lief, die Verify-Mail kam, und sie hatte recht:
+
+1. **postgres/redis/worker/beat kamen nach dem Reboot nicht wieder hoch.**
+   In den Compose-Overlays fehlte `restart: unless-stopped` für genau diese
+   Services (prod: postgres + redis genauso!). `/healthz` antwortete
+   trotzdem 200 — der Endpoint berührt die DB nicht. Fix: Overlays ergänzt
+   (staging + prod), auf beiden Hosts sofort per `docker update
+   --restart unless-stopped` live gesetzt, Probe auf `/readyz` umgestellt.
+   Jede frühere manuelle Reboot-Session hat das offenbar per Hand
+   ausgebügelt, ohne dass es je auffiel.
+2. **`whv-backup.service` feuerte beim Boot und scheiterte** (systemd-Eigenart:
+   `Persistent=true` + `RandomizedDelaySec` triggert beim Boot nach), weil
+   der postgres-Container noch nicht stand. Fix in
+   `infra/scripts/backup-postgres.sh`: bis zu 5 min auf `pg_isready`
+   warten statt sofort aufgeben — der Boot-Lauf ist dann einfach ein
+   zusätzliches (harmloses, atomares) Backup.
+
+Der **zweite** Echttest danach lief sauber durch: Reboot, alles kam von
+selbst wieder, Verify ok, Marker weg, keine Mail. Prod wurde bewusst
+**nicht** testweise rebootet — gleicher Code, gleiche Units, Policies live
+gesetzt.
+
+**Bekannte Grenze (Dead-Man):** bootet eine Maschine gar nicht mehr, schickt
+sie logischerweise auch keine Mail. Das fängt der externe
+`health-probe`-Workflow im whv-Repo (Probe von GitHub aus alle 30 min).
+Beide Timer feuern zeitgleich 06:00 — bewusst: staging und prod teilen keine
+Infrastruktur, und ein gleichzeitiger Ausfall fiele extern sofort auf.
+
+Zurückdrehen: `systemctl disable --now auto-reboot.timer post-reboot-verify.service`.
