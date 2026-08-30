@@ -9,7 +9,7 @@
 - **Local copy**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz`, 30-day retention, auto-pruned by the script
 - **Off-site copy** (DR): Backblaze B2, uploaded by `rclone` after each successful local write, same 30-day retention.
   - staging: bucket `whv-staging-postgres-backups` — läuft. Bucket is private, SSE-B2 encryption at rest, account key scoped read+write to this bucket only (no `listAllBucketNames`).
-  - **prod: NOCH OFFEN** — auf prod ist kein rclone/`/etc/rclone.conf` eingerichtet; das Skript loggt das und macht nur das lokale Backup. TODO: B2-Bucket `whv-prod-postgres-backups` + scoped key anlegen, `rclone` installieren, `/etc/rclone.conf` befüllen — dann läuft der Upload ohne weitere Änderung mit.
+  - prod: bucket `whv-prod-postgres-backup` (**Singular** — so wurde er angelegt, Buckets sind nicht umbenennbar; der systemd-Drop-in zeigt auf diesen Namen) — läuft seit 2026-08-30. Gleiche Härtung wie staging: private, SSE-B2, Key `whv-prod-backup` scoped auf nur diesen Bucket. Round-trip getestet (Upload → Download → sha256 identisch, gzip intakt).
 - **Nicht abgedeckt**: die RAG-`vectordb` (eigener Postgres-Container). Bewusst — der Index ist aus den Dokumenten reproduzierbar (Backfill-Rezept in den RAG-Notizen).
 - **Historie**: Bis 2026-08-30 lief das Backup **nur auf staging** — prod (die echten Daten!) hatte keins. Aufgefallen beim Auto-Reboot-Echttest, seitdem läuft es auf beiden Hosts.
 
