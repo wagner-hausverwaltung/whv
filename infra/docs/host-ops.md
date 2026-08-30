@@ -141,3 +141,27 @@ eigene Unit wird aus der Liste gefiltert (überschreibbar per `HOST_HEALTH_UNIT`
 andere failed units zählen unverändert. Test deckt beide Fälle ab. Das Skript
 liegt auf den Hosts unter `/usr/local/sbin/host-health` und wurde dort ersetzt —
 bei einem erneuten `install-host-health.sh` kommt es ohnehin aus dem Repo.
+
+## Auch Docker-Updates laufen jetzt automatisch (beide Hosts, 2026-08-30)
+
+`containerd.io`/`docker-ce` kommen aus Dockers eigenem Repo und blieben beim
+Umbau vom 2026-08-28 bewusst manuell — ein dockerd-Neustart hätte damals alle
+Container mitgerissen. Zwei Ergänzungen heben das auf:
+
+* `/etc/docker/daemon.json` → `{"live-restore": true}` — per `systemctl reload
+  docker` (SIGHUP) aktiviert, **ohne** Container-Neustart. dockerd-Neustarts
+  lassen laufende Container seither weiter; containerd-Updates konnten das
+  über die shim-Architektur ohnehin.
+* Drop-in `52whv-unattended-updates` um die Origin
+  `"Docker:${distro_codename}"` ergänzt (Origin „Docker" laut Release-File
+  des Repos).
+
+**Echttest auf beiden Hosts** (nicht nur dry-run): containerd.io 2.3.3→2.3.4
+wurde von `unattended-upgrade` installiert, alle Container liefen mit
+unveränderter Uptime durch, `healthz` vor/nach 200, verdict beidseitig ok.
+
+Damit ist ALLES automatisch außer **Reboots** (bewusst manuell — host-health
+meldet „reboot pending", den Zeitpunkt wählt ein Mensch) und Paketen in
+Ubuntus **Phasing** (kommen von selbst). Zurückdrehen: Origin-Zeile aus dem
+Drop-in löschen; `live-restore` kann bleiben, es ist auch solo eine
+Verbesserung.
