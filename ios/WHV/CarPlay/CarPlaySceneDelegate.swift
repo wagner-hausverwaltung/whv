@@ -40,6 +40,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     /// the stack back to the root.
     private var rootGridTemplate: CPGridTemplate?
     private var tripStateSubscription: AnyCancellable?
+    private var distanceSubscription: AnyCancellable?
     private var arrivalSubscription: AnyCancellable?
     private var connectedAt = Date()
 
@@ -66,6 +67,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refreshRoot() }
+        // Kilometres in the title while recording — throttled; the title is
+        // a glance surface, not an odometer.
+        distanceSubscription = tracker.$liveDistanceM
+            .removeDuplicates()
+            .throttle(for: .seconds(15), scheduler: RunLoop.main, latest: true)
+            .sink { [weak self] _ in self?.refreshTitle() }
         // Automatic arrival (geofence + 2 min standstill) → one alert with a
         // shortcut to the object page. Only arrivals from this session.
         arrivalSubscription = tracker.$lastArrival
@@ -96,6 +103,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
         startedTripOnConnect = false
         tripStateSubscription = nil
+        distanceSubscription = nil
         arrivalSubscription = nil
         rootGridTemplate = nil
         interface = nil
@@ -144,14 +152,26 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func gridButtons() -> [CPGridButton] {
         let tracker = TripTracker.shared
-        func button(_ title: String, _ symbol: String, _ action: @escaping () async -> Void) -> CPGridButton {
-            CPGridButton(titleVariants: [title], image: UIImage(systemName: symbol) ?? UIImage()) { _ in
+        let recording = tracker.isRunning
+        let scale = interface?.carTraitCollection.displayScale ?? 2
+        // Idle: plain SF Symbols, styled by the system. Recording: every tile
+        // becomes a filled WHV-blue square (stop tile red) — CarPlay lets us
+        // colour nothing but the button bitmaps, so the bitmaps carry the
+        // "Aufzeichnung läuft" state for the whole menu (see Tiles).
+        func button(
+            _ title: String, _ symbol: String, tint: UIColor = Tiles.whvBlue,
+            _ action: @escaping () async -> Void
+        ) -> CPGridButton {
+            let image = recording
+                ? Tiles.filled(symbol, color: tint, scale: scale)
+                : (UIImage(systemName: symbol) ?? UIImage())
+            return CPGridButton(titleVariants: [title], image: image) { _ in
                 Task { @MainActor in await action() }
             }
         }
         return [
-            button(tracker.isRunning ? "Fahrt beenden" : "Fahrt starten",
-                   tracker.isRunning ? "stop.circle.fill" : "car.fill") { [weak self] in await self?.toggleTrip() },
+            button(recording ? "Fahrt beenden" : "Fahrt starten",
+                   recording ? "stop.fill" : "car.fill", tint: .systemRed) { [weak self] in await self?.toggleTrip() },
             button("Objekte", "building.2.fill") { [weak self] in await self?.showObjekte() },
             button("Besichtigung", "binoculars.fill") { [weak self] in await self?.showBesichtigungen() },
             button("Kontakte", "phone.fill") { [weak self] in await self?.showKontakteRoot() },
@@ -160,20 +180,72 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         ]
     }
 
+    /// "WHV" at rest; the recording state plus live kilometres while a trip
+    /// runs — the navigation-bar title is the one text CarPlay always shows.
+    private func gridTitle() -> String {
+        let tracker = TripTracker.shared
+        guard tracker.isRunning else { return "WHV" }
+        return "Fahrt läuft · \(TripFormat.km(tracker.liveDistanceM))"
+    }
+
     private func rootGrid() -> CPGridTemplate {
-        let grid = CPGridTemplate(title: "WHV", gridButtons: gridButtons())
+        let grid = CPGridTemplate(title: gridTitle(), gridButtons: gridButtons())
         rootGridTemplate = grid
         return grid
     }
 
-    /// Re-render the Fahrt button. In place when the grid is the live root
+    /// Re-render the tiles + title. In place when the grid is the live root
     /// (keeps whatever list the driver is looking at); a fresh root otherwise.
     private func refreshRoot() {
         guard let interface else { return }
         if let grid = rootGridTemplate, interface.rootTemplate === grid {
             grid.updateGridButtons(gridButtons())
+            grid.updateTitle(gridTitle())
         } else {
             interface.setRootTemplate(rootGrid(), animated: false, completion: nil)
+        }
+    }
+
+    private func refreshTitle() {
+        guard let grid = rootGridTemplate, interface?.rootTemplate === grid else { return }
+        grid.updateTitle(gridTitle())
+    }
+
+    /// Display-ready grid-button bitmaps. CarPlay draws the templates itself
+    /// (no background tint, no frame — verified against the CarPlay guide),
+    /// but shows button images as handed over; a filled tile in both light
+    /// and dark mode needs no variants.
+    private enum Tiles {
+        static let whvBlue = UIColor(red: 0.094, green: 0.388, blue: 0.863, alpha: 1)
+
+        static var size: CGSize {
+            if #available(iOS 26.0, *) { return CPGridTemplate.maximumGridButtonImageSize }
+            return CGSize(width: 40, height: 40)
+        }
+
+        /// Rounded square in `color` with a white SF Symbol, rendered at the
+        /// car screen's scale (CPGridButton sizes to carTraitCollection).
+        static func filled(_ symbol: String, color: UIColor, scale: CGFloat) -> UIImage {
+            let size = Self.size
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = scale
+            format.opaque = false
+            let config = UIImage.SymbolConfiguration(pointSize: size.height * 0.5, weight: .semibold)
+            let glyph = UIImage(systemName: symbol, withConfiguration: config)?
+                .withTintColor(.white, renderingMode: .alwaysOriginal)
+            return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                color.setFill()
+                UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height * 0.22).fill()
+                guard let glyph else { return }
+                // Symbol bounding boxes vary — fit into ~64 % of the tile.
+                let maxSide = size.height * 0.64
+                let k = min(maxSide / max(glyph.size.width, 1), maxSide / max(glyph.size.height, 1), 1)
+                let drawn = CGSize(width: glyph.size.width * k, height: glyph.size.height * k)
+                glyph.draw(in: CGRect(
+                    x: (size.width - drawn.width) / 2, y: (size.height - drawn.height) / 2,
+                    width: drawn.width, height: drawn.height
+                ))
+            }.withRenderingMode(.alwaysOriginal)
         }
     }
 
