@@ -69,7 +69,7 @@ private struct TripLockScreenView: View {
                 .font(.title2)
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Fahrt läuft · \(tripKm(context.state.distanceM))")
+                Text("Fahrt läuft · \(tripKm(context.state.distanceM)) · \(tripEur(context.state.distanceM))")
                     .font(.headline.monospacedDigit())
                 Text(context.state.destinationName.map { "Ziel: \($0)" } ?? "Ziel wird am Ende vorgeschlagen")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -89,6 +89,12 @@ private struct TripLockScreenView: View {
         }
         .padding(14)
     }
+}
+
+/// Kilometergeld at the 30 ct/km base (mirrors TripFormat.fare in the app).
+private func tripEur(_ m: Int) -> String {
+    let cents = Int((Double(m) / 1000 * 30).rounded())
+    return String(format: "%d,%02d €", cents / 100, cents % 100)
 }
 
 private func tripKm(_ m: Int) -> String {

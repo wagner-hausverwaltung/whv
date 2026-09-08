@@ -182,6 +182,17 @@ enum TripFormat {
         return String(format: "%.1f km", km).replacingOccurrences(of: ".", with: ",")
     }
 
+    /// Kilometergeld the live counters show while driving ("Taxameter":
+    /// km · Kosten). Server-side the rate is trip_rate_cents_per_km = 30;
+    /// the finished trip is priced there, this is the same base for the
+    /// running display.
+    static let liveRateCentsPerKm = 30
+
+    static func fare(_ meters: Int?) -> String {
+        let cents = Int((Double(meters ?? 0) / 1000 * Double(liveRateCentsPerKm)).rounded())
+        return eur(cents)
+    }
+
     static func eur(_ cents: Int) -> String {
         let f = NumberFormatter()
         f.numberStyle = .currency

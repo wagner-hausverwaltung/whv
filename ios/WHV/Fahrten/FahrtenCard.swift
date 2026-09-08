@@ -99,7 +99,7 @@ struct FahrtenCard: View {
                         Text("· automatisch").font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                Text("\(TripFormat.km(tracker.liveDistanceM)) · seit \(tracker.startedAt.map { $0.formatted(date: .omitted, time: .shortened) } ?? "—")")
+                Text("\(TripFormat.km(tracker.liveDistanceM)) · \(TripFormat.fare(tracker.liveDistanceM)) · seit \(tracker.startedAt.map { $0.formatted(date: .omitted, time: .shortened) } ?? "—")")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

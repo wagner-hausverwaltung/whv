@@ -185,7 +185,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func gridTitle() -> String {
         let tracker = TripTracker.shared
         guard tracker.isRunning else { return "WHV" }
-        return "Fahrt läuft · \(TripFormat.km(tracker.liveDistanceM))"
+        return "Fahrt läuft · \(TripFormat.km(tracker.liveDistanceM)) · \(TripFormat.fare(tracker.liveDistanceM))"
     }
 
     private func rootGrid() -> CPGridTemplate {
