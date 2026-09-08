@@ -43,6 +43,11 @@
 	<string>Für das Fahrtenbuch: Dienstfahrten auch im Hintergrund aufzeichnen, damit keine Fahrt verloren geht.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Für das Fahrtenbuch: Strecke der Dienstfahrt aufzeichnen und das Zielobjekt vorschlagen.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>Fahrtenbuch</key>
+		<string>Die Kilometer im Fahrtenbuch lassen sich nur mit dem genauen Standort messen.</string>
+	</dict>
 	<key>NSMotionUsageDescription</key>
 	<string>Erkennt, wenn Sie mit dem Auto unterwegs sind, um eine Dienstfahrt automatisch zu starten.</string>
 	<key>NSSupportsLiveActivities</key>

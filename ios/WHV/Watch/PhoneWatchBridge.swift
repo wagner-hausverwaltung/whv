@@ -83,7 +83,9 @@ final class PhoneWatchBridge: NSObject {
         var text = ""
         switch cmd {
         case "start":
-            if tracker.isRunning { text = "Fahrt läuft bereits." } else { tracker.startFromSiri(); text = "Fahrt gestartet." }
+            if tracker.isRunning { text = "Fahrt läuft bereits." }
+            else if tracker.startFromSiri() { text = "Fahrt gestartet." }
+            else { ok = false; text = tracker.locationProblem?.message ?? "Fahrt konnte nicht gestartet werden." }
         case "stop":
             if tracker.isRunning { tracker.stopManually(); text = "Fahrt beendet — Zweck in der App bestätigen." } else { text = "Keine Fahrt aktiv." }
         case "arrive":

@@ -29,7 +29,11 @@ struct DepartWHVIntent: AppIntent {
             }
             return .result(dialog: "Die Fahrt läuft bereits.")
         }
-        tracker.startFromSiri()
+        guard tracker.startFromSiri() else {
+            let why = tracker.locationProblem?.message
+                ?? String(localized: "Die Fahrt konnte nicht gestartet werden.")
+            return .result(dialog: IntentDialog("\(why)"))
+        }
         return .result(dialog: "Fahrt gestartet. Gute Fahrt!")
     }
 }

@@ -56,8 +56,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         connectedAt = Date()
         let tracker = TripTracker.shared
         tracker.refreshLocation()
-        if tracker.autoDetectEnabled, !tracker.isRunning {
-            tracker.startFromCarPlay()
+        if tracker.autoDetectEnabled, !tracker.isRunning, tracker.startFromCarPlay() {
             startedTripOnConnect = true
         }
         Task { await present() }
@@ -128,8 +127,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if !tracker.autoDetectEnabled, !tracker.isRunning {
             let start = CPAlertAction(title: "Starten", style: .default) { [weak self] _ in
                 self?.interface?.dismissTemplate(animated: true, completion: nil)
-                tracker.startFromCarPlay()
-                self?.startedTripOnConnect = true
+                if tracker.startFromCarPlay() {
+                    self?.startedTripOnConnect = true
+                } else {
+                    self?.locationDeniedAlert()
+                }
                 self?.refreshRoot()
             }
             alert("Fahrt starten?", "Die Strecke wird bis zum Abstecken aufgezeichnet.", actions: [start])
@@ -220,10 +222,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             } else {
                 await showPurposePicker()
             }
-        } else {
-            tracker.startFromCarPlay()
+        } else if tracker.startFromCarPlay() {
             alert("Fahrt läuft", "Die Strecke wird aufgezeichnet.")
             refreshRoot()
+        } else {
+            locationDeniedAlert()
         }
     }
 
@@ -511,8 +514,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         fahrt.setImage(UIImage(systemName: "car.fill"))
         fahrt.handler = { [weak self] _, completion in
             if !tracker.isRunning {
-                tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY")
-                self?.alert("Fahrt läuft", "\(p.name) — die Fahrt wird aufgezeichnet.")
+                if tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY") {
+                    self?.alert("Fahrt läuft", "\(p.name) — die Fahrt wird aufgezeichnet.")
+                } else {
+                    self?.locationDeniedAlert()
+                }
                 self?.refreshRoot()
             }
             completion()
@@ -624,10 +630,20 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if tracker.isRunning {
             tracker.setDestination(propertyId: p.id)
         } else {
-            tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY")
+            if !tracker.startWithPreset(purpose: purpose, propertyId: p.id, source: "CARPLAY") {
+                locationDeniedAlert()
+            }
             refreshRoot()
         }
         navigate(to: p)
+    }
+
+    /// The trip refused to start because the phone has no location access —
+    /// the fix lives on the iPhone, so say exactly that.
+    private func locationDeniedAlert() {
+        let why = TripTracker.shared.locationProblem?.message
+            ?? "Standortzugriff für WHV ist aus."
+        alert("Keine Fahrt möglich", "\(why) Auf dem iPhone: Einstellungen › WHV › Standort.")
     }
 
     private func openMaps(_ coord: CLLocationCoordinate2D, name: String) {
@@ -686,10 +702,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     note: "Besichtigung (Anfrage): \(address)", purpose: "BESICHTIGUNG"
                 )
             } else {
-                tracker.startWithPreset(
+                let started = tracker.startWithPreset(
                     purpose: "BESICHTIGUNG", propertyId: nil, source: "CARPLAY",
                     note: "Besichtigung (Anfrage): \(address)", inquiryId: inq.id
                 )
+                if !started { self?.locationDeniedAlert() }
                 self?.refreshRoot()
             }
             Task { @MainActor in await self?.navigate(toAddress: address) }
@@ -703,11 +720,15 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             if !tracker.isRunning {
                 // Linked to the inquiry: the Anfrage shows "besichtigt am …"
                 // in the app and the admin portal once the trip is uploaded.
-                tracker.startWithPreset(
+                let started = tracker.startWithPreset(
                     purpose: "BESICHTIGUNG", propertyId: nil, source: "CARPLAY",
                     note: "Besichtigung (Anfrage): \(address)", inquiryId: inq.id
                 )
-                self?.alert("Besichtigung läuft", "\(address) — die Fahrt wird aufgezeichnet.")
+                if started {
+                    self?.alert("Besichtigung läuft", "\(address) — die Fahrt wird aufgezeichnet.")
+                } else {
+                    self?.locationDeniedAlert()
+                }
                 self?.refreshRoot()
             }
             completion()

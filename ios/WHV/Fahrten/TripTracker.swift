@@ -37,6 +37,58 @@ final class TripTracker: NSObject, ObservableObject {
     @Published private(set) var openTrips: [TripResponse] = []
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var lastError: String?
+    /// Why no positions can arrive right now — the card and Einstellungen
+    /// turn this into a hint with a jump to the system settings. nil = fine
+    /// (or not asked yet: `notDetermined` is a prompt, not a problem).
+    @Published private(set) var locationProblem: LocationProblem?
+
+    enum LocationProblem: Equatable {
+        /// Access denied by the user, restricted by MDM/parental controls, or
+        /// Location Services off system-wide (CoreLocation reports all three
+        /// as `denied`).
+        case denied
+        /// Authorised, but "Genauer Standort" is off: fixes come with ~km
+        /// accuracy and every one of them fails the 65 m filter — a trip
+        /// would silently record 0 km.
+        case reducedAccuracy
+
+        var message: String {
+            switch self {
+            case .denied:
+                return String(localized: "Standortzugriff für WHV ist aus — ohne ihn kann keine Fahrt aufgezeichnet werden.")
+            case .reducedAccuracy:
+                return String(localized: "„Genauer Standort“ ist aus — die Strecke kann so nicht gemessen werden.")
+            }
+        }
+    }
+
+    /// Pure mapping so the rules are testable without a CLLocationManager.
+    static func locationProblem(
+        status: CLAuthorizationStatus, accuracy: CLAccuracyAuthorization
+    ) -> LocationProblem? {
+        switch status {
+        case .denied, .restricted:
+            return .denied
+        case .authorizedAlways, .authorizedWhenInUse:
+            return accuracy == .reducedAccuracy ? .reducedAccuracy : nil
+        default:
+            return nil
+        }
+    }
+
+    /// What the driver should read instead of "kCLErrorDomain-Fehler 1".
+    /// nil = not worth showing (`locationUnknown` is CoreLocation's
+    /// "still searching", it resolves on its own).
+    static func failureMessage(for code: CLError.Code?) -> String? {
+        switch code {
+        case .locationUnknown?:
+            return nil
+        case .denied?:
+            return LocationProblem.denied.message
+        default:
+            return String(localized: "Standort gerade nicht verfügbar — die Aufzeichnung läuft weiter, sobald ein Signal da ist.")
+        }
+    }
     @Published private(set) var pendingUploads: Int = 0
     /// Finished trips the server hasn't accepted yet (offline, outage) —
     /// shown in "Meine Fahrten" so the driver can drop a test drive or retry.
@@ -115,6 +167,9 @@ final class TripTracker: NSObject, ObservableObject {
         location.pausesLocationUpdatesAutomatically = false
         location.activityType = .automotiveNavigation
         authorization = location.authorizationStatus
+        locationProblem = Self.locationProblem(
+            status: location.authorizationStatus, accuracy: location.accuracyAuthorization
+        )
     }
 
     // MARK: Lifecycle
@@ -156,10 +211,14 @@ final class TripTracker: NSObject, ObservableObject {
 
     // MARK: Manual control
 
-    func startManually() {
-        guard !isRunning else { return }
+    /// False when the trip could not start because location is denied —
+    /// `locationProblem` then says why, and the caller tells the driver.
+    @discardableResult
+    func startManually() -> Bool {
+        guard !isRunning, canStart() else { return false }
         requestAuthorization()
         begin(source: "MANUAL")
+        return true
     }
 
     func stopManually() {
@@ -172,17 +231,19 @@ final class TripTracker: NSObject, ObservableObject {
     /// Start a trip that is already known to be, e.g., a Besichtigung at a
     /// given property — or at a prospect (`inquiryId`) that has no property
     /// yet. The trip uploads CONFIRMED with these values.
+    @discardableResult
     func startWithPreset(
         purpose: String, propertyId: String?, source: String, note: String? = nil,
         inquiryId: String? = nil
-    ) {
-        guard !isRunning else { return }
+    ) -> Bool {
+        guard !isRunning, canStart() else { return false }
         presetPurpose = purpose
         presetPropertyId = propertyId
         presetNote = note
         presetInquiryId = inquiryId
         requestAuthorization()
         begin(source: source)
+        return true
     }
 
 
@@ -211,10 +272,12 @@ final class TripTracker: NSObject, ObservableObject {
     }
 
     /// "Hey Siri, WHV Abfahrt": start a trip by voice (MANUAL source).
-    func startFromSiri() {
-        guard !isRunning else { return }
+    @discardableResult
+    func startFromSiri() -> Bool {
+        guard !isRunning, canStart() else { return false }
         requestAuthorization()
         begin(source: "MANUAL")
+        return true
     }
 
     /// "Hey Siri, WHV Ankunft": end the running trip right here. Object =
@@ -248,9 +311,11 @@ final class TripTracker: NSObject, ObservableObject {
 
     /// Connecting the car = the drive begins. Source CARPLAY so the log shows
     /// how the trip was captured.
-    func startFromCarPlay() {
-        guard !isRunning else { return }
+    @discardableResult
+    func startFromCarPlay() -> Bool {
+        guard !isRunning, canStart() else { return false }
         begin(source: "CARPLAY")
+        return true
     }
 
     func stopFromCarPlay() {
@@ -277,6 +342,29 @@ final class TripTracker: NSObject, ObservableObject {
         autoDetectEnabled && authorization != .authorizedAlways
     }
 
+    /// Denied/restricted means CoreLocation will deliver nothing but an
+    /// error — don't even start. `notDetermined` passes: the prompt comes
+    /// with the first `startUpdatingLocation`, and a refusal ends the trip
+    /// through `didFailWithError`.
+    private func canStart() -> Bool {
+        let problem = Self.locationProblem(
+            status: location.authorizationStatus, accuracy: location.accuracyAuthorization
+        )
+        locationProblem = problem
+        return problem != .denied
+    }
+
+    private func handleLocationFailure(_ code: CLError.Code?) {
+        if code == .denied {
+            locationProblem = .denied
+            // Nothing recorded yet → a 0-km trip would only be noise; with
+            // fixes on file (access revoked mid-drive) keep what we have.
+            if isRunning { coords.isEmpty ? abort() : finish() }
+            return
+        }
+        if let text = Self.failureMessage(for: code) { lastError = text }
+    }
+
     // MARK: Automatic detection
 
     private func enableAutoDetection() {
@@ -299,7 +387,7 @@ final class TripTracker: NSObject, ObservableObject {
     private func handle(activity a: CMMotionActivity) {
         if a.automotive, a.confidence != .low {
             lastMovementAt = Date()
-            if !isRunning { begin(source: "AUTO") }
+            if !isRunning, canStart() { begin(source: "AUTO") }
         } else if isRunning, a.stationary, a.confidence == .high {
             // Standstill — the timer decides whether it's a red light or the end.
             armStillnessTimer()
@@ -321,6 +409,11 @@ final class TripTracker: NSObject, ObservableObject {
         location.distanceFilter = 25
         if location.authorizationStatus == .authorizedAlways {
             location.allowsBackgroundLocationUpdates = true
+        }
+        if location.accuracyAuthorization == .reducedAccuracy {
+            // "Genauer Standort" off: ask for it for this session (purpose
+            // key lives in NSLocationTemporaryUsageDescriptionDictionary).
+            location.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "Fahrtenbuch")
         }
         location.startUpdatingLocation()
         persistRunning()
@@ -503,6 +596,28 @@ final class TripTracker: NSObject, ObservableObject {
         }
     }
 
+    /// Drop the running trip without uploading anything — used when location
+    /// access is refused before a single fix arrived.
+    private func abort() {
+        guard isRunning else { return }
+        location.stopUpdatingLocation()
+        location.allowsBackgroundLocationUpdates = false
+        stillnessTimer?.invalidate()
+        stillnessTimer = nil
+        arrivalTimer?.invalidate()
+        arrivalTimer = nil
+        endLiveActivity()
+        presetPurpose = nil
+        presetPropertyId = nil
+        presetNote = nil
+        presetInquiryId = nil
+        isRunning = false
+        startedAt = nil
+        liveDistanceM = 0
+        coords = []
+        clearRunning()
+    }
+
     private func armStillnessTimer() {
         guard stillnessTimer == nil else { return }
         stillnessTimer = Timer.scheduledTimer(withTimeInterval: stillnessLimit, repeats: false) {
@@ -665,8 +780,10 @@ final class TripTracker: NSObject, ObservableObject {
 extension TripTracker: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
+        let accuracy = manager.accuracyAuthorization
         Task { @MainActor in
             self.authorization = status
+            self.locationProblem = Self.locationProblem(status: status, accuracy: accuracy)
             if status == .authorizedAlways, self.isRunning {
                 self.location.allowsBackgroundLocationUpdates = true
             }
@@ -709,7 +826,8 @@ extension TripTracker: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in self.lastError = error.localizedDescription }
+        let code = (error as? CLError)?.code
+        Task { @MainActor in self.handleLocationFailure(code) }
     }
 }
 

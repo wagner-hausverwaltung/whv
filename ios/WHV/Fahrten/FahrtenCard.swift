@@ -70,7 +70,9 @@ struct FahrtenCard: View {
                 Text("\(tracker.pendingUploads) Fahrt(en) warten auf Upload.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
-            if let err = tracker.lastError {
+            if tracker.locationProblem != nil {
+                LocationProblemRow()
+            } else if let err = tracker.lastError {
                 Text(err).font(.caption2).foregroundStyle(.secondary)
             }
         }
@@ -116,7 +118,7 @@ struct FahrtenCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tracker.autoDetectEnabled ? "Fahrten werden automatisch erkannt" : "Keine Fahrt aktiv")
                     .font(.subheadline)
-                if tracker.needsAlwaysForAutoDetect {
+                if tracker.needsAlwaysForAutoDetect, tracker.locationProblem == nil {
                     Text("Für die Erkennung im Hintergrund Standort auf „Immer“ stellen.")
                         .font(.caption2).foregroundStyle(.orange)
                 }
@@ -128,6 +130,28 @@ struct FahrtenCard: View {
                 Label("Fahrt starten", systemImage: "play.fill")
             }
             .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+/// "Standort ist aus" with a jump into the system settings. Observes the
+/// tracker itself so it can sit inside views that only hold bindings
+/// (Einstellungen) and still disappear the moment access is granted.
+struct LocationProblemRow: View {
+    @ObservedObject private var tracker = TripTracker.shared
+
+    var body: some View {
+        if let problem = tracker.locationProblem {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(problem.message, systemImage: "location.slash")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Button("Einstellungen öffnen") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(.caption.weight(.semibold))
+            }
         }
     }
 }

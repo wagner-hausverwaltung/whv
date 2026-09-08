@@ -353,6 +353,7 @@ struct EinstellungenView: View {
                 set: { TripTracker.shared.storeRoute = $0 }
             ))
             NavigationLink("Meine Fahrten") { FahrtenListView() }
+            LocationProblemRow()
         } header: {
             Text("Fahrtenbuch")
         } footer: {

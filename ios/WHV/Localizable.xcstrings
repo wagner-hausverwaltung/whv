@@ -1321,6 +1321,16 @@
         }
       }
     },
+    "Die Fahrt konnte nicht gestartet werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The trip could not be started."
+          }
+        }
+      }
+    },
     "Die Fahrt läuft bereits seit %@." : {
       "localizations" : {
         "en" : {
@@ -1670,6 +1680,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Settings"
+          }
+        }
+      }
+    },
+    "Einstellungen öffnen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
           }
         }
       }
@@ -4131,6 +4151,26 @@
         }
       }
     },
+    "Standort gerade nicht verfügbar — die Aufzeichnung läuft weiter, sobald ein Signal da ist." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location currently unavailable — recording continues as soon as there is a signal."
+          }
+        }
+      }
+    },
+    "Standortzugriff für WHV ist aus — ohne ihn kann keine Fahrt aufgezeichnet werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location access for WHV is off — no trip can be recorded without it."
+          }
+        }
+      }
+    },
     "Start" : {
       "localizations" : {
         "en" : {
@@ -5324,6 +5364,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@”"
+          }
+        }
+      }
+    },
+    "„Genauer Standort“ ist aus — die Strecke kann so nicht gemessen werden." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Precise Location” is off — the distance can’t be measured this way."
           }
         }
       }
