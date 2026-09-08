@@ -4,7 +4,7 @@
 
 - **Frequency**: daily at 03:00 UTC, **beide Hosts** (staging + prod)
 - **Mechanism**: systemd timer `whv-backup.timer` invokes `/usr/local/bin/backup-postgres.sh`, which runs `pg_dump` inside the running `postgres` container. The script waits up to 5 min for `pg_isready` first — the timer can re-fire right after a boot (`Persistent` + `RandomizedDelaySec`) while the container is still starting.
-- **Host selection**: the script defaults to the staging compose overlay; prod overrides via drop-in `/etc/systemd/system/whv-backup.service.d/prod.conf` (`COMPOSE_OVERLAY=docker-compose.prod.yml`, own `RCLONE_REMOTE`).
+- **Host selection**: the script defaults to the staging compose overlay; prod overrides via drop-in `/etc/systemd/system/whv-backup.service.d/prod.conf` (`COMPOSE_OVERLAY=docker-compose.prod.yml`, own `RCLONE_REMOTE`). The drop-in ships in the repo — `infra/systemd/whv-backup-prod.conf` — so it survives a box rebuild: `install -D -m 644 infra/systemd/whv-backup-prod.conf /etc/systemd/system/whv-backup.service.d/prod.conf && systemctl daemon-reload`.
 - **Format**: gzipped SQL (`pg_dump --no-owner --no-privileges` + `gzip -9`)
 - **Local copy**: `/var/backups/postgres/whv-YYYY-MM-DD.sql.gz`, 30-day retention, auto-pruned by the script
 - **Off-site copy** (DR): Backblaze B2, uploaded by `rclone` after each successful local write, same 30-day retention.
